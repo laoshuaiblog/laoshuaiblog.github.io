@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>MySQL优化大总结 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/750db0e8a8a619a06ae14f5c1dba8e12/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="MySQL优化大总结">
+  <meta property="og:description" content="一、MySQL层优化应遵循的五条原则 1.1、减少数据访问： 设置合理的字段类型，启用压缩，通过索引访问等减少磁盘IO；
+1.2、返回更少的数据： 只返回需要的字段和数据分页处理 减少磁盘IO及网络IO；
+1.3、减少交互次数： 批量DML操作，函数存储等减少数据连接次数；
+DML（Data Manipulation Language）语句： 即数据操纵语句，用来查询、添加、更新、删除等
+1.4、减少服务器CPU开销： 尽量减少数据库排序操作以及全表查询，减少CPU内存占用；
+1.5、利用更多资源： 使用表分区，可以增加并行操作，更大限度利用CPU资源。
+二、SELECT语句-语法/执行顺序 2.1 语法顺序 SELECT
+DISTINCT &amp;lt;select_list&amp;gt;
+FROM &amp;lt;left_table&amp;gt;
+&amp;lt;join_type&amp;gt; JOIN &amp;lt;right_table&amp;gt;
+ON &amp;lt;join_condition&amp;gt;
+WHERE &amp;lt;where_condition&amp;gt;
+GROUP BY &amp;lt;group_by_list&amp;gt;
+HAVING &amp;lt;having_condition&amp;gt;
+ORDER BY &amp;lt;order_by_condition&amp;gt;
+LIMIT &amp;lt;limit_number&amp;gt;
+2.2 执行顺序 SELECT执行顺序 顺序关键字描述1FROM&amp;lt;表名&amp;gt; # 选取表，将多个表数据通过笛卡尔积变成一个表。2ON&amp;lt;筛选条件&amp;gt; # 对笛卡尔积的虚表进行筛选3JOIN&amp;lt;join, left join, right join...&amp;gt;&amp;lt;join表&amp;gt; # 指定join，用于添加数据到on之后的虚表中，例如left join会将左表的剩余数据添加到虚表中4WHERE&amp;lt;where条件&amp;gt; # 对上述虚表进行筛选5GROUP BY&amp;lt;分组条件&amp;gt; # 分组6&amp;lt;SUM()等聚合函数&amp;gt;# 用于having子句进行判断，在书写上这类聚合函数是写在having判断里面的7HAVING&amp;lt;分组筛选&amp;gt; # 对分组后的结果进行聚合筛选8SELECT&amp;lt;返回数据列表&amp;gt; # 返回的单列必须在group by子句中，聚合函数除外9DISTINCT# 数据除重10ORDER BY&amp;lt;排序条件&amp;gt; # 排序11LIMIT&amp;lt;行数限制&amp;gt; 三、基础 SQL优化 3.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2024-03-11T17:20:36+08:00">
+    <meta property="article:modified_time" content="2024-03-11T17:20:36+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">MySQL优化大总结</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <h2>一、MySQL层优化应遵循的五条原则</h2> 
+<p>1.1、减少数据访问： 设置合理的字段类型，启用压缩，通过索引访问等减少磁盘IO；</p> 
+<p>1.2、返回更少的数据： 只返回需要的字段和数据分页处理 减少磁盘IO及网络IO；</p> 
+<p>1.3、减少交互次数： 批量DML操作，函数存储等减少数据连接次数；</p> 
+<blockquote> 
+ <p>DML（Data Manipulation Language）语句： 即数据操纵语句，用来查询、添加、更新、删除等</p> 
+</blockquote> 
+<p>1.4、减少服务器CPU开销： 尽量减少数据库排序操作以及全表查询，减少CPU内存占用；</p> 
+<p>1.5、利用更多资源： 使用表分区，可以增加并行操作，更大限度利用CPU资源。</p> 
+<h2>二、SELECT语句-语法/执行顺序</h2> 
+<h3>2.1  语法顺序</h3> 
+<blockquote> 
+ <p>SELECT<br>     DISTINCT &lt;select_list&gt;<br>         FROM &lt;left_table&gt;<br>             &lt;join_type&gt; JOIN &lt;right_table&gt;<br>                 ON &lt;join_condition&gt;<br>                     WHERE &lt;where_condition&gt;<br>                         GROUP BY &lt;group_by_list&gt;<br>                             HAVING &lt;having_condition&gt;<br>                                 ORDER BY &lt;order_by_condition&gt;<br>                                     LIMIT &lt;limit_number&gt;</p> 
+</blockquote> 
+<h3>2.2  执行顺序</h3> 
+<table align="center" border="1" cellpadding="1" cellspacing="1" style="width:600px;"><caption>
+   SELECT执行顺序 
+ </caption><tbody><tr><td style="width:56px;">顺序</td><td style="width:149px;">关键字</td><td>描述</td></tr><tr><td style="width:56px;">1</td><td style="width:149px;"><strong>FROM</strong></td><td>&lt;表名&gt; # 选取表，将多个表数据通过笛卡尔积变成一个表。</td></tr><tr><td style="width:56px;">2</td><td style="width:149px;"><strong>ON</strong></td><td>&lt;筛选条件&gt; # 对笛卡尔积的虚表进行筛选</td></tr><tr><td style="width:56px;">3</td><td style="width:149px;"><strong>JOIN&lt;join, left join, right join...&gt;</strong></td><td>&lt;join表&gt; # 指定join，用于添加数据到on之后的虚表中，例如left join会将左表的剩余数据添加到虚表中</td></tr><tr><td style="width:56px;">4</td><td style="width:149px;"><strong>WHERE</strong></td><td>&lt;where条件&gt; # 对上述虚表进行筛选</td></tr><tr><td style="width:56px;">5</td><td style="width:149px;"><strong>GROUP BY</strong></td><td>&lt;分组条件&gt; # 分组</td></tr><tr><td style="width:56px;">6</td><td style="width:149px;"><strong>&lt;SUM()等聚合函数&gt;</strong></td><td># 用于having子句进行判断，在书写上这类聚合函数是写在having判断里面的</td></tr><tr><td style="width:56px;">7</td><td style="width:149px;"><strong>HAVING</strong></td><td>&lt;分组筛选&gt; # 对分组后的结果进行聚合筛选</td></tr><tr><td style="width:56px;">8</td><td style="width:149px;"><strong>SELECT</strong></td><td>&lt;返回数据列表&gt; # 返回的单列必须在group by子句中，聚合函数除外</td></tr><tr><td style="width:56px;">9</td><td style="width:149px;"><strong>DISTINCT</strong></td><td># 数据除重</td></tr><tr><td style="width:56px;">10</td><td style="width:149px;"><strong>ORDER BY</strong></td><td>&lt;排序条件&gt; # 排序</td></tr><tr><td style="width:56px;">11</td><td style="width:149px;"><strong>LIMIT</strong></td><td>&lt;行数限制&gt;</td></tr></tbody></table> 
+<h2>三、基础 SQL优化</h2> 
+<h3><strong>3.1</strong>  <strong>查询SQL尽量不要使用select *，而是具体字段</strong></h3> 
+<blockquote> 
+ <p>1、字段多时，大表能达到100多个字段甚至达200多个字段，只取需要的字段，节省资源、减少网络开销。<br> 2、select * 进行查询时，很可能不会用到索引，就会造成全表扫描。</p> 
+</blockquote> 
+<pre><code class="language-sql">反例：
+SELECT * FROM student
+正例：
+SELECT id,NAME FROM student</code></pre> 
+<h3><strong>3.2</strong>  <strong>避免在where子句中使用or来连接条件</strong></h3> 
+<blockquote> 
+ <p><strong>1、使用or可能会使索引失效，从而全表扫描<br> 2、对于or没有索引的salary这种情况，假设它走了id的索引，但是走到salary查询条件时，它还得全表扫描。也就是说整个过程需要三步：全表扫描+索引扫描+合并。如果它一开始就走全表扫描，直接一遍扫描就搞定。虽然mysql是有优化器的，处于效率与成本考虑，遇到or条件，索引还是可能失效的</strong></p> 
+</blockquote> 
+<pre><code class="language-sql">查询id为1或者薪水为3000的用户
+反例：
+SELECT * FROM student WHERE id=1 OR salary=30000
+正例：使用union all
+SELECT * FROM student WHERE id=1 UNION ALL SELECT * FROM student WHERE salary=30000
+或者分开两条sql写
+SELECT * FROM student WHERE id=1
+SELECT * FROM student WHERE salary=30000</code></pre> 
+<h3> 3.3  使用varchar代替char</h3> 
+<blockquote> 
+ <p>1、varchar变长字段按数据内容实际长度存储，存储空间小，可以节省存储空间<br> 2、char按声明大小存储，不足补空格。其次对于查询来说，在一个相对较小的字段内搜索，效率更高</p> 
+</blockquote> 
+<pre><code class="language-sql">建表期间：
+反例：
+`deptname` char(100) DEFAULT NULL COMMENT '部门名称'
+正例：
+`deptname` varchar(100) DEFAULT NULL COMMENT '部门名称'</code></pre> 
+<h3>3.4  尽量使用数值替代字符串类型</h3> 
+<blockquote> 
+ <p>主键（id）：primary key优先使用数值类型int，tinyint<br> 性别（sex）：0-代表女，1-代表男；数据库没有布尔类型，mysql推荐使用tinyint<br> 支付方式（payment）：1-现金、2-微信、3-支付宝、4-信用卡、5-银行卡<br> 服务状态（state）：1-开启、2-暂停、3-停止<br> 商品状态（state）：1-上架、2-下架、3-删除</p> 
+</blockquote> 
+<h3>3.5  查询尽量避免返回大量数据 </h3> 
+<blockquote> 
+ <p>1、如果查询返回数据量很大，就会造成查询时间过长，网络传输时间过长。同时，大量数据返回也可能没有实际意义。如返回上千条甚至更多，用户也看不过来。<br> 2、通常采用分页，一页习惯10/20/50/100条。</p> 
+</blockquote> 
+<h3>3.6  使用explain分析SQL执行计划</h3> 
+<blockquote> 
+ <p>SQL很灵活，一个需求可以很多实现，那哪个最优呢？SQL提供了explain关键字，它可以分析你的SQL执行计划，看它是否最佳。Explain主要看SQL是否使用了索引。</p> 
+ <p>详情查看文章链接：</p> 
+ <p><a class="link-info" href="https://blog.csdn.net/weixin_53601359/article/details/115558427" title="SQL索引概念（详解B+树）">SQL索引概念（详解B+树）</a></p> 
+ <p><a class="link-info" href="https://blog.csdn.net/qq_38628046/article/details/109434554" title="MySQL之EXPLAIN命令分析SQL执行计划">MySQL之EXPLAIN命令分析SQL执行计划</a></p> 
+</blockquote> 
+<p>EXPLAIN参数</p> 
+<table border="1" cellpadding="1" cellspacing="1" style="width:600px;"><tbody><tr><td style="width:72px;">参数</td><td style="width:35px;">值</td><td>描述</td></tr><tr><td colspan="1" rowspan="8" style="width:72px;">type</td><td style="width:35px;">ALL</td><td>全表扫描，没有优化，最慢的方式</td></tr><tr><td style="width:35px;">index</td><td>索引全扫描</td></tr><tr><td style="width:35px;">range</td><td>索引范围扫描，常用语&lt;，&lt;=，&gt;=，between等操作</td></tr><tr><td style="width:35px;">ref</td><td>使用非唯一索引扫描或唯一索引前缀扫描，返回单条记录，常出现在关联查询中</td></tr><tr><td style="width:35px;">eq_ref</td><td>类似ref，区别在于使用的是唯一索引，使用主键的关联查询</td></tr><tr><td style="width:35px;">const</td><td>当查询是对主键或者唯一键进行精确查询，系统会把匹配行中的其他列作为常数处理</td></tr><tr><td style="width:35px;">null</td><td>MySQL不访问任何表或索引，直接返回结果</td></tr><tr><td style="width:35px;">System</td><td>表只有一条记录(实际中基本不存在这个情况)</td></tr><tr><td colspan="3" style="width:72px;">type参数性能排行：<br> System &gt; const &gt; eq_ref &gt; ref &gt; range &gt; index &gt; ALL</td></tr><tr><td colspan="2" rowspan="1">possible_keys</td><td>显示可能应用在这张表中的索引</td></tr><tr><td colspan="2" rowspan="1">key</td><td>真正使用的索引方式</td></tr></tbody></table> 
+<h3>3.7  创建列字段的索引</h3> 
+<blockquote> 
+ <p>提高查询速度的最简单最佳的方式<br> ALTER TABLE student ADD INDEX index_name (NAME)</p> 
+</blockquote> 
+<h3>3.8  优化like语句</h3> 
+<blockquote> 
+ <p>尽量避免在字段开头模糊查询，会导致数据库引擎放弃索引进行全表扫描</p> 
+ <p>若必须要在前面使用模糊查询，则有以下优化方式：</p> 
+ <p>1、使用MySQL内置函数INSTR(str,substr) 来匹配，作用类似于java中的indexOf()，查询字符串出现的角标位置</p> 
+ <p>2、使用FullText全文索引，用match against 检索</p> 
+ <p>3、数据量较大的情况，建议引用ElasticSearch、solr，亿级数据量检索速度秒级</p> 
+ <p>4、当表数据量较少（几千条儿那种），别整花里胡哨的，直接用like '%xx%'。</p> 
+</blockquote> 
+<h3>3.9  字符串现象（隐式转换）</h3> 
+<blockquote> 
+ <p>为什么第一条语句未加单引号就不走索引了呢？<br> 这是因为不加单引号时，是字符串跟数字的比较，它们类型不匹配，MySQL会做隐式的类型转换，把它们转换为数值类型再做比较</p> 
+</blockquote> 
+<pre><code class="language-sql">反例：
+#未使用索引
+SELECT * FROM student WHERE NAME=123
+正例：
+#使用索引
+SELECT * FROM student WHERE NAME='123'</code></pre> 
+<h3>3.10  索引不宜太多，一般5个以内</h3> 
+<blockquote> 
+ <p>1、索引并不是越多越好，虽其提高了查询的效率，但却会降低插入和更新的效率</p> 
+ <p>2、索引可以理解为一个就是一张表，其可以存储数据，其数据就要占空间</p> 
+ <p>3、再者，索引表的一个特点，其数据是排序的，那排序要不要花时间呢？肯定要</p> 
+ <p>4、insert或update时有可能会重建索引，如果数据量巨大，重建将进行记录的重新排序，所以建索引需要慎重考虑，视具体情况来定</p> 
+ <p>5、一个表的索引数最好不要超过5个，若太多需要考虑一些索引是否有存在的必要</p> 
+</blockquote> 
+<h3>3.11  索引不适合建在有大量重复数据的字段上</h3> 
+<blockquote> 
+ <p>如性别字段。因为SQL优化器是根据表中数据量来进行查询优化的，如果索引列有大量重复数据，Mysql查询优化器推算发现不走索引的成本更低，很可能就放弃索引了。</p> 
+</blockquote> 
+<h3>3.12  where限定查询的数据</h3> 
+<blockquote> 
+ <p>需要什么数据，就去查什么数据，避免返回不必要的数据，节省开销</p> 
+</blockquote> 
+<pre><code class="language-sql">反例：
+SELECT id,NAME FROM student WHERE sex='男'
+正例：
+SELECT id,NAME FROM student WHERE id=1 AND sex='男'</code></pre> 
+<h3>3.13  避免在索引列上使用内置函数</h3> 
+<blockquote> 
+ <p>使用索引列上内置函数，致使索引失效</p> 
+</blockquote> 
+<pre><code class="language-sql">业务需求：查询最近七天内新生儿
+反例：
+SELECT * FROM student
+WHERE DATE_ADD(birthday,INTERVAL 7 DAY) &gt;=NOW();
+正例：
+SELECT * FROM student
+WHERE  birthday &gt;= DATE_ADD(NOW(),INTERVAL 7 DAY);</code></pre> 
+<h3>3.14  避免在where中对字段进行表达式操作</h3> 
+<blockquote> 
+ <p>1、SQL解析时，如果字段相关的是表达式就进行全表扫描<br> 2、字段干净无表达式，索引生效</p> 
+</blockquote> 
+<pre><code class="language-sql">反例：
+SELECT * FROM student WHERE id-1=1
+正例：
+SELECT * FROM student WHERE id=1+1
+SELECT * FROM student WHERE id=1</code></pre> 
+<h3>3.15  避免在where子句中使用!=或&lt;&gt;操作符</h3> 
+<blockquote> 
+ <p>应尽量避免在where子句中使用!=或&lt;&gt;操作符，否则引擎将放弃使用索引而进行全表扫描。</p> 
+</blockquote> 
+<pre><code class="language-sql">反例：
+SELECT * FROM student WHERE salary!=3000
+SELECT * FROM student WHERE salary&lt;&gt;3000</code></pre> 
+<h3>3.16  去重distinct过滤字段要少</h3> 
+<blockquote> 
+ <p>1、带distinct的语句占用cpu时间高于不带distinct的语句。<br> 2、因为当查询很多字段时，如果使用distinct，数据库引擎就会对数据进行比较，过滤掉重复数据，然而这个比较、过滤的过程会占用系统资源，如cpu时间。</p> 
+</blockquote> 
+<pre><code class="language-sql">反例：
+SELECT DISTINCT * FROM student
+正例：
+SELECT DISTINCT NAME FROM student</code></pre> 
+<h3>3.17  where中使用默认值代替null</h3> 
+<blockquote> 
+ <p>1、并不是说使用了is null 或者 is not null 就会不走索引了，这个跟mysql版本以及查询成本都有关。<br> 2、如果mysql优化器发现，走索引比不走索引成本还要高，就会放弃索引，这些条件 !=，&lt;&gt;，is null，is not null经常被认为让索引失效，其实是因为一般情况下，查询的成本高，优化器自动放弃索引的。<br> 3、如果把null值，换成默认值，很多时候让走索引成为可能，同时，表达意思也相对清晰一点。</p> 
+</blockquote> 
+<pre><code class="language-sql">反例：
+SELECT * FROM student WHERE age IS NOT NULL
+正例：
+SELECT * FROM student WHERE age&gt;0</code></pre> 
+<h2>四、高级SQL优化</h2> 
+<h3>4.1  批量插入性能提升（相对的）</h3> 
+<blockquote> 
+ <p>1、默认新增SQL有事务控制，导致每条都需要事务开启和事务提交；而批量处理是一次事务开启和提交。自然速度飞升<br> 2、数据量小体现不出来</p> 
+</blockquote> 
+<pre><code class="language-sql">多条提交：
+INSERT INTO student (id,NAME) VALUES(4,'name1');
+INSERT INTO student (id,NAME) VALUES(5,'name2');
+批量提交：
+INSERT INTO student (id,NAME) VALUES(4,'name1'),(5,'name2');</code></pre> 
+<h3>4.2  批量删除优化</h3> 
+<blockquote> 
+ <p>避免同时修改或删除过多数据，因为会造成cpu利用率过高，会造成锁表操作（会有lock wait timeout exceed的错误），从而影响别人对数据库的访问，所以建议分批操作</p> 
+</blockquote> 
+<pre><code class="language-sql">反例：
+#一次删除10万或者100万+？
+delete from student where id &lt;100000;
+#采用单一循环操作，效率低，时间漫长
+for（User user:list）{
+  delete from student;
+}
+正例：
+#分批进行删除，如每次500
+for(条件...){
+   delete student where id&lt;500;
+}
+delete student where id&gt;=500 and id&lt;1000;</code></pre> 
+<h3>4.3  伪删除设计</h3> 
+<blockquote> 
+ <p>1、一个大型系统中，表关系是非常复杂的，如电商系统中，商品作废了，但如果直接删除商品，其它商品详情，物流信息中可能都有其引用。<br> 2、通过where state=1或者where state=2过滤掉数据，这样伪删除的数据用户就看不到了，从而不影响用户的使用<br> 3、操作速度快，特别数据量很大情况下</p> 
+</blockquote> 
+<blockquote> 
+ <p>商品状态（state）：1-上架、2-下架、3-删除<br> 这里的删除只是一个标识，并没有从数据库表中真正删除，可以作为历史记录备查</p> 
+</blockquote> 
+<h3>4.4  提高group by语句的效率</h3> 
+<pre><code class="language-sql">可以在执行到该语句前，把不需要的记录过滤掉
+反例：先分组，再过滤
+select job，avg（salary） from employee  group by job 
+having job ='president' or job = 'managent';
+正例：先过滤，后分组
+select job，avg（salary） from employee where job ='president' or job = 'managent' group by job;</code></pre> 
+<h3>4.5  复合索引最左特性</h3> 
+<blockquote> 
+ <p>复合索引也称为联合索引<br> 1、当我们创建一个联合索引的时候，如(k1,k2,k3)，相当于创建了（k1）、(k1,k2)和(k1,k2,k3)三个索引，这就是最左匹配原则<br> 2、如果联合索引不满足最左原则，索引一般会失效，但是这个还跟Mysql优化器有关的</p> 
+</blockquote> 
+<pre><code class="language-sql">1、创建复合索引，也就是多个字段
+ALTER TABLE student ADD INDEX idx_name_salary (NAME,salary)
+2、满足复合索引的左侧顺序，哪怕只是部分，复合索引生效
+SELECT * FROM student WHERE NAME='name1'
+3、没有出现左边的字段，则不满足最左特性，索引失效
+SELECT * FROM student WHERE salary=3000
+4、复合索引全使用，按左侧顺序出现 name,salary，索引生效
+SELECT * FROM student WHERE NAME='陈子枢' AND salary=3000
+5、虽然违背了最左特性，但MYSQL执行SQL时会进行优化，底层进行颠倒优化
+SELECT * FROM student WHERE salary=3000 AND NAME='name1'</code></pre> 
+<h3>4.6  排序字段创建索引</h3> 
+<blockquote> 
+ <p>什么样的字段才需要创建索引呢？<br> 原则就是where和order by中常出现的字段就创建索引。</p> 
+</blockquote> 
+<pre><code class="language-sql">1、使用*，包含了未索引的字段，导致索引失效
+EXPLAIN SELECT * FROM student ORDER BY NAME;
+EXPLAIN SELECT * FROM student ORDER BY NAME,salary
+2、name字段有索引
+EXPLAIN SELECT id,NAME FROM student ORDER BY NAME
+3、name和salary复合索引
+EXPLAIN SELECT id,NAME FROM student ORDER BY NAME,salary
+EXPLAIN SELECT id,NAME FROM student ORDER BY salary,NAME
+4、排序字段未创建索引，性能就慢
+EXPLAIN SELECT id,NAME FROM student ORDER BY sex</code></pre> 
+<h3>4.7  删除冗余和重复的索引</h3> 
+<pre><code class="language-sql">SHOW INDEX FROM student 
+1、#创建索引index_name
+ALTER TABLE student ADD INDEX index_name (NAME)
+2、#删除student表的index_name索引
+DROP INDEX index_name ON student ;
+3、#修改表结果，删除student表的index_name索引
+ALTER TABLE student DROP INDEX index_name ;
+4、#主键会自动创建索引，删除主键索引
+ALTER TABLE student DROP PRIMARY KEY ;</code></pre> 
+<h3>4.8  不要有超过5个以上的表连接</h3> 
+<blockquote> 
+ <p>1、关联的表个数越多，编译的时间和开销也就越大<br> 2、每次关联内存中都生成一个临时表<br> 3、应该把连接表拆开成较小的几个执行，可读性更高<br> 4、如果一定需要连接很多表才能得到数据，那么意味着这是个糟糕的设计了<br> 5、阿里规范中，建议多表联查三张表以下</p> 
+</blockquote> 
+<h3>4.9  inner join 、left join、right join，优先使用inner join</h3> 
+<blockquote> 
+ <p>1、如果inner join是等值连接，其返回的行数比较少，所以性能相对会好一点<br> 2、同理，使用了左连接，左边表数据结果尽量小，条件尽量放到左边处理，意味着返回的行数可能比较少。这是mysql优化原则，就是小表驱动大表，小的数据集驱动大的数据集，从而让性能更优</p> 
+</blockquote> 
+<blockquote> 
+ <p>三种连接如果结果相同，优先使用inner join，如果使用left join左边表尽量小</p> 
+ <p>- inner join 内连接，只保留两张表中完全匹配的结果集</p> 
+ <p>- left join会返回左表所有的行，即使在右表中没有匹配的记录</p> 
+ <p>- right join会返回右表所有的行，即使在左表中没有匹配的记录</p> 
+</blockquote> 
+<h3>4.10  in子查询的优化</h3> 
+<p>数据库最费劲的就是程序链接的释放。假设链接了两次，每次做上百万次的数据集查询，查完就结束，这样就只做了两次；相反建立了上百万次链接，申请链接释放反复重复，就会额外花费很多实际，这样系统就受不了了，慢，卡顿。</p> 
+<blockquote> 
+ <p>日常开发实现业务需求可以有两种方式实现：<br> 1、一种使用数据库SQL脚本实现<br> 2、一种使用程序实现</p> 
+</blockquote> 
+<p> 如需求：查询所有部门的所有员工</p> 
+<pre><code class="language-sql">#in子查询
+SELECT * FROM tb_user WHERE dept_id IN (SELECT id FROM tb_dept);
+#这样写等价于：
+#先查询部门表
+SELECT id FROM tb_dept
+#再由部门dept_id，查询tb_user的员工
+SELECT * FROM tb_user u,tb_dept d WHERE u.dept_id = d.id</code></pre> 
+<pre><code class="language-java">假设表A表示某企业的员工表，表B表示部门表，查询所有部门的所有员工，很容易有以下程序实现，可以抽象成这样的一个嵌套循环
+List&lt;&gt; resultSet;
+for(int i=0;i&lt;B.length;i++) {
+    for(int j=0;j&lt;A.length;j++) {
+      if(A[i].id==B[j].id) {
+        resultSet.add(A[i]);
+        break;
+      }
+   }
+}</code></pre> 
+<p>上面的需求使用SQL就远不如程序实现，特别当数据量巨大时。</p> 
+<h3>4.11  尽量使用union all替代union</h3> 
+<blockquote> 
+ <p>union在进行表链接后会筛选掉重复的记录，所以在表链接后会对所产生的结果集进行排序运算，删除重复的记录再返回结果。实际大部分应用中是不会产生重复的记录，最常见的是过程表与历史表UNION</p> 
+</blockquote> 
+<table align="center" border="1" cellpadding="1" cellspacing="1" style="width:600px;"><caption>
+   UNION、UNION ALL、OR的区别 
+ </caption><tbody><tr><td style="width:81px;">扫描类型</td><td style="width:134px;">关键字</td><td style="width:384px;">描述</td></tr><tr><td colspan="1" rowspan="2" style="width:81px;">扫描索引</td><td style="width:134px;">UNION</td><td style="width:384px;">对两个结果集进行并集操作，不包括重复行，同时进行默认规则的排序</td></tr><tr><td style="width:134px;">UNION ALL</td><td style="width:384px;">对两个结果集进行并集操作，包括重复行，不进行排序；</td></tr><tr><td style="width:81px;">扫描全表</td><td style="width:134px;">OR</td><td style="width:384px;">先扫描OR前的条件，再扫描OR之后的条件</td></tr><tr><td colspan="3">union和union all的区别是，union会自动去掉多个结果集合中的重复结果，而union all则将所有的结果全部显示出来，不管是不是重复</td></tr></tbody></table> 
+<h2>五、待补充... </h2>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/17a4dc9299bbdf0606a360aa925a94d2/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">机器时代的无情：无论领子颜色，取代无可避免</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/544cbddb69a0ff5e80f13eba5c53b068/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">数据结构-＞双向链表带你体验开火车（哨兵）与拼接火车（应用）厢的乐趣</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

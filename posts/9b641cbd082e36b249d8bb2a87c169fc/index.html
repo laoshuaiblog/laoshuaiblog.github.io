@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>一套监控EMC VNX存储的小脚本（可用于Zabbix） - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/9b641cbd082e36b249d8bb2a87c169fc/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="一套监控EMC VNX存储的小脚本（可用于Zabbix）">
+  <meta property="og:description" content="项目地址： https://github.com/zhangrj/EMC-VNX-Storage-Zabbix-Monitor
+开发背景 EMC VNX5500存储是公司最核心的存储设备，一旦出问题，整个平台就会陷入瘫痪。在我到来之前，EMC存储的巡检完全依赖人工远程与现场代维，今年5月份的时候，我开始着手解决这个问题。
+最先想到的监控方法肯定是SNMP/SNMPTRAP，但很不幸的是，我找了大半天也没有找到配置SNMP或SNMPTRAP的地方，也没有搜索到设备的MIB参考文档。在浏览相关资料的时候，找到了通过命令行配置存储设备的管理工具Navisphere，使用该工具可查看存储状态，简单编写一点程序结合Zabbix即可实现监控。
+Navisphere命令行工具安装 安装包：https://github.com/zhangrj/EMC-VNX-Storage-Zabbix-Monitor/blob/master/安装软件/NaviCLI-Linux-64-x86-en_US-7.33.9.2.36-1.x86_64.rpm
+正常使用rpm安装即可
+[root@localhost ~]# rpm -ivh NaviCLI-Linux-64-x86-en_US-7.33.9.2.36-1.x86_64.rpm Preparing... ########################################### [100%] 1:NaviCLI-Linux-64-x86-en########################################### [100%] Run the script /opt/Navisphere/bin/setlevel_cli.sh to set the security level before you proceed. 根据提示设置安全等级，输入2选择medium等级即可。
+[root@localhost ~]# /opt/Navisphere/bin/setlevel_cli.sh Please enter the verifying level(low|medium|l|m) to set? 2 Setting (default) medium verifying level..... Verification level medium has been set SUCCESSFULLY!!! 创建一个安全文件，这样使用时就不用再输入用户名和密码。安全文件是加密的，且与本机绑定，user参数为EMC管理用户名、password为密码，scope域的值对应&amp;lt;0 – global; 1 – local; 2 – LDAP&amp;gt;：
+[root@localhost ~]# cd /opt/Navisphere/bin/ [root@localhost bin]# ls admsnap naviseccli setlevel_cli.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2019-12-26T14:27:16+08:00">
+    <meta property="article:modified_time" content="2019-12-26T14:27:16+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">一套监控EMC VNX存储的小脚本（可用于Zabbix）</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <p>项目地址： <a href="https://github.com/zhangrj/EMC-VNX-Storage-Zabbix-Monitor">https://github.com/zhangrj/EMC-VNX-Storage-Zabbix-Monitor</a></p> 
+<h3>开发背景</h3> 
+<p>EMC VNX5500存储是公司最核心的存储设备，一旦出问题，整个平台就会陷入瘫痪。在我到来之前，EMC存储的巡检完全依赖人工远程与现场代维，今年5月份的时候，我开始着手解决这个问题。</p> 
+<p>最先想到的监控方法肯定是SNMP/SNMPTRAP，但很不幸的是，我找了大半天也没有找到配置SNMP或SNMPTRAP的地方，也没有搜索到设备的MIB参考文档。在浏览相关资料的时候，找到了通过命令行配置存储设备的管理工具Navisphere，使用该工具可查看存储状态，简单编写一点程序结合Zabbix即可实现监控。</p> 
+<h3>Navisphere命令行工具安装</h3> 
+<p>安装包：<a href="https://github.com/zhangrj/EMC-VNX-Storage-Zabbix-Monitor/blob/master/%E5%AE%89%E8%A3%85%E8%BD%AF%E4%BB%B6/NaviCLI-Linux-64-x86-en_US-7.33.9.2.36-1.x86_64.rpm">https://github.com/zhangrj/EMC-VNX-Storage-Zabbix-Monitor/blob/master/安装软件/NaviCLI-Linux-64-x86-en_US-7.33.9.2.36-1.x86_64.rpm</a></p> 
+<p>正常使用rpm安装即可</p> 
+<pre class="has"><code>[root@localhost ~]# rpm -ivh NaviCLI-Linux-64-x86-en_US-7.33.9.2.36-1.x86_64.rpm 
+Preparing...                ########################################### [100%]
+   1:NaviCLI-Linux-64-x86-en########################################### [100%]
+Run the script /opt/Navisphere/bin/setlevel_cli.sh  to set the security level before you proceed.</code></pre> 
+<p>根据提示设置安全等级，输入2选择medium等级即可。</p> 
+<pre class="has"><code>[root@localhost ~]# /opt/Navisphere/bin/setlevel_cli.sh
+Please enter the verifying level(low|medium|l|m) to set? 
+2
+Setting (default) medium verifying level.....
+
+Verification level medium has been set SUCCESSFULLY!!!</code></pre> 
+<p>创建一个安全文件，这样使用时就不用再输入用户名和密码。安全文件是加密的，且与本机绑定，user参数为EMC管理用户名、password为密码，scope域的值对应&lt;0 – global; 1 – local; 2 – LDAP&gt;：</p> 
+<pre class="has"><code>[root@localhost ~]# cd /opt/Navisphere/bin/
+
+[root@localhost bin]# ls
+admsnap  naviseccli  setlevel_cli.sh  setlevel.log
+
+[root@localhost bin]# ./naviseccli -AddUserSecurity -user emc_username -password emc_passwd -scope 0
+
+[root@localhost bin]# cd /root
+
+[root@localhost ~]# ls
+SecuredCLISecurityFile.xml
+SecuredCLIXMLEncrypted.key</code></pre> 
+<p>第一次执行查询命令需要保存证书，选择2接受并保存，再次执行命令即可直接显示信息：</p> 
+<pre class="has"><code>[root@localhost ~]# cd /opt/Navisphere/bin/
+
+[root@localhost bin]# ls
+admsnap  naviseccli  setlevel_cli.sh  setlevel.log
+
+[root@localhost bin]# ./naviseccli -h 192.168.130.75 getcrus
+Unable to validate the identity of the server.  There are issues with the certificate presented.
+Only import this certificate if you have reason to believe it was sent by a trusted source.
+Certificate details:
+Subject:        CN=192.168.130.75,CN=A-IMAGE,C=US,ST=Massachusetts,L=Southboro,O=EMC Corporation,OU=CLARiiON
+Issuer: CN=192.168.130.75,CN=A-IMAGE,C=US,ST=Massachusetts,L=Southboro,O=EMC Corporation,OU=CLARiiON
+Serial#:        fe91a4ec
+Valid From:     20121126045806Z
+Valid To:       20271123045806Z
+Would you like to [1]Accept the certificate for this session, [2] Accept and store, [3] Reject the certificate?
+Please input your selection(The default selection is [1]):
+2
+DPE7 Bus 0 Enclosure 0       
+SP A State:                 Present
+SP B State:                 Present
+......
+
+[root@localhost bin]# ./naviseccli -h 192.168.130.75 getcrus
+DPE7 Bus 0 Enclosure 0       
+SP A State:                 Present
+SP B State:                 Present
+......</code></pre> 
+<p>查看已保存的证书：</p> 
+<pre class="has"><code>[root@localhost ~]# /opt/Navisphere/bin/naviseccli security -certificate -list
+--------------------------------------------
+Subject:        CN=192.168.130.75,CN=A-IMAGE,C=US,ST=Massachusetts,L=Southboro,O=EMC Corporation,OU=CLARiiON
+Issuer: CN=192.168.130.75,CN=A-IMAGE,C=US,ST=Massachusetts,L=Southboro,O=EMC Corporation,OU=CLARiiON
+Serial#:        fe91a4ec
+Valid From:     20121126045806Z
+Valid To:       20271123045806Z
+--------------------------------------------</code></pre> 
+<h3>NaviSecCLI常用命令</h3> 
+<p>显示系统中各组件状态：</p> 
+<p><strong>     naviseccli -h &lt;ip&gt; getcrus</strong></p> 
+<p>显示哪个SP是某个LUN默认和当前的主SP：</p> 
+<p><strong>     naviseccli -h &lt;ip&gt; getlun -default -owner</strong></p> 
+<p>显示指定行数的SPlog日志(如：200行)：</p> 
+<p><strong>     naviseccli -h &lt;ip&gt; getlog -200</strong></p> 
+<p>或将输出结果另存为本地文件：   </p> 
+<p><strong>     naviseccli -h &lt;ip&gt; getlog -200 &gt; getlog_spa.txt</strong></p> 
+<p>确认SP Agent状态：</p> 
+<p><strong>     naviseccli -h &lt;ip&gt; getagent</strong></p> 
+<p>显示主机LUN和阵列LUN信息：</p> 
+<p><strong>     naviseccli -h &lt;ip&gt; storagegroup -list</strong></p> 
+<p>显示RAID Group基本信息：</p> 
+<p><strong>     naviseccli -h &lt;ip&gt; getrg 0</strong></p> 
+<p>显示磁盘信息：</p> 
+<p><strong>     naviseccli -h &lt;ip&gt; getdisk</strong></p> 
+<p><strong>     naviseccli -h &lt;ip&gt; getdisk 0_0_5</strong></p> 
+<p>找出哪些LUN有Dirty Cache：</p> 
+<p><strong>     naviseccli -h &lt;ip&gt; getlun -luncache</strong></p> 
+<p>显示Rebuild进度：</p> 
+<p><strong>     naviseccli -h &lt;ip&gt; getlun [lun] -prb</strong></p> 
+<p>收集SPCollects日志：</p> 
+<p><strong>     naviseccli -h &lt;ip&gt; spcollect</strong></p> 
+<p><strong>     naviseccli -h &lt;ip&gt; managefiles -retrieve</strong></p> 
+<p>列出哪些HBA登录了系统中：</p> 
+<p><strong>     naviseccli -h &lt;ip&gt; port -list</strong></p> 
+<p>列出组件的部件号：</p> 
+<p><strong>     naviseccli -h &lt;ip&gt; getresume</strong></p> 
+<p>显示Cache是否启用及配置信息：</p> 
+<p><strong>     naviseccli -h &lt;ip&gt; getcache</strong></p> 
+<p>列出被启用的系统功能包：</p> 
+<p><strong>     naviseccli -h &lt;ip&gt; ndu -list</strong></p> 
+<p>Trespass某个LUN：</p> 
+<p><strong>     naviseccli -h &lt;ip&gt; trespass &lt;lun&gt; </strong></p> 
+<p>发起一个后台sniffer检查命令：</p> 
+<p><strong>     naviseccli -h &lt;ip&gt; setsniffer &lt;lun&gt; -bv -bvtime high -cr</strong></p> 
+<p>获得Sniffer报告：</p> 
+<p><strong>     naviseccli -h &lt;ip&gt; getsniffer &lt;lun&gt;</strong></p> 
+<h3>监控脚本介绍及使用方法</h3> 
+<p><a href="https://github.com/zhangrj/EMC-VNX-Storage-Zabbix-Monitor/blob/master/%E7%9B%91%E6%8E%A7%E8%84%9A%E6%9C%AC/emc_discovery.py">emc_discovery.py</a> ，用于构建json数据，实现Zabbix中的自动发现，可自动发现 CPU、DIMM、Disk、I/O、LCC、Power、SP、SPS、SPS Cable 。</p> 
+<p><a href="https://github.com/zhangrj/EMC-VNX-Storage-Zabbix-Monitor/blob/master/%E7%9B%91%E6%8E%A7%E8%84%9A%E6%9C%AC/emc_state.py">emc_state.py</a> ，获取监控项的监控数据。</p> 
+<p>注意以下几点：</p> 
+<ul><li>数据均通过zabbix_sender向zabbix_server传递；</li><li>需要修改脚本中的EMC存储地址及zabbix_server地址；</li><li>两个脚本可能并不适用其他配置的EMC存储，但基本思路及数据处理方法相同，读者可根据自己的存储配置进行修改。</li><li>工作杂事太多，没有对脚本进行优化（包括自动发现通用性、处理过程函数化等），先将就一下。</li></ul> 
+<p>配置两条crontab定时任务即可，例如：</p> 
+<pre class="has"><code>0 23 * * 6 /usr/bin/python /root/EMC/emc_discovery.py &gt; /tmp/emc_discovery.log
+5 * * * * /usr/bin/python /root/EMC/emc_state.py &gt; /tmp/emc_state.log</code></pre> 
+<p>每周六23点执行一次自动发现，每小时取一次监控项数据。</p> 
+<h3>Zabbix web端的配置</h3> 
+<p>导入模板：<a href="https://github.com/zhangrj/EMC-VNX-Storage-Zabbix-Monitor/blob/master/Zabbix%E6%A8%A1%E6%9D%BF/zbx_EMC_VNX_templates.xml">https://github.com/zhangrj/EMC-VNX-Storage-Zabbix-Monitor/blob/master/Zabbix模板/zbx_EMC_VNX_templates.xml</a></p> 
+<p>新建主机，hostname字段与脚本中zabbix_sender的-z参数保持一致即可。</p> 
+<p>手动执行一次脚本，查看监控数据是否刷新。</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/cb7c9c8f02becd197ea4a7978056d687/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">Android Could not download junit.jar (junit:junit:4.12) 解决方案</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/e84ac7922c2898d6d4b6ffa51172335b/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">64匹马,8个赛道,找出跑得最快的4匹马（面试题详解）</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

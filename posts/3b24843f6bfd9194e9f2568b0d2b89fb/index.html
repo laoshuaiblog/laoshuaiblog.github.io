@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>springboot利用mybatis批量写入clickhouse报错及解决方法 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/3b24843f6bfd9194e9f2568b0d2b89fb/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="springboot利用mybatis批量写入clickhouse报错及解决方法">
+  <meta property="og:description" content="springboot利用druid和mybatis批量数据写入clickhouse时，刚开始的时候，完全按照mysql的写法，出现无法写入的问题。经过不断的尝试，发现所使用的驱动包，驱动类配置以及sql写法上都需要特别注意，不然批量写入会抛出各种异常导致写入失败。
+虽然clickhouse的官方说明中能够支持大部分的sql语法，在某些特定的场景下，比如批量写数据，还是需要做一些特别的配置。
+这里用的clickhouse的版本是：version 22.2.2.1
+1. 添加依赖 这个是可以实现批量写入的版本。
+&amp;lt;!--clickhouse--&amp;gt; &amp;lt;dependency&amp;gt; &amp;lt;groupId&amp;gt;com.clickhouse&amp;lt;/groupId&amp;gt; &amp;lt;artifactId&amp;gt;clickhouse-jdbc&amp;lt;/artifactId&amp;gt; &amp;lt;version&amp;gt;0.3.2-patch8&amp;lt;/version&amp;gt; &amp;lt;/dependency&amp;gt; 刚开始的时候添加的是下面这个版本：
+&amp;lt;!-- &amp;lt;dependency&amp;gt; &amp;lt;groupId&amp;gt;ru.yandex.clickhouse&amp;lt;/groupId&amp;gt; &amp;lt;artifactId&amp;gt;clickhouse-jdbc&amp;lt;/artifactId&amp;gt; &amp;lt;version&amp;gt;0.2.4&amp;lt;/version&amp;gt; &amp;lt;/dependency&amp;gt; --&amp;gt; 使用这个版本的时候，批量写入数据总是报错。
+2. 配置连接信息 url: jdbc:clickhouse://192.168.17.81:8123/default username: username password: password # driverClassName: ru.yandex.clickhouse.ClickHouseDriver driverClassName: com.clickhouse.jdbc.ClickHouseDriver 之前配置为ru.yandex.clickhouse.ClickHouseDriver时，批量写入报错。
+3. mapper.xml中的sql写法 &amp;lt;insert id=&#34;insertBatchCkPerm&#34; useGeneratedKeys=&#34;false&#34; parameterType=&#34;java.util.List&#34;&amp;gt; insert into plat_access_perm(access_id, developer_id, developer_name, access_key, access_secret) FORMAT Values &amp;lt;foreach collection=&#34;list&#34; item=&#34;item&#34; index=&#34;index&#34; separator=&#34;,&#34;&amp;gt; (#{item.accessId},#{item.developerId},#{item.developerName},#{item.accessKey},#{item.accessSecret}) &amp;lt;/foreach&amp;gt; &amp;lt;/insert&amp;gt; 这里需要特别说明的是：按照mysql的写法，只需要values关键字即可，但是这里使用values的时候，单条记录写入是可以的，但是多条记录就会报错，报的是空指针错误。需要修改为FORMAT Values
+useGeneratedKeys=&#34;false&#34; 设置时为了避免自动生成主键id，clickhouse不支持。
+4. mapper接口的写法 public int insertBatchCkPerm(List&amp;lt;PlatAccessPerm&amp;gt; list); 5.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2022-08-22T13:55:16+08:00">
+    <meta property="article:modified_time" content="2022-08-22T13:55:16+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">springboot利用mybatis批量写入clickhouse报错及解决方法</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <p>springboot利用druid和mybatis批量数据写入clickhouse时，刚开始的时候，完全按照mysql的写法，出现无法写入的问题。经过不断的尝试，发现所使用的驱动包，驱动类配置以及sql写法上都需要特别注意，不然批量写入会抛出各种异常导致写入失败。</p> 
+<p>虽然clickhouse的官方说明中能够支持大部分的sql语法，在某些特定的场景下，比如批量写数据，还是需要做一些特别的配置。</p> 
+<p>这里用的clickhouse的版本是：version 22.2.2.1</p> 
+<h4>1. 添加依赖</h4> 
+<p>这个是可以实现批量写入的版本。</p> 
+<pre><code>&lt;!--clickhouse--&gt;
+&lt;dependency&gt;
+    &lt;groupId&gt;com.clickhouse&lt;/groupId&gt;
+    &lt;artifactId&gt;clickhouse-jdbc&lt;/artifactId&gt;
+    &lt;version&gt;0.3.2-patch8&lt;/version&gt;
+&lt;/dependency&gt;</code></pre> 
+<p>刚开始的时候添加的是下面这个版本：</p> 
+<pre><code>&lt;!--
+&lt;dependency&gt;
+    &lt;groupId&gt;ru.yandex.clickhouse&lt;/groupId&gt;
+    &lt;artifactId&gt;clickhouse-jdbc&lt;/artifactId&gt;
+    &lt;version&gt;0.2.4&lt;/version&gt;
+&lt;/dependency&gt;
+--&gt;</code></pre> 
+<p><span style="color:#fe2c24;"><strong>使用这个版本的时候，批量写入数据总是报错。</strong></span></p> 
+<h4>2. 配置连接信息</h4> 
+<pre><code>url: jdbc:clickhouse://192.168.17.81:8123/default
+username: username
+password: password
+# driverClassName: ru.yandex.clickhouse.ClickHouseDriver
+driverClassName: com.clickhouse.jdbc.ClickHouseDriver</code></pre> 
+<p><span style="color:#fe2c24;"><strong>之前配置为ru.yandex.clickhouse.ClickHouseDriver时，批量写入报错。</strong></span></p> 
+<h4>3. mapper.xml中的sql写法</h4> 
+<pre><code>&lt;insert id="insertBatchCkPerm" useGeneratedKeys="false" parameterType="java.util.List"&gt;
+        insert into plat_access_perm(access_id, developer_id, developer_name, access_key, access_secret)
+        FORMAT Values
+        &lt;foreach collection="list" item="item" index="index" separator=","&gt;
+        (#{item.accessId},#{item.developerId},#{item.developerName},#{item.accessKey},#{item.accessSecret})
+        &lt;/foreach&gt;
+&lt;/insert&gt;</code></pre> 
+<blockquote> 
+ <p>这里需要特别说明的是：按照mysql的写法，只需要values关键字即可，但是这里使用values的时候，单条记录写入是可以的，但是多条记录就会报错，报的是空指针错误。<span style="color:#fe2c24;"><strong>需要修改为FORMAT Values</strong></span></p> 
+ <p>useGeneratedKeys="false" 设置时为了避免自动生成主键id，clickhouse不支持。</p> 
+</blockquote> 
+<h4>4. mapper接口的写法</h4> 
+<pre><code>public int insertBatchCkPerm(List&lt;PlatAccessPerm&gt; list);</code></pre> 
+<h4>5. 遇到过的报错信息</h4> 
+<p>报错信息如下：</p> 
+<pre><code>### Error updating database. Cause: java.sql.SQLFeatureNotSupportedException ### The error may exist in file
+
+Cause: java.sql.SQLFeatureNotSupportedException ; null; nested exception is java.sql.SQLFeatureNotSupportedException</code></pre> 
+<p>错误消息：</p> 
+<pre><code>nested exception is org.apache.ibatis.executor.ExecutorException: Error preparing statement. Cause: java.lang.NullPointerException</code></pre> 
+<p>错误堆栈：</p> 
+<pre><code>org.mybatis.spring.MyBatisSystemException: nested exception is org.apache.ibatis.executor.ExecutorException: Error preparing statement.  Cause: java.lang.NullPointerException
+	at org.mybatis.spring.MyBatisExceptionTranslator.translateExceptionIfPossible(MyBatisExceptionTranslator.java:96)
+	at org.mybatis.spring.SqlSessionTemplate$SqlSessionInterceptor.invoke(SqlSessionTemplate.java:441)
+	at com.sun.proxy.$Proxy84.insert(Unknown Source)
+	at org.mybatis.spring.SqlSessionTemplate.insert(SqlSessionTemplate.java:272)
+	at org.apache.ibatis.binding.MapperMethod.execute(MapperMethod.java:62)
+	at org.apache.ibatis.binding.MapperProxy$PlainMethodInvoker.invoke(MapperProxy.java:145)
+	at org.apache.ibatis.binding.MapperProxy.invoke(MapperProxy.java:86)
+	at com.sun.proxy.$Proxy193.insertBatchCkPerm(Unknown Source)
+	at com.ftsafe.operate.service.impl.PlatAccessPermServiceImpl.insertBatchCkPerm(PlatAccessPermServiceImpl.java:90)
+	at com.ftsafe.operate.service.impl.PlatAccessPermServiceImpl$$FastClassBySpringCGLIB$$71c31b4d.invoke(&lt;generated&gt;)
+	at org.springframework.cglib.proxy.MethodProxy.invoke(MethodProxy.java:218)
+	at org.springframework.aop.framework.CglibAopProxy$CglibMethodInvocation.invokeJoinpoint(CglibAopProxy.java:793)
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.proceed(ReflectiveMethodInvocation.java:163)
+	at org.springframework.aop.framework.CglibAopProxy$CglibMethodInvocation.proceed(CglibAopProxy.java:763)	
+	......		
+Caused by: org.apache.ibatis.executor.ExecutorException: Error preparing statement.  Cause: java.lang.NullPointerException
+	at org.apache.ibatis.executor.statement.BaseStatementHandler.prepare(BaseStatementHandler.java:97)
+	at org.apache.ibatis.executor.statement.RoutingStatementHandler.prepare(RoutingStatementHandler.java:59)
+	at org.apache.ibatis.executor.SimpleExecutor.prepareStatement(SimpleExecutor.java:87)
+	at org.apache.ibatis.executor.SimpleExecutor.doUpdate(SimpleExecutor.java:49)
+	at org.apache.ibatis.executor.BaseExecutor.update(BaseExecutor.java:117)
+	at org.apache.ibatis.executor.CachingExecutor.update(CachingExecutor.java:76)
+	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)	
+	... 133 common frames omitted
+Caused by: java.lang.NullPointerException: null
+	at com.clickhouse.jdbc.internal.ClickHouseConnectionImpl.prepareStatement(ClickHouseConnectionImpl.java:618)
+	at com.clickhouse.jdbc.ClickHouseConnection.prepareStatement(ClickHouseConnection.java:104)
+	at com.alibaba.druid.filter.FilterChainImpl.connection_prepareStatement(FilterChainImpl.java:535)
+	at com.alibaba.druid.filter.FilterAdapter.connection_prepareStatement(FilterAdapter.java:908)
+	at com.alibaba.druid.filter.FilterEventAdapter.connection_prepareStatement(FilterEventAdapter.java:116)
+	at com.alibaba.druid.filter.FilterChainImpl.connection_prepareStatement(FilterChainImpl.java:531)
+	at com.alibaba.druid.proxy.jdbc.ConnectionProxyImpl.prepareStatement(ConnectionProxyImpl.java:326)
+	at com.alibaba.druid.pool.DruidPooledConnection.prepareStatement(DruidPooledConnection.java:362)
+	at sun.reflect.GeneratedMethodAccessor66.invoke(Unknown Source)
+	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.lang.reflect.Method.invoke(Method.java:498)
+	at org.apache.ibatis.logging.jdbc.ConnectionLogger.invoke(ConnectionLogger.java:55)
+	at com.sun.proxy.$Proxy97.prepareStatement(Unknown Source)
+	at org.apache.ibatis.executor.statement.PreparedStatementHandler.instantiateStatement(PreparedStatementHandler.java:86)
+	at org.apache.ibatis.executor.statement.BaseStatementHandler.prepare(BaseStatementHandler.java:88)
+	... 151 common frames omitted
+13:22:56.656 [http-nio-80-exec-8] WARN  o.s.w.s.m.m.a.ExceptionHandlerExceptionResolver - [logException,208] - Resolved [org.mybatis.spring.MyBatisSystemException: nested exception is org.apache.ibatis.executor.ExecutorException: Error preparing statement.  Cause: java.lang.NullPointerException]</code></pre> 
+<p><strong><span style="color:#fe2c24;">以上错误时，批量插入多条数据时，没有添加FORMAT时出现的报错信息</span></strong>。</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/e0acfefbe7b20a84ed6484e3580869b6/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">VMware 配置虚拟机固定IP</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/2574b1f0a368c835f059349ccdc06259/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">Unity编辑扩展：功能篇之Json数据编辑器</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

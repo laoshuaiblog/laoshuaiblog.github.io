@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>【Mysql索引】二叉树、红黑树、B树、B&#43;树 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/3addeb246812bfd47912c889b8f889f7/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="【Mysql索引】二叉树、红黑树、B树、B&#43;树">
+  <meta property="og:description" content="【Mysql索引】二叉树、红黑树、B树、B&#43;树 （1）哈希表（2）二叉树的弊端的演示：（3）红黑树的插入演示：（4）B树的演示（5）B&#43;树的演示（叶子加指针：支持范围查找）（5.1）借着学习B&#43;树的机会，学习为什么会出现索引失效的情况 （7）学习MyISAM引擎的索引的底层原理（8）学习InnoDB引擎（聚集索引）（9）哈希索引和B&#43;树索引（叶子节点指针的作用：支持范围查找） 索引是帮助Mysql高效获取数据的排好序的数据结构
+（1）哈希表 Select * from t where t = 5;
+上面的语句先到哈希表中找到索引，索引表里存放着对应的地址；然后根据哈希表里的地址，到二叉树里查找，二叉树的查找会快一点。二叉排序树是左小右大，通过比较值大小来往下查找
+但是索引基本不用二叉树，为什么不用二叉树呢？
+（2）二叉树的弊端的演示： 一个学习算法很好用的网站：算法演示网站
+发现问题所在，但我们插入一个有序的数列时，二叉树就会退化为一个链表，这样二叉树的检索优势就不存在了，因此不能使用二叉树，二叉树改进成 红黑树，但是索引也不用红黑树，为什么呢？
+（3）红黑树的插入演示： 当一棵子树的高度差超过2的时候，红黑树通过自旋，把中间那个往上提，把第一个往下放，变成左右子树高度差为0，这样就能避免二叉树退化成链表了
+但是红黑树还是有点问题，此时用红黑树存放100万个数据，把树放满，这个树的高度会越变越高，这样的话查找的效率也会大大降低，所以红黑树只是在HashMap中使用，而不能用来处理大量的数据。这时候就要考虑在数据增多的时候而不增加树的高度，来看B树
+（4）B树的演示 即使是百万数据，想把数据查找的次数控制在3-5之间，也就是说树的高度控制在3-5之间。
+那么就把树的每一层变大一点，放的节点多一点，这样树的高度就会控制好，我们设置每一个节点最多放3个数据，
+看一下B树存放索引的数据结构：加入搜索20，先从第一层找，把搜索值和15比较，然后往右去跟56比较，然后就能确定在15-56之间的位置，就可以到第二层搜索，找到！
+（5）B&#43;树的演示（叶子加指针：支持范围查找） B&#43;树也叫多叉平衡树
+一次检索6的过程：
+B&#43;树存放索引的情况：
+1-非叶子节点不存储data，只存储索引（冗余），可以放更多的索引
+2-叶子节点包含所有的索引字段
+3-叶子节点用指针连接，提高区间访问的性能
+InnoDB引擎下的B&#43;树索引，第一层的节点为16Kb，而第一层的15节点站8b，15-56之间的节点的长度为6b，这个白色节点表示下一层的指针，也就说存储一个索引为14b。所以每一层可以放置1170个索引，那么三层B&#43;树可以放置1170117016=2190万个索引。注意15节点下面没有存放data，这只是一个冗余索引，帮助你到叶子节点中去找具体的data。
+注意到B&#43;树还有一个改进，那就是叶子节点加了横向指针，因为B&#43;树的叶子节点是排好序的，横向指针可以更好的实现范围查找。
+（5.1）借着学习B&#43;树的机会，学习为什么会出现索引失效的情况 当我们给数据表添加【联合索引】的时候，树的每个节点里会放置多个值，例如（a,b,c）,当我们找这些值的大小规律时，会发现每个节点里的a值是从小到大的顺序，而只比较b/c值的时候，其实是无序的。
+根据上面的逻辑，当我们要根据索引查找一个值的时候，要使用二分查找法，就要先确定a值的位置（因为a值有序），确定a值以后就能确定一个节点的范围，然后在这个范围内的b值也是从小到大的顺序了，然后继续使用二分查找法确定节点的范围，以此类推…
+总结上面的逻辑：只有当a值有序且确定范围的时候，才能保证b值是有序的，接着只有当b值有序且确定范围的时候，才能保证c值是有序的，以此类推。这样就很好理解【最佳左前缀】原则了。如果带头大哥没了，或者中间值断了，那么后面的值就不能保证有序，无序就自然无法使用【二分查找法】，也就出现【索引失效】的情况了。当我们设定索引的时候，索引的树结构也就确定了。
+通过上面的例子，就很好理解【索引在使用大于号/小于号时失效】【like模糊查询时索引失效】【使用or或者in之类时索引失效】
+失效的原因都是没办法确定一个值，而是只能确定一个范围，导致不能使用二分查找法。例如大于号，不能确定b为某个值，只能确定范围，而这时范围内所有叶子结点里的c值就不是完全有序的，也就不能使用二分查找法，自然b后面的索引都会失效啦！！！
+（7）学习MyISAM引擎的索引的底层原理 MyISAM引擎创建的表分为三个文件，分别是：
+frm后缀：表定义的一些内容MYD后缀：MyISAM引擎对应的Data，也就是数据文件MYI后缀：MyISAM引擎对应的Index，也就是索引文件 所以说，MyISAM引擎的索引文件和数据文件是分离的，从数据结构看叶子节点里放的不是data，放的是地址，找到地址后再到数据文件里找数据
+（8）学习InnoDB引擎（聚集索引） InnoDB引擎创建的表分为两个：
+1-frm后缀：表定义的内容
+2-ibd后缀：存储索引和数据的文件
+1-表数据文件本身就是按B&#43;树组织的一个索引结构文件
+2-聚集索引：索引文件和数据文件不分离，都放在叶子节点里
+3-为什么InnoDB表必须有主键，并且推荐使用整型的自增主键？
+InnoDB必须要有主键，并且使整型的自增主键。如果你没有创建主键的话，InnoDB引擎会在表中找一个能唯一标识的数据自动为你创建主键。使用整型是因为整型的数字2&amp;lt;3比较的速度很快，比使用UUID这种字符的比较快很多，字符还需要转换成ACSII码，然后才进行比较；使用自增主键作为索引，而索引放在叶子节点中，叶子节点之间有个指针，叶子指针节点是一个递增的趋势，所以指针可以快速找到下一个节点，这个指针可以有效的支持范围查找，但是如果不是自增的话就不好进行范围查找了。
+4-为什么非主键索引结构叶子节点存储的是主键值？（一致性和节省存储空间）
+（9）哈希索引和B&#43;树索引（叶子节点指针的作用：支持范围查找） 哈希索引用的非常少，多数用的就是B&#43;树索引，用哈希索引的速度是比B&#43;树索引要快的，但是它有一个致命的缺点：
+select * from table Where col = 6；如果用哈希索引，那就直接到哈希索引表里找就行了，速度很快
+但是如果加上检索的范围 select * from table Where 6&amp;lt;col&amp;lt;9；，检索结果集再用哈希索引就不行了，而且工作中肯定离不开范围查找，使用B&#43;树索引进行范围查找的时候，就可以用到叶子节点的指针，先在叶子节点中快速定位到6，然后根据叶子节点的指针往后找到9，那么指针经过的所有叶子节点就是要查找的范围结果集，">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2022-03-15T00:45:44+08:00">
+    <meta property="article:modified_time" content="2022-03-15T00:45:44+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">【Mysql索引】二叉树、红黑树、B树、B&#43;树</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-dark">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <p></p> 
+<div class="toc"> 
+ <h4>【Mysql索引】二叉树、红黑树、B树、B+树</h4> 
+ <ul><li><a href="#1_4" rel="nofollow">（1）哈希表</a></li><li><a href="#2_11" rel="nofollow">（2）二叉树的弊端的演示：</a></li><li><a href="#3_16" rel="nofollow">（3）红黑树的插入演示：</a></li><li><a href="#4B_22" rel="nofollow">（4）B树的演示</a></li><li><a href="#5B_33" rel="nofollow">（5）B+树的演示（叶子加指针：支持范围查找）</a></li><li><ul><li><a href="#51B_48" rel="nofollow">（5.1）借着学习B+树的机会，学习为什么会出现索引失效的情况</a></li></ul> 
+  </li><li><a href="#7MyISAM_60" rel="nofollow">（7）学习MyISAM引擎的索引的底层原理</a></li><li><a href="#8InnoDB_68" rel="nofollow">（8）学习InnoDB引擎（聚集索引）</a></li><li><a href="#9B_80" rel="nofollow">（9）哈希索引和B+树索引（叶子节点指针的作用：支持范围查找）</a></li></ul> 
+</div> 
+<p></p> 
+<p>索引是帮助Mysql高效获取数据的排好序的数据结构</p> 
+<h2><a id="1_4"></a>（1）哈希表</h2> 
+<p>Select * from t where t = 5;</p> 
+<p>上面的语句先到哈希表中找到索引，索引表里存放着对应的地址；然后根据哈希表里的地址，到二叉树里查找，二叉树的查找会快一点。二叉排序树是左小右大，通过比较值大小来往下查找</p> 
+<p>但是索引基本不用二叉树，为什么不用二叉树呢？</p> 
+<h2><a id="2_11"></a>（2）二叉树的弊端的演示：</h2> 
+<p>一个学习算法很好用的网站：<a href="https://www.cs.usfca.edu/~galles/visualization/Algorithms.html" rel="nofollow">算法演示网站</a></p> 
+<p>发现问题所在，但我们插入一个有序的数列时，二叉树就会退化为一个链表，这样二叉树的检索优势就不存在了，因此不能使用二叉树，二叉树改进成 红黑树，但是索引也不用红黑树，为什么呢？<br> <img src="https://images2.imgbox.com/ad/d2/YQd8lFSq_o.png" alt="在这里插入图片描述"></p> 
+<h2><a id="3_16"></a>（3）红黑树的插入演示：</h2> 
+<p>当一棵子树的高度差超过2的时候，红黑树通过自旋，把中间那个往上提，把第一个往下放，变成左右子树高度差为0，这样就能避免二叉树退化成链表了<br> <img src="https://images2.imgbox.com/5e/51/5fXexH8B_o.png" alt="在这里插入图片描述"><br> 但是红黑树还是有点问题，此时用红黑树存放100万个数据，把树放满，这个树的高度会越变越高，这样的话查找的效率也会大大降低，所以红黑树只是在HashMap中使用，而不能用来处理大量的数据。这时候就要考虑在数据增多的时候而不增加树的高度，来看B树</p> 
+<h2><a id="4B_22"></a>（4）B树的演示</h2> 
+<p>即使是百万数据，想把数据查找的次数控制在3-5之间，也就是说树的高度控制在3-5之间。</p> 
+<p>那么就把树的每一层变大一点，放的节点多一点，这样树的高度就会控制好，我们设置每一个节点最多放3个数据，</p> 
+<p><img src="https://images2.imgbox.com/15/ea/tBZkAIvw_o.png" alt="在这里插入图片描述"><br> 看一下B树存放索引的数据结构：加入搜索20，先从第一层找，把搜索值和15比较，然后往右去跟56比较，然后就能确定在15-56之间的位置，就可以到第二层搜索，找到！<br> <img src="https://images2.imgbox.com/fa/f2/ojuqEybu_o.png" alt="在这里插入图片描述"></p> 
+<h2><a id="5B_33"></a>（5）B+树的演示（叶子加指针：支持范围查找）</h2> 
+<p>B+树也叫多叉平衡树<br> <img src="https://images2.imgbox.com/87/13/984R92EZ_o.png" alt="在这里插入图片描述"><br> 一次检索6的过程：<br> <img src="https://images2.imgbox.com/5d/f1/xq5WYpfK_o.png" alt="在这里插入图片描述"></p> 
+<p>B+树存放索引的情况：<br> 1-非叶子节点不存储data，只存储索引（冗余），可以放更多的索引<br> 2-叶子节点包含所有的索引字段<br> 3-叶子节点用指针连接，提高区间访问的性能</p> 
+<p>InnoDB引擎下的B+树索引，第一层的节点为16Kb，而第一层的15节点站8b，15-56之间的节点的长度为6b，这个白色节点表示下一层的指针，也就说存储一个索引为14b。所以每一层可以放置1170个索引，那么三层B+树可以放置1170<em>1170</em>16=2190万个索引。注意15节点下面没有存放data，这只是一个冗余索引，帮助你到叶子节点中去找具体的data。<br> <img src="https://images2.imgbox.com/7c/fa/SOXZfDwq_o.png" alt="在这里插入图片描述"><br> 注意到B+树还有一个改进，那就是叶子节点加了横向指针，因为B+树的叶子节点是排好序的，横向指针可以更好的实现范围查找。</p> 
+<h3><a id="51B_48"></a>（5.1）借着学习B+树的机会，学习为什么会出现索引失效的情况</h3> 
+<p>当我们给数据表添加【联合索引】的时候，树的每个节点里会放置多个值，例如（a,b,c）,当我们找这些值的大小规律时，会发现每个节点里的a值是从小到大的顺序，而只比较b/c值的时候，其实是无序的。</p> 
+<p>根据上面的逻辑，当我们要根据索引查找一个值的时候，要使用二分查找法，就要先确定a值的位置（因为a值有序），确定a值以后就能确定一个节点的范围，然后在这个范围内的b值也是从小到大的顺序了，然后继续使用二分查找法确定节点的范围，以此类推…</p> 
+<p>总结上面的逻辑：只有当a值有序且确定范围的时候，才能保证b值是有序的，接着只有当b值有序且确定范围的时候，才能保证c值是有序的，以此类推。这样就很好理解【最佳左前缀】原则了。如果带头大哥没了，或者中间值断了，那么后面的值就不能保证有序，无序就自然无法使用【二分查找法】，也就出现【索引失效】的情况了。当我们设定索引的时候，索引的树结构也就确定了。</p> 
+<p>通过上面的例子，就很好理解【索引在使用大于号/小于号时失效】【like模糊查询时索引失效】【使用or或者in之类时索引失效】</p> 
+<p>失效的原因都是没办法确定一个值，而是只能确定一个范围，导致不能使用二分查找法。例如大于号，不能确定b为某个值，只能确定范围，而这时范围内所有叶子结点里的c值就不是完全有序的，也就不能使用二分查找法，自然b后面的索引都会失效啦！！！</p> 
+<h2><a id="7MyISAM_60"></a>（7）学习MyISAM引擎的索引的底层原理</h2> 
+<p>MyISAM引擎创建的表分为三个文件，分别是：</p> 
+<ol><li>frm后缀：表定义的一些内容</li><li>MYD后缀：MyISAM引擎对应的Data，也就是数据文件</li><li>MYI后缀：MyISAM引擎对应的Index，也就是索引文件</li></ol> 
+<p>所以说，MyISAM引擎的索引文件和数据文件是分离的，从数据结构看叶子节点里放的不是data，放的是地址，找到地址后再到数据文件里找数据<br> <img src="https://images2.imgbox.com/1e/df/jP4nv8G6_o.png" alt="在这里插入图片描述"></p> 
+<h2><a id="8InnoDB_68"></a>（8）学习InnoDB引擎（聚集索引）</h2> 
+<p>InnoDB引擎创建的表分为两个：<br> 1-frm后缀：表定义的内容<br> 2-ibd后缀：存储索引和数据的文件</p> 
+<p>1-表数据文件本身就是按B+树组织的一个索引结构文件<br> 2-聚集索引：索引文件和数据文件不分离，都放在叶子节点里<br> 3-为什么InnoDB表必须有主键，并且推荐使用整型的自增主键？<br> InnoDB必须要有主键，并且使整型的自增主键。如果你没有创建主键的话，InnoDB引擎会在表中找一个能唯一标识的数据自动为你创建主键。使用整型是因为整型的数字2&lt;3比较的速度很快，比使用UUID这种字符的比较快很多，字符还需要转换成ACSII码，然后才进行比较；使用自增主键作为索引，而索引放在叶子节点中，叶子节点之间有个指针，叶子指针节点是一个递增的趋势，所以指针可以快速找到下一个节点，这个指针可以有效的支持范围查找，但是如果不是自增的话就不好进行范围查找了。<br> 4-为什么非主键索引结构叶子节点存储的是主键值？（一致性和节省存储空间）<br> <img src="https://images2.imgbox.com/35/3f/cjO53vHQ_o.png" alt="在这里插入图片描述"></p> 
+<h2><a id="9B_80"></a>（9）哈希索引和B+树索引（叶子节点指针的作用：支持范围查找）</h2> 
+<p>哈希索引用的非常少，多数用的就是B+树索引，用哈希索引的速度是比B+树索引要快的，但是它有一个致命的缺点：<br> select * from table Where col = 6；如果用哈希索引，那就直接到哈希索引表里找就行了，速度很快</p> 
+<p>但是如果加上检索的范围 select * from table Where 6&lt;col&lt;9；，检索结果集再用哈希索引就不行了，而且工作中肯定离不开范围查找，使用B+树索引进行范围查找的时候，就可以用到叶子节点的指针，先在叶子节点中快速定位到6，然后根据叶子节点的指针往后找到9，那么指针经过的所有叶子节点就是要查找的范围结果集，</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/9a04f7d8c8ba6583eb756220eddded18/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">索引红黑树的插入和删除实现</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/d219d45472d9923da3cc118154cc06f6/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">pycharm查看sftp里边的数据</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

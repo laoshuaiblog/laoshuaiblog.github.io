@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>redis缓存的三大问题以及解决方法！！！！ - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/58bd533b27e54a8e6a29fc4fe868c850/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="redis缓存的三大问题以及解决方法！！！！">
+  <meta property="og:description" content="专栏前言
+本专栏开启，目的在于帮助大家更好的掌握学习Redis，同时也是为了记录我自己学习Redis的过程，将会从基础的数据类型开始记录，直到一些更多的应用，如缓存击穿还有分布式锁以及Redis持久化等。希望大家有问题也可以一起沟通，欢迎一起学习，对于专栏内容有错还望您可以及时指点，非常感谢大家 。
+1.缓存的三大问题
+话说学习缓存，缓存雪崩、击穿、穿透肯定是绕不开的一个话题，不仅在开发中我们需要注意这个问题，在面试中更是面试官有关Redis必问的面试题，可以说我们对这三个场景我们必须了解其中的差异，以及各自的解决方案。
+2.缓存雪崩
+2.1 什么是缓存雪崩？
+缓存雪崩指的是在同一时间，大量的Key同时失效，导致大量的请求直接绕开了我们的Redis直接打到数据库，数据库一下顶不住直接挂彩了，这就是缓存雪崩的场景。
+那有的人肯定好奇，咦？怎么会那么巧大量的Key同时失效，考虑一个秒杀场景，比如双十一的时候，我们在晚上十一点集中上架一批商品，此时缓存过期时间设置为一小时，那么一到十二点这批商品的缓存就全部过期了，如果此时成千上万的用户想购买这些商品发送大量请求，就会导致数据库的压力上升从而可能压垮数据库。
+同一时间大量 Key 失效，就会导致Redis直接如同隐身了一样，那对于双十一这种数以千万级别甚至上亿量级的请求来到数据库，那后果就是灾难性的。一旦你一个库被打倒，那么其他的库可能也会收到影响，导致瞬间都挂掉了。你一重启用户又把你干崩，等你真正修好的时候，可能用户早就睡着了，还在心里吐槽一句什么垃圾产品。
+当然，如果Redis宕机了，那么显然也会触发缓存雪崩的情况。
+2.如何解决缓存雪崩？
+讨论完了案发场景，那我们该如何解决缓存雪崩了。
+过期时间添加随机值。
+那就对症下药嘛，既然你是大量的key同时过期导致的，那我就尽量让你不一起过期，所以我们在批量添加缓存的时候，可以给过期时间添加一个随机值，使得Key过期的时间尽量分散，这样保证缓存不会大面积的同时失效。
+进行集群部署
+集群部署的情况下，我们就无须担心某一台Redis宕机导致触发缓存雪崩，也可以将热点数据均匀分布在不同Redis库中，来避免全部失效的问题。
+热点数据永不过期
+我们也可以让热点数据永不过期，只进行更新的操作，这也可以避免缓存雪崩。但可能会带来数据不一致的问题。
+3.缓存穿透
+3.1 什么是缓存穿透？
+缓存穿透指的是对于一些缓存和数据库中都不存在的数据，而用户却不断对该数据进行请求，如果你的数据库甚至没有建立索引，那么数据库还会进行全表扫描，压力更大。每次数据库都需要去进行查，然后查不到，然后又继续查，然后又查不到，然后又…最终数据库卒，这就是缓存穿透。
+此时显然用户是一个攻击者，比如我们数据库id都是从1开始自增的，它可以故意访问一个负数的id，然后不断请求，如果是我们个人搭建的一些小网站，对这种行为没有预防，只需要用 postman 就可以干崩你的网站。
+3.2 如何解决缓存穿透?
+我们考虑如何去解决缓存穿透问题。
+参数校验
+在场景中我们已经提及，对于一些非法的参数我们一定要进行校验，不合法的参数直接进行返回，比如一些负数的id，还有用户的鉴权校验。参数校验的思想我们一定要根深蒂固，在任何地方都不应该相信前端传来的参数，我们都应当手动判断其是否合法。
+缓存空值
+对于一些不存在的对象，我们也可以将其作为key缓存，value设置null，这样用户再次访问时就不会走数据库查询了。当然需要注意的是我们这个key的过期时间我们需要设置短一些。
+@Component
+public class CacheNullValue {
+private static final int CACHE_EXPIRATION = 60; // 缓存过期时间，单位为秒
+@Autowired
+private StringRedisTemplate stringRedisTemplate;
+//@NotBlank对参数进行校验
+public String getData(@NotBlank String key) {
+String data = stringRedisTemplate.opsForValue().get(key);
+if (data == null) {">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2023-04-12T09:48:53+08:00">
+    <meta property="article:modified_time" content="2023-04-12T09:48:53+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">redis缓存的三大问题以及解决方法！！！！</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <p>专栏前言<br>    本专栏开启，目的在于帮助大家更好的掌握学习Redis，同时也是为了记录我自己学习Redis的过程，将会从基础的数据类型开始记录，直到一些更多的应用，如缓存击穿还有分布式锁以及Redis持久化等。希望大家有问题也可以一起沟通，欢迎一起学习，对于专栏内容有错还望您可以及时指点，非常感谢大家 。</p> 
+<p><br><strong>1.缓存的三大问题</strong><br>    话说学习缓存，缓存雪崩、击穿、穿透肯定是绕不开的一个话题，不仅在开发中我们需要注意这个问题，在面试中更是面试官有关Redis必问的面试题，可以说我们对这三个场景我们必须了解其中的差异，以及各自的解决方案。</p> 
+<p><strong>2.缓存雪崩</strong><br><strong>2.1 什么是缓存雪崩？</strong><br>    缓存雪崩指的是在同一时间，大量的Key同时失效，导致大量的请求直接绕开了我们的Redis直接打到数据库，数据库一下顶不住直接挂彩了，这就是缓存雪崩的场景。<br> 那有的人肯定好奇，咦？怎么会那么巧大量的Key同时失效，考虑一个秒杀场景，比如双十一的时候，我们在晚上十一点集中上架一批商品，此时缓存过期时间设置为一小时，那么一到十二点这批商品的缓存就全部过期了，如果此时成千上万的用户想购买这些商品发送大量请求，就会导致数据库的压力上升从而可能压垮数据库。</p> 
+<p><br>   同一时间大量 Key 失效，就会导致Redis直接如同隐身了一样，那对于双十一这种数以千万级别甚至上亿量级的请求来到数据库，那后果就是灾难性的。一旦你一个库被打倒，那么其他的库可能也会收到影响，导致瞬间都挂掉了。你一重启用户又把你干崩，等你真正修好的时候，可能用户早就睡着了，还在心里吐槽一句什么垃圾产品。<br>   当然，如果Redis宕机了，那么显然也会触发缓存雪崩的情况。</p> 
+<p><strong>2.如何解决缓存雪崩？</strong><br>  <strong> </strong>讨论完了案发场景，那我们该如何解决缓存雪崩了。</p> 
+<p>过期时间添加随机值。<br> 那就对症下药嘛，既然你是大量的key同时过期导致的，那我就尽量让你不一起过期，所以我们在批量添加缓存的时候，可以给过期时间添加一个随机值，使得Key过期的时间尽量分散，这样保证缓存不会大面积的同时失效。<br> 进行集群部署<br> 集群部署的情况下，我们就无须担心某一台Redis宕机导致触发缓存雪崩，也可以将热点数据均匀分布在不同Redis库中，来避免全部失效的问题。<br> 热点数据永不过期<br> 我们也可以让热点数据永不过期，只进行更新的操作，这也可以避免缓存雪崩。但可能会带来数据不一致的问题。<br><strong>3.缓存穿透<br> 3.1 什么是缓存穿透？</strong><br>   缓存穿透指的是对于一些缓存和数据库中都不存在的数据，而用户却不断对该数据进行请求，如果你的数据库甚至没有建立索引，那么数据库还会进行全表扫描，压力更大。每次数据库都需要去进行查，然后查不到，然后又继续查，然后又查不到，然后又…最终数据库卒，这就是缓存穿透。<br>   此时显然用户是一个攻击者，比如我们数据库id都是从1开始自增的，它可以故意访问一个负数的id，然后不断请求，如果是我们个人搭建的一些小网站，对这种行为没有预防，只需要用 postman 就可以干崩你的网站。</p> 
+<p><br><strong>3.2 如何解决缓存穿透?</strong><br>   我们考虑如何去解决缓存穿透问题。</p> 
+<p>参数校验<br> 在场景中我们已经提及，对于一些非法的参数我们一定要进行校验，不合法的参数直接进行返回，比如一些负数的id，还有用户的鉴权校验。参数校验的思想我们一定要根深蒂固，在任何地方都不应该相信前端传来的参数，我们都应当手动判断其是否合法。<br> 缓存空值<br> 对于一些不存在的对象，我们也可以将其作为key缓存，value设置null，这样用户再次访问时就不会走数据库查询了。当然需要注意的是我们这个key的过期时间我们需要设置短一些。<br>  </p> 
+<p>@Component<br> public class CacheNullValue {<!-- --></p> 
+<p>    private static final int CACHE_EXPIRATION = 60; // 缓存过期时间，单位为秒</p> 
+<p>    @Autowired<br>     private StringRedisTemplate stringRedisTemplate;<br>     //@NotBlank对参数进行校验<br>     public String getData(@NotBlank String key) {<!-- --><br>         String data = stringRedisTemplate.opsForValue().get(key);<br>         if (data == null) {<!-- --><br>             data = getDataFromDatabase(key);<br>             if (data == null) {<!-- --><br>                 // 将空值缓存指定时间<br>                 stringRedisTemplate.opsForValue().set(key, "", CACHE_EXPIRATION);<br>             } else {<!-- --><br>                 // 将数据缓存指定时间<br>                 stringRedisTemplate.opsForValue().set(key, data, CACHE_EXPIRATION);<br>             }<br>         }<br>         return data;<br>     }</p> 
+<p>    private String getDataFromDatabase(String key) {<!-- --><br>         // 从数据库中获取数据的逻辑<br>         System.out.println("查询数据");<br>         return null;<br>     }<br> }<br><br> 布隆过滤器<br> 这是一个解决缓存穿透效果最好的办法，但是确定就是代码维护起来比较复杂。它是一种数据结构，主要的作用是用来判断某个元素是否存在在集合内，具有运行速度快，占用内存小等优点，但是具有一定的误判率，而且删除困难等问题。但它有一个特点，就是会可能会误报但不会漏报，存在的元素它一定会知道，不存在的元素它可能也会告诉你存在。<br> 这样我们就可以使用布隆过滤器来对一些数据进行白名单，如果不存在的话我们直接返回null或者失败。<br> 监控IP<br> 要知道正常的用户，肯定不会同时发大量的非法请求，当请求次数超过某个阈值时，那么我们可以对该用户ip进行拉黑，把他关进小黑屋。<br><strong>4. 缓存击穿<br> 4.1 什么是缓存击穿？</strong><br>   接下来最后聊聊缓存击穿，有的同学可能容易把它和缓存穿透搞混，听起来意思很像，这里分析一下我的记法——巴雷特 （当然你也可以记成 AWM ）。不知道大家玩过枪战游戏没，巴雷特是一把杀伤力巨大的狙击枪，单点的杀伤力爆炸，哪怕你站在门后都能把你一枪 击穿。<br>   回到正题，缓存击穿有点类型我们刚刚举的小例子，它指的是对于一个非常热门的key在不停地扛着大并发需求，如果这个key瞬间失效了，此时瞬间大并发就直接到达了数据库，数据库瞬间挂彩，这感觉就像大木桶打穿了一个洞的感觉（没错就是巴雷特的感觉 ）<br>   缓存击穿一般是两个场景产生，注意我们强调的是并发的场景下：</p> 
+<p>该数据没有人查询过，所以缓存中没有，第一次就遭受大并发访问（某些冷门数据）<br> 缓存中存在，但恰好失效了，大并发访问瞬间落到数据库（热点数据）<br> 4.2 如何解决缓存击穿？<br> 加互斥锁<br> 由于是并发场景下，我们可以考虑加锁解决该问题，当缓存未命中时，只有持有锁的线程才能进行数据库查询，然后将查询结构写入缓存，其余的线程只能自旋进行等待。<br> 下面是逻辑的流程图</p> 
+<p><br> @Component<br> public class RedisCache {<!-- --><br>     <br>     private final static String CACHE_PREFIX = "my_cache_";<br>     private final static int EXPIRE_TIME_SECONDS = 60;<br>     private final ReentrantLock lock = new ReentrantLock();<br>     @Autowired<br>     private StringRedisTemplate stringRedisTemplate;<br>     public Object get(@NotBlank String key) {<!-- --><br>         String cacheKey = CACHE_PREFIX + key;<br>         //1.先查询缓存<br>         ValueOperations&lt;String, String&gt; ops = redisTemplate.opsForValue();<br>         String value = ops.get(cacheKey);<br>         //2.缓存未命中<br>         if (value == null) {<!-- --><br>             //3.尝试获取锁<br>             lock.lock();<br>             try {<!-- --><br>                  //4.双重校验<br>                 value = ops.get(cacheKey);           <br>                 if (value == null) {<!-- --><br>                     //5.查询数据库<br>                     value = fetchDataFromDatabase(key);<br>                     //6.写回redis<br>                     ops.set(cacheKey, value, EXPIRE_TIME_SECONDS);<br>                     <br>                 }<br>             } catch (Exception e) {<!-- --><br>                 System.out.println("出现异常");<br>             } finally {<!-- --><br>                 //释放锁<br>                 lock.unlock();<br>             }<br>         }<br>         return value;<br>     }</p> 
+<p>    private String fetchDataFromDatabase(String key) {<!-- --><br>         System.out.println("查询数据库");<br>         return key;<br>     }<br> }<br><br> 需要注意我们这里的场景是单机的情况下，如果是分布式环境的话我们就得使用分布式锁了，这里我们使用synchronized和lock都是可以的。有关分布式锁我们后续文章会进行讲解</p> 
+<p>热点数据永不过期<br> 同样因为是数据过期的问题，那我们也可以考虑设置热点数据永不过期，当后台更新数据的同时更新缓存中的数据，当然可能会带来数据不一致的问题，适用于不严格要求缓存一致性的场景。<br><br>  </p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/53a36cf51ac06c8601fe265c69acd3a7/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">如何把开发的javaweb程序让用户在网上访问使用</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/680ec92b284f91c4bb91f54f71427293/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">发送Ajax请求时，页面没有发生响应</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

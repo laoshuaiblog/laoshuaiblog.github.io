@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Tensorflow2.0入门教程15：CNN网络添加BN层 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/3dcb608776367368fc7e772501e50d28/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="Tensorflow2.0入门教程15：CNN网络添加BN层">
+  <meta property="og:description" content="BN(BatchNormalization)层的作用： 1，加速收敛；
+2，控制过拟合，可以少用Dropout或者不用Dropout；
+3，降低网络对初始化权重的不敏感；
+4，允许使用比较大的学习率。
+解决梯度消失与梯度爆炸的问题
+1，网络中训练以batch_size为最小单位不断迭代，新的batch_size进入网络，就会产生新的γ与β，在BN层中，有总图片/batch_size组γ与β被保存。2，图像卷积的过程中，通常使用多个卷积核，得到多张特征图，对于多个卷积核需要保存多个γ与β。 基于CNN的花卉识别练习 需要安装的包
+pip install opencv-python
+import cv2 import os import tensorflow as tf import numpy as np 一、读取数据并进行数据处理 数据集路径—根据自己的路径进行改写
+path=r&#39;flower_photos/&#39; 由于我们的数据集图片大小不一致，所以需要resize成统一大小 这里resize成100x100x3
+w=100 h=100 c=3 读取数据集图片并添加标签,最后的形式是data 对应图片, label 是标签，roses 0,daisy 1,sunflowers 2,tulips 3,dandelion 4.
+def read_img(path): imgs=[] labels=[] cate=[path&#43;x for x in os.listdir(path) if os.path.isdir(path&#43;x)] for idx,i in enumerate(cate): for j in os.listdir(i): im = cv2.imread(i&#43;&#39;/&#39;&#43;j) img = cv2.resize(im, (w, h))/255. imgs.append(img) labels.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2020-03-16T16:15:54+08:00">
+    <meta property="article:modified_time" content="2020-03-16T16:15:54+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">Tensorflow2.0入门教程15：CNN网络添加BN层</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-light">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <h2><a id="BNBatchNormalization_1"></a>BN(BatchNormalization)层的作用：</h2> 
+<p>1，加速收敛；</p> 
+<p>2，控制过拟合，可以少用Dropout或者不用Dropout；</p> 
+<p>3，降低网络对初始化权重的不敏感；</p> 
+<p>4，允许使用比较大的学习率。<br> <img src="https://images2.imgbox.com/d2/0a/RbdcYb2C_o.png" alt="在这里插入图片描述"></p> 
+<p>解决梯度消失与梯度爆炸的问题</p> 
+<ul><li>1，网络中训练以batch_size为最小单位不断迭代，新的batch_size进入网络，就会产生新的γ与β，在BN层中，有总图片/batch_size组γ与β被保存。</li><li>2，图像卷积的过程中，通常使用多个卷积核，得到多张特征图，对于多个卷积核需要保存多个γ与β。</li></ul> 
+<h2><a id="CNN_18"></a>基于CNN的花卉识别练习</h2> 
+<p>需要安装的包</p> 
+<p>pip install opencv-python</p> 
+<pre><code class="prism language-python"><span class="token keyword">import</span> cv2
+<span class="token keyword">import</span> os
+<span class="token keyword">import</span> tensorflow <span class="token keyword">as</span> tf
+<span class="token keyword">import</span> numpy <span class="token keyword">as</span> np
+</code></pre> 
+<h3><a id="_32"></a>一、读取数据并进行数据处理</h3> 
+<p>数据集路径—根据自己的路径进行改写</p> 
+<pre><code class="prism language-python">path<span class="token operator">=</span>r<span class="token string">'flower_photos/'</span>
+</code></pre> 
+<p>由于我们的数据集图片大小不一致，所以需要resize成统一大小 这里resize成100x100x3</p> 
+<pre><code class="prism language-python">w<span class="token operator">=</span><span class="token number">100</span>
+h<span class="token operator">=</span><span class="token number">100</span>
+c<span class="token operator">=</span><span class="token number">3</span>
+</code></pre> 
+<p>读取数据集图片并添加标签,最后的形式是data 对应图片, label 是标签，roses 0,daisy 1,sunflowers 2,tulips 3,dandelion 4.</p> 
+<pre><code class="prism language-python"><span class="token keyword">def</span> <span class="token function">read_img</span><span class="token punctuation">(</span>path<span class="token punctuation">)</span><span class="token punctuation">:</span>
+    imgs<span class="token operator">=</span><span class="token punctuation">[</span><span class="token punctuation">]</span>
+    labels<span class="token operator">=</span><span class="token punctuation">[</span><span class="token punctuation">]</span>
+    cate<span class="token operator">=</span><span class="token punctuation">[</span>path<span class="token operator">+</span>x <span class="token keyword">for</span> x <span class="token keyword">in</span> os<span class="token punctuation">.</span>listdir<span class="token punctuation">(</span>path<span class="token punctuation">)</span> <span class="token keyword">if</span> os<span class="token punctuation">.</span>path<span class="token punctuation">.</span>isdir<span class="token punctuation">(</span>path<span class="token operator">+</span>x<span class="token punctuation">)</span><span class="token punctuation">]</span>
+    <span class="token keyword">for</span> idx<span class="token punctuation">,</span>i <span class="token keyword">in</span> <span class="token builtin">enumerate</span><span class="token punctuation">(</span>cate<span class="token punctuation">)</span><span class="token punctuation">:</span>
+        <span class="token keyword">for</span> j <span class="token keyword">in</span> os<span class="token punctuation">.</span>listdir<span class="token punctuation">(</span>i<span class="token punctuation">)</span><span class="token punctuation">:</span>
+            im <span class="token operator">=</span> cv2<span class="token punctuation">.</span>imread<span class="token punctuation">(</span>i<span class="token operator">+</span><span class="token string">'/'</span><span class="token operator">+</span>j<span class="token punctuation">)</span>
+            img <span class="token operator">=</span> cv2<span class="token punctuation">.</span>resize<span class="token punctuation">(</span>im<span class="token punctuation">,</span> <span class="token punctuation">(</span>w<span class="token punctuation">,</span> h<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token operator">/</span><span class="token number">255</span><span class="token punctuation">.</span>
+            imgs<span class="token punctuation">.</span>append<span class="token punctuation">(</span>img<span class="token punctuation">)</span>
+            labels<span class="token punctuation">.</span>append<span class="token punctuation">(</span>idx<span class="token punctuation">)</span>
+    <span class="token keyword">return</span> np<span class="token punctuation">.</span>asarray<span class="token punctuation">(</span>imgs<span class="token punctuation">,</span>np<span class="token punctuation">.</span>float32<span class="token punctuation">)</span><span class="token punctuation">,</span>np<span class="token punctuation">.</span>asarray<span class="token punctuation">(</span>labels<span class="token punctuation">,</span>np<span class="token punctuation">.</span>int32<span class="token punctuation">)</span>
+data<span class="token punctuation">,</span>label<span class="token operator">=</span>read_img<span class="token punctuation">(</span>path<span class="token punctuation">)</span>
+</code></pre> 
+<p>将数据集打乱顺序</p> 
+<pre><code class="prism language-python">num_example<span class="token operator">=</span>data<span class="token punctuation">.</span>shape<span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span> <span class="token comment"># data.shape是(3029, 100, 100, 3)</span>
+arr<span class="token operator">=</span>np<span class="token punctuation">.</span>arange<span class="token punctuation">(</span>num_example<span class="token punctuation">)</span><span class="token comment"># 创建等差数组 0，1，...,3028</span>
+np<span class="token punctuation">.</span>random<span class="token punctuation">.</span>shuffle<span class="token punctuation">(</span>arr<span class="token punctuation">)</span><span class="token comment"># 打乱顺序</span>
+data<span class="token operator">=</span>data<span class="token punctuation">[</span>arr<span class="token punctuation">]</span>
+label<span class="token operator">=</span>label<span class="token punctuation">[</span>arr<span class="token punctuation">]</span>
+<span class="token keyword">print</span><span class="token punctuation">(</span>label<span class="token punctuation">)</span>
+</code></pre> 
+<pre><code>[1 4 4 ... 4 2 3]
+</code></pre> 
+<p>标签one-hot处理</p> 
+<pre><code class="prism language-python"><span class="token keyword">def</span> <span class="token function">to_one_hot</span><span class="token punctuation">(</span>labels<span class="token punctuation">)</span><span class="token punctuation">:</span>
+    l <span class="token operator">=</span> <span class="token builtin">len</span><span class="token punctuation">(</span>labels<span class="token punctuation">)</span>
+    res <span class="token operator">=</span> np<span class="token punctuation">.</span>zeros<span class="token punctuation">(</span><span class="token punctuation">(</span>l<span class="token punctuation">,</span> <span class="token number">5</span><span class="token punctuation">)</span><span class="token punctuation">,</span> dtype<span class="token operator">=</span>np<span class="token punctuation">.</span>float32<span class="token punctuation">)</span>
+    <span class="token keyword">for</span> i <span class="token keyword">in</span> <span class="token builtin">range</span><span class="token punctuation">(</span>l<span class="token punctuation">)</span><span class="token punctuation">:</span>
+        res<span class="token punctuation">[</span>i<span class="token punctuation">]</span><span class="token punctuation">[</span>labels<span class="token punctuation">[</span>i<span class="token punctuation">]</span><span class="token punctuation">]</span> <span class="token operator">=</span> <span class="token number">1</span><span class="token punctuation">.</span>
+    <span class="token keyword">return</span> res
+label_oh <span class="token operator">=</span> to_one_hot<span class="token punctuation">(</span>label<span class="token punctuation">)</span>
+</code></pre> 
+<p>将所有数据集分为训练集80%、测试集20%</p> 
+<pre><code class="prism language-python">ratio<span class="token operator">=</span><span class="token number">0.8</span>
+s<span class="token operator">=</span>np<span class="token punctuation">.</span><span class="token builtin">int</span><span class="token punctuation">(</span>num_example<span class="token operator">*</span>ratio<span class="token punctuation">)</span>
+x_train<span class="token operator">=</span>data<span class="token punctuation">[</span><span class="token punctuation">:</span>s<span class="token punctuation">]</span>
+y_train<span class="token operator">=</span>label_oh<span class="token punctuation">[</span><span class="token punctuation">:</span>s<span class="token punctuation">]</span>
+x_test<span class="token operator">=</span>data<span class="token punctuation">[</span>s<span class="token punctuation">:</span><span class="token punctuation">]</span>
+y_test<span class="token operator">=</span>label_oh<span class="token punctuation">[</span>s<span class="token punctuation">:</span><span class="token punctuation">]</span>
+</code></pre> 
+<pre><code class="prism language-python">x_train<span class="token punctuation">.</span>shape
+</code></pre> 
+<pre><code>(2936, 100, 100, 3)
+</code></pre> 
+<h3><a id="_115"></a>二、搭建网络</h3> 
+<h4><a id="BNtfkeraslayersBatchNormalization_117"></a>添加BN层：tf.keras.layers.BatchNormalization()</h4> 
+<pre><code class="prism language-python"><span class="token keyword">class</span> <span class="token class-name">CNN</span><span class="token punctuation">(</span>tf<span class="token punctuation">.</span>keras<span class="token punctuation">.</span>Model<span class="token punctuation">)</span><span class="token punctuation">:</span>
+    <span class="token keyword">def</span> <span class="token function">__init__</span><span class="token punctuation">(</span>self<span class="token punctuation">)</span><span class="token punctuation">:</span>
+        <span class="token builtin">super</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span>__init__<span class="token punctuation">(</span><span class="token punctuation">)</span>
+        self<span class="token punctuation">.</span>conv1 <span class="token operator">=</span> tf<span class="token punctuation">.</span>keras<span class="token punctuation">.</span>layers<span class="token punctuation">.</span>Conv2D<span class="token punctuation">(</span>
+            filters<span class="token operator">=</span><span class="token number">32</span><span class="token punctuation">,</span>             <span class="token comment"># 卷积层神经元（卷积核）数目</span>
+            kernel_size<span class="token operator">=</span><span class="token punctuation">[</span><span class="token number">3</span><span class="token punctuation">,</span> <span class="token number">3</span><span class="token punctuation">]</span><span class="token punctuation">,</span>     <span class="token comment"># 感受野大小</span>
+            padding<span class="token operator">=</span><span class="token string">'same'</span><span class="token punctuation">,</span>         <span class="token comment"># padding策略（vaild 或 same）</span>
+        <span class="token punctuation">)</span>
+        <span class="token comment"># BN层</span>
+        self<span class="token punctuation">.</span>bn <span class="token operator">=</span> tf<span class="token punctuation">.</span>keras<span class="token punctuation">.</span>layers<span class="token punctuation">.</span>BatchNormalization<span class="token punctuation">(</span><span class="token punctuation">)</span>
+        self<span class="token punctuation">.</span>pool1 <span class="token operator">=</span> tf<span class="token punctuation">.</span>keras<span class="token punctuation">.</span>layers<span class="token punctuation">.</span>MaxPool2D<span class="token punctuation">(</span>pool_size<span class="token operator">=</span><span class="token punctuation">[</span><span class="token number">2</span><span class="token punctuation">,</span> <span class="token number">2</span><span class="token punctuation">]</span><span class="token punctuation">,</span> strides<span class="token operator">=</span><span class="token number">2</span><span class="token punctuation">)</span>
+        self<span class="token punctuation">.</span>flatten <span class="token operator">=</span> tf<span class="token punctuation">.</span>keras<span class="token punctuation">.</span>layers<span class="token punctuation">.</span>Flatten<span class="token punctuation">(</span><span class="token punctuation">)</span>
+        self<span class="token punctuation">.</span>dense1 <span class="token operator">=</span> tf<span class="token punctuation">.</span>keras<span class="token punctuation">.</span>layers<span class="token punctuation">.</span>Dense<span class="token punctuation">(</span>units<span class="token operator">=</span><span class="token number">128</span><span class="token punctuation">,</span> activation<span class="token operator">=</span><span class="token string">"relu"</span><span class="token punctuation">)</span>
+        self<span class="token punctuation">.</span>dense2 <span class="token operator">=</span> tf<span class="token punctuation">.</span>keras<span class="token punctuation">.</span>layers<span class="token punctuation">.</span>Dense<span class="token punctuation">(</span>units<span class="token operator">=</span><span class="token number">5</span><span class="token punctuation">)</span>
+
+    <span class="token keyword">def</span> <span class="token function">call</span><span class="token punctuation">(</span>self<span class="token punctuation">,</span> inputs<span class="token punctuation">)</span><span class="token punctuation">:</span>
+        x <span class="token operator">=</span> self<span class="token punctuation">.</span>conv1<span class="token punctuation">(</span>inputs<span class="token punctuation">)</span> 
+        x <span class="token operator">=</span> self<span class="token punctuation">.</span>bn<span class="token punctuation">(</span>x<span class="token punctuation">)</span>
+        x <span class="token operator">=</span> tf<span class="token punctuation">.</span>nn<span class="token punctuation">.</span>relu<span class="token punctuation">(</span>x<span class="token punctuation">)</span>
+        x <span class="token operator">=</span> self<span class="token punctuation">.</span>pool1<span class="token punctuation">(</span>x<span class="token punctuation">)</span>                                            
+        x <span class="token operator">=</span> self<span class="token punctuation">.</span>flatten<span class="token punctuation">(</span>x<span class="token punctuation">)</span>
+        x <span class="token operator">=</span> self<span class="token punctuation">.</span>dense1<span class="token punctuation">(</span>x<span class="token punctuation">)</span>                      
+        x <span class="token operator">=</span> self<span class="token punctuation">.</span>dense2<span class="token punctuation">(</span>x<span class="token punctuation">)</span>                     
+        output <span class="token operator">=</span> tf<span class="token punctuation">.</span>nn<span class="token punctuation">.</span>softmax<span class="token punctuation">(</span>x<span class="token punctuation">)</span>
+        <span class="token keyword">return</span> output
+</code></pre> 
+<pre><code class="prism language-python">model <span class="token operator">=</span> CNN<span class="token punctuation">(</span><span class="token punctuation">)</span>
+</code></pre> 
+<pre><code class="prism language-python">model<span class="token punctuation">.</span><span class="token builtin">compile</span><span class="token punctuation">(</span>optimizer<span class="token operator">=</span>tf<span class="token punctuation">.</span>keras<span class="token punctuation">.</span>optimizers<span class="token punctuation">.</span>Adam<span class="token punctuation">(</span>learning_rate<span class="token operator">=</span><span class="token number">0.001</span><span class="token punctuation">)</span><span class="token punctuation">,</span>
+             loss<span class="token operator">=</span>tf<span class="token punctuation">.</span>keras<span class="token punctuation">.</span>losses<span class="token punctuation">.</span>CategoricalCrossentropy<span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span>
+            metrics<span class="token operator">=</span><span class="token punctuation">[</span><span class="token string">'accuracy'</span><span class="token punctuation">]</span><span class="token punctuation">)</span>
+</code></pre> 
+<pre><code class="prism language-python">history <span class="token operator">=</span> model<span class="token punctuation">.</span>fit<span class="token punctuation">(</span>x_train<span class="token punctuation">,</span> y_train<span class="token punctuation">,</span> batch_size<span class="token operator">=</span><span class="token number">64</span><span class="token punctuation">,</span> epochs<span class="token operator">=</span><span class="token number">10</span><span class="token punctuation">,</span> validation_split<span class="token operator">=</span><span class="token number">0.2</span><span class="token punctuation">)</span>
+</code></pre> 
+<pre><code>Train on 2348 samples, validate on 588 samples
+Epoch 1/10
+2348/2348 [==============================] - 16s 7ms/sample - loss: 14.9535 - accuracy: 0.3271 - val_loss: 1.6025 - val_accuracy: 0.2041
+Epoch 2/10
+2348/2348 [==============================] - 17s 7ms/sample - loss: 1.4817 - accuracy: 0.3296 - val_loss: 1.5745 - val_accuracy: 0.2483
+Epoch 3/10
+2348/2348 [==============================] - 17s 7ms/sample - loss: 1.3477 - accuracy: 0.4404 - val_loss: 1.5366 - val_accuracy: 0.2993
+Epoch 4/10
+2348/2348 [==============================] - 17s 7ms/sample - loss: 1.2345 - accuracy: 0.4791 - val_loss: 1.4772 - val_accuracy: 0.3452
+Epoch 5/10
+2348/2348 [==============================] - 17s 7ms/sample - loss: 1.1583 - accuracy: 0.4911 - val_loss: 1.4653 - val_accuracy: 0.3520
+Epoch 6/10
+2348/2348 [==============================] - 16s 7ms/sample - loss: 1.0837 - accuracy: 0.5213 - val_loss: 1.4188 - val_accuracy: 0.4014
+Epoch 7/10
+2348/2348 [==============================] - 16s 7ms/sample - loss: 1.0094 - accuracy: 0.5503 - val_loss: 1.3899 - val_accuracy: 0.4082
+Epoch 8/10
+2348/2348 [==============================] - 17s 7ms/sample - loss: 0.9346 - accuracy: 0.5839 - val_loss: 1.4172 - val_accuracy: 0.4354
+Epoch 9/10
+2348/2348 [==============================] - 17s 7ms/sample - loss: 0.8827 - accuracy: 0.6060 - val_loss: 1.2974 - val_accuracy: 0.4830
+Epoch 10/10
+2348/2348 [==============================] - 17s 7ms/sample - loss: 0.8194 - accuracy: 0.6495 - val_loss: 1.2015 - val_accuracy: 0.5068
+</code></pre> 
+<pre><code class="prism language-python">model<span class="token punctuation">.</span>evaluate<span class="token punctuation">(</span>x_test<span class="token punctuation">,</span>y_test<span class="token punctuation">,</span>verbose<span class="token operator">=</span><span class="token number">2</span><span class="token punctuation">)</span>
+</code></pre> 
+<pre><code>734/1 - 1s - loss: 1.1530 - accuracy: 0.5245
+[1.1842144834897823, 0.52452314]
+</code></pre>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/7209923f4d3b6737470a963c572c129b/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">SECP256K1签名</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/ff168b4f44e05d15700514754cc35e20/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">以管理员权限打开命令提示符窗口的3种方法</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

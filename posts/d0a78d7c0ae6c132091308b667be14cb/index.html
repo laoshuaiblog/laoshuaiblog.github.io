@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>STM32F1C8T6Flash读取音频和DAC播放 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/d0a78d7c0ae6c132091308b667be14cb/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="STM32F1C8T6Flash读取音频和DAC播放">
+  <meta property="og:description" content="文章目录 一、Flash简介1、Flash原理2、STM32F1中的Flash 二、Flash地址空间的数据读取1、题目要求2、CUbeMX工程建立3、Keil工程修改4、STlink调试说明5、调试运行 三、基于片内Flash的提示音播放程序1、使用DAC输出周期2khz的正弦波2、使用DAC输出数字音频歌曲数据转换为模拟音频波形输出 四、总结五、参考资料 一、Flash简介 1、Flash原理 Flash全名叫做Flash Memory，从名字就能看出，是种数据存储设备，存储设备有很多类，Flash属于非易失性存储设备(Non-volatile Memory Device)，与此相对应的是易失性存储设备(Volatile Memory Device)。关于什么是非易失性/易失性，从名字中就可以看出，非易失性就是不容易丢失，数据存储在这类设备中，即使断电了，也不会丢失，这类设备，除了Flash，还有其他比较常见的入硬盘，ROM等，与此相对的，易失性就是断电了，数据就丢失了，比如大家常用的内存，不论是以前的SDRAM，DDR SDRAM，还是现在的DDR2，DDR3等，都是断电后，数据就没了。
+典型的Flash内存单元的物理结构：
+2、STM32F1中的Flash 不同型号的 STM32，其 FLASH 容量也有所不同，最小的只有 16K 字节，最大的则达到了 1024K 字节。市面上 STM32F1 开发板使用的芯片是 STM32F103系列，其 FLASH 容量一般为 512K 字节，属于大容量芯片。
+STM32F1 的闪存（Flash）模块由：主存储器、信息块和闪存存储器接口寄存器等 3 部分组成。下面我们就来介绍下这些组成部分：
+①主存储器。该部分用来存放代码和数据常数（如 const 类型的数据）。对于大容量产品，其被划分为 256 页，每页 2K 字节。注意，小容量和中容量产品则每页只有 1K 字节。从上图可以看出主存储器的起始地址就是0X08000000， BOOT0、BOOT1 都接 GND 的时候，就是从 0X08000000 开始运行代码的。
+②信息块。该部分分为 2 个小部分，其中启动程序代码，是用来存储 ST 自带的启动程序，用于串口下载代码，当 BOOT0 接 V3.3， BOOT1 接 GND 的时候，运行的就是这部分代码。用户选择字节，则一般用于配置写保护、读保护等功能，这里我们不做介绍，大家可以百度了解。
+③闪存存储器接口寄存器。该部分用于控制闪存读写等，是整个闪存模块的控制机构。对主存储器和信息块的写入由内嵌的闪存编程/擦除控制器(FPEC)管理；编程与擦除的高电压由内部产生。
+在执行闪存写操作时，任何对闪存的读操作都会锁住总线，在写操作完成后读操作才能正确地进行；既在进行写或擦除操作时，不能进行代码或数据的读取操作。
+二、Flash地址空间的数据读取 1、题目要求 Flash地址空间的数据读取。stm32f103c8t6只有20KB 内存（RAM）供程序代码和数组变量存放，因此，针对内部Flash的总计64KB存储空间(地址从0x08000000开始），运行一次写入8KB数据，总计复位运行代码4次，将32KB数据写入Flash。并验证写入数据的正确性和读写速率。
+2、CUbeMX工程建立 配置定时器：">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2021-12-30T14:34:32+08:00">
+    <meta property="article:modified_time" content="2021-12-30T14:34:32+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">STM32F1C8T6Flash读取音频和DAC播放</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-dark">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <p></p> 
+<div class="toc"> 
+ <h4>文章目录</h4> 
+ <ul><li><a href="#Flash_1" rel="nofollow">一、Flash简介</a></li><li><ul><li><a href="#1Flash_2" rel="nofollow">1、Flash原理</a></li><li><a href="#2STM32F1Flash_7" rel="nofollow">2、STM32F1中的Flash</a></li></ul> 
+  </li><li><a href="#Flash_22" rel="nofollow">二、Flash地址空间的数据读取</a></li><li><ul><li><a href="#1_23" rel="nofollow">1、题目要求</a></li><li><a href="#2CUbeMX_25" rel="nofollow">2、CUbeMX工程建立</a></li><li><a href="#3Keil_40" rel="nofollow">3、Keil工程修改</a></li><li><a href="#4STlink_79" rel="nofollow">4、STlink调试说明</a></li><li><a href="#5_101" rel="nofollow">5、调试运行</a></li></ul> 
+  </li><li><a href="#Flash_117" rel="nofollow">三、基于片内Flash的提示音播放程序</a></li><li><ul><li><a href="#1DAC2khz_118" rel="nofollow">1、使用DAC输出周期2khz的正弦波</a></li><li><a href="#2DAC_153" rel="nofollow">2、使用DAC输出数字音频歌曲数据转换为模拟音频波形输出</a></li></ul> 
+  </li><li><a href="#_161" rel="nofollow">四、总结</a></li><li><a href="#_163" rel="nofollow">五、参考资料</a></li></ul> 
+</div> 
+<p></p> 
+<h2><a id="Flash_1"></a>一、Flash简介</h2> 
+<h3><a id="1Flash_2"></a>1、Flash原理</h3> 
+<p>Flash全名叫做Flash Memory，从名字就能看出，是种数据存储设备，存储设备有很多类，Flash属于非易失性存储设备(Non-volatile Memory Device)，与此相对应的是易失性存储设备(Volatile Memory Device)。关于什么是非易失性/易失性，从名字中就可以看出，非易失性就是不容易丢失，数据存储在这类设备中，即使断电了，也不会丢失，这类设备，除了Flash，还有其他比较常见的入硬盘，ROM等，与此相对的，易失性就是断电了，数据就丢失了，比如大家常用的内存，不论是以前的SDRAM，DDR SDRAM，还是现在的DDR2，DDR3等，都是断电后，数据就没了。</p> 
+<p><strong>典型的Flash内存单元的物理结构：</strong><br> <img src="https://images2.imgbox.com/d2/cb/4fWQmbOL_o.png" alt="在这里插入图片描述"></p> 
+<h3><a id="2STM32F1Flash_7"></a>2、STM32F1中的Flash</h3> 
+<p>不同型号的 STM32，其 FLASH 容量也有所不同，最小的只有 16K 字节，最大的则达到了 1024K 字节。市面上 STM32F1 开发板使用的芯片是 STM32F103系列，其 FLASH 容量一般为 512K 字节，属于大容量芯片。</p> 
+<p>STM32F1 的闪存（Flash）模块由：主存储器、信息块和闪存存储器接口寄存器等 3 部分组成。下面我们就来介绍下这些组成部分：</p> 
+<p>①主存储器。该部分用来存放代码和数据常数（如 const 类型的数据）。对于大容量产品，其被划分为 256 页，每页 2K 字节。注意，小容量和中容量产品则每页只有 1K 字节。从上图可以看出主存储器的起始地址就是0X08000000， BOOT0、BOOT1 都接 GND 的时候，就是从 0X08000000 开始运行代码的。</p> 
+<p>②信息块。该部分分为 2 个小部分，其中启动程序代码，是用来存储 ST 自带的启动程序，用于串口下载代码，当 BOOT0 接 V3.3， BOOT1 接 GND 的时候，运行的就是这部分代码。用户选择字节，则一般用于配置写保护、读保护等功能，这里我们不做介绍，大家可以百度了解。</p> 
+<p>③闪存存储器接口寄存器。该部分用于控制闪存读写等，是整个闪存模块的控制机构。对主存储器和信息块的写入由内嵌的闪存编程/擦除控制器(FPEC)管理；编程与擦除的高电压由内部产生。</p> 
+<p>在执行闪存写操作时，任何对闪存的读操作都会锁住总线，在写操作完成后读操作才能正确地进行；既在进行写或擦除操作时，不能进行代码或数据的读取操作。</p> 
+<h2><a id="Flash_22"></a>二、Flash地址空间的数据读取</h2> 
+<h3><a id="1_23"></a>1、题目要求</h3> 
+<p>Flash地址空间的数据读取。stm32f103c8t6只有20KB 内存（RAM）供程序代码和数组变量存放，因此，针对内部Flash的总计64KB存储空间(地址从0x08000000开始），运行一次写入8KB数据，总计复位运行代码4次，将32KB数据写入Flash。并验证写入数据的正确性和读写速率。</p> 
+<h3><a id="2CUbeMX_25"></a>2、CUbeMX工程建立</h3> 
+<p>配置定时器：<br> <img src="https://images2.imgbox.com/81/fe/LDhI1aQo_o.png" alt="在这里插入图片描述"><br> 管脚设置：<br> <img src="https://images2.imgbox.com/f5/fa/TcNKVN2h_o.png" alt="在这里插入图片描述"><br> 如图将PC13设置为GPIO OUT</p> 
+<p>系统时钟树：<br> <img src="https://images2.imgbox.com/35/f5/Dp3fmgj0_o.png" alt="请添加图片描述"><br> RCC：<br> <img src="https://images2.imgbox.com/46/03/AnycEokL_o.png" alt="请添加图片描述"><br> NVIC：<br> <img src="https://images2.imgbox.com/97/69/xJQdqMgI_o.png" alt="请添加图片描述"><br> 设置堆栈大小后输出工程：<br> <img src="https://images2.imgbox.com/c8/e3/OR6ZqN6U_o.png" alt="在这里插入图片描述"></p> 
+<h3><a id="3Keil_40"></a>3、Keil工程修改</h3> 
+<p>首先在生成的工程中加入flash.c和flash.h文件。<br> <a href="https://pan.baidu.com/s/11Tn8TocHT8qithneDyKFIQ" rel="nofollow">链接：https://pan.baidu.com/s/11Tn8TocHT8qithneDyKFIQ</a><br> 提取码：pmvn<br> 记得将.c文件保存在Src中，将.h文件保存在Inc中。<br> 在工程中右键添加：<br> <img src="https://images2.imgbox.com/50/03/BULiXZLs_o.png" alt="在这里插入图片描述"><br> 在main.c中添加头文件：</p> 
+<pre><code class="prism language-java">#include <span class="token string">"flash.h"</span>
+</code></pre> 
+<p><img src="https://images2.imgbox.com/90/b3/vlYqhu1e_o.png" alt="在这里插入图片描述"></p> 
+<pre><code class="prism language-java"><span class="token comment">/* USER CODE BEGIN 0 */</span>
+uint8_t <span class="token class-name">FlashWBuff</span><span class="token punctuation">[</span><span class="token number">255</span><span class="token punctuation">]</span><span class="token punctuation">;</span>
+uint8_t <span class="token class-name">FlashRBuff</span><span class="token punctuation">[</span><span class="token number">255</span><span class="token punctuation">]</span><span class="token punctuation">;</span>	
+<span class="token comment">/* USER CODE END 0 */</span>
+</code></pre> 
+<p><img src="https://images2.imgbox.com/d2/a0/YBdcAHua_o.png" alt="在这里插入图片描述"></p> 
+<pre><code class="prism language-java">  <span class="token comment">/* USER CODE BEGIN SysInit */</span>
+<span class="token class-name">FlashWriteBuff</span><span class="token punctuation">(</span> DEVICE_INFO_ADDRESS<span class="token punctuation">,</span><span class="token class-name">FlashTest</span><span class="token punctuation">,</span><span class="token function">sizeof</span><span class="token punctuation">(</span><span class="token class-name">FlashTest</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>  <span class="token comment">//写入数据到Flash</span>
+<span class="token keyword">for</span><span class="token punctuation">(</span>i<span class="token operator">=</span><span class="token number">0</span><span class="token punctuation">;</span>i<span class="token operator">&lt;</span><span class="token number">255</span><span class="token punctuation">;</span>i<span class="token operator">++</span><span class="token punctuation">)</span>
+	<span class="token class-name">FlashWBuff</span><span class="token punctuation">[</span>i<span class="token punctuation">]</span><span class="token operator">=</span>i<span class="token punctuation">;</span>
+<span class="token class-name">FlashWriteBuff</span><span class="token punctuation">(</span> DEVICE_INFO_ADDRESS<span class="token operator">+</span><span class="token function">sizeof</span><span class="token punctuation">(</span><span class="token class-name">FlashTest</span><span class="token punctuation">)</span><span class="token punctuation">,</span><span class="token class-name">FlashWBuff</span><span class="token punctuation">,</span><span class="token number">255</span><span class="token punctuation">)</span><span class="token punctuation">;</span>  <span class="token comment">//写入数据到Flash</span>
+<span class="token class-name">FlashReadBuff</span> <span class="token punctuation">(</span> DEVICE_INFO_ADDRESS<span class="token operator">+</span><span class="token function">sizeof</span><span class="token punctuation">(</span><span class="token class-name">FlashTest</span><span class="token punctuation">)</span><span class="token punctuation">,</span><span class="token class-name">FlashRBuff</span><span class="token punctuation">,</span><span class="token number">255</span><span class="token punctuation">)</span><span class="token punctuation">;</span>  <span class="token comment">//从Flash中读取数</span>
+  <span class="token comment">/* USER CODE END SysInit */</span>
+
+</code></pre> 
+<p><img src="https://images2.imgbox.com/ea/f6/jrwuQMnW_o.png" alt="在这里插入图片描述"><br> 编译调试：<br> <img src="https://images2.imgbox.com/24/9e/dJHjbxyD_o.png" alt="在这里插入图片描述"><br> 看到没有错误。</p> 
+<h3><a id="4STlink_79"></a>4、STlink调试说明</h3> 
+<p>接线</p> 
+<table><thead><tr><th>ST-LINK</th><th>STM32</th></tr></thead><tbody><tr><td>SWCLK/TCK</td><td>SWCLK/TCK</td></tr><tr><td>SWDIO/TMS</td><td>SWDIO/TMS</td></tr><tr><td>GND</td><td>GND</td></tr><tr><td>VCC</td><td>VCC</td></tr></tbody></table> 
+<p>回到Keil下，在魔法棒Option选项卡进行设置<br> 首先是选择调试器，如果使用的是 ST-Link，在 Debug 选项卡中，请选择ST-Link Debugger<br> <img src="https://images2.imgbox.com/70/f7/K5MNymHn_o.png" alt="在这里插入图片描述"><br> 安装好ST-Link驱动<br> 选择好ST-Link Debugger后点击Setting进行设置：<br> <img src="https://images2.imgbox.com/e6/b0/Hcb8tYi7_o.png" alt="在这里插入图片描述"><br> 看到如图中出现红框内的信息说明连接成功。<br> <img src="https://images2.imgbox.com/cb/77/QThNpH6i_o.png" alt=""><br> 点击如图中的下载烧录即可。</p> 
+<h3><a id="5_101"></a>5、调试运行</h3> 
+<p>点击debug进入调试<br> 在视图中选择内存窗口选择内存1，即memory窗口：<br> <img src="https://images2.imgbox.com/2a/de/RwRSCKp8_o.png" alt="在这里插入图片描述"><br> 同样的在观测窗口点击观测1，然后添加两个变量FlashWBuff 和 FlashRBuff：<br> <img src="https://images2.imgbox.com/28/c9/oo0AuFLv_o.png" alt="在这里插入图片描述"><br> 点击全速运行再关闭，看到芯片的PC13口由灭变亮。<br> <img src="https://images2.imgbox.com/eb/cd/w3y5mDYA_o.png" alt="在这里插入图片描述"><br> 看到FlashWBuff 和 FlashRBuff变量中分别写入了数据。<br> <img src="https://images2.imgbox.com/80/fe/kznBJiWc_o.png" alt="在这里插入图片描述"><br> <img src="https://images2.imgbox.com/f0/ab/CTkpzstl_o.png" alt="在这里插入图片描述"></p> 
+<p>在memory窗口中输入FLASH地址0x0800C000，右键点击选择Ascii进行观察：<br> <img src="https://images2.imgbox.com/5a/52/3ONZpaHL_o.png" alt="在这里插入图片描述"><br> 看到我们在main中的数据成功写入了该地址。</p> 
+<h2><a id="Flash_117"></a>三、基于片内Flash的提示音播放程序</h2> 
+<h3><a id="1DAC2khz_118"></a>1、使用DAC输出周期2khz的正弦波</h3> 
+<p>软件需要：Adobe Audition CS6<br> 首先用Adobe Audition CS6产生正弦波进行测试，如果播放成功那么音乐是同样的原理就都可以成功。</p> 
+<p>首先新建音频文件：<br> <img src="https://images2.imgbox.com/06/5d/57xXsyXK_o.png" alt="在这里插入图片描述"><br> 在效果中点击生成基本音色：<br> <img src="https://images2.imgbox.com/90/b3/9POSkU9r_o.png" alt="在这里插入图片描述"><br> 然后选择正弦波，设置频率振幅等参数：<br> <img src="https://images2.imgbox.com/9a/3c/ZkDNC9dm_o.png" alt="在这里插入图片描述"><br> 然后在文件中导出文件：<br> <img src="https://images2.imgbox.com/6b/06/djoqhwuJ_o.png" alt="请添加图片描述"><br> 选择导出文件名，选择导出位置，然后这里默认是与导出类型与新建的类型和频率相同，我们也可以在这里更改：<br> <img src="https://images2.imgbox.com/9d/f2/or82SDAc_o.png" alt="在这里插入图片描述"><br> 用UltraEdit文本编辑器打开音频文件。<br> <img src="https://images2.imgbox.com/00/45/5XY8OD9T_o.png" alt="在这里插入图片描述"><br> ctrl+A全选，右键点击十六进制复制选定视图，然后新建一个文件，将复制的内容粘贴进去。<br> <img src="https://images2.imgbox.com/98/94/Pp7tQXOZ_o.png" alt="在这里插入图片描述"><br> ctrl+A全选后右键选择范围。<br> <img src="https://images2.imgbox.com/a9/01/LZUcPaD6_o.png" alt="在这里插入图片描述"><br> <img src="https://images2.imgbox.com/3c/71/GYyaD6Iy_o.png" alt="在这里插入图片描述"><br> 这样就选中了我们需要 的内容。<br> 上面选中的内容复制粘贴到notepad++中。<br> <img src="https://images2.imgbox.com/2e/5f/SFlpkto1_o.png" alt="在这里插入图片描述"></p> 
+<p>在编辑中选择列块编辑。<br> <img src="https://images2.imgbox.com/3d/87/uSsFkga0_o.png" alt="在这里插入图片描述"><br> 输入0x<br> <img src="https://images2.imgbox.com/01/f4/NSt4IXxo_o.png" alt="在这里插入图片描述"><br> 这里借用DAC生成正弦波的例程代码<br> <a href="https://pan.baidu.com/s/18zsQG5mZXbjafPuAJEUkMg" rel="nofollow">链接：https://pan.baidu.com/s/18zsQG5mZXbjafPuAJEUkMg</a><br> 提取码：706i<br> 将红框内的数字替换：<br> <img src="https://images2.imgbox.com/88/a9/Dkyh7DKb_o.png" alt="在这里插入图片描述"><br> 之后，编译下载，看能否观察到预期的正弦波。</p> 
+<h3><a id="2DAC_153"></a>2、使用DAC输出数字音频歌曲数据转换为模拟音频波形输出</h3> 
+<p>1.使用Audition截取一段喜欢的音乐<br> ①选择文件-&gt;打开，找到对应的音乐<br> ②选中一段，然后右键，选择存储选区，接着更改采用类型<br> <img src="https://images2.imgbox.com/9e/24/ESsurt7D_o.png" alt="在这里插入图片描述"><br> <img src="https://images2.imgbox.com/3d/84/wSujGmOB_o.png" alt="在这里插入图片描述"><br> 编辑好代码后，烧录，借助音频模块听听看能否还原</p> 
+<h2><a id="_161"></a>四、总结</h2> 
+<p>本次实验验证使用了Flash存储读取数据，理解了Flash的原理。</p> 
+<h2><a id="_163"></a>五、参考资料</h2> 
+<p><a href="https://www.cnblogs.com/yuanqiangfei/p/9400435.html" rel="nofollow">https://www.cnblogs.com/yuanqiangfei/p/9400435.html</a></p> 
+<p><a href="https://blog.csdn.net/lushoumin/article/details/87694389">https://blog.csdn.net/lushoumin/article/details/87694389</a></p> 
+<p><a href="https://blog.csdn.net/qq_43279579/article/details/111990896">https://blog.csdn.net/qq_43279579/article/details/111990896</a></p> 
+<p><a href="https://blog.csdn.net/zhanglifu3601881/article/details/96632971">https://blog.csdn.net/zhanglifu3601881/article/details/96632971</a></p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/d1d8640dd7280d61f07fe9a65ec4a7b5/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">jenkins生成allure报告，打开是空白的，日志提示allure-results does not exist</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/5d2e36103a4839ed7c319e20d0ab8b28/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">C语言：顺序查找</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

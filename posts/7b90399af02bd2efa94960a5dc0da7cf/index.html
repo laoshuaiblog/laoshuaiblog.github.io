@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>两段锁(2PL)理解 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/7b90399af02bd2efa94960a5dc0da7cf/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="两段锁(2PL)理解">
+  <meta property="og:description" content="2019独角兽企业重金招聘Python工程师标准&amp;gt;&amp;gt;&amp;gt; 两段锁即两阶段锁（Two-phase locking - 2PL）：
+首先，两阶段锁强调的是“加锁（增长阶段，growing phase）和解锁（缩减阶段，shrinking phase）这两项操作，且每项操作各自为一个阶段，这就是说不管同一个事务内需要在多少个数据项上加锁，那么所有的加锁操作都只能在同一个阶段完成，在这个阶段内，不允许对对已经加锁的数据项进行解锁操作，即加锁和解锁操作不能交叉执行（同一个事务内）。这一条是说在同一个事务内部的事情。
+其次，为了提高并发度，才对锁进行分类，分出共享锁（读锁）和排它锁（写锁），因这两种类型的锁，又产生加两种锁共四种事务之间受影响的情况：
+一是先对数据项加共享锁，则此读锁不阻塞其他事务也读取本数据项，这就是说读读并发是允许的，即第一种情况；但是此读锁阻塞其他事务写本数据项，这就是说读写并发是不允许的，即第二种情况；这里所说的读读和读写的第一个读在前，是因；第二个读或写是可能在其他事务发生的操作，是果，前者（第二个读操作）能够发生后者（写操作）不能够发生。
+二是对数据项施加了排它锁，这使得其他事务在这个数据项上的读操作（第三种情况）或写操作（第四种情况）都被禁止。
+这一条是说在多个事务之间的事情。
+多个事务之间比较锁是否兼容，用到了锁的兼容性列表，就是上面的四种情况。只是当锁的类型被扩展后，增加了意向锁等类型，才使得锁的兼容性列表变大，不再是四种情况，而是更多种。
+第三，共享锁是允许向排它锁升级的，排它锁是允许向共享锁降级的，升级（upgrade）和降级（downgrade）操作，称为锁转换（lock conversion）。升级只能发生在增长阶段，降级只能发生在缩减阶段。升降级发生在同一个事务内部，但目的也是为了提高多个事务之间的并发度。同一个事物内部比较锁是否兼容，用到的是锁的升级列表，这与锁的兼容性列表是不同的。
+所以，两阶段的含义是指在同一个事务内，对所涉及的所有数据项进行先加锁，然后才对所有的数据项解锁。但两阶段封锁第一阶段加共享锁后影响了其他事务的写操作、加排它锁后影响了其他事务的读操作（读受影响更不用提写），所以较大地影响了其他事务的运行（如果不操作相同数据项则互不影响）。只有第二阶段释放了所有的数据项上的锁之后，才能运行其他要操作相同数据项的事务。
+转载于:https://my.oschina.net/weiweiblog/blog/2963216">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2018-11-29T19:30:00+08:00">
+    <meta property="article:modified_time" content="2018-11-29T19:30:00+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">两段锁(2PL)理解</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <div class="content" id="articleContent"> 
+ <div class="ad-wrap"> 
+  <p><a style="color:#A00;font-weight:bold;" href="https://my.oschina.net/u/2663968/blog/3061697" rel="nofollow">2019独角兽企业重金招聘Python工程师标准&gt;&gt;&gt; </a> <img src="https://images2.imgbox.com/53/82/cyCBIHx0_o.png" alt="hot3.png"></p> 
+ </div> 
+ <p>两段锁即两阶段锁（Two-phase locking - 2PL）：</p> 
+ <p>首先，两阶段锁强调的是“加锁（增长阶段，growing phase）和解锁（缩减阶段，shrinking phase）这两项操作，且每项操作各自为一个阶段，这就是说不管同一个事务内需要在多少个数据项上加锁，那么所有的加锁操作都只能在同一个阶段完成，在这个阶段内，不允许对对已经加锁的数据项进行解锁操作，即加锁和解锁操作不能交叉执行（同一个事务内）。这一条是说在同一个事务内部的事情。</p> 
+ <p>其次，为了提高并发度，才对锁进行分类，分出<strong>共享锁（读锁）和排它锁（写锁）</strong>，因这两种类型的锁，又产生加两种锁共四种事务之间受影响的情况：</p> 
+ <p> 一是先对数据项加共享锁，则此读锁不阻塞其他事务也读取本数据项，这就是说<strong>读读并发</strong>是允许的，即第一种情况；但是此读锁阻塞其他事务写本数据项，这就是说读写并发是不允许的，即第二种情况；这里所说的<strong>读读和读写</strong>的第一个读在前，是因；第二个读或写是可能在其他事务发生的操作，是果，前者（第二个读操作）能够发生后者（写操作）不能够发生。</p> 
+ <p>二是对数据项施加了排它锁，这使得其他事务在这个数据项上的读操作（第三种情况）或写操作（第四种情况）都被禁止。</p> 
+ <p>这一条是说在多个事务之间的事情。</p> 
+ <p>多个事务之间比较锁是否兼容，用到了锁的兼容性列表，就是上面的四种情况。只是当锁的类型被扩展后，增加了意向锁等类型，才使得锁的兼容性列表变大，不再是四种情况，而是更多种。</p> 
+ <p>第三，共享锁是允许向排它锁升级的，排它锁是允许向共享锁降级的，升级（upgrade）和降级（downgrade）操作，称为锁转换（lock conversion）。升级只能发生在增长阶段，降级只能发生在缩减阶段。升降级发生在同一个事务内部，但目的也是为了提高多个事务之间的并发度。同一个事物内部比较锁是否兼容，用到的是锁的升级列表，这与锁的兼容性列表是不同的。</p> 
+ <p>所以，<strong>两阶段的含义是指在同一个事务内，对所涉及的所有数据项进行先加锁，然后才对所有的数据项解锁</strong>。<strong><span style="color:#c0392b;">但两阶段封锁第一阶段加共享锁后影响了其他事务的写操作、加排它锁后影响了其他事务的读操作</span></strong>（读受影响更不用提写），所以较大地影响了其他事务的运行（<span style="color:#c0392b;"><strong>如果不操作相同数据项则互不影响</strong></span>）。只有第二阶段释放了所有的数据项上的锁之后，才能运行其他要操作相同数据项的事务。<br>  </p> 
+ <div class="ad-wrap"> 
+  <div id="blog-title-ad"> 
+   <ins class="adsbygoogle"></ins> 
+  </div> 
+ </div> 
+</div> 
+<p>转载于:https://my.oschina.net/weiweiblog/blog/2963216</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/5b562f0ae5869cdcda5c1c2bf68813d1/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">获取不到input内自己输入的值</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/2b32773c3b2fa97135eed6151a8952fa/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">c&#43;&#43;中using的用法</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

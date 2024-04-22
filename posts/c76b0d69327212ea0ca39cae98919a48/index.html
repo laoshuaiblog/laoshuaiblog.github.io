@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>postMessage，addEventListener， 前端跨域请求之js代码解析 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/c76b0d69327212ea0ca39cae98919a48/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="postMessage，addEventListener， 前端跨域请求之js代码解析">
+  <meta property="og:description" content="我们今天讲讲postMessage，addEventListener，实现跨域信号发送和监听；废话不多说，直接上代码，有码有真相。
+Site A:
+function sendTo(token){ if (token) { var url=&#34;https://192.168.0.150:44328/thc/index&#34;; var targetWin=&#39;_blank&#39;; var feature=&#34;width=&#34;&#43; (screen.availWidth - 10) &#43;&#34;,height=&#34;&#43;(screen.availHeight - 30)&#43;&#34;,scrollbars=1,resizable=1&#34;; var popWinHelp=openWin(url,targetWin,feature); popWinHelp.focus(); var postData = { &#34;sign&#34;:0, &#34;token&#34;:token } this.timeOfmsg = setInterval(() =&amp;gt; popWinHelp.postMessage(postData, &#34;*&#34;), 1000); window.addEventListener(&#34;message&#34;, receiveMessage, false); } } function receiveMessage(){ alert(&#34;Got it&#34;); if (event.data.sign == 1) { //from Site B if (event.data.msg === &#39;getMsg&#39; &amp;amp;&amp;amp; event.data.sign == 1) { //alert(&#34;post message complate, close the timer.&#34;); clearInterval(this.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2022-09-05T11:27:49+08:00">
+    <meta property="article:modified_time" content="2022-09-05T11:27:49+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">postMessage，addEventListener， 前端跨域请求之js代码解析</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <p>我们今天讲讲postMessage，addEventListener，实现跨域信号发送和监听；废话不多说，直接上代码，有码有真相。</p> 
+<p></p> 
+<p>Site  A:</p> 
+<pre><code class="language-cs">        function sendTo(token){
+			  if (token) {
+				var url="https://192.168.0.150:44328/thc/index";
+				var targetWin='_blank';
+				var feature="width="+ (screen.availWidth - 10) +",height="+(screen.availHeight - 30)+",scrollbars=1,resizable=1";
+				var popWinHelp=openWin(url,targetWin,feature);
+				popWinHelp.focus();
+				
+				var postData = {
+					"sign":0,
+					"token":token
+				}
+
+				this.timeOfmsg = setInterval(() =&gt; popWinHelp.postMessage(postData, "*"), 1000);
+				window.addEventListener("message", receiveMessage, false);
+			}
+		}
+        
+        function receiveMessage(){
+            alert("Got it");
+            if (event.data.sign == 1) {  //from Site B
+				if (event.data.msg === 'getMsg' &amp;&amp; event.data.sign == 1) {
+					//alert("post message complate, close the timer.");
+					clearInterval(this.timeOfmsg);
+				}
+			}
+        }</code></pre> 
+<p>先看重要的1行代码</p> 
+<p>this.timeOfmsg = setInterval(() =&gt; popWinHelp.postMessage(postData, "*"),</p> 
+<p>这行代码主要是post一个数据给新open 的window，等待对方接受消息，细心的朋友会注意到，紧接着下一行代码是什么意思，难不成自己发消息，自己来监听？我们接下往下聊，带着疑惑我们直接上接受方的代码，也就是跨域方的前端代码</p> 
+<p>Site B:</p> 
+<pre><code class="language-cs">    window.addEventListener("message", receiveMessage, false);
+    function receiveMessage(event) {
+        if ("https://test.thchf.com.cn" == event.origin &amp;&amp; event.data.sign == 0) {
+            let msg = { "sign": 1, "msg": "getMsg" };
+            window.opener.postMessage(msg, "*");
+
+            var thc_token = event.data.token;
+            localStorage.setItem("thc_token", thc_token);
+            
+            jQuery.ajax({
+                type: "get",
+                url: "/home/index",
+                beforeSend: function (xhr) {
+                    xhr.setRequestHeader("auth", thc_token)
+                },
+                success: function (result) {
+                    window.location.href = window.location.origin + "/home/index";
+                }
+            });
+            
+        } else {
+            window.location.href = window.location.origin + "/account/login";
+        }
+    }</code></pre> 
+<p>我们先按照正常流程去看，从Site A post消息在Site B来监听，就是第一行代码</p> 
+<pre><code class="hljs">window.addEventListener("message", receiveMessage, false);</code></pre> 
+<p>然后看上面的接受函数，很容易看出，Site B收到监听数据，执行receiveMessage函数，在函数内容，首先处理的是告诉发送方Site A， Site B已经收到监听数据，也是通过postMessage发送信号。</p> 
+<p>然后回过头看看我们最开始那个疑惑，是不是理解了。Site A post完消息后，立刻去监听，目的是等待对方发送收到消息的信号，可以执行之后的操作 alert("Got it");这样做的目的是防止发送消息后，还没有等待对方收到消息就执行下面的操作。</p> 
+<p></p> 
+<p>细心的朋友还有注意点，Site A和Site B都有监听的代码 </p> 
+<p>addEventListener("message", receiveMessage, false);那一来一回会不会错乱，接受了不该接受的消息。</p> 
+<p> 答案当然是存在的，毕竟addEventListener只是定义一个监听事件，并没有指定只监听谁发来的数据信号。所以我们撸一撸逻辑，</p> 
+<p>Site A发送 =&gt;  Site B接受 =&gt; Site A =&gt; do others</p> 
+<p>为了避免Site A第一次发送完，Site B还没有接收到信号的问题，我们用了</p> 
+<pre><code class="language-cs">this.timeOfmsg = setInterval(() =&gt; popWinHelp.postMessage(postData, "*"),1000);</code></pre> 
+<p>间隔1s发送一次消息，直到收到Site B返回的收到消息信号，执行SIte A 的receiveMessage函数，在函数内部停止发送 clearInterval，要强调一下，一定要接受SiteB 发送返回信号判断</p> 
+<pre><code class="language-cs">if (event.data.sign == 1) {  //from Site B</code></pre> 
+<p>至此Site就完成了整个发送任务。</p> 
+<p>我们再来说说Site B，当Site A还在间隔1s发送信号的时候，Site B开始准备接受其中的一条，然后判断是否是Site A发送的    </p> 
+<pre><code class="language-cs">if ("https://test.thchf.com.cn" == event.origin &amp;&amp; event.data.sign == 0) </code></pre> 
+<p>如果是Site A发送的，就执行</p> 
+<pre><code class="language-cs">let msg = { "sign": 1, "msg": "getMsg" };
+window.opener.postMessage(msg, "*");</code></pre> 
+<p>告诉Site A，消息已经收到，然后再执行其他逻辑</p> 
+<p></p> 
+<p>至此两个网站的通信就结束了，有问题或者有错误可以再评论区提出来，以供大家探讨，谢谢</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/7fbdfb458a4dca8c9ad8939f8d529aad/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">黑盒测试思维导图</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/f888b63d4f2026713e8ae17c67d16d55/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">Unity编辑器扩展： 程序化打图集工具</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

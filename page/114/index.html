@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta name="generator" content="Hugo 0.125.1">
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="老帅的博客">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="老帅的博客">
+  <meta property="og:description" content="老帅的博客">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="website">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+	<link rel="alternate" type="application/rss+xml" href="/index.xml" title="老帅的博客">
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main list" role="main">
+	<article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/f10ea733690a779b35fad4dfcace5a84/" rel="bookmark">
+			为什么MySQL使用B&#43;而不是使用B树、二叉树、AVL树呢？（来龙去脉的去理解）
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		当你回答使用B+ 怎么怎么好的时候，其实这道面试题你就注定答不满分了，你应该是从一步步如果演变到使用B+来做MySQL的数据结构，下面就一步一步从二叉树——&gt;AVL(平衡二叉树)——&gt;B Tree（多路平衡查找树）——&gt;B+ Tree的一个演变的过程来进行分析，为什么使用B+ Tree的？ （1）先从二叉树开始说起：
+首先你得知道二叉树是什么吧：看下面的图一你就该很熟悉了吧然后你得知道二叉树查询的时间复杂度是O(log2(n))，这样感觉其实二叉树的查询效率挺高的，但是他会出现另一种现象，就是下面的图二：这样就导致了二叉树的查询效率不问题，如果运气好的话查询效率就很高，如果运气不好的话，就会出现图二的情况，因此在二叉树的基础上又进行的改进，演变出来了平衡二叉树（AVL树） 图一：
+图二：
+（2）然后到了平衡二叉树（AVL树）:
+首先你得知道平衡二叉树的定义吧：在满足二叉树的基础上，任意两个节点的两个子树的高度差不能超过1：就好比下面的这个图的一个效率很差的二叉树，比如5节点的左子树的高度是0，右字树的高度是2，，所以很明显不满足平衡二叉树的概念
+AVL树主要是为了解决上面的图出现的情况，所以现在要把上图的二叉树转插入一个“9”节点然后换为一个平衡二叉树的情况就是下面的：
+可以看出平衡二叉树的缺点就是：（1）维护平衡过程的成本代价很高，因为每次删除一个节点或者增加一个节点的话，需要一次或者多次的左旋，右旋等去维护“平衡”状态，（2）然后是查询的效率不稳定，还是会有看运气的成分在里面，（3）然后是如果节点很多的话，那么这个AVL树的高度还是会很高的，那么查询效率还是会很低，还有就是节点存储的数据内容太少。没有很好利用操作系统和磁盘数据交换特性，也没有利用好磁盘IO的预读能力。因为操作系统和磁盘之间一次数据交换是已页为单位的，一页 = 4K，即每次IO操作系统会将4K数据加载进内存。但是，在二叉树每个节点的结构只保存一个关键字，一个数据区，两个子节点的引用，并不能够填满4K的内容。幸幸苦苦做了一次的IO操作，却只加载了一个关键字，在树的高度很高，恰好又搜索的关键字位于叶子节点或者支节点的时候，取一个关键字要做很多次的IO。因此平衡二叉树也是不太符合MySQL的查询结构的。 （3）然后到了使用B Tree（多路平衡查找树）
+首先你也得知道B Tree的基本概念：所有的叶子节点的高度都是一样，这个保证了每次查询数据的时候都是稳定的查询效率，不会因为运气的影响然后B Tree中其实每个非叶子节点内的小节点内其实都是一个二元组[key, data]，key其实就是下图的那个25这种的，然后这个data其实对应的就是数据库中id等于25这条完整的数据记录的内存地址（因为在Myisam中他是数据和索引数据是分开的） B树的特点：
+首先B Tree的每一个节点上其实是有date的，这个date其实就是然后是B Tree查询的效率不够稳定，他有可能在第一个节点中就查到了数据，并且返回他的键值其实都是分布在整棵树上的节点上的任何一个节点 （4）然后到了使用B+ Tree（多路平衡查找树）
+首先你要知道什么B+ Tree，其实他是专门为磁盘或者其他的直接存取辅助设备设计的一种平衡查找树，在B树中，所有的节点都是按照键值的大小顺序存放在同一层的叶子节点上，由各叶子节点的指针连接。
+下图的一颗B树，是一个高度为2，每一页可以放4条记录，扇出是5。
+重要的第一点：
+重要的第一点：B+ Tree有一个很大的改变就是他的每一个非叶子节点的内节点中都没有date这个概念了，都变成了key，因为他的date都放在了叶子节点上，这样的一个最大的好处就利用了局部性原理（当一个数据被用到时，其附近的数据也通常会马上被使用）与磁盘预读的特性（磁盘往往不是严格按需读取，而是每次都会预读，即使只需要一个字节，磁盘也会从这个位置开始，顺序向后读取一定长度的数据【这个一定的长度就是一个节点的大小设置为16K】放入内存）
+接着上面的：预读的长度一般为页（page）的整倍数。页是计算机管理存储器的逻辑块，硬件及操作系统往往将主存和磁盘存储区分割为连续的大小相等的块，每个存储块称为一页（在许多操作系统中，页得大小通常为4k），主存和磁盘以页为单位交换数据。当程序要读取的数据不在主存中时，会触发一个缺页异常，此时系统会向磁盘发出读盘信号，磁盘会找到数据的起始位置并向后连续读取一页或几页载入内存中，然后异常返回，程序继续运行。
+重要的第二点：由于上面我们说的预读原理，因为B+ Tree中节点的内节点无 data 域，其实就是因为没有date域了，但是每次IO的页的大小是固定的，但是B+Tree中没有了date域，那么肯定每次IO读取若干个块块中包含的Key域的值肯定更多啊，B+树单次磁盘 IO 的信息量大于B树，从这点来看B+树相对B树磁盘 IO 次数少。
+数据库系统的设计者巧妙利用了磁盘预读原理，将一个节点的大小设为等于一个页，这样每个节点只需要一次I/O就可以完全载入。
+为了达到这个目的在实际实现B-Tree还需要使用如下技巧：每次新建节点时，直接申请一个页的空间，这样就保证一个节点物理上也存储在一个页里，加之计算机存储分配都是按页对齐的，就实现了一个node只需一次I/O。
+重要的第二点：
+B+Tree中因为数据都在叶子节点，所以每次查询的时间复杂度是固定的，因为稳定性保证了而且叶子节点之间都是链表的结构，所以B+ Tree也是可以支持范围查询的，而B树每个节点 key 和 data 在一起，则无法区间查找。 参考索引：http://blog.codinglabs.org/articles/theory-of-mysql-index.html
+局部性原理文章： https://blog.csdn.net/wwh578867817/article/details/50493940
+到了这里相必你已经彻底知道了为什么使用B+ Tree来作为MySQL索引的数据结构了吧
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/82e0bd5dd4c715fd6c6b6dd82e76fa5d/" rel="bookmark">
+			springboot启动错误日志分析
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		错误日志分析：
+（1）情况描述： 启动springboot工程如果出现以下ERROR日志：
+Mapped "{[/error]}" onto public org.springframework.http.ResponseEntity&lt;java.util.Map&lt;java.lang.String, java.lang.Object&gt;&gt; org.springframework.boot.autoconfigure.web.servlet.error.BasicErrorController.error(javax.servlet.http.HttpServletRequest)
+（2）错误原因：
+这是因为spring boot 会默认加载org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration 这个类
+DataSourceAutoConfiguration类使用了@Configuration注解向spring注入了dataSource bean。因为工程中没有关于dataSource相关的配置信息，当spring创建dataSource bean因缺少相关的信息就会报错。
+（3）解决方案：
+在Application类上增加
+1
+@EnableAutoConfiguration(exclude={DataSourceAutoConfiguration.class})
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/13fe5c507b86c1cfc7f66d1d14741b62/" rel="bookmark">
+			python远程访问服务器获取文件
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		一、sftp
+1、使用paramiko模块进行sftp传输，实现在线读取文件，注意paramiko模块存在一些依赖，可能安装的时候会有一些小的障碍。
+client = paramiko.SSHClient() client.set_missing_host_key_policy(paramiko.AutoAddPolicy()) client.connect(host_ip, port, username, password, timeout=5) sftp_client = client.open_sftp() logging.info(sftp_client) remote_file = sftp_client.open(data_path+ filename +".txt", 'r') 二、ftp
+使用python自带的ftplib模块 进行ftp传输，这边是下载到本地在进行读取文件，这边需要注意要问清楚是不是ftp传输，因为一般ftp服务器是关闭的，在连接的时候是连接不上的。
+def ftpconnect(host, port, username, password): ftp = FTP() ftp.connect(host, int(port)) ftp.login(username, password) return ftp # 下载文件 def downloadfile(ftp, remotepath, localpath, filename): print(localpath) bufsize = 1024 ftp.cwd(remotepath) ftp.dir() fp = open(localpath + filename,'wb') ftp.retrbinary('RETR %s' % os.path.basename(filename), fp.write, bufsize) fp.close() # 上传文件 def uploalfile(ftp, remotepath, localpath): bufsize = 1024 fp = open(localpath, 'rb') ftp.
+	</div>
+	<div class="list__footer clearfix">
+		<a class="list__footer-readmore btn" href="/posts/13fe5c507b86c1cfc7f66d1d14741b62/">Read more…</a>
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/4973bf339f7212a49930495661cc7b0e/" rel="bookmark">
+			C语言中的枚举与联合（共用体）详细介绍
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		一.枚举
+枚举的意思就是列举，将每一个可能的取值都进行一一列举。在我们的现实生活中，星期可以列举，颜色可以列举，月份也可以列举，其实存在很多可以列举的事物。当我们列举时，就可以用到枚举。
+1.枚举类型的定义
+枚举类型的定义如下列代码：
+enum Day//星期 { Mon, Tues, Wed, Thur, Fri, Sat, Sun }; enum Color//颜色 { RED, GREEN, BLUE, }; 以上我们所定义的 enum Day 和 enum Color都是枚举类型。 { }中的内容是枚举类型的可能取值，也叫做枚举常量。这些枚举常量在一开始是有默认取值的，默认值都从 0 开始升序，每次增加 1 ，当然我们在定义的时候也可以对这些枚举常量赋初值。例如：
+enum Day { Mon = 1, Tues = 2, Wed = 3, Thur = 4, Fri = 5, Sat = 6, Sun= 7 }; 切记，在枚举类型定义时，{}里面的常量后加的是逗号，而不是分号。由于习惯原因可能会出现这种错误，要特别注意。
+2.枚举的优势
+很多人都在想为什么我们可以用 #define 定义常量，那为什么还要用枚举。枚举常量和#define的区别：
+（1）.增加代码的可读性和可维护性 。
+（2） 和#deﬁne定义的标识符比较枚举有类型检查，更加严谨。（类型不同就不可以赋值）
+（3） 防止了命名污染（封装） 。（为防止冲突，#define是全局的，枚举是局部的）
+	</div>
+	<div class="list__footer clearfix">
+		<a class="list__footer-readmore btn" href="/posts/4973bf339f7212a49930495661cc7b0e/">Read more…</a>
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/5048ab3c57269e86a5427bd2c2905f04/" rel="bookmark">
+			Ajax接受后台Boolean类型数据时，JS比较相等失败。
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		当后台传Boolean数据类型时，前台会转换为String类型的字符串，并且重点是会包含空字符串，所以导致JS比对时是 "true "==“true”,所以一直比对不成功，这个时候可以将Ajax返回的值给 $.trim("true ") 就可以正常比对了。
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/6312432f57825faa8efc418c004651da/" rel="bookmark">
+			使用sklearn中的k-means方法就行聚类，并统计每个簇内样本点的数目
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		# 导入库 import numpy as np import matplotlib.pyplot as plt from sklearn.cluster import MiniBatchKMeans, KMeans x = np.array([[13378434.0829, 3526829.86612], [13378960.4042, 3526855.13451], [13372997.8308, 3526543.79201], [13374160.2849, 3526499.56629], [13375908.5746, 3526220.11996], [13374880.6989, 3526196.03995], [13374604.7169, 3527096.87862], [13379547.6796, 3525986.68579], [13374997.7791, 3524021.50132], [13374487.4915, 3526040.18441], [13377134.2636, 3524647.274], [13374975.2792, 3524067.31441], [13376013.5305, 3524566.02273], [13379191.518, 3526840.29867], [13380653.4589, 3525937.22248], [13379185.9935, 3526996.18228], [13374426.881, 3524227.71439], [13373246.4295, 3526561.59268], [13377963.1478, 3525580.05298], [13374469.8778, 3526082.15448], [13375251.7951, 3524902.72185], [13378458.073, 3523924.15117], [13382247.5439, 3529671.33493], [13382041.2247, 3527903.34268], [13380083.2029, 3528692.35517], [13380962.0043, 3528519.81002], [13379799.
+	</div>
+	<div class="list__footer clearfix">
+		<a class="list__footer-readmore btn" href="/posts/6312432f57825faa8efc418c004651da/">Read more…</a>
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/1ae08318f43b3ecf5dcc8f15a63ba8a3/" rel="bookmark">
+			CMDB可插拔式项目架构（一）
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		目录分布 ----bin
+----start.py
+----conf
+----setting.py （用户自定义部分）
+----files
+----board.text
+----……………
+----disk.text
+（一些死数据，DEBUG模式下使用）
+----lib （用于存放类库文件，常见内外部工具包）
+----config
+----global_settings.py （默认全局配置）
+----settings.py （配置类对象）
+----src （源码目录）
+----plugins （插件目录，可插拔组件）
+----init.py
+----basic.py
+----cpu.py
+----disk.py
+----memory.py
+----nic.py
+----test
+—test1 （存放测试文件的目录）
+start.py
+from lib.config.settings import settings from src.plugins import basic,cpu,disk,memory,nic from src.plugins import PluginsManager #会自动执行__init__文件 if __name__ == '__main__': pluginsManagerObj = PluginsManager() result = pluginsManagerObj.excute() print(result) setting.py
+### 自定义的配置 MODE = 'ssh' DEBUG = True #可插拔式 PLUGINS_DICT = { 'basic':'src.
+	</div>
+	<div class="list__footer clearfix">
+		<a class="list__footer-readmore btn" href="/posts/1ae08318f43b3ecf5dcc8f15a63ba8a3/">Read more…</a>
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/78dcc286aa3d4f2190dab0774c0aa9d7/" rel="bookmark">
+			java 反射
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		转载自
+java 反射 概述 定义 JAVA反射机制是在运行状态中，对于任意一个类，都能够知道这个类的所有属性和方法；对于任意一个对象，都能够调用它的任意方法和属性；这种动态获取信息以及动态调用对象方法的功能称为java语言的反射机制。
+用途 在日常的第三方应用开发过程中，经常会遇到某个类的某个成员变量、方法或是属性是私有的或是只对系统应用开放，这时候就可以利用Java的反射机制通过反射来获取所需的私有成员或是方法。当然，也不是所有的都适合反射，之前就遇到一个案例，通过反射得到的结果与预期不符。阅读源码发现，经过层层调用后在最终返回结果的地方对应用的权限进行了校验，对于没有权限的应用返回值是没有意义的缺省值，否则返回实际值起到保护用户的隐私目的。
+反射机制的相关类 与Java反射相关的类如下：
+类名用途Class类代表类的实体，在运行的Java应用程序中表示类和接口––Field类代表类的成员变量（成员变量也称为类的属性）––Method类代表类的方法––Constructor类代表类的构造方法 Class类 Class代表类的实体，在运行的Java应用程序中表示类和接口。在这个类中提供了很多有用的方法，这里对他们简单的分类介绍。
+获得类相关的方法 方法
+用途
+asSubclass(Class clazz)
+把传递的类的对象转换成代表其子类的对象
+Cast
+把对象转换成代表类或是接口的对象
+getClassLoader()
+获得类的加载器
+getClasses()
+返回一个数组，数组中包含该类中所有公共类和接口类的对象
+getDeclaredClasses()
+返回一个数组，数组中包含该类中所有类和接口类的对象
+forName(String className)
+根据类名返回类的对象
+getName()
+获得类的完整路径名字
+newInstance()
+创建类的实例
+getPackage()
+获得类的包
+getSimpleName()
+获得类的名字
+getSuperclass()
+获得当前类继承的父类的名字
+getInterfaces()
+获得当前类实现的类或是接口
+获得类中属性相关的方法 方法
+用途
+getField(String name)
+获得某个公有的属性对象
+getFields()
+获得所有公有的属性对象
+getDeclaredField(String name)
+获得某个属性对象
+getDeclaredFields()
+获得所有属性对象
+获得类中注解相关的方法
+方法
+用途 getAnnotation(Class annotationClass)
+返回该类中与参数类型匹配的公有注解对象
+getAnnotations()
+返回该类所有的公有注解对象
+getDeclaredAnnotation(Class annotationClass)
+返回该类中与参数类型匹配的所有注解对象
+getDeclaredAnnotations()
+返回该类所有的注解对象
+获得类中构造器相关的方法
+	</div>
+	<div class="list__footer clearfix">
+		<a class="list__footer-readmore btn" href="/posts/78dcc286aa3d4f2190dab0774c0aa9d7/">Read more…</a>
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/7b4d26a9ca8194ebf8afb42459ae6c02/" rel="bookmark">
+			Ubuntu安装软件出现 Check your internet connection 问题的解决办法
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		只需使用以下内容替换 /etc/apt/sources.list 中的内容：
+#deb cdrom:[Ubuntu 16.04 LTS _Xenial Xerus_ - Release amd64 (20160420.1)]/ xenial main restricted deb http://archive.ubuntu.com/ubuntu xenial main restricted universe multiverse deb-src http://archive.ubuntu.com/ubuntu xenial main restricted universe multiverse deb http://archive.ubuntu.com/ubuntu xenial-updates main restricted universe multiverse deb-src http://archive.ubuntu.com/ubuntu xenial-updates main restricted universe multiverse deb http://archive.ubuntu.com/ubuntu xenial-backports main restricted universe multiverse deb-src http://archive.ubuntu.com/ubuntu xenial-backports main restricted universe multiverse deb http://archive.ubuntu.com/ubuntu xenial-security main restricted universe multiverse deb-src http://archive.ubuntu.com/ubuntu xenial-security main restricted universe multiverse #deb http://archive.
+	</div>
+	<div class="list__footer clearfix">
+		<a class="list__footer-readmore btn" href="/posts/7b4d26a9ca8194ebf8afb42459ae6c02/">Read more…</a>
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/5818559d708299ba41886a2fd2eb464a/" rel="bookmark">
+			【Python】日期和时间数据类型
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		一、数据类型
+类型格式time时间格式date日期格式datetime日期时间格式timestamp时间戳格式 二、日期时间对象的格式
+日期时间对象(datetime类型的数据)有三种格式：对象格式（struct_time对象格式）、字符串格式、浮点型格式。
+对象格式
+IN ：import time
+t_struct = time.gmtime(1547036431)
+print(t_struct)
+OUT：time.struct_time(tm_year=2019, tm_mon=1, tm_mday=9, tm_hour=12, tm_min=20, tm_sec=31, tm_wday=2, tm_yday=9, tm_isdst=0)
+字符串格式
+IN ：import time
+t = time.strftime("%D:%H:%m:%S")
+print(t)
+out：06/22/19:15:06:25
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/dccf69e4a5f41d73e4c9c66db5336583/" rel="bookmark">
+			深度学习——数据集处理
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		深度学习的三大要素：数据、算法、算力。
+数据在深度学习中有着着重要的地位，数据集的好坏决定了模型的训练结果，由于可见数据预处理的重要性。
+本文简单介绍一下如何初步处理数据，给数据分类，打标签。
+例：
+现在有几万张照片，每张照片的文件名中包含了年龄、性别等信息，假如我们现在需要训练一个识别年龄的模型；
+首先需要进行图片预处理，第一步就是把照片按不同年龄段筛选出来，然后打上年龄标签进行分类，再进行转tf格式（之前文章介绍过怎么转格式），最后得到数据集拿去训练。
+# -*- coding: UTF-8 -*- import re import os import shutil from PIL import Image #打开txt文本 f1=open('F:/TF2/new/txt/1/data-clear-new.txt','r') txt_path="F:/TF2/new/data-pic/txt/" f15=open(txt_path+'20.txt','w+') f20=open(txt_path+'21-25.txt','w+') f25=open(txt_path+'26-30.txt','w+') f30=open(txt_path+'31-35.txt','w+') f35=open(txt_path+'36-40.txt','w+') f40=open(txt_path+'41-45.txt','w+') f45=open(txt_path+'45.txt','w+') #获取年龄和文件名 for line in f1.readlines(): file_split=line.split() #以空格为分割符，把关键词分割出来 old_name=file_split[0] #原文件名 old_back=os.path.splitext(old_name)[0] #分离文件名与后缀 # print(old_back) age=int(file_split[1]) #年龄 # print(age) sub=file_split[2] #性别 # print(sub) folder=file_split[3] #原文件夹名称 # print(folder) root_path="F:/TF2/new/tf2-data-clear/" save_path = "F:/TF2/new/data-pic/" if age &lt;= 20: print(line) f15.write(line) shutil.move(root_path + old_name, save_path + "
+	</div>
+	<div class="list__footer clearfix">
+		<a class="list__footer-readmore btn" href="/posts/dccf69e4a5f41d73e4c9c66db5336583/">Read more…</a>
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/eb20c47a993873ac4ef8aaa13b5f6dd2/" rel="bookmark">
+			服务器怎么配置SSL证书？服务器部署SSL证书流程
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		以下文章由SSL盾小编整理发布，更多证书部署流程【www.ssldun.com】
+ssl证书似乎已经成为一个优秀网址的标配了，人们都知道为自己的网址服务器配置ssl证书的重要性。配置证书不仅仅可以为自己的网址树立一个安全可信的形象，更能够真实地保护用户的数据信息安全。但是不少企业或是个人面对的难题就是不清楚服务器配置ssl证书的流程是怎么样的。
+下面小编将带大家一起了解。
+首先我们要先知道什么是SSL证书：
+ssl证书就是一种类似现实营业执照的东西，由专门的颁发机构经过严密的验证一个网址后颁发的数字证书。
+服务器配置ssl证书的流程是怎么样的：
+1、生成CSR文件（证书请求文件）：在申请ssl证书之前，需要现在对应的服务器上生成CSR文件，这份文件在后面用于生成公钥有很大的帮助
+具体步骤：
+（1）在管理工具中打开IIS管理器；
+（2）选择“连接”到你所要安装的工作站；
+（3）打开证书请求，请求创建证书；
+（4）在向导程序中填写相关信息，并根据网址来命名CSR文件；
+2、申请SSL证书：
+不能随便选择SSL证书，要根据购买证书网址上的提示，根据自己网址的类型来选择SSL证书，避免造成多余的麻烦
+3、下载SSL证书：
+在购买证书的网址上，下载一份中级ssl证书以及一份申请得到的初级ssl证书，将初级证书命名为“网站名.cer”，然后就在IIS服务器中选择完成证书请求；
+4、进行SSL证书的安装：
+将下载好的ssl证书与计算机连接，选择https类型，将下载好的初级证书和中级证书复制到服务器中，并开始安装证书；
+5、重启服务器，即完成了服务器配置证书。
+转载于:https://blog.51cto.com/14379936/2409815
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/b8b8305177933cc95c459c81ee7d48ba/" rel="bookmark">
+			google protobuf (c&#43;&#43;) 学习
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		probuf是goole推出的微型RPC框架，这里记录下安装测试。
+参考文章：
+Google Protocol Buffers浅析（一）
+一、Ubuntu 18.04安装 C++ Protocol 首先参考官方README文档进行安装：
+前提
+sudo apt-get install autoconf automake libtool curl make g++ unzip 当然可以在如下网站进行源码下载离线安装。
+https://github.com/protocolbuffers/protobuf/releases/latest
+这里通过git直接在终端进行安装：
+$ git clone https://github.com/protocolbuffers/protobuf.git $ cd protobuf $ git submodule update --init --recursive $ ./autogen.sh $ ./configure $ make $ make check $ sudo make install $ sudo ldconfig # refresh shared library cache. 默认安装在/usr/local下面，可以进行查看库文件。
+pkg-config --cflags protobuf # print compiler flags pkg-config --libs protobuf # print linker flags pkg-config --cflags --libs protobuf # print both 查看安装版本：
+	</div>
+	<div class="list__footer clearfix">
+		<a class="list__footer-readmore btn" href="/posts/b8b8305177933cc95c459c81ee7d48ba/">Read more…</a>
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/30dc473f57fc0360422385cb34abf2b9/" rel="bookmark">
+			Linux用netstat查看服务及监听端口详解
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		在Linux使用过程中，需要了解当前系统开放了哪些端口，并且要查看开放这些端口的具体进程和用户，可以通过netstat命令进行简单查询
+netstat命令各个参数说明如下：
+-a 或–all 显示所有连线中的Socket。
+-A &lt;网络类型&gt;或–&lt;网络类型&gt; 列出该网络类型连线中的相关地址。
+-c 或–continuous 持续列出网络状态。
+-C 或–cache 显示路由器配置的快取信息。
+-e 或–extend 显示网络其他相关信息。
+-F 或 –fib 显示FIB。
+-g 或–groups 显示多重广播功能群组组员名单。
+-h 或–help 在线帮助。
+-i 或–interfaces 显示网络界面信息表单。
+-l 或–listening 显示监控中的服务器的Socket。
+-M 或–masquerade 显示伪装的网络连线。
+-n 或–numeric 直接使用IP地址，而不通过域名服务器。
+-N 或–netlink或–symbolic 显示网络硬件外围设备的符号连接名称。
+-o 或–timers 显示计时器。
+-p 或–programs 显示正在使用Socket的程序识别码和程序名称。
+-r 或–route 显示 Routing Table。
+-s 或–statistice 显示网络工作信息统计表。
+-t 或–tcp 显示TCP 传输协议的连线状况。
+-u或–udp 显示UDP传输协议的连线状况。
+-v或–verbose 显示指令执行过程。
+-V 或–version 显示版本信息。
+-w或–raw 显示RAW传输协议的连线状况。
+	</div>
+	<div class="list__footer clearfix">
+		<a class="list__footer-readmore btn" href="/posts/30dc473f57fc0360422385cb34abf2b9/">Read more…</a>
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/fe53e7c602a42c6c6c090bac45c91cff/" rel="bookmark">
+			Python学海无涯路【第15回】：内置函数
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		文章目录 1、官方说明2、使用说明2.1、abs 绝对值2.2、all2.3、any2.4、ascii2.5、bin2.6、bool2.7、bytearray2.8、bytes2.9、callable2.10、chr2.11、classmethod2.12、compile2.13、complex2.14、delattr2.15、dict2.16、dir2.17、divmod2.18、enumerate2.19、eval2.20、 exec2.21、filter2.22、float2.23、format2.24、frozenset2.25、 getattr2.26、globals2.27、hasattr2.28、hash2.29、help2.30、hex2.31、id2.32、 input2.33、int2.34、isinstance2.35、issubclass2.36、iter2.37、len2.38、list2.39、locals2.40、map2.41、max2.42、memoryview2.43、min2.44、next2.45、object2.46、oct2.47、open2.48、ord2.49、pow2.50、print2.51、property2.52、range2.53、repr2.54、reversed2.55、round2.56、 set2.57、setattr2.58、slice2.59、sorted2.60、staticmethod2.61、str2.62、sum2.63、super2.64、tuple2.65、type2.66、vars2.67、 zip2.68、__ import__ 1、官方说明 详见，官方解释
+2、使用说明 2.1、abs 绝对值 print(abs(-10)) 输出：10
+2.2、all 给定的可迭代参数 中的元素，所有元素是否都为 TRUE，返回 True，否则（只要有一个为假）返回 False。元素除了是 0、空、None、False 外都算 True。空元组、空列表返回值为True 等价于：
+#等价于 def all(iterable): for element in iterable: if not element: return False return True 示例：
+print(all([1,2])) print(all([1,2,0])) 输出：
+True
+False
+#空元组、空列表返回值为True print(all(("1", ""))) #含有空元素，False print(all((""))) #True print(all(())) #True print(all(["1", ""])) #含有空元素，False print(all([""])) #False print(all([])) #True,空列表True 2.3、any 用于判断给定的可迭代参数 中的元素，有一个元素为 TRUE，则返回 True，否则(即全为Falase)返回 False。元素除了是 0、空、FALSE 外都算 TRUE 等价于：
+	</div>
+	<div class="list__footer clearfix">
+		<a class="list__footer-readmore btn" href="/posts/fe53e7c602a42c6c6c090bac45c91cff/">Read more…</a>
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/df52691a0a81bd70d50a4f92997b054d/" rel="bookmark">
+			【Python-opencv3.4】视频基本操作（帧率，总视频帧数、从第N帧开始播放、播放进度显示、按键控制视频）
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		一、视频基本操作： 1.读取视频帧率、分辨率、读取视频总帧数、起始播放帧数2.使用键盘控制视频3.显示视频播放进度 二、基本操作对应代码 【完整代码】提取码：0vvb 1.读取视频帧率、分辨率、读取视频总帧数 #—————————————————————————————— #————————添加自己的视频播放路径——————————— video_path="F:/Zeng-20180622/Video180621/1.flv" # 创建一个视频读写类 video_capture=cv2.VideoCapture(video_path) #读取视频的fps, 大小 fps=video_capture.get(cv2.CAP_PROP_FPS) size=(video_capture.get(cv2.CAP_PROP_FRAME_WIDTH),video_capture.get(cv2.CAP_PROP_FRAME_HEIGHT)) print("fps: {}\nsize: {}".format(fps,size)) #读取视频时长（帧总数） total = int(video_capture.get(cv2.CAP_PROP_FRAME_COUNT)) print("[INFO] {} total frames in video".format(total)) #设定从视频的第几帧开始读取 #From : https://blog.csdn.net/luqinwei/article/details/87973472 frameToStart = 2000 video_capture.set(cv2.CAP_PROP_POS_FRAMES, frameToStart); 2.使用键盘控制视频 #--------键盘控制视频--------------- #读取键盘值 key = cv2.waitKey(1) &amp; 0xff #设置空格按下时暂停 if key == ord(" "): cv2.waitKey(0) #设置Q按下时退出 if key == ord("q"): break 3.显示视频播放进度 #显示当前视频已播放时间和总时间 #计算当前 now_seconds=int(current_frame /fps%60) now_minutes=int(current_frame/fps/60) total_second=int(total /fps%60) total_minutes=int(total/fps/60) # { &lt;参数序号&gt; : &lt;填充&gt; &lt;对齐）&gt; &lt;宽度&gt; &lt;,&gt; &lt;.
+	</div>
+	<div class="list__footer clearfix">
+		<a class="list__footer-readmore btn" href="/posts/df52691a0a81bd70d50a4f92997b054d/">Read more…</a>
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/aee7468a42562cd1b3eca9f8e94236a9/" rel="bookmark">
+			C语言位操作
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		《4.2.C语言位操作》
+第一部分、章节目录
+4.2.1.常用位操作符
+4.2.2.位与位或位异或在操作寄存器时的特殊作用
+4.2.3.如何用位运算构建特定二进制数
+4.2.4.位运算实战演练1
+4.2.5.位运算实战演练2
+4.2.6.技术升级：用宏定义来完成位运算
+第二部分、章节介绍
+4.2.1.常用位操作符
+本节讲解C语言中常用的位操作符，如位与、位或、位取反、位异或、左移右移等。目的在于让大家系统学习各种位操作的操作符及真值表。
+4.2.2.位与位或位异或在操作寄存器时的特殊作用
+本节首先讲解寄存器位设置时的特点和需求，然后重点讲解了位与、位或、位异或等操作及其在寄存器设置中的具体作用，并用实例进行演示和验证。
+4.2.3.如何用位运算构建特定二进制数
+本节主要讲解了左移、右移以及位取反符号，以及如何用这三个符号构建特定的二进制数。这种方式是最常见的设置寄存器的方式，而不是像上节中直接给出二进制数的方式。
+4.2.4.位运算实战演练1
+本节用6个实际案例来演示如果用位运算符完成一定运算，这些示例都是流行的面试题目中位运算部分的，对大家掌握位运算有很大帮助。
+4.2.5.位运算实战演练2
+本节用2个实际案例来演示如果用位运算符完成一定运算，这些示例都是流行的面试题目中位运算部分的，对大家掌握位运算有很大帮助。
+4.2.6.技术升级：用宏定义来完成位运算
+本节讲述位运算中难度最大的部分，即用宏定义来描述位运算。在linux内核中有很多类似的宏，分布在各个角落，搞清楚这些宏的实现可以帮助我们提升C语言水平，同时为以后研究linux内核源码扫清障碍。
+第三部分、随堂记录
+4.2.1.位操作符
+4.2.1.1、位与&amp;
+(1)注意：位与符号是一个&amp;，两个&amp;&amp;是逻辑与。
+(2)真值表：1&amp;0=0 1&amp;1=1 0&amp;0=0 0&amp;1=0 (3)从真值表可以看出：位与操作的特点是，只有1和1位于结果为1，其余全是0.
+(4)位与和逻辑与的区别：位与时两个操作数是按照二进制位彼次对应位相与的，逻辑与是两个操作数作为整体来相与的。（举例：0xAA&amp;0xF0=0xA0, 0xAA &amp;&amp; 0xF0=1）
+4.2.1.2、位或|
+(1)注意：位或符号是一个|，两个||是逻辑或。
+(2)真值表：1|0=1 1|1=1 0|0=0 0|1=1
+(3)从真值表可以看出：位或操作的特点是：只有2个0相位或才能得到0，只要有1个1结果就一定是1.
+(4)位或和逻辑或的区别：位或时两个操作数是按照二进制位彼次对应位相与的，逻辑或是两个操作数作为整体来相或的。
+4.2.1.3、位取反~
+(1)注意：C语言中位取反是~，C语言中的逻辑取反是!
+(2)按位取反是将操作数的二进制位逐个按位取反（1变成0，0变成1）；而逻辑取反是真（在C语言中只要不是0的任何数都是真）变成假（在C语言中只有0表示假）、假变成真。
+实验：任何非0的数被按逻辑取反再取反就会得到1；
+任何非0的数倍按位取反再取反就会得到他自己；
+4.2.1.4、位异或^
+(1)位异或真值表：1^1=0 0^0=0 1^0=1 0^1=1 (2)位异或的特点：2个数如果相等结果为0，不等结果为1。记忆方法：异或就是相异就或操作起来。
+位与、位或、位异或的特点总结：
+位与：（任何数，其实就是1或者0）与1位与无变化，与0位与变成0
+位或：（任何数，其实就是1或者0）与1位或变成1，与0位或无变化
+位异或：（任何数，其实就是1或者0）与1位异或会取反，与0位异或无变化
+4.2.1.5、左移位&lt;&lt; 与右移位&gt;&gt;
+C语言的移位要取决于数据类型。
+对于无符号数，左移时右侧补0（相当于逻辑移位）
+对于无符号数，右移时左侧补0（相当于逻辑移位）
+对于有符号数，左移时右侧补0（叫算术移位，相当于逻辑移位）
+对于有符号数，右移时左侧补符号位（如果正数就补0，负数就补1，叫算术移位）
+嵌入式中研究的移位，以及使用的移位都是无符号数
+4.2.2.位与位或位异或在操作寄存器时的特殊作用
+4.2.2.1、寄存器操作的要求（特定位改变而不影响其他位）
+(1)ARM是内存与IO统一编址的，ARM中有很多内部外设，SoC中CPU通过向这些内部外设的寄存器写入一些特定的值来操控这个内部外设，进而操控硬件动作。所以可以说：读写寄存器就是操控硬件。
+(2)寄存器的特点是按位进行规划和使用。但是寄存器的读写却是整体32位一起进行的（也就是说你只想修改bit5～bit7是不行的，必须整体32bit全部写入）
+	</div>
+	<div class="list__footer clearfix">
+		<a class="list__footer-readmore btn" href="/posts/aee7468a42562cd1b3eca9f8e94236a9/">Read more…</a>
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/2929113e037ad5c8756000f8cff5d94c/" rel="bookmark">
+			图片相似度对比
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		文章给出了两种方法，可以计算两张图片的相似度
+参考文章：https://blog.csdn.net/xundh/article/details/78255037
+方法一：
+from PIL import Image import glob import os class CompareImage(): def calculate(self, image1, image2): g = image1.histogram() s = image2.histogram() assert len(g) == len(s), "error" data = [] for index in range(0, len(g)): if g[index] != s[index]: data.append(1 - abs(g[index] - s[index]) / max(g[index], s[index])) else: data.append(1) return sum(data) / len(g) def split_image(self, image, part_size): pw, ph = part_size w, h = image.size sub_image_list = [] assert w % pw == h % ph == 0, "
+	</div>
+	<div class="list__footer clearfix">
+		<a class="list__footer-readmore btn" href="/posts/2929113e037ad5c8756000f8cff5d94c/">Read more…</a>
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/dec37bb5727aa9377a4024540eaae35a/" rel="bookmark">
+			折半查找（C语言）
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		 折半查找：
+设定查找范围的下限low，上限high，
+由此确定查找范围的中间位置mid；中间位置的值等于待查的值，查找成功
+中间位置的值小于待查的值，low=mid+1
+中间位置的值大于待查的值，high=mid-1直到low&gt;high，查找失败。 #include&lt;stdio.h&gt; #define NUM 10 int a[]={6,12,28,37,54,65,69,83,90,92}; int BinarySearch(int s[],int n,int key) { int low,high,mid; low=0; high=n-1; while(low&lt;=high) { mid=(low+high)/2; //计算中间元素序号 if(s[mid]==key) //中间元素与关键字相等 return mid; else if(s[mid]&gt;key) //中间元素大于关键字 high=mid-1; else low=mid+1; } return -1; //查找失败返回-1 } int main() { int key,pos; printf("原数据为："); for(int i=0;i&lt;NUM;i++) printf("%d ",a[i]); printf("\n"); printf("请输入关键字："); scanf("%d",&amp;key); pos=BinarySearch(a,NUM,key); if(pos&gt;=0) printf("查找成功！在第%d位！",pos+1); else printf("查找失败！"); return 0; } 
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/36f278b0a35cbd47ea3ff684508cc38c/" rel="bookmark">
+			顺序查找（C语言）
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		#include&lt;stdio.h&gt; #define NUM 8 int source[]={69,65,90,37,92,6,28,54}; int SeqSearch(int s[],int n,int key) { int i; for(i=0;i&lt;n&amp;&amp;s[i]!=key;i++);	//将i&lt;n去掉，在优化可以改进算法 if(i&lt;n) return i; else return -1; } int main() { int key,pos; printf("原数据为："); for(int i=0;i&lt;NUM;i++) printf("%d ",source[i]); printf("\n"); printf("请输入关键字："); scanf("%d",&amp;key); pos=SeqSearch(source,NUM,key); if(pos&gt;=0) printf("查找成功！在第%d位置！\n",pos+1); else printf("查找失败！"); return 0; } 优化算法：
+#include&lt;stdio.h&gt; #define NUM 8 int source[NUM+1]={69,65,90,37,92,6,28,54}; int SeqSearch(int s[],int n,int key) { int i; for(i=0;s[i]!=key;i++); if(i&lt;n) return i; else return -1; } int main() { int key,pos; printf("
+	</div>
+	<div class="list__footer clearfix">
+		<a class="list__footer-readmore btn" href="/posts/36f278b0a35cbd47ea3ff684508cc38c/">Read more…</a>
+	</div>
+</article>
+</main>
+
+<div class="pagination">
+	<a class="pagination__item pagination__item--prev btn" href="/page/113/">«</a>
+	<span class="pagination__item pagination__item--current">114/134</span>
+	<a class="pagination__item pagination__item--next btn" href="/page/115/">»</a>
+</div>
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

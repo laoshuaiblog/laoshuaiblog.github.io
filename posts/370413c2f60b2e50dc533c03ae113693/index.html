@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>docker对已经启动的容器添加目录映射(挂载目录) - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/370413c2f60b2e50dc533c03ae113693/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="docker对已经启动的容器添加目录映射(挂载目录)">
+  <meta property="og:description" content="文章目录 1. 背景2. 开始新增挂载目录3. 注意 1. 背景 在自己安装sharding-proxy时，使用docker run -v的方式启动时，只挂载了/opt/shardingsphere-proxy/conf和/opt/shardingsphere-proxy/ext-lib这两个目录，忘记挂载/opt/shardingsphere-proxy/logs日志目录，导致每次查看都得要进入容器内部去查看，很是麻烦，于是考虑如何在不删除容器重新启动部署的情况下进行新目录的映射与挂载
+2. 开始新增挂载目录 查看容器存放目录 [root@iZ2zedqr9yeos47fg4uor5Z proxy-a]# docker info | grep &#39;Root&#39; Docker Root Dir: /var/lib/docker [root@iZ2zedqr9yeos47fg4uor5Z proxy-a]# 查看要新增挂载的容器id [root@iZ2zedqr9yeos47fg4uor5Z proxy-a]# docker ps CONTAINER ID IMAGE COMMAND CREATED STATUS PORTS NAMES 6f5f3c195304 apache/shardingsphere-proxy:5.1.1 &#34;/bin/sh -c &#39;${LOCAL…&#34; 4 days ago Up 9 minutes 0.0.0.0:3321-&amp;gt;3307/tcp server-proxy-a 进入要新增文件夹挂载的目录 [root@iZ2zedqr9yeos47fg4uor5Z proxy-a]# docker ps CONTAINER ID IMAGE COMMAND CREATED STATUS PORTS NAMES 6f5f3c195304 apache/shardingsphere-proxy:5.1.1 &#34;/bin/sh -c &#39;${LOCAL…&#34;">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2022-11-07T15:18:36+08:00">
+    <meta property="article:modified_time" content="2022-11-07T15:18:36+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">docker对已经启动的容器添加目录映射(挂载目录)</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-dark">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <p></p> 
+<div class="toc"> 
+ <h4>文章目录</h4> 
+ <ul><li><a href="#1__1" rel="nofollow">1. 背景</a></li><li><a href="#2__4" rel="nofollow">2. 开始新增挂载目录</a></li><li><a href="#3__129" rel="nofollow">3. 注意</a></li></ul> 
+</div> 
+<p></p> 
+<h2><a id="1__1"></a>1. 背景</h2> 
+<p>在自己安装sharding-proxy时，使用<code>docker run -v</code>的方式启动时，只挂载了<code>/opt/shardingsphere-proxy/conf</code>和<code>/opt/shardingsphere-proxy/ext-lib</code>这两个目录，忘记挂载<code>/opt/shardingsphere-proxy/logs</code>日志目录，导致每次查看都得要进入容器内部去查看，很是麻烦，于是考虑如何在不删除容器重新启动部署的情况下进行新目录的映射与挂载</p> 
+<h2><a id="2__4"></a>2. 开始新增挂载目录</h2> 
+<ol><li>查看容器存放目录</li></ol> 
+<pre><code class="prism language-shell"><span class="token punctuation">[</span>root@iZ2zedqr9yeos47fg4uor5Z proxy-a<span class="token punctuation">]</span><span class="token comment"># docker info | grep 'Root'</span>
+ Docker Root Dir: /var/lib/docker
+<span class="token punctuation">[</span>root@iZ2zedqr9yeos47fg4uor5Z proxy-a<span class="token punctuation">]</span><span class="token comment">#</span>
+</code></pre> 
+<ol start="2"><li>查看要新增挂载的容器id</li></ol> 
+<pre><code class="prism language-shell"><span class="token punctuation">[</span>root@iZ2zedqr9yeos47fg4uor5Z proxy-a<span class="token punctuation">]</span><span class="token comment"># docker ps</span>
+CONTAINER ID   IMAGE                               COMMAND                  CREATED       STATUS          PORTS                               NAMES
+6f5f3c195304   apache/shardingsphere-proxy:5.1.1   <span class="token string">"/bin/sh -c '${LOCAL…"</span>   <span class="token number">4</span> days ago    Up <span class="token number">9</span> minutes    <span class="token number">0.0</span>.0.0:3321-<span class="token operator">&gt;</span><span class="token number">3307</span>/tcp              server-proxy-a
+</code></pre> 
+<ol start="3"><li>进入要新增文件夹挂载的目录</li></ol> 
+<pre><code class="prism language-shell"><span class="token punctuation">[</span>root@iZ2zedqr9yeos47fg4uor5Z proxy-a<span class="token punctuation">]</span><span class="token comment"># docker ps</span>
+CONTAINER ID   IMAGE                               COMMAND                  CREATED       STATUS          PORTS                               NAMES
+6f5f3c195304   apache/shardingsphere-proxy:5.1.1   <span class="token string">"/bin/sh -c '${LOCAL…"</span>   <span class="token number">4</span> days ago    Up <span class="token number">11</span> minutes   <span class="token number">0.0</span>.0.0:3321-<span class="token operator">&gt;</span><span class="token number">3307</span>/tcp              server-proxy-a
+<span class="token punctuation">[</span>root@iZ2zedqr9yeos47fg4uor5Z proxy-a<span class="token punctuation">]</span><span class="token comment"># cd /var/lib/docker/containers/</span>
+<span class="token punctuation">[</span>root@iZ2zedqr9yeos47fg4uor5Z containers<span class="token punctuation">]</span><span class="token comment"># ll</span>
+total <span class="token number">64</span>
+drwx------ <span class="token number">4</span> root root <span class="token number">4096</span> Nov  <span class="token number">7</span> <span class="token number">14</span>:20 1d0c21204385f60fa8859b0ff199569988218e449155634470cfb14ff2ceebf9
+drwx------ <span class="token number">4</span> root root <span class="token number">4096</span> Nov  <span class="token number">7</span> <span class="token number">14</span>:20 21a5f8b6e68ee09f8f80381c536b38abec1b8dcb81c69f1c50caeb95e8ebb35f
+drwx------ <span class="token number">4</span> root root <span class="token number">4096</span> Nov  <span class="token number">7</span> <span class="token number">14</span>:20 28242c9fd16bd610880d42a773e078221a0d34b1c779935fc0c8609a1b63666a
+drwx------ <span class="token number">4</span> root root <span class="token number">4096</span> Nov  <span class="token number">7</span> <span class="token number">14</span>:22 2bc290c8e158229fdc5291a3ea53c5721f5becd39c8cb47cb2f826f6349ac778
+drwx------ <span class="token number">4</span> root root <span class="token number">4096</span> Nov  <span class="token number">7</span> <span class="token number">14</span>:20 2fc0e1b1031abe6b1871332b971ccdc40185b7441e94ba3c266f51d2d4728412
+drwx------ <span class="token number">4</span> root root <span class="token number">4096</span> Nov  <span class="token number">7</span> <span class="token number">14</span>:20 3124c345f129a3c542423c68061c6ded5b41a649b25991125c8e81da7b010e7e
+drwx------ <span class="token number">4</span> root root <span class="token number">4096</span> Nov  <span class="token number">7</span> <span class="token number">14</span>:20 4a1e699a3711b92918f711d7ab021a5ac62bab1b8353ed321337c6f94ac50533
+drwx------ <span class="token number">4</span> root root <span class="token number">4096</span> Nov  <span class="token number">7</span> <span class="token number">14</span>:20 4cdc6456250a922e60f3394b26064be0541f04a0c34825c6487e73ed7979705a
+drwx------ <span class="token number">4</span> root root <span class="token number">4096</span> Nov  <span class="token number">7</span> <span class="token number">14</span>:20 53d710c37c08b9c2ab0c84fea2059d067bbcbc38f22aa2e654e1c62758b1df44
+drwx------ <span class="token number">4</span> root root <span class="token number">4096</span> Nov  <span class="token number">7</span> <span class="token number">14</span>:41 6f5f3c1953044043672723cdf4f3725c500e77a54e07cd0a4759371c04c0cfa1
+drwx------ <span class="token number">4</span> root root <span class="token number">4096</span> Nov  <span class="token number">7</span> <span class="token number">14</span>:20 73cc941fd394d42b8cbdc8fd7a50fc098b5d56c0323e5b9a786703d21a102d33
+drwx------ <span class="token number">4</span> root root <span class="token number">4096</span> Nov  <span class="token number">7</span> <span class="token number">14</span>:35 8dc6124199b0ef6afbc9d2b542c5a46c8767e7daafd52bfedd53a83491e17db0
+drwx------ <span class="token number">4</span> root root <span class="token number">4096</span> Nov  <span class="token number">7</span> <span class="token number">14</span>:20 9c554d94d5eb6c2c6015994b52ae3f3c31d182dde189d86427840b4a1c5d6477
+drwx------ <span class="token number">4</span> root root <span class="token number">4096</span> Nov  <span class="token number">7</span> <span class="token number">14</span>:20 a073fcd724623a98168564707dccfb9562d94d89c0882ad2fd92798a2137be0d
+drwx------ <span class="token number">4</span> root root <span class="token number">4096</span> Nov  <span class="token number">7</span> <span class="token number">14</span>:21 b1191679d1ecea73a74f44ee74b33281fbcccc942307630db02f2cb9e86869d0
+drwx------ <span class="token number">4</span> root root <span class="token number">4096</span> Nov  <span class="token number">7</span> <span class="token number">14</span>:20 eb30519b4804f9ca3c708260e885f99d693332af4a162a956952b601332fed97
+<span class="token punctuation">[</span>root@iZ2zedqr9yeos47fg4uor5Z containers<span class="token punctuation">]</span><span class="token comment"># cd 6f5f3c1953044043672723cdf4f3725c500e77a54e07cd0a4759371c04c0cfa1/</span>
+<span class="token punctuation">[</span>root@iZ2zedqr9yeos47fg4uor5Z 6f5f3c1953044043672723cdf4f3725c500e77a54e07cd0a4759371c04c0cfa1<span class="token punctuation">]</span><span class="token comment"># ll</span>
+total <span class="token number">488</span>
+-rw-r----- <span class="token number">1</span> root root <span class="token number">461990</span> Nov  <span class="token number">7</span> <span class="token number">14</span>:41 6f5f3c1953044043672723cdf4f3725c500e77a54e07cd0a4759371c04c0cfa1-json.log
+drwx------ <span class="token number">2</span> root root   <span class="token number">4096</span> Nov  <span class="token number">2</span> <span class="token number">22</span>:29 checkpoints
+-rw------- <span class="token number">1</span> root root   <span class="token number">4041</span> Nov  <span class="token number">7</span> <span class="token number">14</span>:41 config.v2.json
+-rw-r--r-- <span class="token number">1</span> root root   <span class="token number">1705</span> Nov  <span class="token number">7</span> <span class="token number">14</span>:41 hostconfig.json
+-rw-r--r-- <span class="token number">1</span> root root     <span class="token number">13</span> Nov  <span class="token number">7</span> <span class="token number">14</span>:41 <span class="token function">hostname</span>
+-rw-r--r-- <span class="token number">1</span> root root    <span class="token number">174</span> Nov  <span class="token number">7</span> <span class="token number">14</span>:41 hosts
+drwx------ <span class="token number">2</span> root root   <span class="token number">4096</span> Nov  <span class="token number">2</span> <span class="token number">22</span>:29 mounts
+-rw-r--r-- <span class="token number">1</span> root root    <span class="token number">149</span> Nov  <span class="token number">7</span> <span class="token number">14</span>:41 resolv.conf
+-rw-r--r-- <span class="token number">1</span> root root     <span class="token number">71</span> Nov  <span class="token number">7</span> <span class="token number">14</span>:41 resolv.conf.hash
+<span class="token punctuation">[</span>root@iZ2zedqr9yeos47fg4uor5Z 6f5f3c1953044043672723cdf4f3725c500e77a54e07cd0a4759371c04c0cfa1<span class="token punctuation">]</span><span class="token comment">#</span>
+</code></pre> 
+<p>我们将要修改的文件就是<code>config.v2.json</code>和<code>hostconfig.json</code></p> 
+<ol start="4"><li>关闭容器、关闭docker</li></ol> 
+<pre><code class="prism language-shell">systemctl stop <span class="token function">docker</span>
+</code></pre> 
+<ol start="5"><li>修改<code>config.v2.json</code></li></ol> 
+<p>说明：想要将容器中的<code>/opt/shardingsphere-proxy/logs</code>目录映射到宿主机的<code>/atguigu/server/proxy-a/logs</code>目录下。<br> 在<code>config.v2.json</code>文件中找到MountPoints，添加如下<code>/opt/shardingsphere-proxy/logs</code>的映射即可(这里如果前面还有内容的话，注意逗号)</p> 
+<pre><code class="prism language-json"><span class="token punctuation">{<!-- --></span>
+    <span class="token operator">...</span><span class="token operator">...</span>
+	
+	<span class="token string-property property">"MountPoints"</span><span class="token operator">:</span> <span class="token punctuation">{<!-- --></span>
+		<span class="token operator">...</span><span class="token operator">...</span><span class="token punctuation">,</span>
+		<span class="token string-property property">"/opt/shardingsphere-proxy/logs"</span><span class="token operator">:</span> <span class="token punctuation">{<!-- --></span>
+			<span class="token string-property property">"Source"</span><span class="token operator">:</span> <span class="token string">"/atguigu/server/proxy-a/logs"</span><span class="token punctuation">,</span>
+			<span class="token string-property property">"Destination"</span><span class="token operator">:</span> <span class="token string">"/opt/shardingsphere-proxy/logs"</span><span class="token punctuation">,</span>
+			<span class="token string-property property">"RW"</span><span class="token operator">:</span> <span class="token boolean">true</span><span class="token punctuation">,</span>
+			<span class="token string-property property">"Name"</span><span class="token operator">:</span> <span class="token string">""</span><span class="token punctuation">,</span>
+			<span class="token string-property property">"Driver"</span><span class="token operator">:</span> <span class="token string">""</span><span class="token punctuation">,</span>
+			<span class="token string-property property">"Type"</span><span class="token operator">:</span> <span class="token string">"bind"</span><span class="token punctuation">,</span>
+			<span class="token string-property property">"Propagation"</span><span class="token operator">:</span> <span class="token string">"rprivate"</span><span class="token punctuation">,</span>
+			<span class="token string-property property">"Spec"</span><span class="token operator">:</span> <span class="token punctuation">{<!-- --></span>
+				<span class="token string-property property">"Type"</span><span class="token operator">:</span> <span class="token string">"bind"</span><span class="token punctuation">,</span>
+				<span class="token string-property property">"Source"</span><span class="token operator">:</span> <span class="token string">"/atguigu/server/proxy-a/logs"</span><span class="token punctuation">,</span>
+				<span class="token string-property property">"Target"</span><span class="token operator">:</span> <span class="token string">"/opt/shardingsphere-proxy/logs"</span>
+			<span class="token punctuation">}</span><span class="token punctuation">,</span>
+			<span class="token string-property property">"SkipMountpointCreation"</span><span class="token operator">:</span> <span class="token boolean">false</span>
+		<span class="token punctuation">}</span>
+	<span class="token punctuation">}</span><span class="token punctuation">,</span>
+	
+	<span class="token operator">...</span><span class="token operator">...</span>
+	
+<span class="token punctuation">}</span>
+</code></pre> 
+<ol start="6"><li>修改<code>hostconfig.json</code><br> 说明：<code>Binds</code>中添加内容<code>"/atguigu/server/proxy-a/logs:/opt/shardingsphere-proxy/logs"</code></li></ol> 
+<pre><code class="prism language-json"><span class="token punctuation">{<!-- --></span>
+	<span class="token string-property property">"Binds"</span><span class="token operator">:</span> <span class="token punctuation">[</span>
+		<span class="token operator">...</span><span class="token operator">...</span><span class="token punctuation">,</span>
+		<span class="token string">"/atguigu/server/proxy-a/logs:/opt/shardingsphere-proxy/logs"</span>
+	<span class="token punctuation">]</span><span class="token punctuation">,</span>
+	
+	<span class="token operator">...</span><span class="token operator">...</span>
+	
+<span class="token punctuation">}</span>
+</code></pre> 
+<ol start="7"><li>重启docker与容器</li></ol> 
+<pre><code class="prism language-shell">systemctl start <span class="token function">docker</span>
+</code></pre> 
+<pre><code class="prism language-shell"><span class="token function">docker</span> start 容器id
+</code></pre> 
+<ol start="8"><li>进行目录验证</li></ol> 
+<p>目录成功映射出来，查看日志就不用每次很麻烦的进入容器内部查看了</p> 
+<pre><code class="prism language-shell"><span class="token punctuation">[</span>root@iZ2zedqr9yeos47fg4uor5Z logs<span class="token punctuation">]</span><span class="token comment"># pwd</span>
+/atguigu/server/proxy-a/logs
+<span class="token punctuation">[</span>root@iZ2zedqr9yeos47fg4uor5Z logs<span class="token punctuation">]</span><span class="token comment"># ll</span>
+total <span class="token number">36</span>
+-rw-r--r-- <span class="token number">1</span> root root <span class="token number">36421</span> Nov  <span class="token number">7</span> <span class="token number">14</span>:41 stdout.log
+-rw-r--r-- <span class="token number">1</span> root root     <span class="token number">0</span> Nov  <span class="token number">7</span> <span class="token number">14</span>:41 xa_tx1.log
+-rw-r--r-- <span class="token number">1</span> root root     <span class="token number">0</span> Nov  <span class="token number">7</span> <span class="token number">14</span>:41 xa_tx.lck
+<span class="token punctuation">[</span>root@iZ2zedqr9yeos47fg4uor5Z logs<span class="token punctuation">]</span><span class="token comment">#</span>
+</code></pre> 
+<h2><a id="3__129"></a>3. 注意</h2> 
+<ol><li><code>config.v2.json</code>和<code>hostconfig.json</code>文件修改之前，需要关闭docker与容器！如果先修改了这两个文件，再关闭docker，这两个文件中的内容会被重置掉，导致新增的目录映射失效 （<strong>自己在这里折腾了很久才发现的！</strong>）</li><li><code>config.v2.json</code>和<code>hostconfig.json</code>文件vi命令打开后，并非格式化后的json，这里可以通过<code>:%!python3 -m json.tool</code>命令将其进行格式化，方便查看</li></ol>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/6c3f086b274eb518259ba9f767e75cb3/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">AOP切面使用</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/f01892d5b23ba8eedb00cdb01672d72b/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">Vivado 2018.3 安装步骤及 license 获取</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

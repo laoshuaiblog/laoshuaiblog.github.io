@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>java/kotlin正则表达式 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/e4736f81c5e487f1b38ef337db9d9006/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="java/kotlin正则表达式">
+  <meta property="og:description" content="前言字符捕获组和非捕获组Pattern和Matcher断言(Assertion)标记 前言 在学习java时，学过正则，但学完就放一边，偶尔需要用到一些简单的规则来匹配字符串。但大部分情况下，我都没有使用正则表达式的意识，对字符串的处理还是喜欢编写一大段代码来解决。 直到在工作中提交的一个PR，同事看到我的PR之后，就修改了我的代码，并跟我说用正则表达式的好处。 虽然PR的代码被修改了让我有点不爽，但看到人家提交的代码，还是让我自愧不如，也因为这件事，让我开始对正则表达式有了兴趣。 受这件事的影响，遇到字符串的问题时，我都会优先考虑使用正则表达式来解决。 再提一下上面PR的代码，那是一段在数字中间塞空格的代码，源自我的一篇介绍&#34;安卓无障碍的开发&#34;的文章。具体需求为：
+val str = &#34;abc1234def&#34; 有这样一个字符串，希望处理之后，结果是：
+abc1 2 3 4def
+此时，如果不用正则表达式，直接编写代码处理，就需要判断某个字符是否为数字，它的下一个字符是否也为数字，然后再用StringBuilder拼接起来，还是比较麻烦的。而如果使用正则表达式，就非常简单：
+val str = &#34;abc1234def&#34; val regex = &#34;(\\d)(?=\\d)&#34;.toRegex() println(str.replace(regex,&#34;$1 &#34;)) // result: abc1 2 3 4def 可以看到，只需一个简单的正则表达式，就可以完成这个需求。这里涉及到捕获组和正向前瞻断言的知识，下面会介绍。
+字符 先介绍正则表达式的基本用法，然后再介绍比较复杂的用法。 转义 在提特殊字符和预定义字符之前，先说转义问题。 在正则表达式里面，有不少预定义字符，比如：\w、\s、\d。如果想在java里面使用它们，就必须写成&#34;\\d&#34;，否则编译就会报错。第一个斜杆用于将第二个斜杆转义成一个普通字符。 特殊字符和预定义字符 字符作用例子^匹配一行的开头。如果设置了 RegExp 对象的 Multiline 属性，^ 还会与&#34;\n&#34;或&#34;\r&#34;之后的位置匹配。如果在[]里面使用，表示匹配除了[]以外的字符。用[^a-j]otlin匹配kotlin为true，如果去掉^为false$匹配一行的结尾。如果设置了RegExp对象的Multiline属性，$ 还会与&#34;\n&#34;或&#34;\r&#34;之前的位置匹配\w&#43;\d&#43;$，匹配以数字结尾|或a|b，匹配a或b[]在[]里面的任意字符。可以使用“-”表示范围a-zA-z：前者表示26个字母中的任意字符。0-9：表示0到9 10个数字中的任意字符。abc：表示abc三个字符中的任意字符{}用于匹配次数，下面会列出相关用法none()用于捕获分组或限制操作符的作用范围(ab)&#43;，匹配 ababab，ab出现了多次，所以(?:pattern)用于非捕获组none.匹配任意单个字符，除了换行符。如果想要匹配&#34;.&#34;字符，需要使用转义kotli.，可以匹配kotlin、kotlim等\w匹配单字符，包括0-9、26个英文字母和下划线_kotli\w，匹配kotlin、kotlim等\d匹配单个数字，等同于[0-9]kotlin\d，匹配kotlin1、kotlin2等\s匹配任意换行符\w\s\w，匹配a b\b匹配字符边界hello\b，匹配hello后面是否为边界。hello\b.*，匹配hello,world hello后面是否为边界。边界可以是没有字符，也可以是,.等字符\uxxxx匹配16进制所表示的0xxxx字符\u4E00，匹配中文&#34;一&#34;{n}n为非负整数，正好匹配n次\w{2}，表示有2个字符{n,}n为非负整数，至少匹配n次\w{2,}，表示至少有2个字符{n,m}n和m都为非负整数，匹配n到m次，n&amp;lt;=m\w{2,3}，表示有2到3个字符?等同{0,1}，表示零次或一次\w?，判断字符是否出现0到1次*等同{0,}，表示零次或多次\w*，该字符是否存在都无所谓。如，\d\w*，必须出现数字，但是否存在其他字符都行&#43;等同{1,}，表至少出现一次\d&#43;\w*，如1months，出现了1，至于后面的months有没有，都行 大概就是这些，可能会有遗漏。
+然后还有需要补充的：\d、\w、\s、\b这几个，如果将小写字母改为大写字母，就表示相反的意思。如\D表示数字以外的字符，^也有同样的作用，如[^\d]
+上面提了这么多字符，来一些例子巩固一下
+匹配手机号码
+val str = &#34;13111111111&#34; // 两种方式都可以[]里面的内容表示数字3到9，\\d{9}表示数字必须出现9次 // val regex = &#34;1[3456789]\\d{9}&#34;.toRegex() val regex = &#34;">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2023-06-26T20:52:08+08:00">
+    <meta property="article:modified_time" content="2023-06-26T20:52:08+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">java/kotlin正则表达式</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-light">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <ul><li><a href="#start" rel="nofollow">前言</a></li><li><a href="#char" rel="nofollow">字符</a></li><li><a href="#capturegroup" rel="nofollow">捕获组和非捕获组</a></li><li><a href="#patternandmatcher" rel="nofollow">Pattern和Matcher</a></li><li><a href="#assertion" rel="nofollow">断言(Assertion)</a></li><li><a href="#flag" rel="nofollow">标记</a></li></ul> 
+<h4 id="start">前言</h4> 在学习java时，学过正则，但学完就放一边，偶尔需要用到一些简单的规则来匹配字符串。但大部分情况下，我都没有使用正则表达式的意识，对字符串的处理还是喜欢编写一大段代码来解决。 
+<br> 
+<br> 直到在工作中提交的一个PR，同事看到我的PR之后，就修改了我的代码，并跟我说用正则表达式的好处。 
+<br> 虽然PR的代码被修改了让我有点不爽，但看到人家提交的代码，还是让我自愧不如，也因为这件事，让我开始对正则表达式有了兴趣。 
+<br> 受这件事的影响，遇到字符串的问题时，我都会优先考虑使用正则表达式来解决。 
+<br> 
+<br> 
+<p>再提一下上面PR的代码，那是一段在数字中间塞空格的代码，源自我的一篇介绍"安卓无障碍的开发"的文章。具体需求为：</p> 
+<pre><code class="prism language-kotlin"><span class="token keyword">val</span> str <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"abc1234def"</span></span>
+</code></pre> 
+<p>有这样一个字符串，希望处理之后，结果是：<br> <strong>abc1 2 3 4def</strong><br> 此时，如果不用正则表达式，直接编写代码处理，就需要判断某个字符是否为数字，它的下一个字符是否也为数字，然后再用StringBuilder拼接起来，还是比较麻烦的。而如果使用正则表达式，就非常简单：</p> 
+<pre><code class="prism language-kotlin"><span class="token keyword">val</span> str <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"abc1234def"</span></span>
+<span class="token keyword">val</span> regex <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"(\\d)(?=\\d)"</span></span><span class="token punctuation">.</span><span class="token function">toRegex</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token function">println</span><span class="token punctuation">(</span>str<span class="token punctuation">.</span><span class="token function">replace</span><span class="token punctuation">(</span>regex<span class="token punctuation">,</span><span class="token string-literal singleline"><span class="token string">"$1 "</span></span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+<span class="token comment">// result: abc1 2 3 4def</span>
+</code></pre> 
+<p>可以看到，只需一个简单的正则表达式，就可以完成这个需求。这里涉及到捕获组和正向前瞻断言的知识，下面会介绍。</p> 
+<h4 id="char">字符</h4> 先介绍正则表达式的基本用法，然后再介绍比较复杂的用法。 
+<br> 
+<b>转义</b> 
+<br> 在提特殊字符和预定义字符之前，先说转义问题。 
+<br> 在正则表达式里面，有不少预定义字符，比如：\w、\s、\d。如果想在java里面使用它们，就必须写成"\\d"，否则编译就会报错。第一个斜杆用于将第二个斜杆转义成一个普通字符。 
+<br> 
+<br> 
+<b>特殊字符和预定义字符</b> 
+<br> 
+<table><thead><tr><th>字符</th><th>作用</th><th>例子</th></tr></thead><tbody><tr><td>^</td><td>匹配一行的开头。如果设置了 RegExp 对象的 Multiline 属性，^ 还会与"\n"或"\r"之后的位置匹配。如果在[]里面使用，表示匹配除了[]以外的字符。</td><td>用[^a-j]otlin匹配kotlin为true，如果去掉^为false</td></tr><tr><td>$</td><td>匹配一行的结尾。如果设置了RegExp对象的Multiline属性，$ 还会与"\n"或"\r"之前的位置匹配</td><td>\w+\d+$，匹配以数字结尾</td></tr><tr><td>|</td><td>或</td><td>a|b，匹配a或b</td></tr><tr><td>[]</td><td>在[]里面的任意字符。可以使用“-”表示范围</td><td>a-zA-z：前者表示26个字母中的任意字符。0-9：表示0到9 10个数字中的任意字符。abc：表示abc三个字符中的任意字符</td></tr><tr><td>{}</td><td>用于匹配次数，下面会列出相关用法</td><td>none</td></tr><tr><td>()</td><td>用于捕获分组或限制操作符的作用范围</td><td>(ab)+，匹配 ababab，ab出现了多次，所以</td></tr><tr><td>(?:pattern)</td><td>用于非捕获组</td><td>none</td></tr><tr><td>.</td><td>匹配任意单个字符，除了换行符。如果想要匹配"."字符，需要使用转义</td><td>kotli.，可以匹配kotlin、kotlim等</td></tr><tr><td>\w</td><td>匹配单字符，包括0-9、26个英文字母和下划线_</td><td>kotli\w，匹配kotlin、kotlim等</td></tr><tr><td>\d</td><td>匹配单个数字，等同于[0-9]</td><td>kotlin\d，匹配kotlin1、kotlin2等</td></tr><tr><td>\s</td><td>匹配任意换行符</td><td>\w\s\w，匹配a b</td></tr><tr><td>\b</td><td>匹配字符边界</td><td>hello\b，匹配hello后面是否为边界。hello\b.*，匹配hello,world hello后面是否为边界。边界可以是没有字符，也可以是,.等字符</td></tr><tr><td>\uxxxx</td><td>匹配16进制所表示的0xxxx字符</td><td>\u4E00，匹配中文"一"</td></tr><tr><td>{n}</td><td>n为非负整数，正好匹配n次</td><td>\w{2}，表示有2个字符</td></tr><tr><td>{n,}</td><td>n为非负整数，至少匹配n次</td><td>\w{2,}，表示至少有2个字符</td></tr><tr><td>{n,m}</td><td>n和m都为非负整数，匹配n到m次，n&lt;=m</td><td>\w{2,3}，表示有2到3个字符</td></tr><tr><td>?</td><td>等同{0,1}，表示零次或一次</td><td>\w?，判断字符是否出现0到1次</td></tr><tr><td>*</td><td>等同{0,}，表示零次或多次</td><td>\w*，该字符是否存在都无所谓。如，\d\w*，必须出现数字，但是否存在其他字符都行</td></tr><tr><td>+</td><td>等同{1,}，表至少出现一次</td><td>\d+\w*，如1months，出现了1，至于后面的months有没有，都行</td></tr></tbody></table> 
+<p>大概就是这些，可能会有遗漏。<br><br> 然后还有需要补充的：\d、\w、\s、\b这几个，如果将小写字母改为大写字母，就表示相反的意思。如\D表示数字以外的字符，^也有同样的作用，如[^\d]</p> 
+<p><b>上面提了这么多字符，来一些例子巩固一下</b><br><br> 匹配手机号码</p> 
+<pre><code class="prism language-kotlin"><span class="token keyword">val</span> str <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"13111111111"</span></span>
+<span class="token comment">// 两种方式都可以[]里面的内容表示数字3到9，\\d{9}表示数字必须出现9次</span>
+<span class="token comment">// val regex = "1[3456789]\\d{9}".toRegex()</span>
+<span class="token keyword">val</span> regex <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"1[3-9]\\d{9}"</span></span><span class="token punctuation">.</span><span class="token function">toRegex</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token function">println</span><span class="token punctuation">(</span>str<span class="token punctuation">.</span><span class="token function">matches</span><span class="token punctuation">(</span>regex<span class="token punctuation">)</span><span class="token punctuation">)</span>
+</code></pre> 
+<p>匹配日期和时间</p> 
+<pre><code class="prism language-kotlin"><span class="token keyword">val</span> str <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"2022-12-31 00:00:00"</span></span>
+<span class="token keyword">val</span> regex <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"\\d{4}-\\d{1,2}-\\d{1,2} \\d{2}:\\d{2}:\\d{2}"</span></span><span class="token punctuation">.</span><span class="token function">toRegex</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token comment">// 下面这个，其实就是让上面的 -\\d{1,2} 必须出现两次，可以算是另一种写法</span>
+<span class="token comment">// val regex = "\\d{4}(-\\d{1,2}){2} \\d{2}(:\\d{2}){2}".toRegex()</span>
+<span class="token function">println</span><span class="token punctuation">(</span>str<span class="token punctuation">.</span><span class="token function">matches</span><span class="token punctuation">(</span>regex<span class="token punctuation">)</span><span class="token punctuation">)</span>
+</code></pre> 
+<p>Replace</p> 
+<pre><code class="prism language-kotlin"><span class="token keyword">val</span> str <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"abc123"</span></span>
+<span class="token keyword">val</span> regex <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"\\d+"</span></span><span class="token punctuation">.</span><span class="token function">toRegex</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token function">println</span><span class="token punctuation">(</span>str<span class="token punctuation">.</span><span class="token function">replace</span><span class="token punctuation">(</span>regex<span class="token punctuation">,</span> <span class="token string-literal singleline"><span class="token string">"str"</span></span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+<span class="token comment">// result: abcstr</span>
+
+<span class="token keyword">val</span> str <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"abc123"</span></span>
+<span class="token keyword">val</span> regex <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"."</span></span><span class="token punctuation">.</span><span class="token function">toRegex</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token function">println</span><span class="token punctuation">(</span>str<span class="token punctuation">.</span><span class="token function">replace</span><span class="token punctuation">(</span>regex<span class="token punctuation">,</span> <span class="token string-literal singleline"><span class="token string">"str"</span></span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+<span class="token comment">// result: strstrstrstrstrstr</span>
+</code></pre> 
+<p>上面是kotlin代码，如果是java，需要使用replaceAll方法，这个方法才能使用正则表达式，replace方法只能传一个字符串<br><br> 匹配ipv4</p> 
+<pre><code class="prism language-kotlin"><span class="token keyword">val</span> regex <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)"</span></span><span class="token punctuation">.</span><span class="token function">toRegex</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+
+<span class="token keyword">val</span> str <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"255.255.255.0"</span></span>
+<span class="token comment">// true</span>
+<span class="token keyword">val</span> str <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"255.255.256.0"</span></span>
+<span class="token comment">// false</span>
+<span class="token keyword">val</span> str <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"192.168.1.1"</span></span>
+<span class="token comment">// true</span>
+</code></pre> 
+<p>前面25开头的和后面25开头的规则是一样的，所以看一段就行<br></p> 
+<pre><code>"(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\."
+</code></pre> 
+<p>25[0-5]：表示250到255，”25[0-5]“过后又一个"|“符号，表示或。所以如果“25[0-5]”不匹配，就看“2[0-4][0-9]”。<br> 2[0-4][0-9]：表示200到249。如果还是不匹配，剩下的就简单了。现在就只剩下[0,199]这个区间的数字。<br> [01]?[0-9][0-9]?：先是[0,1]?，表示是否存在0或1都可以。接着是[0-9][0-9]?。只有一个后面有问号，意思是，必须出现一个0到9的数字。<br> 这样匹配之后，就限制了0到255的数字，并且至少有一位数字。然后还有\.，表示必须出现”.“。”."后面有{3}，说明这个规则必须出现3次。然后就再来一段相同的规则，这样就完成了ipv4的匹配。</p> 
+<h4 id="capturegroup">捕获组和非捕获组</h4> 
+<ul><li>捕获组：(pattern)，以这种形式出现，就是做捕获组。</li><li>非捕获组：(?:pattern)，以这种形式出现，就是非捕获组。</li></ul> 
+<p>捕获组在正则匹配时，会将括号里面的内容保存起来。当开发者使用"$1"或"\1"时，就可以引用第index组的内容。捕获组的角标是从1开始的，角标0表示整个匹配的内容。<br> 举个例子：</p> 
+<pre><code class="prism language-kotlin"><span class="token keyword">val</span> str <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"12months"</span></span>
+<span class="token keyword">val</span> regex <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"(\\d+)"</span></span>
+<span class="token comment">// 在这个例子中，group0和group1都是12，因为\\d+匹配到的内容是12</span>
+
+<span class="token keyword">val</span> str <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"a=b"</span></span>
+<span class="token keyword">val</span> regex <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"(\\w+)=(\\w+)"</span></span>
+<span class="token comment">// 在这个例子中，group0是a=b，group1是a，group2是b</span>
+<span class="token comment">// 因为匹配整个a=b才符合"(\\w+)=(\\w+)"这个正则表达式，而months那里，只有12才是，后面的months不是</span>
+</code></pre> 
+<p>捕获组使用的例子：</p> 
+<pre><code class="prism language-kotlin"><span class="token keyword">val</span> str <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"12months"</span></span>
+<span class="token keyword">val</span> regex <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"(\\d+)\\D*"</span></span><span class="token punctuation">.</span><span class="token function">toRegex</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token function">println</span><span class="token punctuation">(</span>str<span class="token punctuation">.</span><span class="token function">replace</span><span class="token punctuation">(</span>regex<span class="token punctuation">,</span> <span class="token string-literal singleline"><span class="token string">"$1"</span></span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+<span class="token comment">// 12</span>
+
+<span class="token comment">// 如果将\\D*去掉</span>
+<span class="token keyword">val</span> str <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"12months"</span></span>
+<span class="token keyword">val</span> regex <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"(\\d+)"</span></span><span class="token punctuation">.</span><span class="token function">toRegex</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token function">println</span><span class="token punctuation">(</span>str<span class="token punctuation">.</span><span class="token function">replace</span><span class="token punctuation">(</span>regex<span class="token punctuation">,</span> <span class="token string-literal singleline"><span class="token string">"$1 "</span></span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+<span class="token comment">// 12 months</span>
+</code></pre> 
+<p>$1就是将第一个组的内容取出来，所以这样就能够提取数字。捕获组还能在Pattern中使用，下面会介绍。<br> 而下面的代码把\D*去掉，代码的逻辑就变成了在替换数字的内容，这里的例子是数字本身和一个空格，所以就变成了12 months</p> 
+<pre><code class="prism language-kotlin"><span class="token keyword">val</span> str <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"1231"</span></span>
+<span class="token keyword">val</span> regex <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"(\\d)\\d*\\1"</span></span><span class="token punctuation">.</span><span class="token function">toRegex</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token function">println</span><span class="token punctuation">(</span>str<span class="token punctuation">.</span><span class="token function">matches</span><span class="token punctuation">(</span>regex<span class="token punctuation">)</span><span class="token punctuation">)</span>
+<span class="token comment">// true</span>
+
+<span class="token keyword">val</span> str <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"&lt;html&gt;&lt;/html&gt;"</span></span>
+<span class="token keyword">val</span> regex <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"&lt;(\\w+)&gt;&lt;/\\1&gt;"</span></span><span class="token punctuation">.</span><span class="token function">toRegex</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token function">println</span><span class="token punctuation">(</span>str<span class="token punctuation">.</span><span class="token function">matches</span><span class="token punctuation">(</span>regex<span class="token punctuation">)</span><span class="token punctuation">)</span>
+<span class="token comment">// true</span>
+</code></pre> 
+<p>最后面的\1是用于判断是否存在于第一个组相同的数字，可以看到，第一个组是放在最开头，所以会匹配到1。此时\1就是代表1。(\d)后面还有\d*，被23匹配了。然后重新出现了数字1，所以就匹配成功。<br><br> 接下来是一个提取日期的例子，顺便补充一点捕获组的知识</p> 
+<pre><code class="prism language-kotlin"><span class="token keyword">val</span> str <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"2022-12-31"</span></span>
+<span class="token keyword">val</span> regex <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"(\\d{4})-(\\d{1,2})-(\\d{1,2})"</span></span><span class="token punctuation">.</span><span class="token function">toRegex</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token function">println</span><span class="token punctuation">(</span>str<span class="token punctuation">.</span><span class="token function">matches</span><span class="token punctuation">(</span>regex<span class="token punctuation">)</span><span class="token punctuation">)</span>
+<span class="token comment">// true</span>
+</code></pre> 
+<p>可以看到，是否加了括号，不会影响正则表达式的使用，在此基础上，还能使用相同的表达式将日期提取出来。</p> 
+<pre><code class="prism language-kotlin"><span class="token keyword">val</span> str <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"2022-12-31"</span></span>
+<span class="token keyword">val</span> regex <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"(\\d{4})-(\\d{1,2})-(\\d{1,2})"</span></span><span class="token punctuation">.</span><span class="token function">toRegex</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token keyword">val</span> year <span class="token operator">=</span> str<span class="token punctuation">.</span><span class="token function">replace</span><span class="token punctuation">(</span>regex<span class="token punctuation">,</span> <span class="token string-literal singleline"><span class="token string">"$1"</span></span><span class="token punctuation">)</span>
+<span class="token keyword">val</span> month <span class="token operator">=</span> str<span class="token punctuation">.</span><span class="token function">replace</span><span class="token punctuation">(</span>regex<span class="token punctuation">,</span> <span class="token string-literal singleline"><span class="token string">"$2"</span></span><span class="token punctuation">)</span>
+<span class="token keyword">val</span> day <span class="token operator">=</span> str<span class="token punctuation">.</span><span class="token function">replace</span><span class="token punctuation">(</span>regex<span class="token punctuation">,</span> <span class="token string-literal singleline"><span class="token string">"$3"</span></span><span class="token punctuation">)</span>
+<span class="token function">println</span><span class="token punctuation">(</span><span class="token string-literal singleline"><span class="token string">"year: </span><span class="token interpolation"><span class="token interpolation-punctuation punctuation">$</span><span class="token expression">year</span></span><span class="token string"> month: </span><span class="token interpolation"><span class="token interpolation-punctuation punctuation">$</span><span class="token expression">month</span></span><span class="token string"> day: </span><span class="token interpolation"><span class="token interpolation-punctuation punctuation">$</span><span class="token expression">day</span></span><span class="token string">"</span></span><span class="token punctuation">)</span>
+<span class="token comment">// year: 2022 month: 12 day: 31</span>
+</code></pre> 
+<p>结果是没有问题，只是过程有点麻烦，下面会使用Pattern优化这个问题，这里先不管。<br><br> 再来一个案例，我有一篇博客，是写给EditText加后缀的。其实，我那篇博客写得代码，和我在项目中写得代码不一样，项目写代码反而有点烂，但里面就是用捕获组解决部分问题。</p> 
+<pre><code class="prism language-kotlin"><span class="token comment">// 注意：是mont 1 ths，中间有一个1，需要将这个1和前面的12拼接在一起</span>
+<span class="token keyword">val</span> str <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"12mont1hs"</span></span>
+<span class="token keyword">val</span> regex <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"(\\d+)\\D*(\\d*)\\D*"</span></span><span class="token punctuation">.</span><span class="token function">toRegex</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token function">println</span><span class="token punctuation">(</span>str<span class="token punctuation">.</span><span class="token function">replace</span><span class="token punctuation">(</span>regex<span class="token punctuation">,</span> <span class="token string-literal singleline"><span class="token string">"$1$2months"</span></span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+<span class="token comment">// 121months</span>
+</code></pre> 
+<p>如果用户在months这个单词中写了一个数字，我就将这个数字拿出来，并拼接到开头的数字，再设置到EditText里面。此时，就可以使用捕获组的形式，获取2个数字，并拼在一起，再补上后缀。<br> 如果不使用正则表达式，想要实现这个功能还是比较麻烦的。</p> 
+<p><b>非捕获组</b></p> 
+<ul><li>非捕获组必须的格式为：(?:pattern)</li><li>避免捕获不需要的结果：通过非捕获组，能够保证只捕获需要的结果，避免不必要的捕获</li><li>提高性能：由于非捕获组不会保留和存储匹配结果，相比捕获组，它们具有更高的性能</li></ul> 
+<p>写了一堆，看怎么用</p> 
+<pre><code class="prism language-kotlin"><span class="token keyword">val</span> str <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"ababab"</span></span>
+<span class="token keyword">val</span> regex <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"(?:ab)+"</span></span><span class="token punctuation">.</span><span class="token function">toRegex</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token function">println</span><span class="token punctuation">(</span>str<span class="token punctuation">.</span><span class="token function">matches</span><span class="token punctuation">(</span>regex<span class="token punctuation">)</span><span class="token punctuation">)</span>
+<span class="token comment">// true</span>
+</code></pre> 
+<p>在这个例子中，如果去掉?:，结果也是true。那?:有什么用？<br> 如果不使用?:，那(ab)在匹配完成之后，会将子表达式捕获，放到内存中。而如果使用了?:，就不会将子表达式捕获，也就不会放在内存中。<br> 再举一个更为具体的例子：</p> 
+<pre><code class="prism language-kotlin"><span class="token keyword">val</span> str <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"ababab"</span></span>
+<span class="token keyword">val</span> regex <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"(\\w)(\\w)"</span></span><span class="token punctuation">.</span><span class="token function">toRegex</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token function">println</span><span class="token punctuation">(</span>str<span class="token punctuation">.</span><span class="token function">replace</span><span class="token punctuation">(</span>regex<span class="token punctuation">,</span><span class="token string-literal singleline"><span class="token string">"$2"</span></span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+<span class="token comment">// bbb</span>
+
+<span class="token comment">// 而如果将第二个\\w改为?:\\w呢？</span>
+<span class="token keyword">val</span> str <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"ababab"</span></span>
+<span class="token keyword">val</span> regex <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"(\\w)(?:\\w)"</span></span><span class="token punctuation">.</span><span class="token function">toRegex</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token function">println</span><span class="token punctuation">(</span>str<span class="token punctuation">.</span><span class="token function">replace</span><span class="token punctuation">(</span>regex<span class="token punctuation">,</span><span class="token string-literal singleline"><span class="token string">"$2"</span></span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+<span class="token comment">// Exception in thread "main" java.lang.IndexOutOfBoundsException: No group 2</span>
+</code></pre> 
+<p>将会运行报错，找不到第二组，说明group2不会被捕获，所以获取不到</p> 
+<h4 id="patternandmatcher">Pattern和Matcher</h4> 
+<p>Pattern方法</p> 
+<ul><li>compile：静态方法。编译给定的正则表达式并返回一个Pattern对象。</li><li>matcher：非静态方法。传递一个要匹配的字符串，构建一个Matcher对象</li><li>matches：静态方法。内部创建一个Matcher对象，并判断传递的字符串是否与正则表达式匹配，与Matcher.matches等价</li></ul> 
+<p>Matcher常用方法，注意，Matcher提到的方法都是非静态方法</p> 
+<ul><li>split：根据正则表达式切割字符串</li><li>matches：判断字符串是否于正则表达式匹配</li><li>replaceFirst：替换第一个匹配项</li><li>replaceAll：替换全部匹配项</li><li>lookingAt：总是从第一个字符开始匹配。不管匹配成功与否，都不会再继续向下匹配。如果匹配成功，就返回true，反之返回false。于matches不同的是，matches是匹配整个字符串是否于正则表达式匹配，而lookingAt只匹配字符串开头。</li><li>find：查找匹配项，start、end、group这3个方法，需要在调用find之后使用。find有两个方法，一个是没有参数的方法，另一个是有int start参数的方法。区别：没有参数的方法，会从0开始查到。有参数的，从给定参数查找。比如有一个字符串，有3匹配项，传1表示获取第2个匹配项。如果传入3，运行则会抛异常。</li><li>start和end：分别为获取匹配项的开始位置和结束位置。这两个都有3个重载方法，分别是start()、start(int group)、start(String name)。没有参数的，就是获取整个匹配项的开始/结束位置。int group的，就是获取第group位置的开始/结束位置。String name的用法有点复杂，在声明捕获组时，可以为捕获组命名。此时，就可以通过name获取捕获组</li><li>group：获取匹配项的内容。如果一个正则表达式里面，没有使用捕获组，就只能调用没有参数的group方法，调用其他方法会报错。group方法和start/end类似，有3个重载方法，用法也类似</li><li>groupCount：获取group的数量，没有调用find方法也可以使用</li><li>toMatcheResult：顾名思义，获取匹配结果，返回的对象就是对匹配结果的封装。无论是否调用find方法，都可以直接调用该方法。但如果没有调用find方法， 就调用MatchResult的start或end等方法，会运行报错</li><li>pattern：获取该Matcher的Pattern对象</li><li>usePattern：设置新的pattern对象</li><li>region：有两个参数：int start，int end。用于限制Matcher的搜索范围，范围就是[start, end]。可以通过regionStart和regionEnd分别获取当前的限制范围。默认start是0，end是字符串长度</li><li>reset：重置Matcher的状态。两个方法，一个没有参数，一个是String input。String类型的，还能重置要匹配的字符串，其他的没有任何区别。</li></ul> 
+<p>上面提了这么多方法，其中：split、matches、replaceFirst和replaceAll方法，String本身也有提供， 并且在String的源码里面，也是使用这两个类的方法，所以不提供示例。其他大部分方法会提供代码示例：<br> <b>lookingAt</b></p> 
+<pre><code class="prism language-kotlin"><span class="token keyword">val</span> str <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"123abc"</span></span>
+<span class="token keyword">val</span> regex <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"\\d+"</span></span>
+<span class="token keyword">val</span> pattern <span class="token operator">=</span> Pattern<span class="token punctuation">.</span><span class="token function">compile</span><span class="token punctuation">(</span>regex<span class="token punctuation">)</span>
+<span class="token keyword">val</span> matcher <span class="token operator">=</span> pattern<span class="token punctuation">.</span><span class="token function">matcher</span><span class="token punctuation">(</span>str<span class="token punctuation">)</span>
+<span class="token function">println</span><span class="token punctuation">(</span>matcher<span class="token punctuation">.</span><span class="token function">matches</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+<span class="token function">println</span><span class="token punctuation">(</span>matcher<span class="token punctuation">.</span><span class="token function">lookingAt</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+matcher<span class="token punctuation">.</span><span class="token function">reset</span><span class="token punctuation">(</span><span class="token string-literal singleline"><span class="token string">"abc123"</span></span><span class="token punctuation">)</span>
+<span class="token function">println</span><span class="token punctuation">(</span>matcher<span class="token punctuation">.</span><span class="token function">lookingAt</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+<span class="token comment">// false</span>
+<span class="token comment">// true</span>
+<span class="token comment">// false</span>
+</code></pre> 
+<p>可以看到，如果使用matches方法，会匹配失败。而如果使用lookingAt就能够匹配，因为这个字符串是数字开头。调用reset方法， 修改为字母开头，再次调用lookingAt方法，返回false。因为匹配到开头不是数字，所以就不继续匹配下去，直接返回false。</p> 
+<p>find、start、end、group、groupCount这些是成对存在的，所以放一起举例</p> 
+<pre><code class="prism language-kotlin"><span class="token comment">// 没有使用捕获组的情况</span>
+<span class="token keyword">val</span> str <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"a=b;c=d;e=f"</span></span>
+<span class="token keyword">val</span> regex <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"\\w=\\w"</span></span>
+<span class="token keyword">val</span> pattern <span class="token operator">=</span> Pattern<span class="token punctuation">.</span><span class="token function">compile</span><span class="token punctuation">(</span>regex<span class="token punctuation">)</span>
+<span class="token keyword">val</span> matcher <span class="token operator">=</span> pattern<span class="token punctuation">.</span><span class="token function">matcher</span><span class="token punctuation">(</span>str<span class="token punctuation">)</span>
+<span class="token keyword">while</span><span class="token punctuation">(</span>matcher<span class="token punctuation">.</span><span class="token function">find</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">{<!-- --></span>
+	<span class="token function">println</span><span class="token punctuation">(</span>matcher<span class="token punctuation">.</span><span class="token function">group</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+<span class="token punctuation">}</span>
+<span class="token comment">// a=b</span>
+<span class="token comment">// c=d</span>
+<span class="token comment">// e=f</span>
+<span class="token comment">// 注意：这里没有用到捕获组，所以不能使用matcher.group(1)，如果这样用，会运行报错</span>
+</code></pre> 
+<p>而如果将给find传入1的参数，就会获取到第2个结果</p> 
+<pre><code class="prism language-kotlin"><span class="token keyword">if</span><span class="token punctuation">(</span>matcher<span class="token punctuation">.</span><span class="token function">find</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">{<!-- --></span>
+	<span class="token function">println</span><span class="token punctuation">(</span>matcher<span class="token punctuation">.</span><span class="token function">group</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+<span class="token punctuation">}</span>
+<span class="token comment">// c=d</span>
+<span class="token comment">// 注意，这里不能使用while(matcher.find(1))，否则会一直获取第2个结果，会导致循环一直在运行。</span>
+</code></pre> 
+<p>如果给regex套上捕获组：</p> 
+<pre><code class="prism language-kotlin"><span class="token keyword">val</span> str <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"a=b;c=d;e=f"</span></span>
+<span class="token keyword">val</span> regex <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"(\\w)=(\\w)"</span></span>
+<span class="token keyword">val</span> pattern <span class="token operator">=</span> Pattern<span class="token punctuation">.</span><span class="token function">compile</span><span class="token punctuation">(</span>regex<span class="token punctuation">)</span>
+<span class="token keyword">val</span> matcher <span class="token operator">=</span> pattern<span class="token punctuation">.</span><span class="token function">matcher</span><span class="token punctuation">(</span>str<span class="token punctuation">)</span>
+<span class="token keyword">while</span><span class="token punctuation">(</span>matcher<span class="token punctuation">.</span><span class="token function">find</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">{<!-- --></span>
+    <span class="token function">println</span><span class="token punctuation">(</span><span class="token string-literal singleline"><span class="token string">"group:</span><span class="token interpolation"><span class="token interpolation-punctuation punctuation">${<!-- --></span><span class="token expression">matcher<span class="token punctuation">.</span><span class="token function">group</span><span class="token punctuation">(</span><span class="token punctuation">)</span></span><span class="token interpolation-punctuation punctuation">}</span></span><span class="token string">, group1:</span><span class="token interpolation"><span class="token interpolation-punctuation punctuation">${<!-- --></span><span class="token expression">matcher<span class="token punctuation">.</span><span class="token function">group</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span></span><span class="token interpolation-punctuation punctuation">}</span></span><span class="token string">, group2:</span><span class="token interpolation"><span class="token interpolation-punctuation punctuation">${<!-- --></span><span class="token expression">matcher<span class="token punctuation">.</span><span class="token function">group</span><span class="token punctuation">(</span><span class="token number">2</span><span class="token punctuation">)</span></span><span class="token interpolation-punctuation punctuation">}</span></span><span class="token string">"</span></span><span class="token punctuation">)</span>
+<span class="token punctuation">}</span>
+
+<span class="token comment">// group:a=b, group1:a, group2:b</span>
+<span class="token comment">// group:c=d, group1:c, group2:d</span>
+<span class="token comment">// group:e=f, group1:e, group2:f</span>
+</code></pre> 
+<p>上面那个日期的例子，用Matcher就可以很方便的拿到：</p> 
+<pre><code class="prism language-kotlin"><span class="token keyword">val</span> date <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"2023-12-31"</span></span>
+<span class="token keyword">val</span> regex <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"(\\d{4})-(\\d{1,2})-(\\d{1,2})"</span></span>
+<span class="token keyword">val</span> pattern <span class="token operator">=</span> Pattern<span class="token punctuation">.</span><span class="token function">compile</span><span class="token punctuation">(</span>regex<span class="token punctuation">)</span>
+<span class="token keyword">val</span> matcher <span class="token operator">=</span> pattern<span class="token punctuation">.</span><span class="token function">matcher</span><span class="token punctuation">(</span>date<span class="token punctuation">)</span>
+<span class="token keyword">if</span><span class="token punctuation">(</span>matcher<span class="token punctuation">.</span><span class="token function">find</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">{<!-- --></span>
+    <span class="token function">println</span><span class="token punctuation">(</span><span class="token string-literal singleline"><span class="token string">"year:</span><span class="token interpolation"><span class="token interpolation-punctuation punctuation">${<!-- --></span><span class="token expression">matcher<span class="token punctuation">.</span><span class="token function">group</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span></span><span class="token interpolation-punctuation punctuation">}</span></span><span class="token string">, month:</span><span class="token interpolation"><span class="token interpolation-punctuation punctuation">${<!-- --></span><span class="token expression">matcher<span class="token punctuation">.</span><span class="token function">group</span><span class="token punctuation">(</span><span class="token number">2</span><span class="token punctuation">)</span></span><span class="token interpolation-punctuation punctuation">}</span></span><span class="token string">, day:</span><span class="token interpolation"><span class="token interpolation-punctuation punctuation">${<!-- --></span><span class="token expression">matcher<span class="token punctuation">.</span><span class="token function">group</span><span class="token punctuation">(</span><span class="token number">3</span><span class="token punctuation">)</span></span><span class="token interpolation-punctuation punctuation">}</span></span><span class="token string">"</span></span><span class="token punctuation">)</span>
+<span class="token punctuation">}</span>
+<span class="token comment">// year:2023, month:12, day:31</span>
+</code></pre> 
+<p>start和end：</p> 
+<pre><code class="prism language-kotlin"><span class="token keyword">while</span><span class="token punctuation">(</span>matcher<span class="token punctuation">.</span><span class="token function">find</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">{<!-- --></span>
+    <span class="token function">println</span><span class="token punctuation">(</span><span class="token string-literal singleline"><span class="token string">"group1 start:</span><span class="token interpolation"><span class="token interpolation-punctuation punctuation">${<!-- --></span><span class="token expression">matcher<span class="token punctuation">.</span><span class="token function">start</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span></span><span class="token interpolation-punctuation punctuation">}</span></span><span class="token string">, end:</span><span class="token interpolation"><span class="token interpolation-punctuation punctuation">${<!-- --></span><span class="token expression">matcher<span class="token punctuation">.</span><span class="token function">end</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span></span><span class="token interpolation-punctuation punctuation">}</span></span><span class="token string">"</span></span><span class="token punctuation">)</span>
+    <span class="token function">println</span><span class="token punctuation">(</span><span class="token string-literal singleline"><span class="token string">"group2 start:</span><span class="token interpolation"><span class="token interpolation-punctuation punctuation">${<!-- --></span><span class="token expression">matcher<span class="token punctuation">.</span><span class="token function">start</span><span class="token punctuation">(</span><span class="token number">2</span><span class="token punctuation">)</span></span><span class="token interpolation-punctuation punctuation">}</span></span><span class="token string">, end:</span><span class="token interpolation"><span class="token interpolation-punctuation punctuation">${<!-- --></span><span class="token expression">matcher<span class="token punctuation">.</span><span class="token function">end</span><span class="token punctuation">(</span><span class="token number">2</span><span class="token punctuation">)</span></span><span class="token interpolation-punctuation punctuation">}</span></span><span class="token string">"</span></span><span class="token punctuation">)</span>
+<span class="token punctuation">}</span>
+<span class="token comment">// group1 start:0, end:1</span>
+<span class="token comment">// group2 start:2, end:3</span>
+<span class="token comment">// group1 start:4, end:5</span>
+<span class="token comment">// group2 start:6, end:7</span>
+<span class="token comment">// group1 start:8, end:9</span>
+<span class="token comment">// group2 start:10, end:11</span>
+</code></pre> 
+<p>这里如果调用start/end传入3，会运行报错，我就不提供代码了，自己试一下就知道了<br> group、start、end都有一个name的方法，这里举个例子说怎么用：</p> 
+<pre><code class="prism language-kotlin"><span class="token keyword">val</span> numberGroupName <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"number"</span></span>
+<span class="token keyword">val</span> wordGroupName <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"word"</span></span>
+<span class="token keyword">val</span> str <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"123, abc"</span></span>
+<span class="token keyword">val</span> regex <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"(?&lt;</span><span class="token interpolation"><span class="token interpolation-punctuation punctuation">$</span><span class="token expression">numberGroupName</span></span><span class="token string">&gt;\\d+), (?&lt;</span><span class="token interpolation"><span class="token interpolation-punctuation punctuation">$</span><span class="token expression">wordGroupName</span></span><span class="token string">&gt;\\w+)"</span></span>
+<span class="token keyword">val</span> pattern <span class="token operator">=</span> Pattern<span class="token punctuation">.</span><span class="token function">compile</span><span class="token punctuation">(</span>regex<span class="token punctuation">)</span>
+<span class="token keyword">val</span> matcher <span class="token operator">=</span> pattern<span class="token punctuation">.</span><span class="token function">matcher</span><span class="token punctuation">(</span>str<span class="token punctuation">)</span>
+<span class="token keyword">if</span><span class="token punctuation">(</span>matcher<span class="token punctuation">.</span><span class="token function">find</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">val</span> numberStart <span class="token operator">=</span> matcher<span class="token punctuation">.</span><span class="token function">start</span><span class="token punctuation">(</span>numberGroupName<span class="token punctuation">)</span>
+    <span class="token keyword">val</span> wordStart <span class="token operator">=</span> matcher<span class="token punctuation">.</span><span class="token function">start</span><span class="token punctuation">(</span>wordGroupName<span class="token punctuation">)</span>
+    <span class="token keyword">val</span> numberGroupText <span class="token operator">=</span> matcher<span class="token punctuation">.</span><span class="token function">group</span><span class="token punctuation">(</span>numberGroupName<span class="token punctuation">)</span>
+    <span class="token keyword">val</span> wordGroupText <span class="token operator">=</span> matcher<span class="token punctuation">.</span><span class="token function">group</span><span class="token punctuation">(</span>wordGroupName<span class="token punctuation">)</span>
+    <span class="token function">println</span><span class="token punctuation">(</span><span class="token string-literal singleline"><span class="token string">"numberStart:</span><span class="token interpolation"><span class="token interpolation-punctuation punctuation">$</span><span class="token expression">numberStart</span></span><span class="token string">, wordStart:</span><span class="token interpolation"><span class="token interpolation-punctuation punctuation">$</span><span class="token expression">wordStart</span></span><span class="token string">"</span></span><span class="token punctuation">)</span>
+    <span class="token function">println</span><span class="token punctuation">(</span><span class="token string-literal singleline"><span class="token string">"numberEnd:</span><span class="token interpolation"><span class="token interpolation-punctuation punctuation">$</span><span class="token expression">numberEnd</span></span><span class="token string">, wordEnd:</span><span class="token interpolation"><span class="token interpolation-punctuation punctuation">$</span><span class="token expression">wordEnd</span></span><span class="token string">"</span></span><span class="token punctuation">)</span>
+    <span class="token function">println</span><span class="token punctuation">(</span><span class="token string-literal singleline"><span class="token string">"numberGroupText:</span><span class="token interpolation"><span class="token interpolation-punctuation punctuation">$</span><span class="token expression">numberGroupText</span></span><span class="token string">, wordGroupText:</span><span class="token interpolation"><span class="token interpolation-punctuation punctuation">$</span><span class="token expression">wordGroupText</span></span><span class="token string">"</span></span><span class="token punctuation">)</span>
+<span class="token punctuation">}</span>
+
+<span class="token comment">// numberStart:0, wordStart:5</span>
+<span class="token comment">// numberEnd:3, wordEnd:8</span>
+<span class="token comment">// numberGroupText:123, wordGroupText:abc</span>
+</code></pre> 
+<p>想要在捕获组里面为捕获组命名，可以使用(?&lt;name&gt;)方式命名</p> 
+<p>groupCount方法，上面这个例子中</p> 
+<pre><code class="prism language-kotlin"><span class="token function">println</span><span class="token punctuation">(</span>matcher<span class="token punctuation">.</span><span class="token function">groupCount</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+<span class="token comment">// 2</span>
+</code></pre> 
+<p>注意，即使没用调用find方法，也可以调用groupCount方法</p> 
+<p>region相关方法</p> 
+<pre><code class="prism language-kotlin"><span class="token keyword">val</span> str <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"a=b;c=d;e=f"</span></span>
+<span class="token keyword">val</span> regex <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"(\\w)=(\\w)"</span></span>
+<span class="token keyword">val</span> pattern <span class="token operator">=</span> Pattern<span class="token punctuation">.</span><span class="token function">compile</span><span class="token punctuation">(</span>regex<span class="token punctuation">)</span>
+<span class="token keyword">val</span> matcher <span class="token operator">=</span> pattern<span class="token punctuation">.</span><span class="token function">matcher</span><span class="token punctuation">(</span>str<span class="token punctuation">)</span>
+<span class="token function">println</span><span class="token punctuation">(</span><span class="token string-literal singleline"><span class="token string">"strLength:</span><span class="token interpolation"><span class="token interpolation-punctuation punctuation">${<!-- --></span><span class="token expression">str<span class="token punctuation">.</span>length</span><span class="token interpolation-punctuation punctuation">}</span></span><span class="token string">, regionStart:</span><span class="token interpolation"><span class="token interpolation-punctuation punctuation">${<!-- --></span><span class="token expression">matcher<span class="token punctuation">.</span><span class="token function">regionStart</span><span class="token punctuation">(</span><span class="token punctuation">)</span></span><span class="token interpolation-punctuation punctuation">}</span></span><span class="token string">, regionEnd:</span><span class="token interpolation"><span class="token interpolation-punctuation punctuation">${<!-- --></span><span class="token expression">matcher<span class="token punctuation">.</span><span class="token function">regionEnd</span><span class="token punctuation">(</span><span class="token punctuation">)</span></span><span class="token interpolation-punctuation punctuation">}</span></span><span class="token string">"</span></span><span class="token punctuation">)</span>
+matcher<span class="token punctuation">.</span><span class="token function">region</span><span class="token punctuation">(</span><span class="token number">2</span><span class="token punctuation">,</span><span class="token number">10</span><span class="token punctuation">)</span>
+<span class="token function">println</span><span class="token punctuation">(</span><span class="token string-literal singleline"><span class="token string">"regionStart:</span><span class="token interpolation"><span class="token interpolation-punctuation punctuation">${<!-- --></span><span class="token expression">matcher<span class="token punctuation">.</span><span class="token function">regionStart</span><span class="token punctuation">(</span><span class="token punctuation">)</span></span><span class="token interpolation-punctuation punctuation">}</span></span><span class="token string">, regionEnd:</span><span class="token interpolation"><span class="token interpolation-punctuation punctuation">${<!-- --></span><span class="token expression">matcher<span class="token punctuation">.</span><span class="token function">regionEnd</span><span class="token punctuation">(</span><span class="token punctuation">)</span></span><span class="token interpolation-punctuation punctuation">}</span></span><span class="token string">"</span></span><span class="token punctuation">)</span>
+<span class="token keyword">while</span><span class="token punctuation">(</span>matcher<span class="token punctuation">.</span><span class="token function">find</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">{<!-- --></span>
+    <span class="token function">println</span><span class="token punctuation">(</span>matcher<span class="token punctuation">.</span><span class="token function">group</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+<span class="token punctuation">}</span>
+<span class="token comment">// strLength:11, regionStart:0, regionEnd:11</span>
+<span class="token comment">// regionStart:2, regionEnd:10</span>
+<span class="token comment">// c=d</span>
+</code></pre> 
+<p>可以看到，在设置region之前，regionEnd和str.length是一样，但设置之后，获取到的值就是设置的值，并且设置后还导致只find到一个值</p> 
+<p>reset方法，在上面这个的代码的基础上，调用reset方法</p> 
+<pre><code class="prism language-kotlin"><span class="token function">println</span><span class="token punctuation">(</span><span class="token string-literal singleline"><span class="token string">"reset"</span></span><span class="token punctuation">)</span>
+matcher<span class="token punctuation">.</span><span class="token function">reset</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token function">println</span><span class="token punctuation">(</span><span class="token string-literal singleline"><span class="token string">"regionStart:</span><span class="token interpolation"><span class="token interpolation-punctuation punctuation">${<!-- --></span><span class="token expression">matcher<span class="token punctuation">.</span><span class="token function">regionStart</span><span class="token punctuation">(</span><span class="token punctuation">)</span></span><span class="token interpolation-punctuation punctuation">}</span></span><span class="token string">, regionEnd:</span><span class="token interpolation"><span class="token interpolation-punctuation punctuation">${<!-- --></span><span class="token expression">matcher<span class="token punctuation">.</span><span class="token function">regionEnd</span><span class="token punctuation">(</span><span class="token punctuation">)</span></span><span class="token interpolation-punctuation punctuation">}</span></span><span class="token string">"</span></span><span class="token punctuation">)</span>
+<span class="token keyword">while</span><span class="token punctuation">(</span>matcher<span class="token punctuation">.</span><span class="token function">find</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">{<!-- --></span>
+    <span class="token function">println</span><span class="token punctuation">(</span>matcher<span class="token punctuation">.</span><span class="token function">group</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+<span class="token punctuation">}</span>
+<span class="token comment">// reset</span>
+<span class="token comment">// regionStart:0, regionEnd:11</span>
+<span class="token comment">// a=b</span>
+<span class="token comment">// c=d</span>
+<span class="token comment">// e=f</span>
+</code></pre> 
+<p>调用reset之后，Matcher就恢复原来的样子了</p> 
+<h4 id="assertion">断言(Assertion)</h4> 
+<p>Assertion用于在匹配过程中进行条件判断，Assertion是一种零宽度(zero-width)匹配，它不会消耗匹配的字符，仅用于确定匹配的位置是否满足特定条件。有什么用？</p> 
+<ul><li>条件限制：Assertion允许在匹配过程中对特定条件进行限制，从而更精确地控制匹配结果</li><li>灵活性：通过使用Assertion，可以根据具体需求编写更复杂的匹配逻辑</li><li>高效性：由于Assertion不消耗匹配的字符，它们通常比捕获组更高效</li></ul> 
+<p>上面提到不会消耗匹配的字符，举一个例子就懂了，还是开头的那个例子</p> 
+<pre><code class="prism language-kotlin"><span class="token keyword">val</span> str <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"abc123def"</span></span>
+<span class="token keyword">val</span> regex <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"(\\d)\\d"</span></span><span class="token punctuation">.</span><span class="token function">toRegex</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token function">println</span><span class="token punctuation">(</span>str<span class="token punctuation">.</span><span class="token function">replace</span><span class="token punctuation">(</span>regex<span class="token punctuation">,</span> <span class="token string-literal singleline"><span class="token string">"$1 "</span></span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+<span class="token comment">// abc1 3def</span>
+</code></pre> 
+<p>使用这种方式替换之后，2就消失不见了，即使第2个\d没有使用捕获组。而如果使用Assertion，就不会有这个问题</p> 
+<p>几种Assertion的形式：</p> 
+<ul><li>(?=pattern)：零宽度正向先行断言(zero-width positive lookahead assertion)。表示在当前位置后面必须紧跟着某个模式</li><li>(?!pattern)：零宽度负向先行断言(zero-width negative lookahead assertion)。表示在当前位置后面不能紧跟着某个模式</li><li>(?&lt;=pattern)：零宽度正向后行断言(zero-width positive lookbehind assertion)。表示在当前位置前面必须紧跟着某个模式</li><li>(?&lt;!pattern)：零宽度负向后行断言(zero-width negative lookbehind assertion)。表示在当前位置前面不能紧跟着某个模式</li></ul> 
+<p>总结：前面与后面、能与不能的排列组合。名字看起来很唬人，而规则又很简单</p> 
+<p>例子：</p> 
+<pre><code class="prism language-kotlin"><span class="token comment">// 正向现行断言还是上面的例子</span>
+<span class="token comment">// \\d(?=\\d)，表示数字\d后面必须紧跟着数字\d</span>
+<span class="token comment">// 匹配到数字1，发现数字1后面是数字2，是匹配项，所以执行$1 ，在1后面加空格</span>
+<span class="token comment">// 匹配到数字2，发现数字2后面是数字3，是匹配项，所以执行$1 ，在2后面加空格</span>
+<span class="token comment">// 匹配到数字3，发现数字3后面是字母，不是匹配项，所以就不管</span>
+
+<span class="token comment">// 负向先行断言：?!pattern</span>
+<span class="token keyword">val</span> str <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"abc123adef"</span></span>
+<span class="token keyword">val</span> regex <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"(\\d)(?!\\D)"</span></span><span class="token punctuation">.</span><span class="token function">toRegex</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token comment">// val regex = "(\\d)(?![a-zA-Z])".toRegex()</span>
+<span class="token function">println</span><span class="token punctuation">(</span>str<span class="token punctuation">.</span><span class="token function">replace</span><span class="token punctuation">(</span>regex<span class="token punctuation">,</span> <span class="token string-literal singleline"><span class="token string">"$1 "</span></span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+<span class="token comment">// abc1 2 3adef</span>
+</code></pre> 
+<p>只需将断言里面的表达式往反的修改，就能达到一样的效果</p> 
+<p>然后是后行断言</p> 
+<pre><code class="prism language-kotlin"><span class="token comment">// 正向后行断言</span>
+<span class="token keyword">val</span> str <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"abc123adef"</span></span>
+<span class="token keyword">val</span> regex <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"(?&lt;=\\d)(\\d)"</span></span><span class="token punctuation">.</span><span class="token function">toRegex</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token function">println</span><span class="token punctuation">(</span>str<span class="token punctuation">.</span><span class="token function">replace</span><span class="token punctuation">(</span>regex<span class="token punctuation">,</span> <span class="token string-literal singleline"><span class="token string">" $1"</span></span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+<span class="token comment">// 匹配到数字1，发现数字1前面是字母，不是匹配项，所以不管</span>
+<span class="token comment">// 匹配到数字2，发现数字2前面是数字1，是匹配项，所以执行 $1，在2前面加空格</span>
+<span class="token comment">// 匹配到数字3，发现数字3前面是数字2，是匹配项，所以执行 $1，在3前面加空格</span>
+
+<span class="token comment">// 负向后行断言：?&lt;!pattern</span>
+<span class="token keyword">val</span> str <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"abc123adef"</span></span>
+<span class="token keyword">val</span> regex <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"(?&lt;!\\D)(\\d)"</span></span><span class="token punctuation">.</span><span class="token function">toRegex</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token comment">// val regex = "(?&lt;![a-zA-Z])(\\d)".toRegex()</span>
+<span class="token function">println</span><span class="token punctuation">(</span>str<span class="token punctuation">.</span><span class="token function">replace</span><span class="token punctuation">(</span>regex<span class="token punctuation">,</span> <span class="token string-literal singleline"><span class="token string">" $1"</span></span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+<span class="token comment">// abc1 2 3adef</span>
+</code></pre> 
+<h4 id="flag">标记</h4> 有两种使用方式，一种是使用(?i)这样的语法，另一种是在Pattern里面使用。 在Pattern里面，如果想要使用，可以在调用compile方法时，作为第2个参数传递给Pattern。 
+<ul><li>(?i)与Pattern.CASE_INSENSITIVE：忽略大小写</li><li>(?d)与Pattern.UNIX_LINES：UNIX行模式，大多数系统是以\n结尾的。而部分系统，如windows，是以\r\n结尾。使用这个模式之后，就会只以\n作为行结束符</li><li>(?x)与Pattern.COMMENTS：注释模式。启用注释模式后，正则表达式里面可以用#来为正则表达式添加注释</li><li>(?s)与Pattern.DOTALL：单行模式。单行模式会影响".“的行为。默认情况下，”.“不会匹配换行符，启用单行模式后，”."还会匹配换行符</li><li>(?m)与Pattern.MULTILINE：多行模式。在多行模式下，正则表达式会匹配每一行的开始位置和结束位置，多行模式会影响"^“和”$“的行为。默认情况下，”^“和”$“匹配的是整个字符串的开始位置和结束位置。而在多行模式下，”^“和”$"匹配的是行开始的位置和结束的位置</li><li>(?u)与Pattern.UNICODE_CASE：感知模式。在这个模式下，如果你还启用了CASE_INSENSITIVE标志，那么它会对Unicode字符进行大小写不明感的匹配。默认情况下，大小写不敏感的匹配只适用于US-ASCII字符集</li></ul> 
+<p>(?d)和(?u)不理解是什么意思，所以不提供代码</p> 
+<p><b>忽略大小写</b></p> 
+<pre><code class="prism language-kotlin"><span class="token keyword">val</span> str <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"aBC"</span></span>
+<span class="token keyword">val</span> regex <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"(?i)abc"</span></span><span class="token punctuation">.</span><span class="token function">toRegex</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token function">println</span><span class="token punctuation">(</span>str<span class="token punctuation">.</span><span class="token function">matches</span><span class="token punctuation">(</span>regex<span class="token punctuation">)</span><span class="token punctuation">)</span>
+<span class="token comment">// true</span>
+<span class="token comment">// 但这种做法存在问题，(?i)后面所有的字符串都会忽略大小写，如果后面还有def，并且不希望忽略大小写，这样就不行了，所有还有其他编写方式</span>
+
+<span class="token comment">// 使用(?i:str)编写</span>
+<span class="token keyword">val</span> str <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"aBCdef"</span></span>
+<span class="token keyword">val</span> regex <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"(?i:abc)dEf"</span></span><span class="token punctuation">.</span><span class="token function">toRegex</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token function">println</span><span class="token punctuation">(</span>str<span class="token punctuation">.</span><span class="token function">matches</span><span class="token punctuation">(</span>regex<span class="token punctuation">)</span><span class="token punctuation">)</span>
+<span class="token comment">// false</span>
+
+<span class="token keyword">val</span> str <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"aBCdef"</span></span>
+<span class="token keyword">val</span> regex <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"(?i:abc)def"</span></span><span class="token punctuation">.</span><span class="token function">toRegex</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token function">println</span><span class="token punctuation">(</span>str<span class="token punctuation">.</span><span class="token function">matches</span><span class="token punctuation">(</span>regex<span class="token punctuation">)</span><span class="token punctuation">)</span>
+<span class="token comment">// true</span>
+
+<span class="token comment">// 最后一种方式，使用(?-i)表示禁用忽略大小写</span>
+<span class="token keyword">val</span> str <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"aBCdef"</span></span>
+<span class="token keyword">val</span> regex <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"(?i)abc(?-i)def"</span></span><span class="token punctuation">.</span><span class="token function">toRegex</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token function">println</span><span class="token punctuation">(</span>str<span class="token punctuation">.</span><span class="token function">matches</span><span class="token punctuation">(</span>regex<span class="token punctuation">)</span><span class="token punctuation">)</span>
+<span class="token comment">// true</span>
+</code></pre> 
+<p><b>注释模式</b></p> 
+<pre><code class="prism language-kotlin"><span class="token keyword">val</span> input <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"Hello,World!"</span></span>
+<span class="token keyword">val</span> regex <span class="token operator">=</span> <span class="token string-literal multiline"><span class="token string">"""
+    (?x)        # 注释模式启用
+    (?i)hello   # 不区分大小写匹配 hello
+    \W+        # 匹配非单词字符
+    (?-i)World  # 区分大小写匹配 world
+    """</span></span><span class="token punctuation">.</span><span class="token function">trimIndent</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token keyword">val</span> pattern <span class="token operator">=</span> Pattern<span class="token punctuation">.</span><span class="token function">compile</span><span class="token punctuation">(</span>regex<span class="token punctuation">)</span>
+<span class="token function">println</span><span class="token punctuation">(</span>pattern<span class="token punctuation">.</span><span class="token function">pattern</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+<span class="token keyword">val</span> matcher <span class="token operator">=</span> pattern<span class="token punctuation">.</span><span class="token function">matcher</span><span class="token punctuation">(</span>input<span class="token punctuation">)</span>
+<span class="token keyword">if</span><span class="token punctuation">(</span>matcher<span class="token punctuation">.</span><span class="token function">find</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token function">println</span><span class="token punctuation">(</span>matcher<span class="token punctuation">.</span><span class="token function">group</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+<span class="token punctuation">}</span>
+<span class="token comment">// Hello, World</span>
+</code></pre> 
+<p>可以发现，可以找到符合这个正则表达式"(?i)hello\W+(?-i)World"的字符串</p> 
+<p><b>单行模式</b></p> 
+<pre><code class="prism language-kotlin"><span class="token keyword">val</span> input <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"Line 1\nLine 2\nLine 3"</span></span>
+<span class="token keyword">val</span> pattern <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"Line.*"</span></span>
+<span class="token keyword">val</span> matcher <span class="token operator">=</span> Pattern<span class="token punctuation">.</span><span class="token function">compile</span><span class="token punctuation">(</span>pattern<span class="token punctuation">,</span> Pattern<span class="token punctuation">.</span>DOTALL<span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">matcher</span><span class="token punctuation">(</span>input<span class="token punctuation">)</span>
+<span class="token keyword">var</span> count <span class="token operator">=</span> <span class="token number">0</span>
+<span class="token keyword">while</span><span class="token punctuation">(</span>matcher<span class="token punctuation">.</span><span class="token function">find</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token function">println</span><span class="token punctuation">(</span><span class="token string-literal singleline"><span class="token string">"count:</span><span class="token interpolation"><span class="token interpolation-punctuation punctuation">${<!-- --></span><span class="token expression"><span class="token operator">++</span>count</span><span class="token interpolation-punctuation punctuation">}</span></span><span class="token string">"</span></span><span class="token punctuation">)</span>
+    <span class="token function">println</span><span class="token punctuation">(</span>matcher<span class="token punctuation">.</span><span class="token function">group</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+<span class="token punctuation">}</span>
+
+<span class="token comment">// count:1</span>
+<span class="token comment">// Line 1</span>
+<span class="token comment">// Line 2</span>
+<span class="token comment">// Line 3</span>
+</code></pre> 
+<p>虽然看起来打印了3行，但count只计算了一次，所以可以证明单行模式的"."将换行符视为一个普通字符。</p> 
+<p><b>多行模式</b></p> 
+<pre><code class="prism language-kotlin"><span class="token keyword">val</span> input <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"Line 1\nLine 2\nLine 3"</span></span>
+<span class="token keyword">val</span> pattern <span class="token operator">=</span> <span class="token string-literal singleline"><span class="token string">"^Line.*"</span></span>
+<span class="token keyword">val</span> matcher <span class="token operator">=</span> Pattern<span class="token punctuation">.</span><span class="token function">compile</span><span class="token punctuation">(</span>pattern<span class="token punctuation">,</span> Pattern<span class="token punctuation">.</span>MULTILINE<span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">matcher</span><span class="token punctuation">(</span>input<span class="token punctuation">)</span>
+<span class="token keyword">while</span><span class="token punctuation">(</span>matcher<span class="token punctuation">.</span><span class="token function">find</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token function">println</span><span class="token punctuation">(</span>matcher<span class="token punctuation">.</span><span class="token function">group</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+<span class="token punctuation">}</span>
+<span class="token comment">// Line 1</span>
+<span class="token comment">// Line 2</span>
+<span class="token comment">// Line 3</span>
+</code></pre> 
+<h4><a id="_528"></a>后记</h4> 
+<p>从上面提到的各种用法可以看出，正则表达式不止能够用来匹配字符串，在处理字符串方面，也提供了很多用法。如果学会了这些，在开发中就可以使用正则表达式来解决复杂的问题，而不用编写复杂的代码来处理字符串。<br> 不过内容这么多，也不可能都记下来，所以只要有一种"遇到字符串问题就思考能不能用正则表达式来解决"这样的思维，我觉得就已经够了。遇到问题时，再查一查怎么，能不能节省开发时间。如果能，就使用正则表达式来解决。</p> 
+<p>最后补充，正则表达式的知识体现非常庞大，这篇博客提到的这些，还不是正则表达式所有的内容，所以后面有时间的话，还会继续补充这篇博客。</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/05c9ab08d03b4fe904289e1a51c0a597/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">Android技术框架篇(三)：MVVM框架</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/1140955146486142206e21c9bc4d4093/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">如何超过大多数人——陈皓（左耳朵耗子）</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

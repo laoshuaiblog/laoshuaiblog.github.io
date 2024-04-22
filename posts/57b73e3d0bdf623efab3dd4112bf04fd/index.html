@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Kafka broker - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/57b73e3d0bdf623efab3dd4112bf04fd/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="Kafka broker">
+  <meta property="og:description" content="1. zk中存储的kafka信息 /kafka/brokers/ids存储了在线的broker id。
+/kafka/brokers/topics/xxx/partitions/n/state存储了Leader是谁以及isr队列
+/kafka/controller辅助Leader选举，每个broker都有一个controller，谁先在zk中注册上，谁就辅助Leader选举。
+2. broker总体工作流程 1）每台broker启动后在zk中注册，即/kafka/borkers/ids
+2）每台broker去抢占式注册controller，用于后面Leader选举
+3）由注册的controller监听/kafka/borkers/ids节点变化
+4）开始Leader选举，选举标准是以isr中存活为前提，以AR中排在前面的优先（AR是所有副本的集合，启动时会有一个固定的AR顺序，比如ar[1, 0, 2]）
+5）controller将选举出来的信息（Leader和isr信息）传到zk中，即/kafka/brokers/topics/xxx/partitions/n/state
+6）其他broker的controller会从zk中同步相关信息
+Kafka生产者发送数据到broker，数据在底层以Log方式（逻辑概念）存储，实际上是Segment（物理概念），一般1个Segment是1G，包含.log文件和.index文件，.index文件是索引，用于快速查询数据
+7）如果Leader挂了，controller监听到节点变化，选举新的Leader，选举标准依然是以isr中存活为前提，以AR中排在前面的优先，最后更新Leader和isr队列信息
+3. 新节点服役 新节点服役后，以前的topic所在的分区不会出现在新节点，即新节点不会分摊旧节点的存储压力。如果需要新节点参与进来，就需要进行一种类似于负载均衡的配置。先创建一个topic-to-move.json配置文件：
+{ &#34;topics&#34;: [ {&#34;topic&#34;: &#34;first&#34;} ], &#34;version&#34;: 1 } 生成一个负载均衡的计划：
+bin/kafka-reassign-repartitions.sh --bootstrap-server hadoop102:9092 --topics-to-move-json-file topics-to-move.json --broker-list &#34;0,1,2,3&#34; --generate 上面一行是当前的分区分配，下面一行是建议的分区分配计划，创建副本存储计划increase-replication-factor.json，里面内容是上面得分建议计划。最后执行存储计划：
+bin/kafka-reassign-repartitions.sh --bootstrap-server hadoop102:9092 --reassignment-json-file increase-replication-factor.json --execute 还可以验证计划：
+bin/kafka-reassign-repartitions.sh --bootstrap-server hadoop102:9092 --reassignment-json-file increase-replication-factor.json --verify 查询这个topic的分区详情
+bin/kafka-topics.sh --bootstrap-server hadoop102:9092 --topic first --describe 4. 退役旧节点 退役旧节点与服役新节点有一些类似，先创建一个topic-to-move.json配置文件，与服役新节点时一样，然后生成一个计划，只不过--broker-list 改为&#34;0,1,2&#34;，接着执行计划，验证计划，都与服役新节点一样。
+最后在退役节点关闭kafka服务
+bin/kafka-server-stop.sh 5. Leader选举验证 创建四个分区四个副本的topic并查看：">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2024-03-24T22:20:14+08:00">
+    <meta property="article:modified_time" content="2024-03-24T22:20:14+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">Kafka broker</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <h4>1. zk中存储的kafka信息</h4> 
+<p>/kafka/brokers/ids存储了在线的broker id。</p> 
+<p><img alt="" height="38" src="https://images2.imgbox.com/0d/30/Vc3gZbaR_o.png" width="483"></p> 
+<p>/kafka/brokers/topics/xxx/partitions/n/state存储了Leader是谁以及isr队列</p> 
+<p><img alt="" height="64" src="https://images2.imgbox.com/4f/3b/vmjVeD6K_o.png" width="435"></p> 
+<p> /kafka/controller辅助Leader选举，每个broker都有一个controller，谁先在zk中注册上，谁就辅助Leader选举。</p> 
+<h4>2. broker总体工作流程</h4> 
+<p>1）每台broker启动后在zk中注册，即/kafka/borkers/ids</p> 
+<p>2）每台broker去<strong>抢占式注册</strong>controller，用于后面Leader选举</p> 
+<p>3）由注册的controller监听/kafka/borkers/ids节点变化</p> 
+<p>4）开始Leader选举，选举标准是以isr中存活为前提，以AR中排在前面的优先（AR是所有副本的集合，启动时会有一个固定的AR顺序，比如ar[1, 0, 2]）</p> 
+<p>5）controller将选举出来的信息（Leader和isr信息）传到zk中，即/kafka/brokers/topics/xxx/partitions/n/state</p> 
+<p>6）其他broker的controller会从zk中同步相关信息</p> 
+<p>Kafka生产者发送数据到broker，数据在底层以Log方式（逻辑概念）存储，实际上是Segment（物理概念），一般1个Segment是1G，包含.log文件和.index文件，.index文件是索引，用于快速查询数据</p> 
+<p>7）如果Leader挂了，controller监听到节点变化，选举新的Leader，选举标准依然是以isr中存活为前提，以AR中排在前面的优先，最后更新Leader和isr队列信息</p> 
+<p><img alt="" height="1200" src="https://images2.imgbox.com/9c/e7/a1S7OXCA_o.png" width="1200"></p> 
+<h4>3.  新节点服役</h4> 
+<p>新节点服役后，以前的topic所在的分区不会出现在新节点，即新节点不会分摊旧节点的存储压力。如果需要新节点参与进来，就需要进行一种类似于负载均衡的配置。先创建一个topic-to-move.json配置文件：</p> 
+<pre><code class="language-bash">{
+    "topics": [
+        {"topic": "first"}
+    ],
+    "version": 1
+}</code></pre> 
+<p>生成一个负载均衡的计划：</p> 
+<pre><code class="language-bash">bin/kafka-reassign-repartitions.sh --bootstrap-server hadoop102:9092 --topics-to-move-json-file topics-to-move.json --broker-list "0,1,2,3" --generate</code></pre> 
+<p><img alt="" height="418" src="https://images2.imgbox.com/09/e3/JXmtGsan_o.png" width="1200"></p> 
+<p> 上面一行是当前的分区分配，下面一行是建议的分区分配计划，创建副本存储计划increase-replication-factor.json，里面内容是上面得分建议计划。最后执行存储计划：</p> 
+<pre><code class="language-bash">bin/kafka-reassign-repartitions.sh --bootstrap-server hadoop102:9092 --reassignment-json-file increase-replication-factor.json --execute</code></pre> 
+<p><img alt="" height="372" src="https://images2.imgbox.com/6d/83/Ux0Q5pt1_o.png" width="1200"> </p> 
+<p>还可以验证计划：</p> 
+<pre><code class="language-bash">bin/kafka-reassign-repartitions.sh --bootstrap-server hadoop102:9092 --reassignment-json-file increase-replication-factor.json --verify</code></pre> 
+<p><img alt="" height="106" src="https://images2.imgbox.com/c2/6e/Nsjo54Oq_o.png" width="406"></p> 
+<p>查询这个topic的分区详情</p> 
+<pre><code class="language-bash">bin/kafka-topics.sh --bootstrap-server hadoop102:9092 --topic first --describe</code></pre> 
+<p><img alt="" height="274" src="https://images2.imgbox.com/72/c7/S7hfZhtw_o.png" width="1200"></p> 
+<h4>4.  退役旧节点</h4> 
+<p>退役旧节点与服役新节点有一些类似，先创建一个topic-to-move.json配置文件，与服役新节点时一样，然后生成一个计划，只不过--broker-list 改为"0,1,2"，接着执行计划，验证计划，都与服役新节点一样。</p> 
+<p><img alt="" height="420" src="https://images2.imgbox.com/fc/0e/ra7ElCQF_o.png" width="1200"></p> 
+<p> 最后在退役节点关闭kafka服务</p> 
+<pre><code class="language-bash">bin/kafka-server-stop.sh</code></pre> 
+<h4>5.  Leader选举验证</h4> 
+<p>创建四个分区四个副本的topic并查看：</p> 
+<pre><code class="language-bash">bin/kafka-topics.sh --bootstrap-server hadoop102:9092 --create --topic atguigu2 --partitions 4 --replications-factor 4
+
+bin/kafka-topics.sh --bootstrap-server hadoop102:9092 --describe  --topic atguigu2</code></pre> 
+<p><img alt="" height="204" src="https://images2.imgbox.com/bf/dd/avB2j3UY_o.png" width="1200"> </p> 
+<p>把3号broker停掉，那么isr队列中没有3，并且4号分区的Leader变为2</p> 
+<p><img alt="" height="204" src="https://images2.imgbox.com/a0/74/BiOS7Ves_o.png" width="1200"></p> 
+<p>再把2号干掉</p> 
+<p><img alt="" height="206" src="https://images2.imgbox.com/4a/ce/dDtzsAsq_o.png" width="1200"> </p> 
+<p>再恢复3号，发现Leader未变，仅isr队列信息中新增了3号</p> 
+<p><img alt="" height="202" src="https://images2.imgbox.com/bd/1c/nSg6hGxk_o.png" width="1200"> </p> 
+<p>再恢复2号</p> 
+<p><img alt="" height="200" src="https://images2.imgbox.com/a9/1f/OBFiHehN_o.png" width="1200"></p> 
+<p>再干掉1号</p> 
+<p><img alt="" height="202" src="https://images2.imgbox.com/63/bd/JHjJZtxu_o.png" width="1200"> </p> 
+<p>这样就验证了第二节讲的选举标准： 以isr中存活为前提，以AR中排在前面的优先</p> 
+<h4>6. Leader和Follower故障处理细节</h4> 
+<p>LEO：Log End Offset，每个副本的最后一个offset+1</p> 
+<p>HW：high watermark，高水位线，所有副本中最小的LEO，消费者能够看到的最大的offset就是HW - 1</p> 
+<p><img alt="" height="464" src="https://images2.imgbox.com/43/24/gnAfsQPH_o.png" width="498"></p> 
+<p>1）如果Follower挂了，该Follower会立即被踢出isr，isr中其他Leader和Follower正常接受/同步数据，待该Follower恢复后，会读取上次的HW，将自己高于HW的数据丢弃，从HW开始与Leader同步，等到该Follower的LEO大于等于该Partition的HW，则重新加入isr队列。</p> 
+<p><img alt="" height="448" src="https://images2.imgbox.com/5b/22/LR6uYKVS_o.png" width="570"></p> 
+<p>2）如果Leader挂了， Leader会立即被踢出isr，并且会选出一个新的Leader，其余的Follower会将高于HW的数据丢弃，然后与新的Leader进行同步。此时只能保证数据的一致性，不能保证数据不丢失。</p> 
+<h4>7. 手动调整分区副本</h4> 
+<p>如果服务器的存储能力不同，希望将数据更多的存储在空间大的服务器上，那么就不应该按照Kafka分区副本的默认均匀分配，而是需要手动调整。创建4个分区，两个副本，都存在0号和1号broker上面。</p> 
+<pre><code class="language-bash">bin/kafka-topics.sh --bootstrap-server hadoop102:9092 --create --topic three --partitions 4 --replications-factor 2
+
+bin/kafka-topics.sh --bootstrap-server hadoop102:9092 --describe  --topic three</code></pre> 
+<p><img alt="" height="272" src="https://images2.imgbox.com/d0/97/RNHsD5Mu_o.png" width="1200"> </p> 
+<p> 创建increase-replication-factor.json：</p> 
+<pre><code class="language-bash">{
+    "partitions": [
+        {"topic": "three", "partitions": 0, "replicas": [0, 1]},
+        {"topic": "three", "partitions": 1, "replicas": [0, 1]},
+        {"topic": "three", "partitions": 2, "replicas": [1, 0]},
+        {"topic": "three", "partitions": 3, "replicas": [1, 0]}
+    ],
+    "version": 1
+}</code></pre> 
+<p>执行存储计划：</p> 
+<pre><code class="language-bash">bin/kafka-reassign-repartitions.sh --bootstrap-server hadoop102:9092 --reassignment-json-file increase-replication-factor.json --execute</code></pre> 
+<p><img alt="" height="364" src="https://images2.imgbox.com/b5/b5/FNCNiO3b_o.png" width="1200"></p> 
+<p> 最后查看</p> 
+<pre><code class="language-bash">bin/kafka-topics.sh --bootstrap-server hadoop102:9092 --describe  --topic three</code></pre> 
+<p><img alt="" height="280" src="https://images2.imgbox.com/a5/d0/HSLh8jeR_o.png" width="1200"></p> 
+<p>以上是减少副本，增加副本也是类似，先创建一个3个分区，1个副本的topic：</p> 
+<pre><code class="language-bash">bin/kafka-topics.sh --bootstrap-server hadoop102:9092 --create --topic four --partitions 3 --replications-factor 1</code></pre> 
+<p>创建increase-replication-factor.json：</p> 
+<pre><code class="language-bash">{
+    "partitions": [
+        {"topic": "four", "partitions": 0, "replicas": [0, 1, 2]},
+        {"topic": "four", "partitions": 1, "replicas": [0, 1, 2]},
+        {"topic": "four", "partitions": 2, "replicas": [0, 1, 2]}
+    ],
+    "version": 1
+}</code></pre> 
+<p>执行计划：</p> 
+<pre><code class="language-bash">bin/kafka-reassign-repartitions.sh --bootstrap-server hadoop102:9092 --reassignment-json-file increase-replication-factor.json --execute</code></pre> 
+<h4>8. Leader Partition自动平衡</h4> 
+<p>在Leader选举验证小节中，如果2号和3号节点都挂了，然后又恢复，则Leader过于集中在0号和1号节点，而Kafka生产者和消费者都是只对Leader操作，所以0号和1号的压力会很大，造成负载不均衡。 未解决该问题，Kafka会自动再平衡，auto.leader.rebalance.enable默认设为true。</p> 
+<p>什么时机会触发再平衡呢？一个参考指标是broker的不平衡率，leader.imbalance.per.broker.percentage，默认是10%，另一个指标是负载检查的间隔时间，leader.imbalance.check.interval.seconds，默认是300秒。</p> 
+<p>不平衡率的计算：</p> 
+<p><img alt="" height="233" src="https://images2.imgbox.com/b8/13/7KAEQkod_o.png" width="585"></p> 
+<p>实际生产环境中，不一定需要开启再平衡，因为上述例子中其实已经相对平衡了，但是根据规则，需要触发再平衡，因此会需要消耗大量资源。 </p> 
+<h4>9. 文件存储机制</h4> 
+<p>Topic是逻辑上的概念，而partition是物理上的概念，每个partition对应一个log文件，该log文件存储的就是Kafka生产者的数据。生产的数据不断地<strong>追加</strong>到log文件中，为防止log文件过大导致检索数据慢，Kafka采取了分片和索引的机制：每个partition分为多个segment，每个segment包括.index文件（偏移量索引文件）、.log文件（日志文件）、.timeindex文件（时间戳索引文件）。这些文件位于一个文件夹中，文件夹命名规则：topic名称+分区号。index和log文件的命名是以当前segment的第一条数据的offset来命名。</p> 
+<p><img alt="" height="1130" src="https://images2.imgbox.com/18/6d/zMotCyJw_o.png" width="1200"></p> 
+<p>log文件和index文件详解：</p> 
+<p><img alt="" height="1200" src="https://images2.imgbox.com/2e/78/S4KscW34_o.png" width="1200"> </p> 
+<h4>10. 文件清除策略</h4> 
+<p>Kafka数据默认保存7天，7天后数据自动删除或者压缩。可通过如下参数修改保存时间（从上到下优先级依次增高）：</p> 
+<p>log.retention.hours</p> 
+<p>log.retention.minutes</p> 
+<p>log.retention.ms</p> 
+<p>默认检查数据是否超期的间隔时间是5分钟，可通过参数log.retention.check.interval.ms进行修改。</p> 
+<p>如果是删除数据，log.cleanup.policy=delete，基于时间删除是默认打开的，以segment中最大的时间戳作为该文件的时间戳。而基于空间大小进行删除是默认关闭的（log.retention.bytes=-1），即数据超过阈值，删除最早的数据。</p> 
+<p>如果是压缩数据，log.cleanup.policy=compact，此时对于相同key的不同value值，只保留最新的。（与之前的snappy压缩概念不同）</p> 
+<p><img alt="" height="894" src="https://images2.imgbox.com/75/97/PKEwSF5z_o.png" width="1200"></p> 
+<p>注意，压缩后的offset可能不是连续的，比如上图没有 offset 6，如果从offset 6开始消费，则会从7开始消费。</p> 
+<p>11. 高效读写</p> 
+<p>1）Kafka本身是分布式集群，采用分区，并行度高</p> 
+<p>2）读数据采用稀疏索引，可以快读定位数据</p> 
+<p>3）顺序写磁盘，数据以追加的方式写到log文件，这比随机写的速度要快很多，因为<strong>省去了大量的磁头寻址时间</strong></p> 
+<p>4）采用<strong>页缓存和零拷贝技术</strong></p> 
+<p>零拷贝：Kafka的数据加工处理操作交由Kafka生产者和消费者处理。Broker应用层不关心存储的数据，因此就不用走应用层，传输效率高。（传统数据复制方式：从磁盘中读取文件到内核缓冲区，内核读取缓冲区数据复制到用户缓冲区，用户缓冲区的数据复制到socket缓冲区，socket缓冲区数据发送到网卡，再到消费者）</p> 
+<p>页缓存：Kafka重度依赖Linux提供的页缓存功能。当上层有写操作时，操作系统只是将数据写入页缓存。当读操作发生时，从页缓存中读，如果找不到，再从磁盘中读。页缓存是把尽可能多的空闲内存当做磁盘内存来用。</p> 
+<p><img alt="" height="1044" src="https://images2.imgbox.com/3f/e6/RVnQui8O_o.png" width="1200"></p> 
+<p></p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/70eb7eb50dddd31792b47adbbdd08c72/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">【WEEK4】 【DAY5】AJAX - Part Two【English Version】</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/3a8f94b822204b2493803a6cae8bfcfe/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">Euler angles and Quaterean</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

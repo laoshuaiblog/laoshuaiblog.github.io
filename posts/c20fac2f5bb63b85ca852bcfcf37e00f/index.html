@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Vue 数据响应式原理 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/c20fac2f5bb63b85ca852bcfcf37e00f/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="Vue 数据响应式原理">
+  <meta property="og:description" content="Vue 数据响应式原理 Vue2 中的数据响应式原理用的是观察者模式，下面用一张流程图来简单说明一下观察者模式的原理。
+从流程图不难看出，观察者模式的核心就是 Dep 和 Watcher 这两个对象。Dep 负责收集依赖（这里的依赖实际就是 watcher），并在监听到数据变化的时候发送通知。发送通知的过程实际就是调用 watcher.update() 方法。从而更新视图内容。
+下面我们来详细看看 Vue 具体是如何实现数据响应式的。
+我将 Vue 实现数据响应式的过程分为三步：
+创建响应式数据，也就是创建 Observer 对象（这里会创建 dep 对象）收集依赖和发送通知的过程创建依赖 Watcher 创建响应式数据 Dep 对象是收集依赖的容器。没有容器又如何能装下依赖，所以在 Vue 实例化的时候都会对数据进行初始化，如 props，data 等数据都是要进行响应式处理的。因此，首先我们要知道 Vue 如何将这些普通的数据转换为响应式属性。
+首先我们要知道 Vue 内有那些数据是响应式的，这里重点分析 data 属性的初始化。vue 处理 data 属性是在 Vue 实例初始化函数 _init 中进行的
+_init 方法定义的地方是在：src/core/instance/init
+而初始化 data 的过程是在上图的 initState 方法中，该方法是负责初始化我们的一些状态成员
+initState 方法定义在：`src/core/instance/state
+标红的地方就是初始化 data 的函数。
+初始化 data 的入口我们已经找到了，由于代码比较长，这里我按自己的理解来说说它是如何初始化 data 的。
+这里我们假设 data 的值为
+data: { name: &#39;vue&#39;, age: 3 } 基于这个data 的值看看，Vue 是如何处理的">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2021-06-02T11:37:19+08:00">
+    <meta property="article:modified_time" content="2021-06-02T11:37:19+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">Vue 数据响应式原理</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-light">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <h2><a id="Vue__0"></a>Vue 数据响应式原理</h2> 
+<p>Vue2 中的数据响应式原理用的是观察者模式，下面用一张流程图来简单说明一下观察者模式的原理。</p> 
+<p><img src="https://images2.imgbox.com/ae/fe/3QnCiMsj_o.png" alt="在这里插入图片描述"></p> 
+<p>从流程图不难看出，观察者模式的核心就是 Dep 和 Watcher 这两个对象。Dep 负责收集依赖（这里的依赖实际就是 watcher），并在监听到数据变化的时候发送通知。发送通知的过程实际就是调用 watcher.update() 方法。从而更新视图内容。</p> 
+<p>下面我们来详细看看 Vue 具体是如何实现数据响应式的。</p> 
+<p>我将 Vue 实现数据响应式的过程分为三步：</p> 
+<ul><li>创建响应式数据，也就是创建 Observer 对象（这里会创建 dep 对象）</li><li>收集依赖和发送通知的过程</li><li>创建依赖 Watcher</li></ul> 
+<h3><a id="_19"></a>创建响应式数据</h3> 
+<p>Dep 对象是收集依赖的容器。没有容器又如何能装下依赖，所以在 Vue 实例化的时候都会对数据进行初始化，如 props，data 等数据都是要进行响应式处理的。因此，首先我们要知道 Vue 如何将这些普通的数据转换为响应式属性。</p> 
+<p>首先我们要知道 Vue 内有那些数据是响应式的，这里重点分析 data 属性的初始化。vue 处理 data 属性是在 Vue 实例初始化函数 <code>_init</code> 中进行的</p> 
+<p><code>_init</code> 方法定义的地方是在：<code>src/core/instance/init</code></p> 
+<p><img src="https://images2.imgbox.com/6f/64/IoxOJGXq_o.png" alt="在这里插入图片描述"></p> 
+<p>而初始化 data 的过程是在上图的 <code>initState</code> 方法中，该方法是负责初始化我们的一些状态成员</p> 
+<p><code>initState</code> 方法定义在：`src/core/instance/state</p> 
+<p><img src="https://images2.imgbox.com/ca/68/sYua0r5m_o.png" alt="在这里插入图片描述"></p> 
+<p>标红的地方就是初始化 data 的函数。</p> 
+<p>初始化 data 的入口我们已经找到了，由于代码比较长，这里我按自己的理解来说说它是如何初始化 data 的。</p> 
+<p>这里我们假设 data 的值为</p> 
+<pre><code class="prism language-javascript">data<span class="token operator">:</span> <span class="token punctuation">{<!-- --></span>
+  name<span class="token operator">:</span> <span class="token string">'vue'</span><span class="token punctuation">,</span>
+  age<span class="token operator">:</span> <span class="token number">3</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>基于这个data 的值看看，Vue 是如何处理的</p> 
+<h4><a id="initData_52"></a>initData</h4> 
+<p>在处理 data 响应式前，会对 data 内的参数进行检查，避免 data 内的 命名与 props 或者 methods 内的属性名重复，这里不详细讨论。</p> 
+<p>在 initData 函数最后有这样一段代码</p> 
+<p><img src="https://images2.imgbox.com/48/78/uM4pijJB_o.png" alt="在这里插入图片描述"></p> 
+<p>将 data 传入到 observe函数进行处理，observe 函数是对某个对象进行响应式处理的一个函数</p> 
+<h4><a id="observe_65"></a>observe</h4> 
+<p>路径：<code>src/core/observer/index</code></p> 
+<p>observe 内的逻辑也相对比较简单</p> 
+<p><strong>源码</strong></p> 
+<pre><code class="prism language-typescript"><span class="token keyword">function</span> <span class="token function">observe</span><span class="token punctuation">(</span>value<span class="token operator">:</span> <span class="token builtin">any</span><span class="token punctuation">,</span> asRootData<span class="token operator">:</span> <span class="token operator">?</span><span class="token builtin">boolean</span><span class="token punctuation">)</span><span class="token operator">:</span> Observer <span class="token operator">|</span> <span class="token keyword">void</span> <span class="token punctuation">{<!-- --></span>
+  <span class="token comment">// 判断传入的值是否是对象，不是直接返回空</span>
+  <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span><span class="token function">isObject</span><span class="token punctuation">(</span>value<span class="token punctuation">)</span> <span class="token operator">||</span> value <span class="token keyword">instanceof</span> <span class="token class-name">VNode</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">return</span>
+  <span class="token punctuation">}</span>
+  <span class="token keyword">let</span> ob<span class="token operator">:</span> Observer <span class="token operator">|</span> <span class="token keyword">void</span>
+  <span class="token comment">// 判断传入的对象是否存在 __ob__ 属性，__ob__属性实际就是用于存储 observe</span>
+  <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">hasOwn</span><span class="token punctuation">(</span>value<span class="token punctuation">,</span> <span class="token string">'__ob__'</span><span class="token punctuation">)</span> <span class="token operator">&amp;&amp;</span> value<span class="token punctuation">.</span>__ob__ <span class="token keyword">instanceof</span> <span class="token class-name">Observer</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token comment">// 存在，则将 __ob__ 值赋值给 ob</span>
+    ob <span class="token operator">=</span> value<span class="token punctuation">.</span>__ob__
+  <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token keyword">if</span> <span class="token punctuation">(</span>
+    shouldObserve <span class="token operator">&amp;&amp;</span>
+    <span class="token operator">!</span><span class="token function">isServerRendering</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">&amp;&amp;</span>
+    <span class="token punctuation">(</span><span class="token builtin">Array</span><span class="token punctuation">.</span><span class="token function">isArray</span><span class="token punctuation">(</span>value<span class="token punctuation">)</span> <span class="token operator">||</span> <span class="token function">isPlainObject</span><span class="token punctuation">(</span>value<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token operator">&amp;&amp;</span>
+    Object<span class="token punctuation">.</span><span class="token function">isExtensible</span><span class="token punctuation">(</span>value<span class="token punctuation">)</span> <span class="token operator">&amp;&amp;</span>
+    <span class="token operator">!</span>value<span class="token punctuation">.</span>_isVue
+  <span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token comment">// 不存在则 new 一个 observer 对象 并赋值给 ob</span>
+    ob <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">Observer</span><span class="token punctuation">(</span>value<span class="token punctuation">)</span>
+  <span class="token punctuation">}</span>
+  <span class="token keyword">if</span> <span class="token punctuation">(</span>asRootData <span class="token operator">&amp;&amp;</span> ob<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    ob<span class="token punctuation">.</span>vmCount<span class="token operator">++</span>
+  <span class="token punctuation">}</span>
+  <span class="token comment">// 最后返回 ob</span>
+  <span class="token keyword">return</span> ob
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>可以看到 observe 方法实际就是给一个对象添加一个值为 observer 对象的 <code>__ob__</code> 属性，所以接下来要看看 Observer 实例初始化做了什么事情</p> 
+<h4><a id="Observer__104"></a>Observer 类</h4> 
+<p>路径：<code>src/core/observer/index</code></p> 
+<p>来看看类的 constructor 做了什么</p> 
+<pre><code class="prism language-javascript"><span class="token punctuation">{<!-- --></span>
+  <span class="token operator">...</span>
+  <span class="token function">constructor</span><span class="token punctuation">(</span><span class="token parameter">value<span class="token operator">:</span> any</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">this</span><span class="token punctuation">.</span>value <span class="token operator">=</span> value
+    <span class="token comment">// 新建一个 dep 对象用于收集依赖</span>
+    <span class="token keyword">this</span><span class="token punctuation">.</span>dep <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">Dep</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+    <span class="token keyword">this</span><span class="token punctuation">.</span>vmCount <span class="token operator">=</span> <span class="token number">0</span>
+    <span class="token comment">// 给监听的对象新增一个 __ob__ 属性，ob 就代表当前的 observer</span>
+    <span class="token function">def</span><span class="token punctuation">(</span>value<span class="token punctuation">,</span> <span class="token string">'__ob__'</span><span class="token punctuation">,</span> <span class="token keyword">this</span><span class="token punctuation">)</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>Array<span class="token punctuation">.</span><span class="token function">isArray</span><span class="token punctuation">(</span>value<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+      <span class="token comment">// 如果需要观察的值是数组，则需要对该值的 proto 进行处理</span>
+      <span class="token keyword">if</span> <span class="token punctuation">(</span>hasProto<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token function">protoAugment</span><span class="token punctuation">(</span>value<span class="token punctuation">,</span> arrayMethods<span class="token punctuation">)</span>
+      <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token function">copyAugment</span><span class="token punctuation">(</span>value<span class="token punctuation">,</span> arrayMethods<span class="token punctuation">,</span> arrayKeys<span class="token punctuation">)</span>
+      <span class="token punctuation">}</span>
+      <span class="token keyword">this</span><span class="token punctuation">.</span><span class="token function">observeArray</span><span class="token punctuation">(</span>value<span class="token punctuation">)</span>
+    <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{<!-- --></span>
+      <span class="token comment">// 通过 walk 函数处理需要监听的对象内部的属性</span>
+      <span class="token keyword">this</span><span class="token punctuation">.</span><span class="token function">walk</span><span class="token punctuation">(</span>value<span class="token punctuation">)</span>
+    <span class="token punctuation">}</span>
+  <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>传入的值是 data，data 是</p> 
+<pre><code class="prism language-javascript">data<span class="token operator">:</span> <span class="token punctuation">{<!-- --></span>
+  name<span class="token operator">:</span> <span class="token string">'vue'</span><span class="token punctuation">,</span>
+  age<span class="token operator">:</span> <span class="token number">3</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>所以根据上面的代码，最终会走到 <code>this.walk(value)</code>（value 的值就是 data）</p> 
+<pre><code class="prism language-typescript"><span class="token punctuation">{<!-- --></span>
+  <span class="token comment">// walk 源码</span>
+  <span class="token function">walk</span><span class="token punctuation">(</span>obj<span class="token operator">:</span> Object<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">const</span> keys <span class="token operator">=</span> Object<span class="token punctuation">.</span><span class="token function">keys</span><span class="token punctuation">(</span>obj<span class="token punctuation">)</span>
+    <span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token keyword">let</span> i <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span> i <span class="token operator">&lt;</span> keys<span class="token punctuation">.</span>length<span class="token punctuation">;</span> i<span class="token operator">++</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+      <span class="token comment">// 通过 defineReactive 来使内部的属性是响应式的</span>
+      <span class="token function">defineReactive</span><span class="token punctuation">(</span>obj<span class="token punctuation">,</span> keys<span class="token punctuation">[</span>i<span class="token punctuation">]</span><span class="token punctuation">)</span>
+    <span class="token punctuation">}</span>
+  <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>walk 是observe 的一个原型方法，它主要就是遍历对象内的属性，并通过 defineReactive 来将这些属性设置为响应式的</p> 
+<h4><a id="defineReactive_162"></a>defineReactive</h4> 
+<p>路径：<code>src/core/observer/index</code></p> 
+<p>由于其内部代码较多，这里主要说说其核心步骤：</p> 
+<ul><li>实例化 dep 对象为该属性收集依赖</li><li>尝试对该属性的值进行 observe</li><li>缓存初始的 getter/setter 方法，如果存在，这是为了防止用户自己定义过属性的 getter/setter</li><li>通过 <code>Object.definProperty</code> 重新该属性的描述符，这里比较重要的是 getter/setter</li></ul> 
+<p>这里总结一下，我认为创建响应式数据最核心的函数是 defineReactive，在 defineReactive 中我认为最重要的是两件事情，收集依赖和发送通知。</p> 
+<p>下面来看看收集依赖的过程</p> 
+<h3><a id="_183"></a>收集依赖和发送通知的过程</h3> 
+<h4><a id="_185"></a>收集依赖</h4> 
+<p>收集依赖的过程实际是在 defineReative 中重新定义 getter 的过程中</p> 
+<p>先来看看 getter 内部做了什么</p> 
+<pre><code class="prism language-javascript"><span class="token punctuation">{<!-- --></span>
+  <span class="token function-variable function">get</span><span class="token operator">:</span> <span class="token keyword">function</span> <span class="token function">reactiveGetter</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token comment">// 获取属性对应的值，并调用初始的 getter</span>
+    <span class="token keyword">const</span> value <span class="token operator">=</span> getter <span class="token operator">?</span> <span class="token function">getter</span><span class="token punctuation">.</span><span class="token function">call</span><span class="token punctuation">(</span>obj<span class="token punctuation">)</span> <span class="token operator">:</span> val
+    <span class="token comment">// 若 Dep.target 存在（target 一般指的是依赖），就会尝试为该属性收集依赖</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>Dep<span class="token punctuation">.</span>target<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+      <span class="token comment">// 当该属性被获取的时候，使用 dep.depend() 收集依赖</span>
+      dep<span class="token punctuation">.</span><span class="token function">depend</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+      <span class="token keyword">if</span> <span class="token punctuation">(</span>childOb<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token comment">// 若该属性的值是一个响应式数据，使用 childOb.dep.depend() 为该对象收集依赖</span>
+        childOb<span class="token punctuation">.</span>dep<span class="token punctuation">.</span><span class="token function">depend</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>Array<span class="token punctuation">.</span><span class="token function">isArray</span><span class="token punctuation">(</span>value<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+          <span class="token function">dependArray</span><span class="token punctuation">(</span>value<span class="token punctuation">)</span>
+        <span class="token punctuation">}</span>
+      <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+    <span class="token keyword">return</span> value
+  <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>不难看出，当 get 方法实际就是一个收集依赖的过程，当该属性被获取的时候，它会尝试为该属性收集依赖，等待未来的时候去给这些依赖发送通知更新视图。</p> 
+<p>dep.depend() 方法就是用于收集依赖，该方法会将 Dep.target (watcher) 添加到 dep.subs 数组中，有兴趣可以看看源码。</p> 
+<p><img src="https://images2.imgbox.com/7c/7f/Nf2z5a8f_o.png" alt="在这里插入图片描述"></p> 
+<h4><a id="_220"></a>发送通知</h4> 
+<p>发送通知的操作实际就是在修改响应式数据后进行的，而修改值的操作是在 setter 中，所以我们看看setter 内部的原理</p> 
+<pre><code class="prism language-javascript"><span class="token punctuation">{<!-- --></span>
+  <span class="token function-variable function">set</span><span class="token operator">:</span> <span class="token keyword">function</span> <span class="token function">reactiveSetter</span><span class="token punctuation">(</span><span class="token parameter">newVal</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+      <span class="token keyword">const</span> value <span class="token operator">=</span> getter <span class="token operator">?</span> <span class="token function">getter</span><span class="token punctuation">.</span><span class="token function">call</span><span class="token punctuation">(</span>obj<span class="token punctuation">)</span> <span class="token operator">:</span> val
+      <span class="token comment">/* eslint-disable no-self-compare */</span>
+      <span class="token keyword">if</span> <span class="token punctuation">(</span>newVal <span class="token operator">===</span> value <span class="token operator">||</span> <span class="token punctuation">(</span>newVal <span class="token operator">!==</span> newVal <span class="token operator">&amp;&amp;</span> value <span class="token operator">!==</span> value<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">return</span>
+      <span class="token punctuation">}</span>
+      <span class="token comment">/* eslint-enable no-self-compare */</span>
+      <span class="token keyword">if</span> <span class="token punctuation">(</span>process<span class="token punctuation">.</span>env<span class="token punctuation">.</span><span class="token constant">NODE_ENV</span> <span class="token operator">!==</span> <span class="token string">'production'</span> <span class="token operator">&amp;&amp;</span> customSetter<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token function">customSetter</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+      <span class="token punctuation">}</span>
+      <span class="token comment">// #7981: for accessor properties without setter</span>
+      <span class="token keyword">if</span> <span class="token punctuation">(</span>getter <span class="token operator">&amp;&amp;</span> <span class="token operator">!</span>setter<span class="token punctuation">)</span> <span class="token keyword">return</span>
+      <span class="token keyword">if</span> <span class="token punctuation">(</span>setter<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token function">setter</span><span class="token punctuation">.</span><span class="token function">call</span><span class="token punctuation">(</span>obj<span class="token punctuation">,</span> newVal<span class="token punctuation">)</span>
+      <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{<!-- --></span>
+        val <span class="token operator">=</span> newVal
+      <span class="token punctuation">}</span>
+      childOb <span class="token operator">=</span> <span class="token operator">!</span>shallow <span class="token operator">&amp;&amp;</span> <span class="token function">observe</span><span class="token punctuation">(</span>newVal<span class="token punctuation">)</span>
+      dep<span class="token punctuation">.</span><span class="token function">notify</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>前面都是基于对参数的修改或判断，最重要的时候后面两行代码</p> 
+<pre><code class="prism language-javascript"><span class="token comment">// 深度监听，对设置的参数进行深度的监听</span>
+childOb <span class="token operator">=</span> <span class="token operator">!</span>shallow <span class="token operator">&amp;&amp;</span> <span class="token function">observe</span><span class="token punctuation">(</span>newVal<span class="token punctuation">)</span>
+<span class="token comment">// 发送通知</span>
+dep<span class="token punctuation">.</span><span class="token function">notify</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+</code></pre> 
+<p>当响应式属性的值被修改后，会触发 dep.notify() ，调用所有 watcher 的 update 方法来进行更新操作</p> 
+<p><img src="https://images2.imgbox.com/4d/73/An9OWFtO_o.png" alt="在这里插入图片描述"></p> 
+<h3><a id="_Watcher_265"></a>创建依赖 Watcher</h3> 
+<p>上面说了收集依赖的过程。那么依赖又是什么时候生成的呢。Watcher 有三种类型，computed watcher、侦听器watcher、渲染watcher。</p> 
+<p>我们来看看渲染 watcher ，也就是负责渲染实例的watcher。在 mountComponent 中。</p> 
+<h4><a id="_wathcer__271"></a>渲染 wathcer 的入口</h4> 
+<p>路径：<code>src/core/instance/lifecycle</code> -&gt; mountComponent</p> 
+<p><img src="https://images2.imgbox.com/38/eb/OVctKcio_o.png" alt="在这里插入图片描述"></p> 
+<p>我们先来看看 watcher 的构造函数，它在 <code>src/core/observer/wathcer</code> 文件中</p> 
+<p>我们看看它前几个参数的含义</p> 
+<p><img src="https://images2.imgbox.com/99/f1/TvyG8x1S_o.png" alt="在这里插入图片描述"></p> 
+<p>根据构造函数内的形参，我们来看看 上一张图传递了什么参数</p> 
+<pre><code>- vm：vue 实例
+- expOrFn 表达式：updateComponent 函数
+- cb 回调：noop 空函数
+- options 配置参数：一个含有 before 函数的对象
+- isRenderWatcher 是否渲染 watcher：true
+</code></pre> 
+<h4><a id="_wathcer__293"></a>渲染 wathcer 初始化</h4> 
+<p>然后我们来看看 它初始化做了什么，由于源码比较长，这里我就按自己理解总结一下：</p> 
+<ul><li>参数初始化</li><li>给 this.getter 赋值，若 expOrFn 是函数就直接赋值给 this.getter，若不是则用 parsePath 函数处理 expOrFn 的结果赋值给 this.getter。</li><li>执行 this.get() 并将其返回值赋值给 this.value</li></ul> 
+<p>所以这里着重看 this.get() 执行的过程</p> 
+<h4><a id="thisget_303"></a>this.get()</h4> 
+<pre><code class="prism language-javascript"><span class="token punctuation">{<!-- --></span>
+  <span class="token function">get</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token comment">// pushTarget 会将当前的 watcher 入栈，并记录到 Dep.target 中</span>
+    <span class="token function">pushTarget</span><span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">)</span>
+    <span class="token keyword">let</span> value
+    <span class="token keyword">const</span> vm <span class="token operator">=</span> <span class="token keyword">this</span><span class="token punctuation">.</span>vm
+    <span class="token keyword">try</span> <span class="token punctuation">{<!-- --></span>
+      <span class="token comment">// 调用 this.getter 这一步是最核心的步骤，收集依赖</span>
+      <span class="token comment">// 再调用 this.getter 的时候，会触发用户传入的 函数 或者 字符串表达式，在这个过程中，会触发属性的 get 方法，对于响应式数据，在这一步中会收集所有的依赖</span>
+      <span class="token comment">// 如 渲染 watcher 中，this.getter 就是 updateComponent，该方法用于更新视图</span>
+      value <span class="token operator">=</span> <span class="token keyword">this</span><span class="token punctuation">.</span><span class="token function">getter</span><span class="token punctuation">.</span><span class="token function">call</span><span class="token punctuation">(</span>vm<span class="token punctuation">,</span> vm<span class="token punctuation">)</span>
+    <span class="token punctuation">}</span> <span class="token keyword">catch</span> <span class="token punctuation">(</span>e<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+      <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">.</span>user<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token function">handleError</span><span class="token punctuation">(</span>e<span class="token punctuation">,</span> vm<span class="token punctuation">,</span> <span class="token template-string"><span class="token template-punctuation string">`</span><span class="token string">getter for watcher "</span><span class="token interpolation"><span class="token interpolation-punctuation punctuation">${<!-- --></span><span class="token keyword">this</span><span class="token punctuation">.</span>expression<span class="token interpolation-punctuation punctuation">}</span></span><span class="token string">"</span><span class="token template-punctuation string">`</span></span><span class="token punctuation">)</span>
+      <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">throw</span> e
+      <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span> <span class="token keyword">finally</span> <span class="token punctuation">{<!-- --></span>
+      <span class="token comment">// "touch" every property so they are all tracked as</span>
+      <span class="token comment">// dependencies for deep watching</span>
+      <span class="token comment">// 深度监听</span>
+      <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">.</span>deep<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token function">traverse</span><span class="token punctuation">(</span>value<span class="token punctuation">)</span>
+      <span class="token punctuation">}</span>
+      <span class="token comment">// 清理工作，清除栈中的 watcher</span>
+      <span class="token function">popTarget</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+      <span class="token comment">// 将 watcher 从 dep.subs中移除，以及将 dep 从 watcher.deps 中移除，因为整个 watcher 以及完成，不再需要了</span>
+      <span class="token keyword">this</span><span class="token punctuation">.</span><span class="token function">cleanupDeps</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+    <span class="token punctuation">}</span>
+    <span class="token keyword">return</span> value
+  <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>在 this.get() 中有几个比较核心的步骤：</p> 
+<h5><a id="pushTarget_342"></a>pushTarget()</h5> 
+<p>在上面可以知道，在收集依赖的时候，会将 Dep.target 添加到 dep.subs 中。</p> 
+<p>那么 Dep.target 的值是什么、又是什么时候赋值的？</p> 
+<p>Dep.target 实际就是 watcher 对象，而pushTarget(this) 的核心就是将当前的 watcher 赋值给 Dep.target。</p> 
+<p>pushTarget 实际还会将当前的 wacther 进行入栈的操作，这个主要是为了解决父子组件嵌套的问题。</p> 
+<p>这一个步骤我称为：确认依赖</p> 
+<h5><a id="thisgetter_354"></a>this.getter()</h5> 
+<p>当在获取某个响应式属性的时候会触发其 getter，从而触发收集依赖的操作。</p> 
+<p>那么，它又是在什么时候去触发获取响应式属性这个操作的呢？</p> 
+<p>其实就是 this.getter()。我们知道 this.getter 实际就是用户传入的函数表达式或者函数，但最后都会转换为函数，当执行 this.getter() 时。在函数内部会触发某些响应式属性的 getter 方法，从而触发收集依赖的操作。并等待在合适的时候向这些依赖发送通知。</p> 
+<p>并将 this.getter() 的返回值赋值给 value，并在最后返回</p> 
+<p>这一步骤我成为：触发依赖收集</p> 
+<h5><a id="_366"></a>清理工作</h5> 
+<p>在最后还会进行清理工作，主要是清除栈中的 watcher</p> 
+<h3><a id="_370"></a>总结</h3> 
+<p>确认依赖</p> 
+<h5><a id="thisgetter_374"></a>this.getter()</h5> 
+<p>当在获取某个响应式属性的时候会触发其 getter，从而触发收集依赖的操作。</p> 
+<p>那么，它又是在什么时候去触发获取响应式属性这个操作的呢？</p> 
+<p>其实就是 this.getter()。我们知道 this.getter 实际就是用户传入的函数表达式或者函数，但最后都会转换为函数，当执行 this.getter() 时。在函数内部会触发某些响应式属性的 getter 方法，从而触发收集依赖的操作。并等待在合适的时候向这些依赖发送通知。</p> 
+<p>并将 this.getter() 的返回值赋值给 value，并在最后返回</p> 
+<p>这一步骤我成为：触发依赖收集</p> 
+<h5><a id="_386"></a>清理工作</h5> 
+<p>在最后还会进行清理工作，主要是清除栈中的 watcher</p> 
+<h3><a id="_390"></a>总结</h3> 
+<p>当以上三个步骤都做完后，当响应式数据的值发送改变的时候，就会触发其 dep.notify() 方法，从而触发其 dep.subs 数组中所有依赖的 update() 方法，从而进行了更新的操作，这个操作可能时更新视图，也可能是更新某些值。</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/fed4b2154aaece07a592f83357d92ce1/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">完美解决dataframe多条件筛选问题:A value is trying to be set on a copy of a slice from a DataFrame</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/7f914f0c7dcc9449d21420d4469a061e/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">7. 使用 preparedStatement 解决 SQL 注入问题</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

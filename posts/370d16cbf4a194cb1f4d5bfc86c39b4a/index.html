@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>指令的装载和运行 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/370d16cbf4a194cb1f4d5bfc86c39b4a/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="指令的装载和运行">
+  <meta property="og:description" content="文章目录 指令的工作原理指令装入的三种方式绝对装入（不重要）可重定位装入（不重要）动态运行时装入（重要） 从写程序到程序运行段寄存器段寄存器结构：逻辑地址线性地址 链接的三种方式静态链接装入时动态链接运行时动态链接 指令的工作原理 注：指令和数据的地址是分开的；
+内存并不是单独给某个程序使用的。对于多任务架构计算机，一个内存往往装载了多个程序的可执行二进制文件。程序装载的内存基地址也并不都从内存0地址开始。
+指令装入的三种方式 绝对装入（不重要） 绝对装入只适用于单进程环境。在编译或汇编时（装载前），产生绝对地址的目标代码。程序中使用绝对地址。
+可重定位装入（不重要） 动态运行时装入（重要） 动态重定位
+可执行文件装入内存后，依然使用逻辑地址。需要一个重定位寄存器的支持。~这个重定位寄存器后来演进为段寄存器。
+从写程序到程序运行 编译阶段：使用逻辑地址，每个目标模块地址都是从0开始。分为代码段、数据段。
+链接阶段：统一修改了地址。代码段归档、数据段归档、BSS段归档。
+加载后：根据链接后的地址&#43;重定位寄存器=最终的物理地址。
+代码段和数据段 有各自的重定位寄存器，即段寄存器。
+段寄存器 段寄存器有ES、CS、SS、DS、FS、GS、LDTR、TR共8个。
+ES：扩展段。在串操作时(比如cmovs)目标操作数的基址是ES，源操作数是DS。
+CS：代码段，配合EIP使用。
+SS: 堆栈段，凡是基址是EBP或ESP的，段前缀就是SS。
+DS：数据段，默认的都是DS。
+FS、GS：80386 之后定义的。
+段寄存器结构： 只有段选择符对程序员是可见的。
+qemu monitor中info registers可以看到段寄存器：
+从左到右依次是： sc-&amp;gt;selector, sc-&amp;gt;base, sc-&amp;gt;limit, sc-&amp;gt;flags &amp;amp; 0x00ffff00 ES =0000 0000000000000000 ffffffff 00c00000 CS =0010 0000000000000000 ffffffff 00a09b00 DPL=0 CS64 [-RA] SS =0018 0000000000000000 ffffffff 00c09300 DPL=0 DS [-WA] DS =0000 0000000000000000 ffffffff 00c00000 FS =0000 0000000000000000 ffffffff 00c00000 GS =0000 ffff8b053bc00000 ffffffff 00c00000 LDT=0000 0000000000000000 ffffffff 00c00000 TR =0040 fffffe12484d7000 00004087 00008b00 DPL=0 TSS64-busy 逻辑地址 在 Linux 操作系统中，用户态的虚拟地址通常指的是线性地址。在 Linux 中，逻辑地址通常指的是由段选择符和段内偏移量组成的地址，这种地址表示方式主要用于 x86 架构的机器。而线性地址是指一种平坦的统一地址空间，它不涉及任何段的概念。">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2024-03-21T10:46:23+08:00">
+    <meta property="article:modified_time" content="2024-03-21T10:46:23+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">指令的装载和运行</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-dark">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <p></p> 
+<div class="toc"> 
+ <h4>文章目录</h4> 
+ <ul><li><a href="#_1" rel="nofollow">指令的工作原理</a></li><li><a href="#_7" rel="nofollow">指令装入的三种方式</a></li><li><ul><li><a href="#_8" rel="nofollow">绝对装入（不重要）</a></li><li><a href="#_11" rel="nofollow">可重定位装入（不重要）</a></li><li><a href="#_13" rel="nofollow">动态运行时装入（重要）</a></li></ul> 
+  </li><li><a href="#_19" rel="nofollow">从写程序到程序运行</a></li><li><a href="#_27" rel="nofollow">段寄存器</a></li><li><ul><li><a href="#_37" rel="nofollow">段寄存器结构：</a></li><li><a href="#_58" rel="nofollow">逻辑地址</a></li><li><a href="#_60" rel="nofollow">线性地址</a></li></ul> 
+  </li><li><a href="#_69" rel="nofollow">链接的三种方式</a></li><li><ul><li><a href="#_70" rel="nofollow">静态链接</a></li><li><a href="#_72" rel="nofollow">装入时动态链接</a></li><li><a href="#_75" rel="nofollow">运行时动态链接</a></li></ul> 
+ </li></ul> 
+</div> 
+<p></p> 
+<h2><a id="_1"></a>指令的工作原理</h2> 
+<p><img src="https://images2.imgbox.com/cd/61/SDSaqF65_o.png" alt="在这里插入图片描述"><br> 注：指令和数据的地址是分开的；<br> <img src="https://images2.imgbox.com/7e/d0/AFnCqBMV_o.png" alt="在这里插入图片描述"><br> 内存并不是单独给某个程序使用的。对于多任务架构计算机，一个内存往往装载了多个程序的可执行二进制文件。程序装载的内存基地址也并不都从内存0地址开始。<br> <img src="https://images2.imgbox.com/e5/96/hmdeQx9M_o.png" alt="在这里插入图片描述"></p> 
+<h2><a id="_7"></a>指令装入的三种方式</h2> 
+<h3><a id="_8"></a>绝对装入（不重要）</h3> 
+<p><img src="https://images2.imgbox.com/7c/f8/1pedaZ8j_o.png" alt="在这里插入图片描述"><br> 绝对装入只适用于单进程环境。在编译或汇编时（装载前），产生绝对地址的目标代码。程序中使用绝对地址。</p> 
+<h3><a id="_11"></a>可重定位装入（不重要）</h3> 
+<p><img src="https://images2.imgbox.com/f7/e5/Z0N5L1y4_o.png" alt="在这里插入图片描述"></p> 
+<h3><a id="_13"></a>动态运行时装入（重要）</h3> 
+<p><img src="https://images2.imgbox.com/16/6b/vXOMsxiE_o.png" alt="在这里插入图片描述"></p> 
+<p>动态重定位<br> <img src="https://images2.imgbox.com/8f/d0/1VcRi7cL_o.png" alt="在这里插入图片描述"><br> 可执行文件装入内存后，依然使用逻辑地址。需要一个重定位寄存器的支持。~这个重定位寄存器后来演进为段寄存器。</p> 
+<h2><a id="_19"></a>从写程序到程序运行</h2> 
+<p><img src="https://images2.imgbox.com/4b/19/sFJXmASC_o.png" alt="在这里插入图片描述"><br> 编译阶段：使用<strong>逻辑地址</strong>，每个目标模块地址都是从0开始。分为代码段、数据段。<br> 链接阶段：统一修改了地址。代码段归档、数据段归档、BSS段归档。<br> 加载后：根据链接后的地址+重定位寄存器=最终的物理地址。</p> 
+<p>代码段和数据段 有各自的重定位寄存器，即<strong>段寄存器</strong>。</p> 
+<h2><a id="_27"></a>段寄存器</h2> 
+<p>段寄存器有ES、CS、SS、DS、FS、GS、LDTR、TR共8个。<br> ES：扩展段。在串操作时(比如cmovs)目标操作数的基址是ES，源操作数是DS。<br> CS：代码段，配合EIP使用。<br> SS: 堆栈段，凡是基址是EBP或ESP的，段前缀就是SS。<br> DS：数据段，默认的都是DS。<br> FS、GS：80386 之后定义的。</p> 
+<p><img src="https://images2.imgbox.com/45/15/8jUOVkKf_o.png" alt="在这里插入图片描述"></p> 
+<h3><a id="_37"></a>段寄存器结构：</h3> 
+<p><img src="https://images2.imgbox.com/d3/5c/VX3VJRJS_o.png" alt="在这里插入图片描述"><br> 只有段选择符对程序员是可见的。<br> <img src="https://images2.imgbox.com/0f/5d/HYmmvw6t_o.png" alt="在这里插入图片描述"></p> 
+<p>qemu monitor中info registers可以看到段寄存器：</p> 
+<pre><code class="prism language-c">从左到右依次是：
+sc<span class="token operator">-&gt;</span>selector<span class="token punctuation">,</span> sc<span class="token operator">-&gt;</span>base<span class="token punctuation">,</span> sc<span class="token operator">-&gt;</span>limit<span class="token punctuation">,</span> sc<span class="token operator">-&gt;</span>flags <span class="token operator">&amp;</span> <span class="token number">0x00ffff00</span>
+
+ES <span class="token operator">=</span><span class="token number">0000</span> <span class="token number">0000000000000000</span> ffffffff <span class="token number">00</span>c00000
+CS <span class="token operator">=</span><span class="token number">0010</span> <span class="token number">0000000000000000</span> ffffffff <span class="token number">00</span>a09b00 DPL<span class="token operator">=</span><span class="token number">0</span> CS64 <span class="token punctuation">[</span><span class="token operator">-</span>RA<span class="token punctuation">]</span>
+SS <span class="token operator">=</span><span class="token number">0018</span> <span class="token number">0000000000000000</span> ffffffff <span class="token number">00</span>c09300 DPL<span class="token operator">=</span><span class="token number">0</span> DS   <span class="token punctuation">[</span><span class="token operator">-</span>WA<span class="token punctuation">]</span>
+DS <span class="token operator">=</span><span class="token number">0000</span> <span class="token number">0000000000000000</span> ffffffff <span class="token number">00</span>c00000
+FS <span class="token operator">=</span><span class="token number">0000</span> <span class="token number">0000000000000000</span> ffffffff <span class="token number">00</span>c00000
+GS <span class="token operator">=</span><span class="token number">0000</span> ffff8b053bc00000 ffffffff <span class="token number">00</span>c00000
+LDT<span class="token operator">=</span><span class="token number">0000</span> <span class="token number">0000000000000000</span> ffffffff <span class="token number">00</span>c00000
+TR <span class="token operator">=</span><span class="token number">0040</span> fffffe12484d7000 <span class="token number">00004087</span> <span class="token number">00008</span>b00 DPL<span class="token operator">=</span><span class="token number">0</span> TSS64<span class="token operator">-</span>busy
+</code></pre> 
+<h3><a id="_58"></a>逻辑地址</h3> 
+<p>在 Linux 操作系统中，用户态的虚拟地址通常指的是线性地址。在 Linux 中，逻辑地址通常指的是由段选择符和段内偏移量组成的地址，这种地址表示方式主要用于 x86 架构的机器。而线性地址是指一种平坦的统一地址空间，它不涉及任何段的概念。</p> 
+<h3><a id="_60"></a>线性地址</h3> 
+<p>在用户态下，应用程序通过线性地址来访问虚拟内存。这些线性地址被映射到物理内存的地址，从而实现虚拟内存到物理内存的转换。在 Linux 中，这个映射过程由内核负责管理，并通过页表来实现。</p> 
+<p>逻辑地址通常对程序员是透明的，也就是说，程序员通常不需要直接处理逻辑地址。在高级编程语言中，程序员通常使用变量名来访问内存中的数据，编译器和操作系统负责将这些变量名转换为逻辑地址或线性地址。</p> 
+<p>然而，在一些低级编程语言或特定的操作系统环境中，逻辑地址可能会直接暴露给程序员。在这种情况下，程序员需要了解如何处理逻辑地址，以便正确地访问内存和执行操作。</p> 
+<p>总的来说，逻辑地址对于大多数程序员来说通常是不可见的，因为高级语言和操作系统抽象了底层硬件细节，使得程序员可以更加专注于程序设计和功能实现。</p> 
+<h2><a id="_69"></a>链接的三种方式</h2> 
+<h3><a id="_70"></a>静态链接</h3> 
+<p><img src="https://images2.imgbox.com/29/ad/YFgjfGve_o.png" alt="在这里插入图片描述"></p> 
+<h3><a id="_72"></a>装入时动态链接</h3> 
+<p><img src="https://images2.imgbox.com/c8/d0/BXc3gvtj_o.png" alt="在这里插入图片描述"></p> 
+<h3><a id="_75"></a>运行时动态链接</h3> 
+<p><img src="https://images2.imgbox.com/a8/31/U95gs1mR_o.png" alt="在这里插入图片描述"><br> <img src="https://images2.imgbox.com/d6/c1/9a2nRyrl_o.png" alt=""></p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/34d41e0abd971959e0f377b4e67f34cb/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">Amazon SageMaker &#43; Stable Diffusion 搭建文本生成图像模型</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/4fa4f09511451d6a9ed275c63d215f6b/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">【GHG Protocol】对于温室气体清单核算模型的进一步思考（2024-01-05））</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>JAVA高级编程之多线程（看完这一篇就够了） - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/f9beb61ee5e3b5ea40f6c90e7e6d795a/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="JAVA高级编程之多线程（看完这一篇就够了）">
+  <meta property="og:description" content="目录 一、进程1、进程的由来（为什么会出现进程？）1.1、什么是CPU？1.2、CPU是如何工作的？1.3、如何解决CPU利用率不高的问题？ 2、进程的概念2.1、进程三大特性 二、线程1、线程的由来（为什么又会出现线程？）2、线程的概念2.1、线程与进程的区别2.2、线程相比于进程的优势 3、Thread类核心操作3.1、线程创建（1）通过继承Thread的方式创建线程（2）通过实现Runnable的方式创建线程（3）通过实现Callable的方式创建线程（4）通过基于lambda的方式创建线程 4、线程属性4.1、如何中断一个线程4.2、如何等待线程结束4.3、如何获取线程的引用4.4、如何进行线程休眠 5、线程状态及线程状态的相互转换6、线程安全6.1、什么是线程安全6.2、线程不安全的原因有哪些？6.3、如何确保线程安全线程同步死锁问题 7、线程等待/通知7.1、等待唤醒机制wait 内部的工作过程是怎样的为什么 wait 和 notify 要在 synchronized 内部使用 总结 一、进程 这是我们能够最直观的从计算机中看到的进程的样子，你是否会发出这样的疑问：这东西有什么用呢？这东西是个什么玩意儿啊？
+别着急，我们带着疑问去深度的了解它。
+1、进程的由来（为什么会出现进程？） 1、提到进程，我们不得不从梦想开始的地方讲起，而梦想开始的地方在CPU上；
+1.1、什么是CPU？ 1、计算机中，按照冯诺依曼体系把计算机硬件分为了5部分，分别对应：存储器、运算器、控制器、输入设备、输出设备；而运算器和控制器就组成了CPU、中文名叫中央处理单元；
+2、我们一个程序要想执行，第一步就得把它从磁盘或者其他外存上移到内存中去，这一步操作系统帮我们做了；
+3、放到内存之后，控制器负责对程序指令进行解释执行，运算器负责对数据进行运算，而它们的执行过程是如下图的样子：
+1.2、CPU是如何工作的？ 我们只需要给CPU开始执行第一条指令的位置，也就是PC指针指向的第一个位置后，这条指令就会被控制器解释并执行，就像厨师开了菜谱的第一步之后开始做第一步，然后做完了之后，PC指针就会自动指向下一条指令，然后控制器再一次解释执行，以此类推直到厨师做完这道菜为止；那么整个过程中，控制器就好比厨师的大脑，运算器就好比厨师的双手，菜谱就好比加载到内存中的程序被编译后生成的一条条指令，而PC指针就是厨师的双眼，眼睛看菜谱，大脑调动双手去做菜，最后完成这么一个程序的执行任务。
+那么我们既然要用CPU这个东西，我们也必然需要去对它进行正确的管理，不然就会出现问题，比如说：现在我们只给CPU一个PC指针指向的起始位置，然后让CPU自动完成工作，会出现什么问题？
+我们下面来看一段程序：
+上图程序右边第一个黑框表示的是有IO指令时这段程序的执行时间，第二个黑框表示的是把IO指令换成普通的计算指令后的执行时间，而他们的比值约为1000000：1。
+CPU的工作是解释执行程序，然后对数据进行运算，而程序最终结果的打印，也即是IO指令是由外部设备（输入/输出设备）来完成的，也就是说CPU解释执行一条IO语句，那么操作系统就会把控制权转交给外设，而转交需要时间，外设工作需要时间，并且外设的工作时间远比CPU长，CPU是通过电路进行工作的，外设是机器，所以它两的工作效率有天壤之别；
+我们想一想，当IO设备在工作的时候，CPU是什么状态？
+此时的CPU会等待IO设备执行完成，在此期间，CPU处于空闲状态，由此我们是不是可以发现一个特别重要的问题：那就是CPU的利用率不高。
+我们发明计算机的目的就是需要其做大量的复杂的科学计算，而现在它几乎一半的时间是在等待，是在处于空闲状态，这是我们科学家不想要看到的结果。
+既然发现了问题，怎么样去解决呢？
+1.3、如何解决CPU利用率不高的问题？ 这个时候我们就不得不举一个生活中的例子了，比如说：
+你现在正开始做饭，然后你首先第一步就是把饭煮上了，在饭煮熟之前的这段时间，你是选择等饭熟了之后再开始炒菜，还是在煮饭的同时，你就开始炒菜？我相信聪明人都应该选择后者，如果你不选，这不能直接说明你不太聪明，但至少可以说明你根本不饿。
+那么我们的CPU就是那个聪明的小朋友：
+那么我们怎么去具体实现在一个CPU上交替执行多个程序，以此来提高CPU的利用率呢？方案现在给你提出来了，你怎么去执行它？
+我们如果单单只是修改PC指针的指向就行了吗？当然是远远不够的，为什么？
+程序1的ax它本应该等于2，但由于执行到52行时，PC切出去了，切到了200行，当执行完程序2后，PC指针再切到52行，此时的ax就变成了20，程序1受到了程序2的影响，结果出现了偏差，计算失败告终！！！
+所以现在我们需要有一个东西去把程序运行时的每一刻该是什么样子的，给记录下来，就像是看电视剧时按下了暂停键，保护好案发现场，而这个东西就被科学家给创造出来了，它就是PCB，全称process control block，进程控制块。
+哦！！！！到这里终于出现了进程两个字了，什么是进程，相信大家都差不多可以猜到了：
+我们不难发现，静态的程序和在内存上运行起来的程序是不是完全不同的样子，那么我们该怎么去描述一个程序动态执行的过程？没错，我们给它取了个响当当的名字，那就是进程！！！
+2、进程的概念 我们来总结一下什么是进程：
+1、一个具有独立功能的程序在一个数据集合上的一次动态执行过程；
+2、在操作系统中，每个独立运行的程序就是一个进程，当一个程序进入内存运行时，即变成了一个进程；
+3、进程是操作系统进行资源分配和调度的一个独立单位，是具有独立功能切处于运行过程中的程序。
+2.1、进程三大特性 1、独立性：每个进程都拥有自己的私有地址空间，其他进程不可以直接访问该地址空间，除非在进程本身允许的情况下；
+2、动态性：程序只是一个静态的指令集合，进程是一个正在内存中运行的、动态的指令集合，进程具有自己的生命周期和各种不同状态；
+3、并发性：多个进程可以在单个处理机（CPU）上并发执行，多个进程之间互不影响；并发又可以解释位同时出发，交替执行。
+二、线程 1、线程的由来（为什么又会出现线程？） 我们来看一个例子：
+怎么去开发这个软件？或者说以什么方式去开发这个软件？
+方案一：
+这个方案播放出来的声音肯定是不连贯的，为什么？
+CPU会出现长时间空闲状态。
+方案二：
+这个方案看起来是可行的，分别为三个核心功能模块单独创建一个进程，这样确实可以解决单进程空闲的问题，但是这么做合理吗？有没有不好的地方？
+有：
+1、进程之间如何通信和共享数据？
+我们知道进程它是具有独立性的，要想它们之前互相访问，必须得双方允许才行，可是这样好像有点浪费时间精力吧，你去拿个东西或者办件事，每次都得需要别人同意，每次都需要你把证明准备好，这是不是有点分散精力了，有点本末倒置；
+2、维护进程的系统开销较大">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2023-03-15T13:23:00+08:00">
+    <meta property="article:modified_time" content="2023-03-15T13:23:00+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">JAVA高级编程之多线程（看完这一篇就够了）</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-dark">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <p><img src="https://images2.imgbox.com/d7/81/TZp69qME_o.jpg" alt="在这里插入图片描述"></p> 
+<hr> 
+<p></p> 
+<div class="toc"> 
+ <h4>目录</h4> 
+ <ul><li><a href="#_8" rel="nofollow">一、进程</a></li><li><ul><li><a href="#1_13" rel="nofollow">1、进程的由来（为什么会出现进程？）</a></li><li><ul><li><a href="#11CPU_16" rel="nofollow">1.1、什么是CPU？</a></li><li><a href="#12CPU_24" rel="nofollow">1.2、CPU是如何工作的？</a></li><li><a href="#13CPU_46" rel="nofollow">1.3、如何解决CPU利用率不高的问题？</a></li></ul> 
+   </li><li><a href="#2_67" rel="nofollow">2、进程的概念</a></li><li><ul><li><a href="#21_73" rel="nofollow">2.1、进程三大特性</a></li></ul> 
+  </li></ul> 
+  </li><li><a href="#_82" rel="nofollow">二、线程</a></li><li><ul><li><a href="#1_83" rel="nofollow">1、线程的由来（为什么又会出现线程？）</a></li><li><a href="#2_106" rel="nofollow">2、线程的概念</a></li><li><ul><li><a href="#21_112" rel="nofollow">2.1、线程与进程的区别</a></li><li><a href="#22_117" rel="nofollow">2.2、线程相比于进程的优势</a></li></ul> 
+   </li><li><a href="#3Thread_123" rel="nofollow">3、Thread类核心操作</a></li><li><ul><li><a href="#31_127" rel="nofollow">3.1、线程创建</a></li><li><ul><li><a href="#1Thread_128" rel="nofollow">（1）通过继承Thread的方式创建线程</a></li><li><a href="#2Runnable_134" rel="nofollow">（2）通过实现Runnable的方式创建线程</a></li><li><a href="#3Callable_141" rel="nofollow">（3）通过实现Callable的方式创建线程</a></li><li><a href="#4lambda_185" rel="nofollow">（4）通过基于lambda的方式创建线程</a></li></ul> 
+   </li></ul> 
+   </li><li><a href="#4_191" rel="nofollow">4、线程属性</a></li><li><ul><li><a href="#41_195" rel="nofollow">4.1、如何中断一个线程</a></li><li><a href="#42_197" rel="nofollow">4.2、如何等待线程结束</a></li><li><a href="#43_199" rel="nofollow">4.3、如何获取线程的引用</a></li><li><a href="#44_201" rel="nofollow">4.4、如何进行线程休眠</a></li></ul> 
+   </li><li><a href="#5_207" rel="nofollow">5、线程状态及线程状态的相互转换</a></li><li><a href="#6_228" rel="nofollow">6、线程安全</a></li><li><ul><li><a href="#61_229" rel="nofollow">6.1、什么是线程安全</a></li><li><a href="#62_248" rel="nofollow">6.2、线程不安全的原因有哪些？</a></li><li><a href="#63_258" rel="nofollow">6.3、如何确保线程安全</a></li><li><ul><li><a href="#_259" rel="nofollow">线程同步</a></li><li><a href="#_292" rel="nofollow">死锁问题</a></li></ul> 
+   </li></ul> 
+   </li><li><a href="#7_306" rel="nofollow">7、线程等待/通知</a></li><li><ul><li><a href="#71_307" rel="nofollow">7.1、等待唤醒机制</a></li><li><ul><li><ul><li><a href="#wait__310" rel="nofollow">wait 内部的工作过程是怎样的</a></li><li><a href="#_wait__notify__synchronized__312" rel="nofollow">为什么 wait 和 notify 要在 synchronized 内部使用</a></li></ul> 
+    </li></ul> 
+   </li></ul> 
+  </li></ul> 
+  </li><li><a href="#_316" rel="nofollow">总结</a></li></ul> 
+</div> 
+<p></p> 
+<hr> 
+<h2><a id="_8"></a>一、进程</h2> 
+<p>这是我们能够最直观的从计算机中看到的进程的样子，你是否会发出这样的疑问：这东西有什么用呢？这东西是个什么玩意儿啊？<br> 别着急，我们带着疑问去深度的了解它。<br> <img src="https://images2.imgbox.com/90/0a/rEPOjFCV_o.png" alt="在这里插入图片描述"></p> 
+<h3><a id="1_13"></a>1、进程的由来（为什么会出现进程？）</h3> 
+<p>1、提到进程，我们不得不从梦想开始的地方讲起，而梦想开始的地方在CPU上；</p> 
+<h4><a id="11CPU_16"></a>1.1、什么是CPU？</h4> 
+<p>1、计算机中，按照冯诺依曼体系把计算机硬件分为了5部分，分别对应：存储器、运算器、控制器、输入设备、输出设备；而运算器和控制器就组成了CPU、中文名叫中央处理单元；</p> 
+<p>2、我们一个程序要想执行，第一步就得把它从磁盘或者其他外存上移到内存中去，这一步操作系统帮我们做了；</p> 
+<p>3、放到内存之后，控制器负责对程序指令进行解释执行，运算器负责对数据进行运算，而它们的执行过程是如下图的样子：<br> <img src="https://images2.imgbox.com/6a/a5/LG4rghGN_o.png" alt="在这里插入图片描述"></p> 
+<h4><a id="12CPU_24"></a>1.2、CPU是如何工作的？</h4> 
+<p>我们只需要给CPU开始执行第一条指令的位置，也就是PC指针指向的第一个位置后，这条指令就会被控制器解释并执行，就像厨师开了菜谱的第一步之后开始做第一步，然后做完了之后，PC指针就会自动指向下一条指令，然后控制器再一次解释执行，以此类推直到厨师做完这道菜为止；那么整个过程中，控制器就好比厨师的大脑，运算器就好比厨师的双手，菜谱就好比加载到内存中的程序被编译后生成的一条条指令，而PC指针就是厨师的双眼，眼睛看菜谱，大脑调动双手去做菜，最后完成这么一个程序的执行任务。</p> 
+<p>那么我们既然要用CPU这个东西，我们也必然需要去对它进行正确的管理，不然就会出现问题，比如说：现在我们只给CPU一个PC指针指向的起始位置，然后让CPU自动完成工作，会出现什么问题？</p> 
+<p><img src="https://images2.imgbox.com/c7/9f/vUR92Xie_o.png" alt="在这里插入图片描述"></p> 
+<p>我们下面来看一段程序：</p> 
+<p><img src="https://images2.imgbox.com/2c/3d/S2363wfz_o.png" alt="在这里插入图片描述"><br> 上图程序右边第一个黑框表示的是有IO指令时这段程序的执行时间，第二个黑框表示的是把IO指令换成普通的计算指令后的执行时间，而他们的比值约为1000000：1。</p> 
+<p>CPU的工作是解释执行程序，然后对数据进行运算，而程序最终结果的打印，也即是IO指令是由外部设备（输入/输出设备）来完成的，也就是说CPU解释执行一条IO语句，那么操作系统就会把控制权转交给外设，而转交需要时间，外设工作需要时间，并且外设的工作时间远比CPU长，CPU是通过电路进行工作的，外设是机器，所以它两的工作效率有天壤之别；</p> 
+<p>我们想一想，当IO设备在工作的时候，CPU是什么状态？</p> 
+<p>此时的CPU会等待IO设备执行完成，在此期间，CPU处于空闲状态，由此我们是不是可以发现一个特别重要的问题：那就是CPU的利用率不高。<br> 我们发明计算机的目的就是需要其做大量的复杂的科学计算，而现在它几乎一半的时间是在等待，是在处于空闲状态，这是我们科学家不想要看到的结果。</p> 
+<p>既然发现了问题，怎么样去解决呢？</p> 
+<h4><a id="13CPU_46"></a>1.3、如何解决CPU利用率不高的问题？</h4> 
+<p>这个时候我们就不得不举一个生活中的例子了，比如说：<br> 你现在正开始做饭，然后你首先第一步就是把饭煮上了，在饭煮熟之前的这段时间，你是选择等饭熟了之后再开始炒菜，还是在煮饭的同时，你就开始炒菜？我相信聪明人都应该选择后者，如果你不选，这不能直接说明你不太聪明，但至少可以说明你根本不饿。</p> 
+<p>那么我们的CPU就是那个聪明的小朋友：<br> <img src="https://images2.imgbox.com/ab/9e/Sqwf91Ai_o.png" alt="在这里插入图片描述"></p> 
+<p><img src="https://images2.imgbox.com/bc/06/QXFJApge_o.png" alt="在这里插入图片描述"><br> <img src="https://images2.imgbox.com/f8/bd/dD2MEFxq_o.png" alt="在这里插入图片描述"><br> <mark>那么我们怎么去具体实现在一个CPU上交替执行多个程序，以此来提高CPU的利用率呢？方案现在给你提出来了，你怎么去执行它？</mark></p> 
+<p><img src="https://images2.imgbox.com/de/96/FNIX3XJ7_o.png" alt="在这里插入图片描述"><br> 我们如果单单只是修改PC指针的指向就行了吗？当然是远远不够的，为什么？</p> 
+<p>程序1的ax它本应该等于2，但由于执行到52行时，PC切出去了，切到了200行，当执行完程序2后，PC指针再切到52行，此时的ax就变成了20，程序1受到了程序2的影响，结果出现了偏差，计算失败告终！！！</p> 
+<p>所以现在我们需要有一个东西去把程序运行时的每一刻该是什么样子的，给记录下来，就像是看电视剧时按下了暂停键，保护好案发现场，而这个东西就被科学家给创造出来了，它就是PCB，全称process control block，进程控制块。</p> 
+<p>哦！！！！到这里终于出现了进程两个字了，什么是进程，相信大家都差不多可以猜到了：</p> 
+<p>我们不难发现，静态的程序和在内存上运行起来的程序是不是完全不同的样子，那么我们该怎么去描述一个程序动态执行的过程？没错，我们给它取了个响当当的名字，那就是进程！！！</p> 
+<h3><a id="2_67"></a>2、进程的概念</h3> 
+<p>我们来总结一下什么是进程：<br> 1、一个具有独立功能的程序在一个数据集合上的一次动态执行过程；<br> 2、在操作系统中，每个独立运行的程序就是一个进程，当一个程序进入内存运行时，即变成了一个进程；<br> 3、进程是操作系统进行资源分配和调度的一个独立单位，是具有独立功能切处于运行过程中的程序。</p> 
+<h4><a id="21_73"></a>2.1、进程三大特性</h4> 
+<p>1、独立性：每个进程都拥有自己的私有地址空间，其他进程不可以直接访问该地址空间，除非在进程本身允许的情况下；</p> 
+<p>2、动态性：程序只是一个静态的指令集合，进程是一个正在内存中运行的、动态的指令集合，进程具有自己的生命周期和各种不同状态；</p> 
+<p>3、并发性：多个进程可以在单个处理机（CPU）上并发执行，多个进程之间互不影响；并发又可以解释位同时出发，交替执行。</p> 
+<hr> 
+<h2><a id="_82"></a>二、线程</h2> 
+<h3><a id="1_83"></a>1、线程的由来（为什么又会出现线程？）</h3> 
+<p>我们来看一个例子：<br> <img src="https://images2.imgbox.com/6d/02/u4p5GNVL_o.png" alt="在这里插入图片描述"><br> 怎么去开发这个软件？或者说以什么方式去开发这个软件？</p> 
+<p>方案一：<img src="https://images2.imgbox.com/f9/d1/QXP3AqNO_o.png" alt="在这里插入图片描述"><br> 这个方案播放出来的声音肯定是不连贯的，为什么？<br> CPU会出现长时间空闲状态。</p> 
+<p>方案二：<br> <img src="https://images2.imgbox.com/f5/c7/E77wjflA_o.png" alt="在这里插入图片描述"><br> 这个方案看起来是可行的，分别为三个核心功能模块单独创建一个进程，这样确实可以解决单进程空闲的问题，但是这么做合理吗？有没有不好的地方？</p> 
+<p>有：<br> 1、进程之间如何通信和共享数据？<br> 我们知道进程它是具有独立性的，要想它们之前互相访问，必须得双方允许才行，可是这样好像有点浪费时间精力吧，你去拿个东西或者办件事，每次都得需要别人同意，每次都需要你把证明准备好，这是不是有点分散精力了，有点本末倒置；</p> 
+<p>2、维护进程的系统开销较大<br> 创建进程时，需要分配资源，建立PCB，进程越多，内存占用率就越高，一件事却需要消耗那么多内存，想来确实不划算；撤销进程时，又需要回收资源，撤销PCB，但回收的资源有大有小，很难肯定适不适合下一个将要创建的进程；进程切换时又需要保存状态信息，所以在资源开销上确实是不太合理，有点杀鸡焉用牛刀的感觉。</p> 
+<p>有没有一种既可以节省开销又可以像进程一样切来切去的方法来解决这些矛盾呢?<br> 有，这就是线程的由来。<br> <img src="https://images2.imgbox.com/0d/9e/UNl4DbTx_o.png" alt="在这里插入图片描述"></p> 
+<h3><a id="2_106"></a>2、线程的概念</h3> 
+<p>我们下面就来介绍线程（thread）的概念：<br> 1、线程是进程的组成部分，一个线程必须在一个进程之内，而一个进程可以拥有多个线程；<br> 2、线程是最小的处理单位，线程可以拥有自己的堆栈、计数器和局部变量，但不能拥有系统资源，多个线程共享其所在进程的系统资源；<br> 3、线程可以完成一定的任务，使用多线程可以在一个出现中同时完成多个任务，在更低层次中引入多处理任务。<br> <img src="https://images2.imgbox.com/1a/21/1y798Y1n_o.png" alt="在这里插入图片描述"></p> 
+<h4><a id="21_112"></a>2.1、线程与进程的区别</h4> 
+<p>1、多进程之间的数据块是相互独立的，彼此互不影响，进程之间需要通过信号、管道等进行交互；<br> 2、多线程之间的数据块可以共享，一个进程的各个线程可以共享程序段、数据段等资源。<br> 3、线程是最小的处理单元，而进程是操作系统进行资源分配和调度的独立单位。</p> 
+<h4><a id="22_117"></a>2.2、线程相比于进程的优势</h4> 
+<p>1、多线程之间可以共享内存，节省系统资源成本；<br> 2、多线程之间进行切换更加快速，节约了时间成本。</p> 
+<hr> 
+<h3><a id="3Thread_123"></a>3、Thread类核心操作</h3> 
+<p><img src="https://images2.imgbox.com/83/00/m0UR20im_o.png" alt="在这里插入图片描述"><br> <img src="https://images2.imgbox.com/7c/23/cqwD84VL_o.png" alt="在这里插入图片描述"></p> 
+<h4><a id="31_127"></a>3.1、线程创建</h4> 
+<h5><a id="1Thread_128"></a>（1）通过继承Thread的方式创建线程</h5> 
+<p>步骤：<br> 1、定义一个子类继承Thread类，并重写run()方法；<br> 2、创建子类对象，即实例化线程对象；<br> 3、调用线程对象的start()方法启动线程。<br> <img src="https://images2.imgbox.com/de/6e/wJLXLmuD_o.png" alt="在这里插入图片描述"></p> 
+<h5><a id="2Runnable_134"></a>（2）通过实现Runnable的方式创建线程</h5> 
+<p>步骤：<br> 1、定义一个类实现Runnable接口，并实现该接口中的run()方法；<br> 2、创建一个Thread类的实例，并将Runnable接口实现类创建的对象作为参数传入Thread类的构造方法中；<br> 3、调用Thread对象的start()方法启动线程。<br> <img src="https://images2.imgbox.com/dc/f5/m9oDXXs6_o.png" alt="在这里插入图片描述"></p> 
+<h5><a id="3Callable_141"></a>（3）通过实现Callable的方式创建线程</h5> 
+<p>步骤：<br> 1、创建Callable接口的实现类，并实现call()方法，该方法将作为线程的执行体，并且有返回值，然后创建Callable类的实例对象；<br> 2、使用FutureTask类来包装Callable对象，在FutureTask对象中封装了FutureTask对象的call()方法的返回值；<br> 3、使用FutureTask对象作为Thread对象的target，创建并自动启动线程；<br> 4、调用FutureTask对象的get()方法来获取子线程执行结束后的返回值。</p> 
+<pre><code class="prism language-java"><span class="token keyword">import</span> <span class="token namespace">java<span class="token punctuation">.</span>util<span class="token punctuation">.</span>concurrent<span class="token punctuation">.</span></span><span class="token class-name">Callable</span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token namespace">java<span class="token punctuation">.</span>util<span class="token punctuation">.</span>concurrent<span class="token punctuation">.</span></span><span class="token class-name">ExecutionException</span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token namespace">java<span class="token punctuation">.</span>util<span class="token punctuation">.</span>concurrent<span class="token punctuation">.</span></span><span class="token class-name">FutureTask</span><span class="token punctuation">;</span>
+
+<span class="token keyword">class</span> <span class="token class-name">Task</span> <span class="token keyword">implements</span> <span class="token class-name">Callable</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Integer</span><span class="token punctuation">&gt;</span></span><span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">public</span> <span class="token class-name">Integer</span> <span class="token function">call</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token keyword">throws</span> <span class="token class-name">Exception</span><span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">int</span> i <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+        <span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token punctuation">;</span>i<span class="token operator">&lt;</span><span class="token number">50</span><span class="token punctuation">;</span>i<span class="token operator">++</span><span class="token punctuation">)</span><span class="token punctuation">{<!-- --></span>
+            <span class="token class-name">System</span><span class="token punctuation">.</span>out<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"Callable实现了的子线程"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        <span class="token keyword">return</span> i<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+<span class="token punctuation">}</span>
+<span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">CallableDemo</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">public</span> <span class="token keyword">static</span> <span class="token keyword">void</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token class-name">String</span><span class="token punctuation">[</span><span class="token punctuation">]</span> args<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token class-name">FutureTask</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Integer</span><span class="token punctuation">&gt;</span></span> task <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">FutureTask</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Integer</span><span class="token punctuation">&gt;</span></span><span class="token punctuation">(</span><span class="token keyword">new</span> <span class="token class-name">Task</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token class-name">Thread</span> th <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">Thread</span><span class="token punctuation">(</span>task<span class="token punctuation">,</span><span class="token string">"子线程"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        th<span class="token punctuation">.</span><span class="token function">start</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">try</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token class-name">System</span><span class="token punctuation">.</span>out<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span>task<span class="token punctuation">.</span><span class="token function">get</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span><span class="token keyword">catch</span> <span class="token punctuation">(</span><span class="token class-name">ExecutionException</span> e<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token keyword">throw</span> <span class="token keyword">new</span> <span class="token class-name">RuntimeException</span><span class="token punctuation">(</span>e<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span> <span class="token keyword">catch</span> <span class="token punctuation">(</span><span class="token class-name">InterruptedException</span> e<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token keyword">throw</span> <span class="token keyword">new</span> <span class="token class-name">RuntimeException</span><span class="token punctuation">(</span>e<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        <span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token keyword">int</span> i<span class="token operator">=</span><span class="token number">0</span><span class="token punctuation">;</span>i<span class="token operator">&lt;=</span><span class="token number">50</span><span class="token punctuation">;</span>i<span class="token operator">++</span><span class="token punctuation">)</span><span class="token punctuation">{<!-- --></span>
+            <span class="token class-name">System</span><span class="token punctuation">.</span>out<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"我是主线程"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+
+
+
+<span class="token punctuation">}</span>
+</code></pre> 
+<p><img src="https://images2.imgbox.com/b5/a6/W3T18RX4_o.png" alt="在这里插入图片描述"></p> 
+<h5><a id="4lambda_185"></a>（4）通过基于lambda的方式创建线程</h5> 
+<p><img src="https://images2.imgbox.com/3a/49/vd5WIBS0_o.png" alt="在这里插入图片描述"></p> 
+<hr> 
+<h3><a id="4_191"></a>4、线程属性</h3> 
+<p><img src="https://images2.imgbox.com/9a/03/u8WL7w2U_o.png" alt="在这里插入图片描述"><br> <img src="https://images2.imgbox.com/ec/8a/bvfLCsQe_o.png" alt="在这里插入图片描述"><br> <img src="https://images2.imgbox.com/b2/c7/br8y2TId_o.png" alt="在这里插入图片描述"></p> 
+<h4><a id="41_195"></a>4.1、如何中断一个线程</h4> 
+<p><img src="https://images2.imgbox.com/ef/9c/UHeKdDWK_o.png" alt="在这里插入图片描述"></p> 
+<h4><a id="42_197"></a>4.2、如何等待线程结束</h4> 
+<p><img src="https://images2.imgbox.com/e7/59/gX8X70ez_o.png" alt="在这里插入图片描述"></p> 
+<h4><a id="43_199"></a>4.3、如何获取线程的引用</h4> 
+<p><img src="https://images2.imgbox.com/98/c4/dI4oRlBa_o.png" alt="在这里插入图片描述"></p> 
+<h4><a id="44_201"></a>4.4、如何进行线程休眠</h4> 
+<p><img src="https://images2.imgbox.com/ef/ce/CeupydYy_o.png" alt="在这里插入图片描述"></p> 
+<hr> 
+<h3><a id="5_207"></a>5、线程状态及线程状态的相互转换</h3> 
+<p><img src="https://images2.imgbox.com/a6/35/FPWLoNMN_o.png" alt="在这里插入图片描述"></p> 
+<p>新建（New)：此时其与java对象一样，仅由JVM为其分配内存并初始化。新建状态的线程没有任何动态特征，程序也不会执行线程的执行体；</p> 
+<p>就绪：当线程对象调用start()方法后，线程进入就绪状态，相当于“等待执行”，此时，调度程序就可以把CPU分配给该线程，JVM会为线程创建方法调用栈和程序计数器，此时的线程只是准备就绪等待执行；<br> 注意：new 完一个线程只能调用一次start方法；</p> 
+<p>运行：处于就绪状态的线程获取到CPU后，开始执行run()方法，如果计算机的CPU是单核的，则在任意时刻只有一个线程处于运行态，一个线程不可能一直处于运行状态，除非线程的执行体足够短，瞬间就执行完毕；</p> 
+<p>阻塞：线程在运行过程中需要中断，目的是使其他线程获取执行的机会，线程调度的细节取决于底层平台采取的策略，正在执行的程序被阻塞后，其他线程就可以获取执行的机会，被阻塞的线程会在合适的时候重新进入就绪状态；</p> 
+<p>死亡：线程结束后，就会处于死亡状态，结束进程有三种方式：<br> 1、线程执行完run()、call()方法后，线程正常结束；<br> 2、线程抛出一个未捕获的异常或错误；<br> 3、调用stop()方法强行结束线程。</p> 
+<p>还有的资料是7种状态</p> 
+<p><img src="https://images2.imgbox.com/26/ce/8c0A9vCS_o.png" alt="在这里插入图片描述"></p> 
+<h3><a id="6_228"></a>6、线程安全</h3> 
+<h4><a id="61_229"></a>6.1、什么是线程安全</h4> 
+<p><mark>当多个线程访问一个对象时，如果不用考虑这些线程在运行时环境下的调度和交替执行，也不需要进行额外的同步，或者在调用方进行任何其他的协调操作，调用这个对象的行为都可以获得正确的结果，那这个对象就是线程安全的</mark>。<br> 我们先来看一个例子，比如说：现在电影院售票100张，分三个窗口卖，让你设计一个程序完成这个系统？<br> <img src="https://images2.imgbox.com/4e/74/gJAHiBwt_o.png" alt="在这里插入图片描述"><br> <img src="https://images2.imgbox.com/ad/e9/gAae72Mn_o.png" alt="在这里插入图片描述"><br> <img src="https://images2.imgbox.com/53/4a/PSsSgM7k_o.png" alt="在这里插入图片描述"></p> 
+<p>我们期望的结果是，三个窗口同时售卖总数为100张的电影票，且不允许重复，这才是我们想要的结果，可是现在3个窗口开始卖同一张票了，这就是线程不安全问题，此售票系统线程不安全。<br> 所以我们再次看线程安全的概念：当多个线程访问同一个对象时，如果不用考虑这些线程在运行环境下的调度和交替执行，也不用同步处理，或者在调用方进行任何其他的协调操作，调用这个对象的行为都可以获得正确的结果，那这个对象就是线程安全的。</p> 
+<p>总结一下线程安全的条件：<br> 1、多线程访问同一数据块或者对象；<br> 2、线程之间存在交互或运行时有调度；<br> 3、不需要额外的同步；<br> 4、调用方进行任何操作之后，再访问这个对象或者数据块；<br> 5、满足以上4点之后还能得到正确的结果。</p> 
+<p>我们才能称这个对象为线程安全的。</p> 
+<h4><a id="62_248"></a>6.2、线程不安全的原因有哪些？</h4> 
+<p><img src="https://images2.imgbox.com/a0/2e/7JDK5UWe_o.png" alt="在这里插入图片描述"><br> 如果说是一个相对独立的线程，它不涉及到共享内存的部分，这样的线程一般是安全的；所以一个线程安全与否，可以通过两点判断，是否是确定的，是否是可重现的</p> 
+<p>其实我们可以反推出来：<br> 1、多个线程共享内存数据；<br> 2、多个线程再运行时存在调度或者是彼此之间存在交替运行；<br> 3、即使如此也没有进行额外的同步处理；<br> 4、调用方人为的进行一些违规调度操作。</p> 
+<h4><a id="63_258"></a>6.3、如何确保线程安全</h4> 
+<h5><a id="_259"></a>线程同步</h5> 
+<p>使用线程同步可以避免线程不安全问题，java使用监控器（对象锁）实现同步，每个对象都有一个对象锁，使用对象锁可以保证一次只允许一个线程执行对象的同步语句，即在对象的同步语句执行完毕之前，其他试图执行当前对象的同步语句的线程都将处于阻塞状态，当线程在当前对象的同步语句执行完毕后，对象锁才会打开，并让优先级高的阻塞线程处理同步语句。</p> 
+<p>1、同步代码块：<br> <img src="https://images2.imgbox.com/92/70/FQcGb6v9_o.png" alt="在这里插入图片描述"><br> 看个生动的例子：<br> <img src="https://images2.imgbox.com/39/0e/0xRfjnCH_o.png" alt="在这里插入图片描述"></p> 
+<p><img src="https://images2.imgbox.com/de/5f/wg6GPddp_o.png" alt="在这里插入图片描述"></p> 
+<p><img src="https://images2.imgbox.com/ca/fb/rlYtTA8q_o.png" alt="在这里插入图片描述"><br> 如果我们用同步代码块，能不能解决售票系统问题？<br> <img src="https://images2.imgbox.com/43/c8/r0vcIzGC_o.png" alt="在这里插入图片描述"><br> 答案是可以</p> 
+<p>注意：1、 synchronized (Ticket.class)不可以放到循环前面，即外面；<br> 2、 synchronized (锁对象)中锁对象可以用Ticket.class代替，因为它也是唯一的</p> 
+<p>2、同步方法<br> <img src="https://images2.imgbox.com/c1/bb/3eD9hB92_o.png" alt="在这里插入图片描述"></p> 
+<p>技巧：先写出同步代码块，再把它改成同步方法</p> 
+<p><img src="https://images2.imgbox.com/5c/cd/K7FnjIC5_o.png" alt="在这里插入图片描述"><br> <img src="https://images2.imgbox.com/ae/c0/dPi3Yfan_o.png" alt="在这里插入图片描述"><br> <img src="https://images2.imgbox.com/d8/1f/jGbeVflV_o.png" alt="在这里插入图片描述"><br> 3、同步锁<br> <img src="https://images2.imgbox.com/ac/62/uyBANxpx_o.png" alt="在这里插入图片描述"><br> <img src="https://images2.imgbox.com/00/19/XaV5wLDc_o.png" alt="在这里插入图片描述"></p> 
+<hr> 
+<h5><a id="_292"></a>死锁问题</h5> 
+<p><img src="https://images2.imgbox.com/e0/32/Qg1T0Lgs_o.png" alt="在这里插入图片描述"><br> 举一个生活中的例子：比如马路上的单行道，当两辆车在单行道上相遇时（相对而行的时候），那么这个时候就会发生堵车，谁也过不去，那么这就是一个死锁；如果还没懂，我们再来看一个例子：<br> <img src="https://images2.imgbox.com/4e/63/b4ZH9SQ8_o.png" alt="在这里插入图片描述"><br> A、B手上都握有彼此所要的资源，但双方都不知道，然后一直等，等到啥时候有了再运行，那么它们就会一直等下去，这就是一个死锁。</p> 
+<p><img src="https://images2.imgbox.com/f4/af/tKQNHlyO_o.png" alt="在这里插入图片描述"></p> 
+<p><strong>遇到死锁该怎么办</strong></p> 
+<p>下面我们就来看看如何处理死锁</p> 
+<h3><a id="7_306"></a>7、线程等待/通知</h3> 
+<h4><a id="71_307"></a>7.1、等待唤醒机制</h4> 
+<p><img src="https://images2.imgbox.com/c4/4d/5mAwQzTV_o.png" alt="在这里插入图片描述"><br> <img src="https://images2.imgbox.com/cc/e4/FU9JGQtx_o.png" alt="在这里插入图片描述"></p> 
+<h6><a id="wait__310"></a>wait 内部的工作过程是怎样的</h6> 
+<p>让当前线程等待，并释放对象锁，直到其他线程调用该监视器的notify（）或notifyAll（）来唤醒该线程。</p> 
+<h6><a id="_wait__notify__synchronized__312"></a>为什么 wait 和 notify 要在 synchronized 内部使用</h6> 
+<p>一个有难度的 Java 问题，wait 和 notify。 它们是在有 synchronized 标记的方法或 synchronized 块中调用的，因为 wait 和 nodify 需要监视对其调用的 Object。</p> 
+<hr> 
+<h2><a id="_316"></a>总结</h2> 
+<p>好了本章就讲到这里，对于多线程的知识还有很多是本文没有讲到了，小编也会在后面再更新一期多线程的讲解，如果小伙伴们觉得讲到不错，就给小编点个关注吧！！！！</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/261ace9f5cb308bb379e2ed8fe7f9673/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">Node笔记</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/22c58eec80a7491c32003799cb014cef/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">史上最全JVM大全详解！java程序员细节到极致的一次，魔鬼</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>干爆源码系列之Step by step lldb/gdb调试多线程 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/2539adcc642254d756e6db648cb4bb91/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="干爆源码系列之Step by step lldb/gdb调试多线程">
+  <meta property="og:description" content="Step by step lldb/gdb调试多线程 0.叙谈1.断点分析2.多线程切换 2.1 并发队列 2.1.1 两次入队 2.2 线程调度 2.2.1 执行build端子MetaPipeline 2.2.1.1 Thread6调度第一个PipelineInitializeTask 2.2.1.2 Thread7调度第二个PipelineInitializeTask 2.2.1.3 Thread8调度build端PipelineEvent 2.2.2 执行下一个Metapipeline
+书接上回，我们分析了InitializeInternal的ScheduleEvents函数，了解了如何从MetaPipeline构建各种Event事件，上一节中还提到在最终会进行调度，对无依赖节点发起Schedule()，那么本节就继续这一内容，详细从多线程角度看看这些Event对应的Task如何被调度的呢？
+本节将会从lldb/gdb角度Step by step断点调试分析多线程如何玩转task执行。
+0.叙谈 下面展示了一段无依赖的事件调度，初始化阶段会循环所有events，找到无依赖的event，并发起Schedule()，这里的event是PipelineInitializeEvent，两个MetaPipline各自一个，按照顺序入并发队列，接下来详细聊聊如何调试以及具体怎么调度多任务的呢？
+for (auto &amp;amp;event : events) { if (!event-&amp;gt;HasDependencies()) { event-&amp;gt;Schedule(); } } 1.断点分析 下面是本次调试的断点list，每个都break一下便可以快速学习了。
+Enqueue函数
+Task入队的函数。
+b task_scheduler.cpp:47
+ExecuteForever函数
+线程从队列中获取Task的函数。
+b task_scheduler.cpp:135
+打上这两个断点后，就可以调试多线程了。
+Event::CompleteDependency函数
+处理事件依赖关系，能够定位当前线程处理了哪些event。
+Event::Finish函数
+能够知道当前事件的依赖有哪些，下一步处理哪一个，这个跟上面的函数一起用。
+2.多线程切换 2.1 并发队列 初始化时，当调用Schedule()后，会把PipelineInitializeTask放入并发队列中，见下图的queue(蓝色部分)。
+2.1.1 两次入队 1）入队第一个PipelineInitializeTask
+* thread #1, queue = &#39;com.apple.main-thread&#39;, stop reason = breakpoint 9.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2023-06-21T16:36:58+08:00">
+    <meta property="article:modified_time" content="2023-06-21T16:36:58+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">干爆源码系列之Step by step lldb/gdb调试多线程</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <div id="js_content"> 
+ <h3>Step by step lldb/gdb调试多线程</h3> 
+ <br> 
+ <p>0.叙谈1.断点分析2.多线程切换    2.1 并发队列        2.1.1 两次入队    2.2 线程调度        2.2.1 执行build端子MetaPipeline            2.2.1.1 Thread6调度第一个PipelineInitializeTask            2.2.1.2 Thread7调度第二个PipelineInitializeTask            2.2.1.3 Thread8调度build端PipelineEvent        2.2.2 执行下一个Metapipeline</p> 
+ <p>书接上回，我们分析了InitializeInternal的ScheduleEvents函数，了解了如何从MetaPipeline构建各种Event事件，上一节中还提到在最终会进行调度，对无依赖节点发起Schedule()，那么本节就继续这一内容，详细从多线程角度看看这些Event对应的Task如何被调度的呢？</p> 
+ <p>本节将会从lldb/gdb角度Step by step断点调试分析多线程如何玩转task执行。</p> 
+ <p style="text-align:center;"><img src="https://images2.imgbox.com/cc/4b/0pTsScAq_o.png" alt="cad3dc12681c1078b6b26bacbe23a11c.png"></p> 
+ <p style="text-align:center;"><img src="https://images2.imgbox.com/f8/e0/q7iIiyf0_o.png" alt="7fa4db8985a6e9473ef84de5ecbf1764.png"></p> 
+ <h3>0.叙谈</h3> 
+ <p>下面展示了一段无依赖的事件调度，初始化阶段会循环所有events，找到无依赖的event，并发起Schedule()，这里的event是PipelineInitializeEvent，两个MetaPipline各自一个，按照顺序入并发队列，接下来详细聊聊如何调试以及具体怎么调度多任务的呢？</p> 
+ <pre class="has"><code class="language-go">for (auto &amp;event : events) {
+  if (!event-&gt;HasDependencies()) {
+    event-&gt;Schedule();
+  }
+}</code></pre> 
+ <h3>1.断点分析</h3> 
+ <p>下面是本次调试的断点list，每个都break一下便可以快速学习了。</p> 
+ <ul><li><p>Enqueue函数</p></li></ul> 
+ <p>Task入队的函数。</p> 
+ <p>b task_scheduler.cpp:47</p> 
+ <ul><li><p>ExecuteForever函数</p></li></ul> 
+ <p>线程从队列中获取Task的函数。</p> 
+ <p>b task_scheduler.cpp:135</p> 
+ <p>打上这两个断点后，就可以调试多线程了。</p> 
+ <ul><li><p>Event::CompleteDependency函数</p></li></ul> 
+ <p>处理事件依赖关系，能够定位当前线程处理了哪些event。</p> 
+ <ul><li><p>Event::Finish函数</p></li></ul> 
+ <p>能够知道当前事件的依赖有哪些，下一步处理哪一个，这个跟上面的函数一起用。</p> 
+ <h3>2.多线程切换</h3> 
+ <h4>2.1 并发队列</h4> 
+ <p>初始化时，当调用Schedule()后，会把PipelineInitializeTask放入并发队列中，见下图的queue(蓝色部分)。</p> 
+ <p style="text-align:center;"><img src="https://images2.imgbox.com/83/7b/EQT2bIYD_o.png" alt="089b673c4ec85cce4755312f4d3a9be3.png"></p> 
+ <h5>2.1.1 两次入队</h5> 
+ <p>1）入队第一个PipelineInitializeTask</p> 
+ <pre class="has"><code class="language-go">* thread #1, queue = 'com.apple.main-thread', stop reason = breakpoint 9.1
+    frame #0: 0x00000001160be794 duckdb`duckdb::ConcurrentQueue::Enqueue(this=0x0000616000000680, token=0x00006070000414e0, task=std::__1::shared_ptr&lt;duckdb::Task&gt;::element_type @ 0x000060600007cb20 strong=1 weak=2) at task_scheduler.cpp:47:8
+   44   
+   45   void ConcurrentQueue::Enqueue(ProducerToken &amp;token, shared_ptr&lt;Task&gt; task) {
+   46    lock_guard&lt;mutex&gt; producer_lock(token.producer_lock);
+-&gt; 47    if (q.enqueue(token.token-&gt;queue_token, std::move(task))) {
+   48     semaphore.signal();
+   49    } else {
+   50     throw InternalException("Could not schedule task!");
+(lldb) p task.get()
+(duckdb::PipelineInitializeTask *) $126 = 0x000060600007cb20
+(lldb) p ((duckdb::PipelineInitializeTask *)task.get())-&gt;event-&gt;PrintPipeline()</code></pre> 
+ <p>此时在sql终端输出的pipeline为：</p> 
+ <pre class="has"><code class="language-go">┌───────────────────────────┐
+│      RESULT_COLLECTOR     │
+└─────────────┬─────────────┘                             
+┌─────────────┴─────────────┐
+│         PROJECTION        │
+│   ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─   │
+│            name           │
+│           score           │
+└─────────────┬─────────────┘                             
+┌─────────────┴─────────────┐
+│         HASH_JOIN         │
+│   ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─   │
+│           INNER           │
+│        stu_id = id        │
+│   ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─   │
+│           EC: 4           │
+│          Cost: 4          │
+└─────────────┬─────────────┘                             
+┌─────────────┴─────────────┐
+│         SEQ_SCAN          │
+│   ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─   │
+│           score           │
+│   ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─   │
+│           stu_id          │
+│           score           │
+│   ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─   │
+│           EC: 4           │
+└───────────────────────────┘</code></pre> 
+ <p>2）入队第二个PipelineInitializeTask</p> 
+ <pre class="has"><code class="language-go">(lldb) c
+Process 23807 resuming
+Process 23807 stopped
+* thread #1, queue = 'com.apple.main-thread', stop reason = breakpoint 9.1
+    frame #0: 0x00000001160be794 duckdb`duckdb::ConcurrentQueue::Enqueue(this=0x0000616000000680, token=0x00006070000414e0, task=std::__1::shared_ptr&lt;duckdb::Task&gt;::element_type @ 0x000060600007d300 strong=1 weak=2) at task_scheduler.cpp:47:8
+   44   
+   45   void ConcurrentQueue::Enqueue(ProducerToken &amp;token, shared_ptr&lt;Task&gt; task) {
+   46    lock_guard&lt;mutex&gt; producer_lock(token.producer_lock);
+-&gt; 47    if (q.enqueue(token.token-&gt;queue_token, std::move(task))) {
+   48     semaphore.signal();
+   49    } else {
+   50     throw InternalException("Could not schedule task!");
+(lldb) p task.get()
+(duckdb::PipelineInitializeTask *) $127 = 0x000060600007d300
+(lldb) p ((duckdb::PipelineInitializeTask *)task.get())-&gt;event-&gt;PrintPipeline()</code></pre> 
+ <p>此时的pipeline为:</p> 
+ <pre class="has"><code class="language-go">┌───────────────────────────┐
+│         HASH_JOIN         │
+│   ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─   │
+│           INNER           │
+│        stu_id = id        │
+│   ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─   │
+│           EC: 4           │
+│          Cost: 4          │
+└─────────────┬─────────────┘                             
+┌─────────────┴─────────────┐
+│         SEQ_SCAN          │
+│   ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─   │
+│          student          │
+│   ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─   │
+│             id            │
+│            name           │
+│   ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─   │
+│           EC: 3           │
+└───────────────────────────┘</code></pre> 
+ <h4>2.2 线程调度</h4> 
+ <h5>2.2.1 执行build端子MetaPipeline</h5> 
+ <h6>2.2.1 Thread6调度第一个PipelineInitializeTask</h6> 
+ <p>继续<code>c</code>之后，可以看到出队，第一个PipelineInitializeTask出来了，会发现被thread 6调度。</p> 
+ <pre class="has"><code class="language-go">* thread #6, stop reason = breakpoint 8.1
+    frame #0: 0x00000001160c19cc duckdb`duckdb::TaskScheduler::ExecuteForever(this=0x000060c000000280, marker=0x0000602000003fb0) at task_scheduler.cpp:135:26
+   132    // wait for a signal with a timeout
+   133    queue-&gt;semaphore.wait();
+   134    if (queue-&gt;q.try_dequeue(task)) {
+-&gt; 135     auto execute_result = task-&gt;Execute(TaskExecutionMode::PROCESS_ALL);
+   136  
+   137     switch (execute_result) {
+   138     case TaskExecutionResult::TASK_FINISHED:
+(lldb) p task.get()
+(duckdb::PipelineInitializeTask *) $128 = 0x000060600007cb20</code></pre> 
+ <p>此时会调用ExecuteTask，里面会FinishTask()。</p> 
+ <pre class="has"><code class="language-go">event-&gt;FinishTask();</code></pre> 
+ <p>而FinishTask表示我完成了当前event的事情，接着处理父节点，由于由两个依赖，所以不会进行Schedule()。</p> 
+ <pre class="has"><code class="language-go">(lldb) p total_dependencies
+(duckdb::idx_t) $129 = 2</code></pre> 
+ <p>只有当满足下面条件时才会Schedule()，所以这个线程任务完成了，只处理了PipelineInitializeTask。</p> 
+ <pre class="has"><code class="language-go">if (current_finished == total_dependencies) {
+  // all dependencies have been completed: schedule the event
+  D_ASSERT(total_tasks == 0);
+  Schedule();
+  if (total_tasks == 0) {
+    Finish();
+  }
+}</code></pre> 
+ <h6>2.2.2 Thread7调度第二个PipelineInitializeTask</h6> 
+ <p>随后切到另外一个线程，此时处理的是右侧build端的pipeline，可以看到获取到的是队列当中的第二个PipelineInitializeTask，此时线程是7号线程。</p> 
+ <pre class="has"><code class="language-go">* thread #7, stop reason = breakpoint 17.1
+(lldb) f 2
+frame #2: 0x00000001161d8910 duckdb`duckdb::PipelineInitializeTask::ExecuteTask(this=0x000060600007d300, mode=PROCESS_ALL) at pipeline_initialize_event.cpp:23:10
+   20   public:
+   21    TaskExecutionResult ExecuteTask(TaskExecutionMode mode) override {
+   22     pipeline.ResetSink();
+-&gt; 23     event-&gt;FinishTask();
+   24     return TaskExecutionResult::TASK_FINISHED;
+   25    }
+   26   };
+(lldb) p this
+(duckdb::PipelineInitializeTask *) $130 = 0x000060600007d300</code></pre> 
+ <p>此时取PipelineInitializeTask的父亲，也就是右侧build端PipelineEvent，由于只有一个依赖，直接调度了，此时会放入队列中，当前线程完成任务，继续等待。</p> 
+ <pre class="has"><code class="language-go">* thread #7, stop reason = breakpoint 9.1
+    frame #0: 0x00000001160be794 duckdb`duckdb::ConcurrentQueue::Enqueue(this=0x0000616000000680, token=0x00006070000414e0, task=std::__1::shared_ptr&lt;duckdb::Task&gt;::element_type @ 0x00006060000462e0 strong=1 weak=2) at task_scheduler.cpp:47:8
+   44   
+   45   void ConcurrentQueue::Enqueue(ProducerToken &amp;token, shared_ptr&lt;Task&gt; task) {
+   46    lock_guard&lt;mutex&gt; producer_lock(token.producer_lock);
+-&gt; 47    if (q.enqueue(token.token-&gt;queue_token, std::move(task))) {
+   48     semaphore.signal();
+   49    } else {
+   50     throw InternalException("Could not schedule task!");</code></pre> 
+ <h6>2.2.3 Thread8调度build端PipelineEvent</h6> 
+ <p><code>c</code>之后，可以看到又切到了另一个线程，此时出队，拿到上一个入队的PipelineEvent。</p> 
+ <pre class="has"><code class="language-go">* thread #8, stop reason = breakpoint 8.1
+    frame #0: 0x00000001160c19cc duckdb`duckdb::TaskScheduler::ExecuteForever(this=0x000060c000000280, marker=0x00006020000040b0) at task_scheduler.cpp:135:26
+   132    // wait for a signal with a timeout
+   133    queue-&gt;semaphore.wait();
+   134    if (queue-&gt;q.try_dequeue(task)) {
+-&gt; 135     auto execute_result = task-&gt;Execute(TaskExecutionMode::PROCESS_ALL);
+   136  
+   137     switch (execute_result) {
+   138     case TaskExecutionResult::TASK_FINISHED:
+(lldb) p task.get()
+(duckdb::PipelineTask *) $132 = 0x00006060000462e0</code></pre> 
+ <p>可以对比这个地址与上述的线程7号放入的task地址一样。</p> 
+ <p>那么接着调度，我们可以看到依次处理了PipelineFinishEvent-&gt;PipelineCompleteEvent-&gt;PipelineEvent(HashJoin对应event)。</p> 
+ <pre class="has"><code class="language-go">(lldb) p this
+(duckdb::PipelineFinishEvent *) $134 = 0x000060e00002fb58
+(lldb) p this
+(duckdb::PipelineCompleteEvent *) $135 = 0x000060d0000028f8
+(lldb) p this
+(duckdb::PipelineEvent *) $137 = 0x000060e00002f6f8</code></pre> 
+ <p>这两个Event的Schedule()时空实现，没有入队操作，所以直接调度即可，而PipelineEvent实现了Schedule()，所以会放入队列，可以看到进入了入队断点：</p> 
+ <pre class="has"><code class="language-go">* thread #8, stop reason = breakpoint 9.1
+    frame #0: 0x00000001160be794 duckdb`duckdb::ConcurrentQueue::Enqueue(this=0x0000616000000680, token=0x00006070000414e0, task=std::__1::shared_ptr&lt;duckdb::Task&gt;::element_type @ 0x0000606000080660 strong=1 weak=2) at task_scheduler.cpp:47:8
+   44   
+   45   void ConcurrentQueue::Enqueue(ProducerToken &amp;token, shared_ptr&lt;Task&gt; task) {
+   46    lock_guard&lt;mutex&gt; producer_lock(token.producer_lock);
+-&gt; 47    if (q.enqueue(token.token-&gt;queue_token, std::move(task))) {
+   48     semaphore.signal();
+   49    } else {
+   50     throw InternalException("Could not schedule task!");</code></pre> 
+ <h5>2.2.2 执行下一个Metapipeline</h5> 
+ <p>此时切回主线程thread 1，执行下一个MetaPipeline，可以看到Executor::ExecuteTask()的completed_pipelines已经为1，说明前面的ChildMetaPipeline已经finish了，并且从队列中拿到了上面的PipelineTask。</p> 
+ <pre class="has"><code class="language-go">PendingExecutionResult Executor::ExecuteTask() {
+ while (completed_pipelines &lt; total_pipelines) {
+  // there are! if we don't already have a task, fetch one
+  if (!task) {
+   scheduler.GetTaskFromProducer(*producer, task);  // 队列中获取任务
+  }
+  if (task) {
+   auto result = task-&gt;Execute(TaskExecutionMode::PROCESS_PARTIAL);
+  }
+ }
+ return execution_result;
+}</code></pre> 
+ <p>debug信息：</p> 
+ <pre class="has"><code class="language-go">(lldb) p completed_pipelines
+(std::atomic&lt;unsigned long long&gt;) $142 = {
+  Value = 1
+}
+(lldb) p total_pipelines
+(duckdb::idx_t) $143 = 2
+(lldb) p task
+(std::shared_ptr&lt;duckdb::Task&gt;) $147 = std::__1::shared_ptr&lt;duckdb::Task&gt;::element_type @ 0x0000606000080660 strong=1 weak=3 {
+  __ptr_ = 0x0000606000080660
+}</code></pre> 
+ <p>接下来要做的就是调度另外一个MetaPipeline，依次分别是：PipelieEvent(probe端)-&gt;PipelineFinishEvent-&gt;PipelineCompleteEvent-&gt;PipelieEvent(hashjoin-&gt;project-&gt;result的event)。</p> 
+ <pre class="has"><code class="language-go">* thread #1, queue = 'com.apple.main-thread', stop reason = breakpoint 9.1
+    frame #0: 0x00000001160be794 duckdb`duckdb::ConcurrentQueue::Enqueue(this=0x0000616000000680, token=0x00006070000414e0, task=std::__1::shared_ptr&lt;duckdb::Task&gt;::element_type @ 0x000060600007e320 strong=1 weak=2) at task_scheduler.cpp:47:8
+   44   
+   45   void ConcurrentQueue::Enqueue(ProducerToken &amp;token, shared_ptr&lt;Task&gt; task) {
+   46    lock_guard&lt;mutex&gt; producer_lock(token.producer_lock);
+-&gt; 47    if (q.enqueue(token.token-&gt;queue_token, std::move(task))) {
+   48     semaphore.signal();
+   49    } else {
+   50     throw InternalException("Could not schedule task!");</code></pre> 
+ <p>随后另一个线程继续出队列调度任务，依次在该线程上经历PipelieEvent-&gt;PipelineFinishEvent-&gt;PipelineCompleteEvent。</p> 
+ <pre class="has"><code class="language-go">* thread #9, stop reason = breakpoint 8.1
+    frame #0: 0x00000001160c19cc duckdb`duckdb::TaskScheduler::ExecuteForever(this=0x000060c000000280, marker=0x0000602000004130) at task_scheduler.cpp:135:26
+   132    // wait for a signal with a timeout
+   133    queue-&gt;semaphore.wait();
+   134    if (queue-&gt;q.try_dequeue(task)) {
+-&gt; 135     auto execute_result = task-&gt;Execute(TaskExecutionMode::PROCESS_ALL);
+   136  
+   137     switch (execute_result) {
+   138     case TaskExecutionResult::TASK_FINISHED:</code></pre> 
+ <p>最后这个线程完成继续等待信号。</p> 
+</div>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/412148c4fd2d90d3e8e394920882ced8/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">案例|某城商行Zabbix 监控架构分享</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/c4af9a621ab31b4ca0afa9476660c879/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">Python3学习之数字</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

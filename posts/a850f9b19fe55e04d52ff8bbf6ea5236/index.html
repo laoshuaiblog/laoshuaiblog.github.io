@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>clickhouse之前提查询 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/a850f9b19fe55e04d52ff8bbf6ea5236/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="clickhouse之前提查询">
+  <meta property="og:description" content="attach 类create，but
+不在硬盘上创建表，假设表已经存在只是向服务添加表的说明，执行之后，服务将知道表的存在 ATTACH TABLE [IF NOT EXISTS] [db.]name [ON CLUSTER cluster] 在启动服务器时使用，服务器将表元数据视为文件保存
+check table 1、检查表中的数据是否被破坏，对比文件实际大小与服务器上存储的期望大小，如果不匹配意味被破坏
+2、返回boolean的独立行，0破坏 1完整
+3、支持log、tinylog、stripelog引擎，这些引擎不能自动修复
+避免数据丢失推荐使用mergetree
+如果数据被破坏：
+1、创建和被损坏表一样结构的新表
+CREATE TABLE &amp;lt;new_table_name&amp;gt; AS &amp;lt;damaged_table_name&amp;gt;
+2、将max_threads值设置为1，以便在单个线程中处理下一个查询SET max_threads = 1
+3、INSERT INTO &amp;lt;new_table_name&amp;gt; SELECT * FROM &amp;lt;damaged_table_name&amp;gt;只有被破坏前的数据被copy
+4、重启clickhouse-client，使max_threads起作用
+describe table DESC|DESCRIBE TABLE [db.]table [INTO OUTFILE filename] [FORMAT format] 返回string类型的两列数据：name type指明操作表的列的名字和类型
+嵌套表结构输出到扩展格式中，每列用被逗号隔开的名字独立显示
+detach DETACH TABLE [IF EXISTS] [db.]name [ON CLUSTER cluster] 删除服务器上指定表的表信息，服务器将不知道表的存在，不删除表的数据
+服务器重启时会再次找到这个表，相似的、可使用attach重新附加分离的表（系统表除外，无元数据）
+drop： DROP DATABASE [IF EXISTS] db [ON CLUSTER cluster] DROP [TEMPORARY] TABLE [IF EXISTS] [db.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2019-01-23T20:20:58+08:00">
+    <meta property="article:modified_time" content="2019-01-23T20:20:58+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">clickhouse之前提查询</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <h2>attach</h2> 
+<p>类create，but</p> 
+<ul><li>不在硬盘上创建表，假设表已经存在只是向服务添加表的说明，执行之后，服务将知道表的存在</li></ul> 
+<pre class="has"><code>ATTACH TABLE [IF NOT EXISTS] [db.]name [ON CLUSTER cluster]</code></pre> 
+<p>在启动服务器时使用，服务器将表元数据视为文件保存</p> 
+<p> </p> 
+<h2>check table</h2> 
+<p>1、检查表中的数据是否被破坏，对比文件实际大小与服务器上存储的期望大小，如果不匹配意味被破坏</p> 
+<p>2、返回boolean的独立行，0破坏 1完整</p> 
+<p>3、支持log、tinylog、stripelog引擎，这些引擎不能自动修复</p> 
+<p>避免数据丢失推荐使用mergetree</p> 
+<p>如果数据被破坏：</p> 
+<p>1、创建和被损坏表一样结构的新表</p> 
+<p>CREATE TABLE &lt;new_table_name&gt; AS &lt;damaged_table_name&gt;</p> 
+<p>2、将max_threads值设置为1，以便在单个线程中处理下一个查询SET max_threads = 1</p> 
+<p>3、INSERT INTO &lt;new_table_name&gt; SELECT * FROM &lt;damaged_table_name&gt;只有被破坏前的数据被copy</p> 
+<p>4、重启clickhouse-client，使max_threads起作用</p> 
+<p> </p> 
+<h2>describe table</h2> 
+<pre class="has"><code>DESC|DESCRIBE TABLE [db.]table [INTO OUTFILE filename] [FORMAT format]</code></pre> 
+<p>返回string类型的两列数据：name type指明操作表的列的名字和类型</p> 
+<p>嵌套表结构输出到扩展格式中，每列用被逗号隔开的名字独立显示</p> 
+<p> </p> 
+<h2>detach</h2> 
+<pre class="has"><code>DETACH TABLE [IF EXISTS] [db.]name [ON CLUSTER cluster]</code></pre> 
+<p>删除服务器上指定表的表信息，服务器将不知道表的存在，不删除表的数据</p> 
+<p>服务器重启时会再次找到这个表，相似的、可使用attach重新附加分离的表（系统表除外，无元数据）</p> 
+<p> </p> 
+<h2>drop：</h2> 
+<pre class="has"><code>DROP DATABASE [IF EXISTS] db [ON CLUSTER cluster]
+DROP [TEMPORARY] TABLE [IF EXISTS] [db.]name [ON CLUSTER cluster]</code></pre> 
+<p> </p> 
+<h2>exists</h2> 
+<pre class="has"><code>EXISTS [TEMPORARY] TABLE [db.]name [INTO OUTFILE filename] [FORMAT format]</code></pre> 
+<p>返回UInt-8类型的列，0 表、库不存在，1表存在于指定的库中</p> 
+<p> </p> 
+<h2>kill query</h2> 
+<pre class="has"><code>KILL QUERY [ON CLUSTER cluster]
+  WHERE &lt;where expression to SELECT FROM system.processes query&gt;
+  [SYNC|ASYNC|TEST]
+  [FORMAT format]</code></pre> 
+<p>试图强制终止正在执行的请求，从系统中选择要终止的查询。使用KILL查询的WHERE子句中定义的条件处理表</p> 
+<pre class="has"><code>KILL QUERY WHERE query_id='2-857d-4a57-9ee0-327da5d60a90'
+KILL QUERY WHERE user='username' SYNC</code></pre> 
+<p>只读权限的用户只能停止自己的请求</p> 
+<p>同步返回kill_status的状态：finished、waiting、reason</p> 
+<p> </p> 
+<h2>optimize：</h2> 
+<pre>OPTIMIZE TABLE [db.]name [ON CLUSTER cluster] [PARTITION partition] [FINAL]</pre> 
+<p>引擎做优化，仅*MergeTree支持（请求初始化不定期对数据合并）指定分区则仅分区用户</p> 
+<p> </p> 
+<p>不能修复too many parts 的error</p> 
+<p> </p> 
+<h2>rename</h2> 
+<pre class="has"><code>RENAME TABLE [db11.]name11 TO [db12.]name12, [db21.]name21 TO [db22.]name22, ... [ON CLUSTER cluster]</code></pre> 
+<p>全局锁，指定的数据库其目录须位于相同的文件系统中(否则，将返回错误)</p> 
+<p> </p> 
+<h2>set</h2> 
+<pre>SET param = value 属性设置，global全局设置（新的会话起作用），服务器重启全局设置失效建议写到配置文件中
+</pre> 
+<p> </p> 
+<h2>show create table</h2> 
+<pre class="has"><code>SHOW CREATE [TEMPORARY] TABLE [db.]table [INTO OUTFILE filename] [FORMAT format]</code></pre> 
+<pre>SHOW DATABASES
+
+</pre> 
+<pre class="has"><code>SHOW DATABASES [INTO OUTFILE filename] [FORMAT format]</code></pre> 
+<h2 id="show-processlist">SHOW PROCESSLIST</h2> 
+<pre class="has"><code>SHOW PROCESSLIST [INTO OUTFILE filename] [FORMAT format]</code></pre> 
+<p>user：谁发起的请求，address从哪里发来的，elapsed毫秒，</p> 
+<p> </p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/ab6b06c01b332b6b5d38e4eadd3513b2/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">clickhouse之alter</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/c6b774122a0bd60ed33d9265299eed3f/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">Ubuntu18.04完美搭建Tensorflow-gpu</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

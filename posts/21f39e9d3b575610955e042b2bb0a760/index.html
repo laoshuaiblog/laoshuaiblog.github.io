@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>linux clickhouse 密码设置 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/21f39e9d3b575610955e042b2bb0a760/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="linux clickhouse 密码设置">
+  <meta property="og:description" content="默认密码 clickhouse 安装好之后，系统默认的登录账号密码是 /etc/clickhouse-server/users.d/default-password.xml 文件中配置的，默认密码是 SHA256加密算法生成，由 password_sha256_hex 标签定义，所以不输入密码时会发生如下报错：
+ClickHouse client version 22.8.4.7 (official build). Connecting to localhost:9000 as user default. If you have installed ClickHouse and forgot password you can reset it in the configuration file. The password for default user is typically located at /etc/clickhouse-server/users.d/default-password.xml and deleting this file will reset the password. See also /etc/clickhouse-server/users.xml on the server where ClickHouse is installed. Code: 516. DB::Exception: Received from localhost:9000.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2022-09-11T16:27:00+08:00">
+    <meta property="article:modified_time" content="2022-09-11T16:27:00+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">linux clickhouse 密码设置</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <div id="cnblogs_post_body" class="blogpost-body cnblogs-markdown" style="font-size: 16px;"> 
+ <h2 id="默认密码">默认密码</h2> 
+ <p><code>clickhouse</code> 安装好之后，系统默认的登录账号密码是 <code>/etc/clickhouse-server/users.d/default-password.xml</code> 文件中配置的，默认密码是 SHA256加密算法生成，由 <code>password_sha256_hex</code> 标签定义，所以不输入密码时会发生如下报错：</p> 
+ <pre class="has"><code>ClickHouse client version 22.8.4.7 (official build).
+Connecting to localhost:9000 as user default.
+
+If you have installed ClickHouse and forgot password you can reset it in the configuration file.
+The password for default user is typically located at /etc/clickhouse-server/users.d/default-password.xml
+and deleting this file will reset the password.
+See also /etc/clickhouse-server/users.xml on the server where ClickHouse is installed.
+
+Code: 516. DB::Exception: Received from localhost:9000. DB::Exception: default: Authentication failed: password is incorrect or there is no user with such name. (AUTHENTICATION_FAILED)</code></pre> 
+ <p>这时候我们只需要把 <code>/etc/clickhouse-server/users.d/default-password.xml</code> 文件删除掉或者重命名，之后只在 <code>/etc/clickhouse-server/user.xml</code> 文件中修改用户配置。</p> 
+ <pre class="has"><code>cd /etc/clickhouse-server/users.d/
+
+# 将默认用户配置文件重命名
+mv default-password.xml default-pwd.xml</code></pre> 
+ <p>这时候不需要重启 <code>clickhouse</code> 就可以登录啦</p> 
+ <pre class="has"><code>root@instance-0qymp8uo:/etc/clickhouse-server/users.d# clickhouse-client 
+ClickHouse client version 22.8.4.7 (official build).
+Connecting to localhost:9000 as user default.
+Connected to ClickHouse server version 22.8.4 revision 54460.
+
+instance-0qymp8uo :)</code></pre> 
+ <h2 id="clickhouse-密码设置">clickhouse 密码设置</h2> 
+ <p><code>clickhouse </code>用户配置文件为 <code>/etc/clickhouse-server/users.xml</code>。</p> 
+ <p><code>clickhouse</code> 密码有三种设置方式：明文、SHA256 和 SHA1 三种方式。</p> 
+ <p><strong>明文</strong><br> 明文密码则直接将要设置的密码放在标签：</p> 
+ <pre class="has"><code>&lt;password&gt;&lt;/password&gt;</code></pre> 
+ <p>当 <code>password</code> 标签为空时，代表免密码登录。</p> 
+ <p><strong>SHA256</strong></p> 
+ <p>通过下面命令生成密码，-c 表示要生成的长度；</p> 
+ <pre class="has"><code>PASSWORD=$(base64 &lt; /dev/urandom | head -c14); echo "$PASSWORD"; echo -n "$PASSWORD" | sha256sum | tr -d '-'</code></pre> 
+ <p>生成的第一行为明文密码，用于自己使用；第二行为 sha256 加密字符串，需要配置到下面标签中：</p> 
+ <pre class="has"><code>&lt;password_double_sha1_hex&gt;&lt;/password_double_sha1_hex&gt;</code></pre> 
+ <p><strong>double_shal</strong></p> 
+ <pre class="has"><code>PASSWORD=$(base64 &lt; /dev/urandom | head -c16); echo "$PASSWORD"; echo -n "$PASSWORD" | sha1sum | tr -d '-' | xxd -r -p | sha1sum | tr -d '-'</code></pre> 
+ <p>生成的第一行为明文密码，用于自己使用；第二行为 double_shal 加密字符串，需要配置到下面标签中：</p> 
+ <pre class="has"><code>&lt;password_double_sha1_hex&gt;&lt;/password_double_sha1_hex&gt;</code></pre> 
+ <p>最后不需要重启 <code>clickhouse</code> 就可以登录啦</p> 
+ <p>如果加载失败，可以尝试重启一下</p> 
+ <pre class="has"><code>sudo service clickhouse-server restart</code></pre> 
+</div>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/e821782437aad30b55577c0bb9380c45/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">warning C4819最简单解决办法</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/992a0c70dac0a37ac489c6b56dcde6db/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">【服务器数据恢复】服务器RAID0&#43;1数据恢复案例</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>一键生成！如何为整个go项目自动添加单测 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/42830667764564005a37fd90d9386f42/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="一键生成！如何为整个go项目自动添加单测">
+  <meta property="og:description" content="效果 为go项目中每个go文件生成对应的test文件，为每个接口生成对应的单测接口。
+类似于这样，为go项目中每个包都生成一个test文件，单测模板如下：
+比如函数接口为func releaseEndpoint(instanceID string, endpointID string) error
+生成的单测为：
+准备工具 GitHub - cweill/gotests: Automatically generate Go test boilerplate from your source code.
+下载命令： $ go get -u github.com/cweill/gotests/... 使用方式（可以按照自己的想法设置）： Usage of gotests:
+-all
+generate tests for all functions and methods
+-excl string
+regexp. generate tests for functions and methods that don&#39;t match. Takes precedence over -only, -exported, and -all
+-exported
+generate tests for exported functions and methods. Takes precedence over -only and -all">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2023-04-21T16:09:15+08:00">
+    <meta property="article:modified_time" content="2023-04-21T16:09:15+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">一键生成！如何为整个go项目自动添加单测</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <h2>效果</h2> 
+<p>为go项目中每个go文件生成对应的test文件，为每个接口生成对应的单测接口。</p> 
+<p><img alt="" height="447" src="https://images2.imgbox.com/6f/82/gxw43URN_o.png" width="515"></p> 
+<p>类似于这样，为go项目中每个包都生成一个test文件，单测模板如下：</p> 
+<p>比如函数接口为func releaseEndpoint(instanceID string, endpointID string) error</p> 
+<p>生成的单测为：</p> 
+<p><img alt="" height="462" src="https://images2.imgbox.com/58/c4/QYEXJXc8_o.png" width="1084"></p> 
+<h2>准备工具</h2> 
+<p><a href="https://github.com/cweill/gotests" title="GitHub - cweill/gotests: Automatically generate Go test boilerplate from your source code.">GitHub - cweill/gotests: Automatically generate Go test boilerplate from your source code.</a></p> 
+<h4>下载命令：</h4> 
+<pre><code class="hljs">$ go get -u github.com/cweill/gotests/...</code></pre> 
+<h4>使用方式（可以按照自己的想法设置）：</h4> 
+<blockquote> 
+ <p>Usage of gotests:<br>   -all<br>         generate tests for all functions and methods<br>   -excl string<br>         regexp. generate tests for functions and methods that don't match. Takes precedence over -only, -exported, and -all<br>   -exported<br>         generate tests for exported functions and methods. Takes precedence over -only and -all<br>   -i    print test inputs in error messages<br>   -nosubtests<br>         disable generating tests using the Go 1.7 subtests feature<br>   -only string<br>         regexp. generate tests for functions and methods that match only. Takes precedence over -all<br>   -parallel<br>         enable generating parallel subtests<br>   -template string<br>         optional. Specify custom test code templates, e.g. testify. This can also be set via environment variable GOTESTS_TEMPLATE<br>   -template_dir string<br>         optional. Path to a directory containing custom test code templates. Takes precedence over -template. This can also be set via environment variable GOTESTS_TEMPLATE_DIR<br>   -template_params string<br>         read external parameters to template by json with stdin<br>   -template_params_file string<br>         read external parameters to template by json with file<br>   -w    write output to (test) files instead of stdout</p> 
+</blockquote> 
+<h2>准备模板</h2> 
+<p>gotests工具是会准备一套自用的模板的，位置在：<a href="https://github.com/cweill/gotests/tree/develop/internal/render/templates" title="gotests/internal/render/templates at develop · cweill/gotests · GitHub">gotests/internal/render/templates at develop · cweill/gotests · GitHub</a></p> 
+<p>比较重要的是<strong>function.tmpl，我们可以自定义，下面是我自用的，仅供参考</strong></p> 
+<pre><code class="language-bash">{<!-- -->{define "function"}}
+{<!-- -->{- $f := .}}
+
+func {<!-- -->{.TestName}}(t *testing.T) {
+	{<!-- -->{- with .Receiver}}
+		{<!-- -->{- if .IsStruct}}
+			{<!-- -->{- if .Fields}}
+				type fields struct {
+				{<!-- -->{- range .Fields}}
+					{<!-- -->{Field .}} {<!-- -->{.Type}}
+				{<!-- -->{- end}}
+				}
+			{<!-- -->{- end}}
+		{<!-- -->{- end}}
+	{<!-- -->{- end}}
+	{<!-- -->{- if .TestParameters}}
+	type args struct {
+		{<!-- -->{- range .TestParameters}}
+				{<!-- -->{Param .}} {<!-- -->{.Type}}
+		{<!-- -->{- end}}
+	}
+	{<!-- -->{- end}}
+	tests := []struct {
+		name string
+		{<!-- -->{- with .Receiver}}
+			{<!-- -->{- if and .IsStruct .Fields}}
+				fields fields
+			{<!-- -->{- else}}
+				{<!-- -->{Receiver .}} {<!-- -->{.Type}}
+			{<!-- -->{- end}}
+		{<!-- -->{- end}}
+		{<!-- -->{- if .TestParameters}}
+			args args
+		{<!-- -->{- end}}
+		{<!-- -->{- range .TestResults}}
+			{<!-- -->{Want .}} {<!-- -->{.Type}}
+		{<!-- -->{- end}}
+		{<!-- -->{- if .ReturnsError}}
+			wantErr bool
+		{<!-- -->{- end}}
+	}{
+		// TODO: Add test cases.
+	}
+	for {<!-- -->{if (or .Subtests (not .IsNaked))}} _, tt := {<!-- -->{end}} range tests {
+		{<!-- -->{- if .Parallel}}tt := tt{<!-- -->{end}}
+		mockey.PatchConvey(fmt.Sprintf("{<!-- -->{.TestName}}:%s", tt.name), t, func() {
+			{<!-- -->{- if .Parallel}}t.Parallel(){<!-- -->{end}}
+			
+			// mock func here
+			// mockey.Mock(...).Return...).Build()
+
+			{<!-- -->{- with .Receiver}}
+				{<!-- -->{- if .IsStruct}}
+					{<!-- -->{Receiver .}} := {<!-- -->{if .Type.IsStar}}&amp;{<!-- -->{end}}{<!-- -->{.Type.Value}}{
+					{<!-- -->{- range .Fields}}
+						{<!-- -->{.Name}}: tt.fields.{<!-- -->{Field .}},
+					{<!-- -->{- end}}
+					}
+				{<!-- -->{- end}}
+			{<!-- -->{- end}}
+			{<!-- -->{- range .Parameters}}
+				{<!-- -->{- if .IsWriter}}
+					{<!-- -->{Param .}} := &amp;bytes.Buffer{}
+				{<!-- -->{- end}}
+			{<!-- -->{- end}}
+			{<!-- -->{- if and (not .OnlyReturnsError) (not .OnlyReturnsOneValue) }}
+				{<!-- -->{template "results" $f}} {<!-- -->{template "call" $f}}
+			{<!-- -->{- end}}
+			{<!-- -->{- if .ReturnsError}}
+				if {<!-- -->{if .OnlyReturnsError}} err := {<!-- -->{template "call" $f}}; {<!-- -->{end}} (err != nil) != tt.wantErr {
+					t.Errorf("{<!-- -->{template "message" $f}} error = %v, wantErr %v", {<!-- -->{template "inputs" $f}} err, tt.wantErr)
+					{<!-- -->{- if .TestResults}}
+						{<!-- -->{if .Subtests }}return{<!-- -->{else}}continue{<!-- -->{end}}
+					{<!-- -->{- end}}
+				}
+			{<!-- -->{- end}}
+			{<!-- -->{- range .TestResults}}
+				{<!-- -->{- if .IsWriter}}
+					if {<!-- -->{Got .}} := {<!-- -->{Param .}}.String(); {<!-- -->{Got .}} != tt.{<!-- -->{Want .}} {
+				{<!-- -->{- else if .IsBasicType}}
+					if {<!-- -->{if $f.OnlyReturnsOneValue}}{<!-- -->{Got .}} := {<!-- -->{template "inline" $f}}; {<!-- -->{end}} {<!-- -->{Got .}} != tt.{<!-- -->{Want .}} {
+				{<!-- -->{- else}}
+					if {<!-- -->{if $f.OnlyReturnsOneValue}}{<!-- -->{Got .}} := {<!-- -->{template "inline" $f}}; {<!-- -->{end}} !reflect.DeepEqual({<!-- -->{Got .}}, tt.{<!-- -->{Want .}}) {
+				{<!-- -->{- end}}
+				t.Errorf("{<!-- -->{template "message" $f}} {<!-- -->{if $f.ReturnsMultiple}}{<!-- -->{Got .}} {<!-- -->{end}}= %v, want %v", {<!-- -->{template "inputs" $f}} {<!-- -->{Got .}}, tt.{<!-- -->{Want .}})
+				}
+			{<!-- -->{- end}}
+		{<!-- -->{- if .Subtests }} }) {<!-- -->{- end -}}
+	}
+}
+
+{<!-- -->{end}}
+</code></pre> 
+<h2>go项目ut生成方式</h2> 
+<pre><code class="language-bash">$gotests -i -template_dir $templ_dir -all -w $file &gt; /dev/null</code></pre> 
+<p>其中templ_dir指的是模板绝对路径，file指的是想要生成ut的go文件。</p> 
+<h4>针对整个项目</h4> 
+<p>写一个sh脚本来进行遍历，筛选go文件并生成：</p> 
+<pre><code class="language-bash">#!/usr/bin/env bash
+
+# ===================================================================
+# build ut test
+# ===================================================================
+
+pwd_dir=`pwd`
+gotests=$pwd_dir/ut/gotests
+templ_dir=$pwd_dir/ut/templates
+
+# 跳过的文件
+ignore_dir=(\
+    "$pwd_dir/ut" \
+    "$pwd_dir/output" \
+    "$pwd_dir/model" \
+)
+
+function is_ignore_dir(){
+    for i in ${ignore_dir[@]}
+    do
+        if [ $1 == $i ]
+        then
+            return 1
+        fi
+    done
+    return 0
+}
+
+function build_ut(){
+    if [ -d $1 ]
+    then
+        is_ignore_dir $1
+        if [ $? == 1 ]
+        then
+            return
+        fi
+    else
+        return
+    fi
+
+    # 生成ut test文件
+    go_file_list=(`ls $1|grep '.go' |grep -v '_test.go'`)
+    for file in ${go_file_list[@]}
+    do
+        $gotests -i -template_dir $templ_dir -all -w $1"/"$file &gt; /dev/null
+    done
+
+    for file in `ls $1`
+    do
+        build_ut $1"/"$file
+    done
+}
+
+build_ut $pwd_dir</code></pre> 
+<p>这里我还添加了需要忽视的文件夹的选项，可以自行添加，添加后会跳过，不再生成ut。</p> 
+<p></p> 
+<p>准备好脚本后，在自己的go项目中调用即可！！</p> 
+<p></p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/8e2dffbaa271d36455ca89c1f3dc2e20/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">MultipartFile 和 file 的区别在于：</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/c487b72b57259ef2665720bc234ae101/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">【linux系列】融会贯通 linux 内核编程集合 -- logsys练习项目</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

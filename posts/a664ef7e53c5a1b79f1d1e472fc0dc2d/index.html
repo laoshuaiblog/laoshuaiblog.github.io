@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>【tensorflow&amp;flutter】自己写个机器学习模型用在项目上？ - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/a664ef7e53c5a1b79f1d1e472fc0dc2d/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="【tensorflow&amp;flutter】自己写个机器学习模型用在项目上？">
+  <meta property="og:description" content="背景 拍摄APP项目上线有一阵了，每天的拍摄数据呈现波动上升状态、业务方需要对数据进行加工，如果能有对未来的数据量的预测就好了 。
+目标 在端侧展示拍摄数据可视化趋势图等、并能推断数据（选择预测日期） 简单实现个demo
+gif背景有点问题 先写总结 现在来看、出来的东西很简单，但是整个流程时串通起来了。至于什么是tensorflow lite 初识TensorFlow Lite -CSDN博客
+总体流程图是这样的 从左侧的数据来源开始、到tensorflow 模型训练 到云上、动态下发、再到预测数据。生产数据的 再次收集数据运行的全流程正循环。 模型训练在本篇下方 其他后续写
+一.数据处理 数据来源 目前只有日志数据 以单个数据为维度的： 2023年x月x日 张某 所属部门 拍摄时间 等数据
+数据预处理 通过pyhton 统计当日共拍摄多少套、都属于哪个部门
+数据清洗 去除前三天刚上线数据（不准）、和当日的数据（未统计完全）等特殊数据
+数据分析、抽取 根据数据判断 不光跟当日部门数、时间、还有星期有关 比如 周五周六周天相对较高 将星期也为参数。
+输出关系图
+sns.pairplot(train_dataset[[&#34;拍摄数量&#34;,&#34;事业部数量&#34;,&#34;weekday&#34;,&#34;index&#34;]], diag_kind=&#34;kde&#34;) 拆分训练数据集和测试数据集 拆除80%的数据进行训练、20%进行测试
+train_dataset = dataset.sample(frac=0.8,random_state=0) test_dataset = dataset.drop(train_dataset.index) 从标签中分离特征 把预测值分离出来
+train_labels = train_dataset.pop(&#34;拍摄数量&#34;) test_labels = test_dataset.pop(&#34;拍摄数量&#34;) 数据规范化 使用不同的尺度和范围对特征归一化是好的实践。尽管模型可能 在没有特征归一化的情况下收敛，它会使得模型训练更加复杂，并会造成生成的模型依赖输入所使用的单位选择。
+就是将数据统一差不多的大小 def norm(x): return (x - train_stats[&#39;mean&#39;]) / train_stats[&#39;std&#39;] normed_train_data = norm(train_dataset) normed_test_data = norm(test_dataset) 结果类似于 输入 ：部门数 35 星期 3 日期 202">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2024-01-05T15:17:46+08:00">
+    <meta property="article:modified_time" content="2024-01-05T15:17:46+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">【tensorflow&amp;flutter】自己写个机器学习模型用在项目上？</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <h2>背景</h2> 
+<p>        拍摄APP项目上线有一阵了，每天的拍摄数据呈现波动上升状态、业务方需要对数据进行加工，如果能有对未来的数据量的预测就好了 。</p> 
+<h2>目标 </h2> 
+<p>      在端侧展示拍摄数据可视化趋势图等、并能推断数据（选择预测日期） 简单实现个demo</p> 
+<div class="img-center"> 
+ <figure class="image"> 
+  <img alt="" height="680" src="https://images2.imgbox.com/d2/46/s0HWlp5e_o.gif" width="313"> 
+  <figcaption>
+    gif背景有点问题 
+  </figcaption> 
+ </figure> 
+</div> 
+<h2>先写总结 </h2> 
+<p>   现在来看、出来的东西很简单，但是整个流程时串通起来了。至于什么是tensorflow lite <a href="https://blog.csdn.net/qq_36544007/article/details/117476933?spm=1001.2014.3001.5502" title="初识TensorFlow Lite -CSDN博客">初识TensorFlow Lite -CSDN博客</a></p> 
+<p>    总体流程图是这样的 从左侧的数据来源开始、到tensorflow 模型训练 到云上、动态下发、再到预测数据。生产数据的 再次收集数据运行的全流程正循环。 <strong>模型训练在本篇下方 其他后续写</strong></p> 
+<p style="text-align:center;"><img alt="" height="198" src="https://images2.imgbox.com/b3/1c/qN0x8iCl_o.png" width="400"></p> 
+<h2>一.数据处理</h2> 
+<h3>    数据来源</h3> 
+<p>     目前只有日志数据 以单个数据为维度的： 2023年x月x日 张某 所属部门 拍摄时间 等数据</p> 
+<h3>   数据预处理 </h3> 
+<p>    通过pyhton 统计当日共拍摄多少套、都属于哪个部门</p> 
+<h3 id="数据清洗">   数据清洗</h3> 
+<p>    去除前三天刚上线数据（不准）、和当日的数据（未统计完全）等特殊数据</p> 
+<h3>   数据分析、抽取</h3> 
+<p>    根据数据判断  不光跟当日部门数、时间、还有星期有关 比如 周五周六周天相对较高  将星期也为参数。</p> 
+<p>  输出关系图</p> 
+<pre><code class="language-python">sns.pairplot(train_dataset[["拍摄数量","事业部数量","weekday","index"]], diag_kind="kde")</code></pre> 
+<p class="img-center"><img alt="" height="373" src="https://images2.imgbox.com/c3/6b/VBQTRHSZ_o.png" width="400"></p> 
+<h3>        拆分训练数据集和测试数据集</h3> 
+<p>   拆除80%的数据进行训练、20%进行测试</p> 
+<pre><code class="language-python">train_dataset = dataset.sample(frac=0.8,random_state=0)
+test_dataset = dataset.drop(train_dataset.index)</code></pre> 
+<h3>从标签中分离特征</h3> 
+<p>          把预测值分离出来</p> 
+<pre><code class="language-python">        train_labels = train_dataset.pop("拍摄数量")
+        test_labels = test_dataset.pop("拍摄数量")</code></pre> 
+<h3> 数据规范化</h3> 
+<p>使用不同的尺度和范围对特征归一化是好的实践。尽管模型<em>可能</em> 在没有特征归一化的情况下收敛，它会使得模型训练更加复杂，并会造成生成的模型依赖输入所使用的单位选择。</p> 
+<p>就是将数据统一差不多的大小  </p> 
+<pre><code class="language-python">def norm(x):
+  return (x - train_stats['mean']) / train_stats['std']
+normed_train_data = norm(train_dataset)
+normed_test_data = norm(test_dataset)</code></pre> 
+<h3 id="从标签中分离特征">结果类似于</h3> 
+<p>        输入 ：部门数 35  星期  3 日期 202</p> 
+<p>        输出 ：1.98  0.0 1.768</p> 
+<p>       但是要注意 之后预测数据时 也要统一化      </p> 
+<p></p> 
+<h2 id="构建模型">二.构建模型</h2> 
+<h3>   构建</h3> 
+<p>    我们将会使用一个“顺序”模型，其中包含两个紧密相连的隐藏层，以及返回单个、连续值得输出层。</p> 
+<pre><code>def build_model():
+  model = keras.Sequential([
+    layers.Dense(64, activation='relu', input_shape=[len(train_dataset.keys())]),
+    layers.Dense(64, activation='relu'),
+    layers.Dense(1)
+  ])
+
+  optimizer = tf.keras.optimizers.RMSprop(0.001)
+
+  model.compile(loss='mse',
+                optimizer=optimizer,
+                metrics=['mae', 'mse'])
+  return model</code></pre> 
+<h3>        训练 </h3> 
+<pre><code># 通过为每个完成的时期打印一个点来显示训练进度
+class PrintDot(keras.callbacks.Callback):
+  def on_epoch_end(self, epoch, logs):
+    if epoch % 100 == 0: print('')
+    print('.', end='')
+
+EPOCHS = 1000
+
+history = model.fit(
+  normed_train_data, train_labels,
+  epochs=EPOCHS, validation_split = 0.2, verbose=0,
+  callbacks=[PrintDot()])</code></pre> 
+<h3>预测值对比</h3> 
+<p>        最后进行预测值对比</p> 
+<pre><code>error = test_predictions - test_labels
+plt.hist(error, bins = 25)
+plt.xlabel("Prediction Error [MPG]")
+_ = plt.ylabel("Count")</code></pre> 
+<p><img alt="" height="399" src="https://images2.imgbox.com/49/3f/aClFCWhz_o.png" width="526"></p> 
+<h2>第一篇完</h2> 
+<p>        tensorflow模型构建到此结束  想看详细教程  <a class="has-card" href="https://www.tensorflow.org/tutorials/keras/regression" rel="nofollow" title="官网链接"><span class="link-card-box"><span class="link-title">官网链接</span><span class="link-link"><img class="link-link-icon" src="https://images2.imgbox.com/1f/d1/L4l18ryS_o.png" alt="icon-default.png?t=N7T8">https://www.tensorflow.org/tutorials/keras/regression</span></span></a></p> 
+<p>后续写转tensorflow lite/部署方案、动态下发、端侧推断部分 </p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/735e818391078c7b88949c4373e218f1/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">java时间监视器System.currentTimeMillis()的平替StopWatch！</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/10d03280fa73eaba3a6c7de8f51e6af8/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">再也不用手写爬虫了！推荐5款自动爬取数据的神器！</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

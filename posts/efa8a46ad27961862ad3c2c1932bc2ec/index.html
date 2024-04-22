@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>k8s入门到实战（十一）—— DaemonSet详细介绍及使用 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/efa8a46ad27961862ad3c2c1932bc2ec/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="k8s入门到实战（十一）—— DaemonSet详细介绍及使用">
+  <meta property="og:description" content="DaemonSet 说明
+是个 Pod 控制器能够确保 k8s 的所有节点都运行一个相同的 pod 副本,假设这个 pod 名称为 pa 当增加 node 节点时，这个节点会自动创建一个 pa副本当删除 node 节点时，pa 副本会自动删除 删除 daemonset 会删除它们创建的 pod 使用场景
+需要在每一个 node 节点运行一个存储服务，例如 gluster，ceph需要在每一个 node 节点运行一个日志收集服务，例如 fluentd，logstash需要在每一个 node 节点运行一个监控服务，例如 Prometheus Node Exporter，zabbix agent 等 DaemonSet 概述 在 k8s 中，DaemonSet 是一种用于在集群中的每个节点上运行一个副本的资源对象。它确保每个节点上都运行一个 Pod 的副本，以便在整个集群中提供特定的服务或功能。
+DaemonSet 具有以下特点：
+每个节点一个副本：每个节点上都会自动创建一个 Pod 的副本，并且不会自动在新节点上创建副本。节点自动感知：当节点加入或离开集群时，DaemonSet 会自动调整 Pod 的数量，以保证每个节点上都有运行的副本。节点亲和性：可以使用节点选择器或亲和性规则来选择在特定节点上运行 DaemonSet 的 Pod。基于 Pod 模板：DaemonSet 使用 Pod 模板来定义要创建的 Pod 的配置，包括容器镜像、命令、环境变量等。 DaemonSet 在很多场景中都非常有用，例如：
+日志收集：在每个节点上运行日志收集代理，将节点日志发送到集中的存储或分析系统。监控和度量：在每个节点上运行监控代理，收集节点和容器的度量指标。网络代理：在每个节点上运行网络代理，实现网络隔离、负载均衡等功能。 通过使用 DaemonSet，您可以确保在整个集群中的每个节点上都运行指定的 Pod，以提供特定的服务或功能，并确保集群中的每个节点都具有相同的配置。">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2024-03-27T18:20:31+08:00">
+    <meta property="article:modified_time" content="2024-03-27T18:20:31+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">k8s入门到实战（十一）—— DaemonSet详细介绍及使用</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-light">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <h2><a id="DaemonSet_0"></a>DaemonSet</h2> 
+<blockquote> 
+ <p>说明</p> 
+</blockquote> 
+<ul><li>是个 Pod 控制器</li><li>能够确保 k8s 的所有节点都运行一个相同的 pod 副本,假设这个 pod 名称为 pa 
+  <ul><li>当增加 node 节点时，这个节点会自动创建一个 pa</li><li>副本当删除 node 节点时，pa 副本会自动删除</li></ul> </li><li>删除 daemonset 会删除它们创建的 pod</li></ul> 
+<blockquote> 
+ <p>使用场景</p> 
+</blockquote> 
+<ul><li>需要在每一个 node 节点运行一个存储服务，例如 gluster，ceph</li><li>需要在每一个 node 节点运行一个日志收集服务，例如 fluentd，logstash</li><li>需要在每一个 node 节点运行一个监控服务，例如 Prometheus Node Exporter，zabbix agent 等</li></ul> 
+<h3><a id="DaemonSet__18"></a>DaemonSet 概述</h3> 
+<p>在 k8s 中，DaemonSet 是一种用于在集群中的每个节点上运行一个副本的资源对象。它确保每个节点上都运行一个 Pod 的副本，以便在整个集群中提供特定的服务或功能。</p> 
+<p>DaemonSet 具有以下特点：</p> 
+<ul><li>每个节点一个副本：每个节点上都会自动创建一个 Pod 的副本，并且不会自动在新节点上创建副本。</li><li>节点自动感知：当节点加入或离开集群时，DaemonSet 会自动调整 Pod 的数量，以保证每个节点上都有运行的副本。</li><li>节点亲和性：可以使用节点选择器或亲和性规则来选择在特定节点上运行 DaemonSet 的 Pod。</li><li>基于 Pod 模板：DaemonSet 使用 Pod 模板来定义要创建的 Pod 的配置，包括容器镜像、命令、环境变量等。</li></ul> 
+<p>DaemonSet 在很多场景中都非常有用，例如：</p> 
+<ul><li>日志收集：在每个节点上运行日志收集代理，将节点日志发送到集中的存储或分析系统。</li><li>监控和度量：在每个节点上运行监控代理，收集节点和容器的度量指标。</li><li>网络代理：在每个节点上运行网络代理，实现网络隔离、负载均衡等功能。</li></ul> 
+<p>通过使用 DaemonSet，您可以确保在整个集群中的每个节点上都运行指定的 Pod，以提供特定的服务或功能，并确保集群中的每个节点都具有相同的配置。</p> 
+<p>我们的 k8s 集群默认有两个 DaemonSet</p> 
+<blockquote> 
+ <p>获取所有 ns 下的 DaemonSet</p> 
+</blockquote> 
+<blockquote> 
+ <p>kubectl get ds -A</p> 
+</blockquote> 
+<pre><code class="prism language-sh"><span class="token punctuation">[</span>root@k8s-master k8s<span class="token punctuation">]</span><span class="token comment"># kubectl get ds -A</span>
+NAMESPACE     NAME          DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR            AGE
+kube-system   calico-node   <span class="token number">3</span>         <span class="token number">3</span>         <span class="token number">3</span>       <span class="token number">3</span>            <span class="token number">3</span>           kubernetes.io/os<span class="token operator">=</span>linux   2d8h
+kube-system   kube-proxy    <span class="token number">3</span>         <span class="token number">3</span>         <span class="token number">3</span>       <span class="token number">3</span>            <span class="token number">3</span>           kubernetes.io/os<span class="token operator">=</span>linux   2d9h
+</code></pre> 
+<h3><a id="_52"></a>示例</h3> 
+<ol><li>编辑 yaml 文件<code>my-ds.yaml</code></li></ol> 
+<pre><code class="prism language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> apps/v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> DaemonSet
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> daemonset<span class="token punctuation">-</span>nginx
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> kube<span class="token punctuation">-</span>system
+  <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+    <span class="token key atrule">la-nginx</span><span class="token punctuation">:</span> daemonset<span class="token punctuation">-</span>nginx
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">selector</span><span class="token punctuation">:</span>
+    <span class="token key atrule">matchLabels</span><span class="token punctuation">:</span>
+      <span class="token key atrule">k2-nginx</span><span class="token punctuation">:</span> daemonset<span class="token punctuation">-</span>nginx
+  <span class="token key atrule">template</span><span class="token punctuation">:</span>
+    <span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+      <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+        <span class="token key atrule">k2-nginx</span><span class="token punctuation">:</span> daemonset<span class="token punctuation">-</span>nginx
+    <span class="token key atrule">spec</span><span class="token punctuation">:</span>
+      <span class="token key atrule">containers</span><span class="token punctuation">:</span>
+        <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> daemonset<span class="token punctuation">-</span>nginx
+          <span class="token key atrule">image</span><span class="token punctuation">:</span> nginx
+</code></pre> 
+<ol start="2"><li>执行 yaml 文件，创建 daemonset</li></ol> 
+<pre><code class="prism language-sh"><span class="token punctuation">[</span>root@k8s-master k8s<span class="token punctuation">]</span><span class="token comment"># vim my-ds.yaml</span>
+<span class="token punctuation">[</span>root@k8s-master k8s<span class="token punctuation">]</span><span class="token comment"># kubectl apply -f my-ds.yaml </span>
+daemonset.apps/daemonset-nginx created
+</code></pre> 
+<ol start="3"><li>查看 ns 命名空间为 kube-system 下的所有 pod</li></ol> 
+<pre><code class="prism language-sh">kubectl get pod <span class="token parameter variable">-n</span> kube-system
+</code></pre> 
+<p><img src="https://images2.imgbox.com/21/ec/DRXfGBSx_o.png" alt="在这里插入图片描述"></p> 
+<ol start="4"><li>可以看到，我们只启动了2个 pod，集群明明有3个节点，我们看看在哪2个节点启动了</li></ol> 
+<pre><code class="prism language-sh">kubectl get pod <span class="token parameter variable">-n</span> kube-system <span class="token parameter variable">-o</span> wide
+</code></pre> 
+<pre><code class="prism language-sh"><span class="token punctuation">..</span><span class="token punctuation">..</span><span class="token punctuation">..</span>
+daemonset-nginx-5x8gr                      <span class="token number">1</span>/1     Running   <span class="token number">0</span>              4m42s   <span class="token number">192.169</span>.169.169   k8s-node2    <span class="token operator">&lt;</span>none<span class="token operator">&gt;</span>           <span class="token operator">&lt;</span>none<span class="token operator">&gt;</span>
+daemonset-nginx-8s6dg                      <span class="token number">1</span>/1     Running   <span class="token number">0</span>              4m42s   <span class="token number">192.169</span>.36.114    k8s-node1    <span class="token operator">&lt;</span>none<span class="token operator">&gt;</span>           <span class="token operator">&lt;</span>none<span class="token operator">&gt;</span>
+<span class="token punctuation">..</span><span class="token punctuation">..</span><span class="token punctuation">..</span>
+</code></pre> 
+<p>可以看到，只在 node1 和 node2 两个节点启动了，master 节点没有启动，这是为什么呢？</p> 
+<p>因为 master 天生就打了一个污点信息 NoSchedule，污点后面再讲</p> 
+<p>我们可以通过以下命令查看节点设置了哪些污点</p> 
+<pre><code class="prism language-sh"><span class="token comment"># k8s-master 是节点的名字</span>
+kubectl describe <span class="token function">node</span> k8s-master
+</code></pre> 
+<pre><code class="prism language-sh"><span class="token punctuation">..</span><span class="token punctuation">..</span><span class="token punctuation">..</span>
+Taints:             node-role.kubernetes.io/control-plane:NoSchedule
+<span class="token punctuation">..</span><span class="token punctuation">..</span><span class="token punctuation">..</span>
+</code></pre> 
+<p>里面有这样一条信息，这就是 master 节点打上的污点，就是不让 pod 调度到该节点</p> 
+<p>查看其它节点的信息，发现为<code>none</code></p> 
+<pre><code class="prism language-sh"><span class="token comment"># 如果为空，Pod 可以自由地调度到这个节点上</span>
+Taints:             <span class="token operator">&lt;</span>none<span class="token operator">&gt;</span>
+</code></pre> 
+<p>说明：</p> 
+<p>有指定节点，那就在指定节点创建 pod，如指定了 nodeName，affinity，污点容忍度等…</p> 
+<p>未指定节点，将在所有节点上创建 Pod</p> 
+<h3><a id="Deployments__Daemonset__140"></a>Deployments 和 Daemonset 区别联系</h3> 
+<p>相似性</p> 
+<ul><li>都能创建Pod</li><li>创建的 Pod 对应的进程都不希望被终止掉</li></ul> 
+<p>使用 Deployments 的场景：无状态的 Sevice 使用 Deployments，微服务，需要实现对副本的数量进行扩缩容、平滑升级，就用 Deployments</p> 
+<p>使用 Daemonset 的场景：需要 Pod 副本总是运行在全部或特定主机上，并需要先于其他 Pod 启动，就用 daemonSet。</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/b8a6cb72ba4ac4c77960dcc9169e4005/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">【零基础C语言】动态内存管理</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/cd5cf7ccbb1ab5b97fbd80acff529b51/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">k8s入门到实战（十四）—— Helm详细介绍及使用</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

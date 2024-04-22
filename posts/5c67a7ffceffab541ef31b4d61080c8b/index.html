@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>C语言写个简单的串口调试助手 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/5c67a7ffceffab541ef31b4d61080c8b/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="C语言写个简单的串口调试助手">
+  <meta property="og:description" content="学习单片机或者嵌入式编程常常要用到超级终端–串口调试助手，但有时需要我们自己做一个终端，用来当上位机。最近课设要求我们自己写个终端来处理串口信息，于是乎，接触了一些windows的串口API，做出了一个简单的串口调试助手，很简陋~
+Windows把串口当作文件处理，这点很重要！
+使用串口的基本流程：
+1、得到串口的句柄，句柄可以看作一个指针或者是一个实例
+2、配置串口，比如收发超时时间、波特率，奇偶校验
+3、读写串口
+一、得到串口句柄 使用CreateFile 函数，有8个参数。
+不懂这些函数的使用点这个链接，可以节省你的时间
+上面这个链接非常非常重要，是一个大佬的博客
+//打开串口 CreateFile函数 hCom = CreateFile(&#34;COM3&#34;,GENERIC_READ |GENERIC_WRITE, 0,NULL,OPEN_EXISTING,0,NULL); if (hCom !=INVALID_HANDLE_VALUE) { printf(&#34;串口打开成功!\n&#34;); }else { printf(&#34;串口打开失败!\n&#34;); } 二、配置串口 1、设置读写超时等待时间
+使用SetCommTimeouts 函数，2个参数。
+COMMTIMEOUTS timeouts;	//windows.h头文件设置的一种变量类型 //读超时 timeouts.ReadIntervalTimeout = 1000;	//读操作时两个字符间的间隔超时 timeouts.ReadTotalTimeoutMultiplier = 500;	//读操作在读取每个字符时的超时 timeouts.ReadTotalTimeoutConstant = 5000;	//读操作的固定超时 //写超时 timeouts.WriteTotalTimeoutMultiplier = 0;	//写操作在写每个字符时的超时 timeouts.WriteTotalTimeoutConstant = 2000;	//写操作的固定超时 SetCommTimeouts(hCom,&amp;amp;timeouts); 2、设置输入输出缓存区大小
+使用SetupComm函数，2个参数。
+//设置输入输出缓冲区大小 SetupComm(hCom,500,500); 3、设置串口波特率、数据位、奇偶校验等属性
+使用GetCommState、SetCommState 函数，都是2个参数。
+DCB dcb; //库里的一种数据结构类型 if (GetCommState(hCom, &amp;amp;dcb) == 0) { return -1; } dcb.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2020-05-30T23:43:16+08:00">
+    <meta property="article:modified_time" content="2020-05-30T23:43:16+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">C语言写个简单的串口调试助手</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-dark">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <p>学习单片机或者嵌入式编程常常要用到超级终端–串口调试助手，但有时需要我们自己做一个终端，用来当上位机。最近课设要求我们自己写个终端来处理串口信息，于是乎，接触了一些<strong>windows的串口API</strong>，做出了一个简单的串口调试助手，很简陋~</p> 
+<p><strong>Windows把串口当作文件处理，这点很重要！</strong></p> 
+<p><strong>使用串口的基本流程：</strong><br> 1、得到串口的句柄，句柄可以看作一个指针或者是一个实例<br> 2、配置串口，比如收发超时时间、波特率，奇偶校验<br> 3、读写串口</p> 
+<h3><a id="_9"></a>一、得到串口句柄</h3> 
+<p>使用CreateFile 函数，有8个参数。<br> <a href="https://www.cnblogs.com/milanleon/p/4244267.html" rel="nofollow">不懂这些函数的使用点这个链接，可以节省你的时间</a></p> 
+<p><strong>上面这个链接非常非常重要，是一个大佬的博客</strong></p> 
+<pre><code class="prism language-c"><span class="token comment">//打开串口  CreateFile函数 </span>
+	hCom <span class="token operator">=</span> <span class="token function">CreateFile</span><span class="token punctuation">(</span><span class="token string">"COM3"</span><span class="token punctuation">,</span>GENERIC_READ <span class="token operator">|</span>GENERIC_WRITE<span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">,</span><span class="token constant">NULL</span><span class="token punctuation">,</span>OPEN_EXISTING<span class="token punctuation">,</span><span class="token number">0</span><span class="token punctuation">,</span><span class="token constant">NULL</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+	
+	<span class="token keyword">if</span> <span class="token punctuation">(</span>hCom <span class="token operator">!=</span>INVALID_HANDLE_VALUE<span class="token punctuation">)</span>
+	<span class="token punctuation">{<!-- --></span>
+  		<span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"串口打开成功!\n"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+ 	<span class="token punctuation">}</span><span class="token keyword">else</span> 
+	 <span class="token punctuation">{<!-- --></span> 
+  		<span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"串口打开失败!\n"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  	<span class="token punctuation">}</span> 
+</code></pre> 
+<h3><a id="_28"></a>二、配置串口</h3> 
+<p>1、设置读写超时等待时间<br> 使用SetCommTimeouts 函数，2个参数。</p> 
+<pre><code class="prism language-c">	COMMTIMEOUTS timeouts<span class="token punctuation">;</span>	<span class="token comment">//windows.h头文件设置的一种变量类型</span>
+<span class="token comment">//读超时 </span>
+	timeouts<span class="token punctuation">.</span>ReadIntervalTimeout <span class="token operator">=</span> <span class="token number">1000</span><span class="token punctuation">;</span>		<span class="token comment">//读操作时两个字符间的间隔超时</span>
+	timeouts<span class="token punctuation">.</span>ReadTotalTimeoutMultiplier <span class="token operator">=</span> <span class="token number">500</span><span class="token punctuation">;</span>	<span class="token comment">//读操作在读取每个字符时的超时</span>
+	timeouts<span class="token punctuation">.</span>ReadTotalTimeoutConstant <span class="token operator">=</span> <span class="token number">5000</span><span class="token punctuation">;</span>	<span class="token comment">//读操作的固定超时</span>
+	<span class="token comment">//写超时 </span>
+	timeouts<span class="token punctuation">.</span>WriteTotalTimeoutMultiplier <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>	<span class="token comment">//写操作在写每个字符时的超时</span>
+	timeouts<span class="token punctuation">.</span>WriteTotalTimeoutConstant <span class="token operator">=</span> <span class="token number">2000</span><span class="token punctuation">;</span>	<span class="token comment">//写操作的固定超时</span>
+	
+	<span class="token function">SetCommTimeouts</span><span class="token punctuation">(</span>hCom<span class="token punctuation">,</span><span class="token operator">&amp;</span>timeouts<span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre> 
+<p>2、设置输入输出缓存区大小<br> 使用SetupComm函数，2个参数。</p> 
+<pre><code class="prism language-c"><span class="token comment">//设置输入输出缓冲区大小</span>
+	<span class="token function">SetupComm</span><span class="token punctuation">(</span>hCom<span class="token punctuation">,</span><span class="token number">500</span><span class="token punctuation">,</span><span class="token number">500</span><span class="token punctuation">)</span><span class="token punctuation">;</span> 
+</code></pre> 
+<p>3、设置串口波特率、数据位、奇偶校验等属性<br> 使用GetCommState、SetCommState 函数，都是2个参数。</p> 
+<pre><code class="prism language-c">	DCB dcb<span class="token punctuation">;</span> <span class="token comment">//库里的一种数据结构类型</span>
+	
+	<span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">GetCommState</span><span class="token punctuation">(</span>hCom<span class="token punctuation">,</span> <span class="token operator">&amp;</span>dcb<span class="token punctuation">)</span> <span class="token operator">==</span> <span class="token number">0</span><span class="token punctuation">)</span>
+	<span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">return</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+	
+	dcb<span class="token punctuation">.</span>BaudRate <span class="token operator">=</span> CBR_115200<span class="token punctuation">;</span>	<span class="token comment">//波特率在这修改，值格式：CBR_+数值</span>
+	dcb<span class="token punctuation">.</span>ByteSize <span class="token operator">=</span> <span class="token number">8</span><span class="token punctuation">;</span>			<span class="token comment">//数据位数 </span>
+	dcb<span class="token punctuation">.</span>Parity <span class="token operator">=</span> NOPARITY<span class="token punctuation">;</span>		<span class="token comment">//校验位 </span>
+	dcb<span class="token punctuation">.</span>StopBits <span class="token operator">=</span> ONESTOPBIT<span class="token punctuation">;</span>	<span class="token comment">//停止位 </span>
+	
+	<span class="token keyword">if</span><span class="token punctuation">(</span><span class="token function">SetCommState</span><span class="token punctuation">(</span>hCom<span class="token punctuation">,</span><span class="token operator">&amp;</span>dcb<span class="token punctuation">)</span> <span class="token operator">==</span> <span class="token number">0</span><span class="token punctuation">)</span>
+	<span class="token punctuation">{<!-- --></span>
+		<span class="token keyword">return</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">;</span>
+	<span class="token punctuation">}</span>
+</code></pre> 
+<h3><a id="_73"></a>三、读写串口数据</h3> 
+<p>使用ReadFile、WriteFile 函数，都是5个参数。</p> 
+<pre><code class="prism language-c">		<span class="token keyword">int</span> i<span class="token punctuation">;</span>
+		<span class="token keyword">int</span> count <span class="token operator">=</span> <span class="token number">20</span><span class="token punctuation">;</span><span class="token comment">//函数要用的众多参数</span>
+		<span class="token keyword">char</span> rbuf<span class="token punctuation">[</span><span class="token number">501</span><span class="token punctuation">]</span> <span class="token operator">=</span> <span class="token punctuation">{<!-- --></span><span class="token number">0</span><span class="token punctuation">}</span><span class="token punctuation">,</span>wbuf<span class="token punctuation">[</span><span class="token number">501</span><span class="token punctuation">]</span> <span class="token operator">=</span> <span class="token punctuation">{<!-- --></span><span class="token number">0</span><span class="token punctuation">}</span><span class="token punctuation">;</span>
+		DWORD rsize <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">,</span>wsize <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+		
+		<span class="token function">ReadFile</span><span class="token punctuation">(</span>hCom<span class="token punctuation">,</span>rbuf<span class="token punctuation">,</span>count<span class="token punctuation">,</span><span class="token operator">&amp;</span>rsize<span class="token punctuation">,</span><span class="token constant">NULL</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+			
+		<span class="token comment">//printf("数据值：");</span>
+		<span class="token keyword">for</span><span class="token punctuation">(</span>i <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>i <span class="token operator">&lt;</span> rsize<span class="token punctuation">;</span>i<span class="token operator">++</span><span class="token punctuation">)</span>
+		<span class="token punctuation">{<!-- --></span>
+			<span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"%c"</span><span class="token punctuation">,</span>rbuf<span class="token punctuation">[</span>i<span class="token punctuation">]</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token punctuation">}</span>
+		<span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"\n"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token comment">//WriteFile(rs232_dev.hCom, writeBuf, count, &amp;wsize, NULL);</span>
+		<span class="token comment">//写数据操作类比读数据</span>
+</code></pre> 
+<h3><a id="_94"></a>总代码，直接粘贴就能用</h3> 
+<p>串口设置：<br> 波特率：115200<br> 数据位：8<br> 校验位：None<br> 停止位：1<br> 流控：无</p> 
+<pre><code class="prism language-c"><span class="token macro property">#<span class="token directive keyword">include</span><span class="token string">&lt;stdio.h&gt;</span></span>
+<span class="token macro property">#<span class="token directive keyword">include</span><span class="token string">&lt;windows.h&gt;</span></span>
+
+<span class="token comment">//*设置超时  GetCommTimeouts/SetCommTimeouts</span>
+<span class="token comment">//*设置缓冲区大小	SetupComm()</span>
+<span class="token comment">//* 设置串口配置信息  GetCommState()和SetCommState() </span>
+<span class="token keyword">int</span> <span class="token function">setUart</span><span class="token punctuation">(</span>HANDLE hCom<span class="token punctuation">)</span>
+<span class="token punctuation">{<!-- --></span>
+	COMMTIMEOUTS timeouts<span class="token punctuation">;</span>
+	DCB dcb<span class="token punctuation">;</span>
+	
+	<span class="token comment">//读超时 </span>
+	timeouts<span class="token punctuation">.</span>ReadIntervalTimeout <span class="token operator">=</span> <span class="token number">1000</span><span class="token punctuation">;</span>		<span class="token comment">//读操作时两个字符间的间隔超时</span>
+	timeouts<span class="token punctuation">.</span>ReadTotalTimeoutMultiplier <span class="token operator">=</span> <span class="token number">500</span><span class="token punctuation">;</span>	<span class="token comment">//读操作在读取每个字符时的超时</span>
+	timeouts<span class="token punctuation">.</span>ReadTotalTimeoutConstant <span class="token operator">=</span> <span class="token number">5000</span><span class="token punctuation">;</span>	<span class="token comment">//读操作的固定超时</span>
+	<span class="token comment">//写超时 </span>
+	timeouts<span class="token punctuation">.</span>WriteTotalTimeoutMultiplier <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>	<span class="token comment">//写操作在写每个字符时的超时</span>
+	timeouts<span class="token punctuation">.</span>WriteTotalTimeoutConstant <span class="token operator">=</span> <span class="token number">2000</span><span class="token punctuation">;</span>	<span class="token comment">//写操作的固定超时</span>
+	
+	<span class="token function">SetCommTimeouts</span><span class="token punctuation">(</span>hCom<span class="token punctuation">,</span><span class="token operator">&amp;</span>timeouts<span class="token punctuation">)</span><span class="token punctuation">;</span>
+	
+	<span class="token comment">//设置输入输出缓冲区大小</span>
+	<span class="token function">SetupComm</span><span class="token punctuation">(</span>hCom<span class="token punctuation">,</span><span class="token number">500</span><span class="token punctuation">,</span><span class="token number">500</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+	
+	<span class="token comment">//设置串口参数，如波特率 </span>
+	<span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">GetCommState</span><span class="token punctuation">(</span>hCom<span class="token punctuation">,</span> <span class="token operator">&amp;</span>dcb<span class="token punctuation">)</span> <span class="token operator">==</span> <span class="token number">0</span><span class="token punctuation">)</span>
+	<span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">return</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+	
+	dcb<span class="token punctuation">.</span>BaudRate <span class="token operator">=</span> CBR_115200<span class="token punctuation">;</span>	<span class="token comment">//波特率 </span>
+	dcb<span class="token punctuation">.</span>ByteSize <span class="token operator">=</span> <span class="token number">8</span><span class="token punctuation">;</span>			<span class="token comment">//数据位数 </span>
+	dcb<span class="token punctuation">.</span>Parity <span class="token operator">=</span> NOPARITY<span class="token punctuation">;</span>		<span class="token comment">//校验位 </span>
+	dcb<span class="token punctuation">.</span>StopBits <span class="token operator">=</span> ONESTOPBIT<span class="token punctuation">;</span>	<span class="token comment">//停止位 </span>
+	
+	<span class="token keyword">if</span><span class="token punctuation">(</span><span class="token function">SetCommState</span><span class="token punctuation">(</span>hCom<span class="token punctuation">,</span><span class="token operator">&amp;</span>dcb<span class="token punctuation">)</span> <span class="token operator">==</span> <span class="token number">0</span><span class="token punctuation">)</span>
+	<span class="token punctuation">{<!-- --></span>
+		<span class="token keyword">return</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">;</span>
+	<span class="token punctuation">}</span>
+	
+	<span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+	 
+<span class="token punctuation">}</span>
+<span class="token keyword">int</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token punctuation">{<!-- --></span>
+	<span class="token keyword">int</span> i<span class="token punctuation">;</span>
+	HANDLE hCom<span class="token punctuation">;</span>
+	<span class="token keyword">int</span> count <span class="token operator">=</span> <span class="token number">20</span><span class="token punctuation">;</span>
+	<span class="token keyword">char</span> rbuf<span class="token punctuation">[</span><span class="token number">501</span><span class="token punctuation">]</span> <span class="token operator">=</span> <span class="token punctuation">{<!-- --></span><span class="token number">0</span><span class="token punctuation">}</span><span class="token punctuation">,</span>wbuf<span class="token punctuation">[</span><span class="token number">501</span><span class="token punctuation">]</span> <span class="token operator">=</span> <span class="token punctuation">{<!-- --></span><span class="token number">0</span><span class="token punctuation">}</span><span class="token punctuation">;</span>
+	DWORD rsize <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">,</span>wsize <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+	<span class="token comment">//打开串口  CreateFile函数 </span>
+	hCom <span class="token operator">=</span> <span class="token function">CreateFile</span><span class="token punctuation">(</span><span class="token string">"COM3"</span><span class="token punctuation">,</span>GENERIC_READ <span class="token operator">|</span>GENERIC_WRITE<span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">,</span><span class="token constant">NULL</span><span class="token punctuation">,</span>OPEN_EXISTING<span class="token punctuation">,</span><span class="token number">0</span><span class="token punctuation">,</span><span class="token constant">NULL</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+	
+	<span class="token keyword">if</span> <span class="token punctuation">(</span>hCom <span class="token operator">!=</span>INVALID_HANDLE_VALUE<span class="token punctuation">)</span>
+	<span class="token punctuation">{<!-- --></span>
+  		<span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"串口打开成功!\n"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+ 	<span class="token punctuation">}</span><span class="token keyword">else</span> 
+	 <span class="token punctuation">{<!-- --></span> 
+  		<span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"串口打开失败!\n"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  	<span class="token punctuation">}</span> 
+  	
+	<span class="token comment">//配置串口 </span>
+	<span class="token keyword">if</span><span class="token punctuation">(</span><span class="token function">setUart</span><span class="token punctuation">(</span>hCom<span class="token punctuation">)</span> <span class="token operator">==</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">)</span>
+	<span class="token punctuation">{<!-- --></span>
+		<span class="token keyword">if</span><span class="token punctuation">(</span>INVALID_HANDLE_VALUE <span class="token operator">!=</span> hCom<span class="token punctuation">)</span>
+			<span class="token function">CloseHandle</span><span class="token punctuation">(</span>hCom<span class="token punctuation">)</span><span class="token punctuation">;</span>	<span class="token comment">//关闭串口 </span>
+	<span class="token punctuation">}</span> 
+	
+	
+	<span class="token comment">//读写串口 </span>
+	<span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"开始读取串口数据\n"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+	<span class="token keyword">while</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span>
+	<span class="token punctuation">{<!-- --></span>
+		<span class="token keyword">if</span><span class="token punctuation">(</span>INVALID_HANDLE_VALUE <span class="token operator">!=</span> hCom<span class="token punctuation">)</span>
+		<span class="token punctuation">{<!-- --></span>
+			
+			<span class="token function">ReadFile</span><span class="token punctuation">(</span>hCom<span class="token punctuation">,</span>rbuf<span class="token punctuation">,</span>count<span class="token punctuation">,</span><span class="token operator">&amp;</span>rsize<span class="token punctuation">,</span><span class="token constant">NULL</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+			
+			<span class="token comment">//printf("数据值：");</span>
+			<span class="token keyword">for</span><span class="token punctuation">(</span>i <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>i <span class="token operator">&lt;</span> rsize<span class="token punctuation">;</span>i<span class="token operator">++</span><span class="token punctuation">)</span>
+			<span class="token punctuation">{<!-- --></span>
+				<span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"%c"</span><span class="token punctuation">,</span>rbuf<span class="token punctuation">[</span>i<span class="token punctuation">]</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+			<span class="token punctuation">}</span>
+			<span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"\n"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token punctuation">}</span> 
+		<span class="token comment">//WriteFile(hCom, wbuf, count, &amp;wsize, NULL);</span>
+		 
+	 <span class="token punctuation">}</span> 
+	<span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+ <span class="token punctuation">}</span> 
+</code></pre> 
+<p>运行结果（连接的硬件是CC2530）：</p> 
+<p><img src="https://images2.imgbox.com/d4/84/617pqid0_o.png" alt="在这里插入图片描述"></p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/2d139b1e7e8b0ee1fc370cfd73f67506/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">前端JS处理后台传递的Boolean类型的获取方式</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/06088b514d22af30d5ed17adf92067ae/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">Android JNI手册——Java/Kotlin与Native层的相互调用</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

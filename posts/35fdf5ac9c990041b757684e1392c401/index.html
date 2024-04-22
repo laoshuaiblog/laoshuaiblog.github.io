@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Clickhouse外部储存表引擎(HDFS、MySQL、JDBC、Kafka、File) - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/35fdf5ac9c990041b757684e1392c401/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="Clickhouse外部储存表引擎(HDFS、MySQL、JDBC、Kafka、File)">
+  <meta property="og:description" content="目录 1. HDFS表引擎1.1 准备工作1.2 HDFS表负责读写1.3 HDFS表负责读, 不负责写 2. MySQL表引擎2.1 表引擎的基本操作2.2 表引擎配合物化视图 3. JDBC表引擎4. Kafka表引擎4.1 准备Kafka测试数据4.2 Kafka表引擎操作(第二次select查询不到数据)4.3 Kafka表引擎配合物化视图(多次select查询到数据)4.4 kafka表引擎的参数说明 5. File表引擎 外部储存表引擎只负责元数据管理，和数据查询
+1. HDFS表引擎 HDFS的安装请参考Centos7上Hadoop 3.3.1的全分布式安装过程
+1.1 准备工作 HDFS表引擎不支持Kerberos认证，如果开启，请关闭HDFS的Kerberos认证HDFS上新建clickhouse目录 [root@clickhouse1 ~]# [root@clickhouse1 ~]# hadoop fs -mkdir /clickhouse [root@clickhouse1 ~]# [root@clickhouse1 ~]# hadoop fs -ls / Found 1 items drwxr-xr-x - root supergroup 0 2021-07-21 08:15 /clickhouse [root@clickhouse1 ~]# 添加新的Clickhouse集群
+创建分布式HDFS表时，不需要副本功能，所以我们添加一个新的Clickhouse集群，在/etc/clickhouse-server/config.d/metrika.xml的clickhouse_remote_servers标签里，添加以下内容： &amp;lt;sharding_cluster&amp;gt; &amp;lt;shard&amp;gt; &amp;lt;replica&amp;gt; &amp;lt;host&amp;gt;clickhouse1&amp;lt;/host&amp;gt; &amp;lt;port&amp;gt;9000&amp;lt;/port&amp;gt; &amp;lt;user&amp;gt;default&amp;lt;/user&amp;gt; &amp;lt;password&amp;gt;default123&amp;lt;/password&amp;gt; &amp;lt;weight&amp;gt;1&amp;lt;/weight&amp;gt; &amp;lt;/replica&amp;gt; &amp;lt;/shard&amp;gt; &amp;lt;shard&amp;gt; &amp;lt;replica&amp;gt; &amp;lt;host&amp;gt;clickhouse2&amp;lt;/host&amp;gt; &amp;lt;port&amp;gt;9000&amp;lt;/port&amp;gt; &amp;lt;user&amp;gt;default&amp;lt;/user&amp;gt; &amp;lt;password&amp;gt;default123&amp;lt;/password&amp;gt; &amp;lt;weight&amp;gt;1&amp;lt;/weight&amp;gt; &amp;lt;/replica&amp;gt; &amp;lt;/shard&amp;gt; &amp;lt;shard&amp;gt; &amp;lt;replica&amp;gt; &amp;lt;host&amp;gt;clickhouse3&amp;lt;/host&amp;gt; &amp;lt;port&amp;gt;9000&amp;lt;/port&amp;gt; &amp;lt;user&amp;gt;default&amp;lt;/user&amp;gt; &amp;lt;password&amp;gt;default123&amp;lt;/password&amp;gt; &amp;lt;weight&amp;gt;1&amp;lt;/weight&amp;gt; &amp;lt;/replica&amp;gt; &amp;lt;/shard&amp;gt; &amp;lt;shard&amp;gt; &amp;lt;replica&amp;gt; &amp;lt;host&amp;gt;clickhouse4&amp;lt;/host&amp;gt; &amp;lt;port&amp;gt;9000&amp;lt;/port&amp;gt; &amp;lt;user&amp;gt;default&amp;lt;/user&amp;gt; &amp;lt;password&amp;gt;default123&amp;lt;/password&amp;gt; &amp;lt;weight&amp;gt;1&amp;lt;/weight&amp;gt; &amp;lt;/replica&amp;gt; &amp;lt;/shard&amp;gt; &amp;lt;/sharding_cluster&amp;gt; 然后重启Clickhouse服务器">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2021-07-25T22:46:38+08:00">
+    <meta property="article:modified_time" content="2021-07-25T22:46:38+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">Clickhouse外部储存表引擎(HDFS、MySQL、JDBC、Kafka、File)</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-dracula">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <p></p> 
+<div class="toc"> 
+ <h4>目录</h4> 
+ <ul><li><a href="#1_HDFS_4" rel="nofollow">1. HDFS表引擎</a></li><li><ul><li><a href="#11__6" rel="nofollow">1.1 准备工作</a></li><li><a href="#12_HDFS_62" rel="nofollow">1.2 HDFS表负责读写</a></li><li><a href="#13_HDFS__156" rel="nofollow">1.3 HDFS表负责读, 不负责写</a></li></ul> 
+  </li><li><a href="#2_MySQL_252" rel="nofollow">2. MySQL表引擎</a></li><li><ul><li><a href="#21__255" rel="nofollow">2.1 表引擎的基本操作</a></li><li><a href="#22__346" rel="nofollow">2.2 表引擎配合物化视图</a></li></ul> 
+  </li><li><a href="#3_JDBC_448" rel="nofollow">3. JDBC表引擎</a></li><li><a href="#4_Kafka_452" rel="nofollow">4. Kafka表引擎</a></li><li><ul><li><a href="#41_Kafka_458" rel="nofollow">4.1 准备Kafka测试数据</a></li><li><a href="#42_Kafkaselect_478" rel="nofollow">4.2 Kafka表引擎操作(第二次select查询不到数据)</a></li><li><a href="#43_Kafkaselect_553" rel="nofollow">4.3 Kafka表引擎配合物化视图(多次select查询到数据)</a></li><li><a href="#44_kafka_774" rel="nofollow">4.4 kafka表引擎的参数说明</a></li></ul> 
+  </li><li><a href="#5_File_785" rel="nofollow">5. File表引擎</a></li></ul> 
+</div> 
+<p></p> 
+<p>外部储存表引擎只负责元数据管理，和数据查询</p> 
+<h2><a id="1_HDFS_4"></a>1. HDFS表引擎</h2> 
+<blockquote> 
+ <p>HDFS的安装请参考<a href="https://blog.csdn.net/yy8623977/article/details/118972314">Centos7上Hadoop 3.3.1的全分布式安装过程</a></p> 
+</blockquote> 
+<h3><a id="11__6"></a>1.1 准备工作</h3> 
+<ol><li>HDFS表引擎不支持Kerberos认证，如果开启，请关闭HDFS的Kerberos认证</li><li>HDFS上新建clickhouse目录</li></ol> 
+<pre><code>[root@clickhouse1 ~]#
+[root@clickhouse1 ~]# hadoop fs -mkdir /clickhouse
+[root@clickhouse1 ~]#
+[root@clickhouse1 ~]# hadoop fs -ls /
+Found 1 items
+drwxr-xr-x   - root supergroup          0 2021-07-21 08:15 /clickhouse
+[root@clickhouse1 ~]#
+</code></pre> 
+<ol start="3"><li>添加新的Clickhouse集群<br> 创建分布式HDFS表时，不需要副本功能，所以我们添加一个新的Clickhouse集群，在<code>/etc/clickhouse-server/config.d/metrika.xml</code>的<code>clickhouse_remote_servers</code>标签里，添加以下内容：</li></ol> 
+<pre><code>        &lt;sharding_cluster&gt; 
+            &lt;shard&gt;
+                &lt;replica&gt;
+                    &lt;host&gt;clickhouse1&lt;/host&gt;
+                    &lt;port&gt;9000&lt;/port&gt;
+                    &lt;user&gt;default&lt;/user&gt;
+                    &lt;password&gt;default123&lt;/password&gt;
+                    &lt;weight&gt;1&lt;/weight&gt;
+                &lt;/replica&gt;
+            &lt;/shard&gt;
+            &lt;shard&gt;
+                &lt;replica&gt;
+                    &lt;host&gt;clickhouse2&lt;/host&gt;
+                    &lt;port&gt;9000&lt;/port&gt;
+                    &lt;user&gt;default&lt;/user&gt;
+                    &lt;password&gt;default123&lt;/password&gt;
+                    &lt;weight&gt;1&lt;/weight&gt;
+                &lt;/replica&gt;
+            &lt;/shard&gt;
+            &lt;shard&gt;
+                &lt;replica&gt;
+                    &lt;host&gt;clickhouse3&lt;/host&gt;
+                    &lt;port&gt;9000&lt;/port&gt;
+                    &lt;user&gt;default&lt;/user&gt;
+                    &lt;password&gt;default123&lt;/password&gt;
+                    &lt;weight&gt;1&lt;/weight&gt;
+                &lt;/replica&gt;
+            &lt;/shard&gt;
+            &lt;shard&gt;
+                &lt;replica&gt;
+                    &lt;host&gt;clickhouse4&lt;/host&gt;
+                    &lt;port&gt;9000&lt;/port&gt;
+                    &lt;user&gt;default&lt;/user&gt;
+                    &lt;password&gt;default123&lt;/password&gt;
+                    &lt;weight&gt;1&lt;/weight&gt;
+                &lt;/replica&gt;
+            &lt;/shard&gt;
+        &lt;/sharding_cluster&gt;
+</code></pre> 
+<p>然后重启Clickhouse服务器</p> 
+<h3><a id="12_HDFS_62"></a>1.2 HDFS表负责读写</h3> 
+<ol><li>分布式表的创建</li></ol> 
+<pre><code>clickhouse1 :)
+clickhouse1 :) create table hdfs_table1_local on cluster sharding_cluster(
+:-] id UInt32,
+:-] name String
+:-] ) engine = HDFS('hdfs://clickhouse1:9099/clickhouse/hdfs_table1', 'CSV');
+
+CREATE TABLE hdfs_table1_local ON CLUSTER sharding_cluster
+(
+    `id` UInt32,
+    `name` String
+)
+ENGINE = HDFS('hdfs://clickhouse1:9099/clickhouse/hdfs_table1', 'CSV')
+
+Query id: 46414107-0399-48dd-99bc-6839b16a8fdd
+
+┌─host────────┬─port─┬─status─┬─error─┬─num_hosts_remaining─┬─num_hosts_active─┐
+│ clickhouse2 │ 9000 │      0 │       │                   3 │                1 │
+│ clickhouse3 │ 9000 │      0 │       │                   2 │                1 │
+└─────────────┴──────┴────────┴───────┴─────────────────────┴──────────────────┘
+┌─host────────┬─port─┬─status─┬─error─┬─num_hosts_remaining─┬─num_hosts_active─┐
+│ clickhouse1 │ 9000 │      0 │       │                   1 │                0 │
+│ clickhouse4 │ 9000 │      0 │       │                   0 │                0 │
+└─────────────┴──────┴────────┴───────┴─────────────────────┴──────────────────┘
+
+4 rows in set. Elapsed: 0.327 sec. 
+
+clickhouse1 :)  
+
+</code></pre> 
+<p>其中数据的文件格式，常用的有CSV、TSV、JSON</p> 
+<p>这里我们只分布式的创建本地表，因为Distributed表引擎insert数据，需要Zookeeper的协同，而<mark>HDFS表引擎不支持设置Zookeeper路径</mark>；但是分布式的本地表可以进行读写分离</p> 
+<ol start="2"><li>插入数据</li></ol> 
+<pre><code>clickhouse1 :) 
+clickhouse1 :) insert into hdfs_table1_local select number, concat('code', toString(number)) code from numbers(5);
+
+INSERT INTO hdfs_table1_local SELECT
+    number,
+    concat('code', toString(number)) AS code
+FROM numbers(5)
+
+Query id: 0fd035df-7ab1-424e-9efc-bffbe42c32cc
+
+Ok.
+
+0 rows in set. Elapsed: 0.043 sec. 
+
+clickhouse1 :)
+</code></pre> 
+<p>只能插入一次数据，如果再次执行，会抱异常<em>DB::Exception: File: /clickhouse/hdfs_table1 is already exists.</em></p> 
+<ol start="3"><li>查询数据</li></ol> 
+<pre><code>clickhouse1 :)
+clickhouse1 :) select * from hdfs_table1_local;
+
+SELECT *
+FROM hdfs_table1_local
+
+Query id: 23a1b6b2-7f8e-4508-ba62-f30b09706981
+
+┌─id─┬─name──┐
+│  0 │ code0 │
+│  1 │ code1 │
+│  2 │ code2 │
+│  3 │ code3 │
+│  4 │ code4 │
+└────┴───────┘
+
+5 rows in set. Elapsed: 0.064 sec. 
+
+clickhouse1 :)
+
+</code></pre> 
+<ol start="4"><li>HDFS文件查看</li></ol> 
+<pre><code>[root@clickhouse1 ~]# 
+[root@clickhouse1 ~]# hadoop fs -cat /clickhouse/hdfs_table1
+0,"code0"
+1,"code1"
+2,"code2"
+3,"code3"
+4,"code4"
+[root@clickhouse1 ~]#
+</code></pre> 
+<p>insert数据才会生成<em>hdfs_table1</em>文件，drop表时，<em>hdfs_table1</em>文件不会删除</p> 
+<h3><a id="13_HDFS__156"></a>1.3 HDFS表负责读, 不负责写</h3> 
+<ol><li>HDFS路径的匹配规则</li></ol> 
+<table><thead><tr><th>规则</th><th>含义</th><th>示例</th><th>示例说明</th></tr></thead><tbody><tr><td>绝对路径</td><td>指定单个文件</td><td>/clickhouse/hdfs_table2</td><td>指定hdfs_table2单个文件</td></tr><tr><td>*通配符</td><td>指定目录下的所有文件</td><td>/clickhouse/*</td><td>指定clickhouse目录下的所有文件</td></tr><tr><td>?通配符</td><td>匹配文件名的一个字符</td><td>/clickhouse/hdfs_table?</td><td>可以匹配hdfs_table2、hdfs_tableA等</td></tr><tr><td>{M…N}</td><td>数字区间</td><td>/clickhouse/hdfs_table{2…3}</td><td>可以匹配hdfs_table2、hdfs_table3</td></tr></tbody></table> 
+<ol start="2"><li>数据准备</li></ol> 
+<pre><code>[root@clickhouse1 ~]# 
+[root@clickhouse1 ~]# hadoop fs -cat /clickhouse/hdfs_table2_1
+0,"code0"
+1,"code1"
+2,"code2"
+3,"code3"
+4,"code4"
+[root@clickhouse1 ~]# 
+[root@clickhouse1 ~]# hadoop fs -cat /clickhouse/hdfs_table2_2
+5,code5
+6,code6
+7,code7
+8,code8
+9,code9
+[root@clickhouse1 ~]# 
+</code></pre> 
+<p>数据不能有空行，String类型的字段有无双引号都可以</p> 
+<ol start="3"><li>创建分布式本地表</li></ol> 
+<pre><code>clickhouse1 :) 
+clickhouse1 :) create table hdfs_table2_local on cluster sharding_cluster(
+:-] id UInt32,
+:-] name String
+:-] ) engine = HDFS('hdfs://clickhouse1:9099/clickhouse/hdfs_table2_{1..2}', 'CSV');
+
+CREATE TABLE hdfs_table2_local ON CLUSTER sharding_cluster
+(
+    `id` UInt32,
+    `name` String
+)
+ENGINE = HDFS('hdfs://clickhouse1:9099/clickhouse/hdfs_table2_{1..2}', 'CSV')
+
+Query id: 94cdfdf1-f00d-4d21-bbc9-7f451aa656a5
+
+┌─host────────┬─port─┬─status─┬─error─┬─num_hosts_remaining─┬─num_hosts_active─┐
+│ clickhouse2 │ 9000 │      0 │       │                   3 │                0 │
+│ clickhouse3 │ 9000 │      0 │       │                   2 │                0 │
+│ clickhouse4 │ 9000 │      0 │       │                   1 │                0 │
+└─────────────┴──────┴────────┴───────┴─────────────────────┴──────────────────┘
+┌─host────────┬─port─┬─status─┬─error─┬─num_hosts_remaining─┬─num_hosts_active─┐
+│ clickhouse1 │ 9000 │      0 │       │                   0 │                0 │
+└─────────────┴──────┴────────┴───────┴─────────────────────┴──────────────────┘
+
+4 rows in set. Elapsed: 0.188 sec. 
+
+clickhouse1 :) 
+</code></pre> 
+<ol start="4"><li>查询数据</li></ol> 
+<pre><code>clickhouse1 :)
+clickhouse1 :) select * from hdfs_table2_local;
+
+SELECT *
+FROM hdfs_table2_local
+
+Query id: f61d2831-0a00-475d-a205-31d64cde6986
+
+┌─id─┬─name──┐
+│  0 │ code0 │
+│  1 │ code1 │
+│  2 │ code2 │
+│  3 │ code3 │
+│  4 │ code4 │
+└────┴───────┘
+┌─id─┬─name──┐
+│  5 │ code5 │
+│  6 │ code6 │
+│  7 │ code7 │
+│  8 │ code8 │
+│  9 │ code9 │
+└────┴───────┘
+
+10 rows in set. Elapsed: 0.091 sec. 
+
+clickhouse1 :)
+</code></pre> 
+<p>一个文件形成一个分区</p> 
+<h2><a id="2_MySQL_252"></a>2. MySQL表引擎</h2> 
+<blockquote> 
+ <p>Mysql的安装请参考<a href="https://blog.csdn.net/yy8623977/article/details/118094589">centos7安装mysql8.0.25版本</a></p> 
+</blockquote> 
+<h3><a id="21__255"></a>2.1 表引擎的基本操作</h3> 
+<ol><li>Mysql数据库的数据</li></ol> 
+<pre><code>mysql&gt; 
+mysql&gt; select * from test_db.clickhouse_mysql_test;
++----+-------+-----------+
+| id | name  | city      |
++----+-------+-----------+
+|  1 | name1 | Beijing   |
+|  2 | name2 | Shanghai  |
+|  3 | name3 | Guangzhou |
++----+-------+-----------+
+3 rows in set (0.01 sec)
+
+mysql&gt; 
+</code></pre> 
+<ol start="2"><li>创建分布式本地表</li></ol> 
+<pre><code>clickhouse1 :) 
+clickhouse1 :) create table clickhouse_mysql_test_local on cluster sharding_cluster(
+:-] id UInt32,
+:-] name String,
+:-] city String
+:-] ) engine = MySQL('clickhouse1:3306', 'test_db', 'clickhouse_mysql_test', 'root', 'Root_123', 0, "update id = id + 1, name = concat('update_', name)");
+
+CREATE TABLE clickhouse_mysql_test_local ON CLUSTER sharding_cluster
+(
+    `id` UInt32,
+    `name` String,
+    `city` String
+)
+ENGINE = MySQL('clickhouse1:3306', 'test_db', 'clickhouse_mysql_test', 'root', 'Root_123', 0, `update id = id + 1, name = concat('update_', name)`)
+
+Query id: 7d3f6fed-c3f3-4482-892a-bd37dc9d7721
+
+┌─host────────┬─port─┬─status─┬─error─┬─num_hosts_remaining─┬─num_hosts_active─┐
+│ clickhouse2 │ 9000 │      0 │       │                   3 │                0 │
+│ clickhouse3 │ 9000 │      0 │       │                   2 │                0 │
+│ clickhouse1 │ 9000 │      0 │       │                   1 │                0 │
+│ clickhouse4 │ 9000 │      0 │       │                   0 │                0 │
+└─────────────┴──────┴────────┴───────┴─────────────────────┴──────────────────┘
+
+4 rows in set. Elapsed: 0.192 sec. 
+
+clickhouse1 :) 
+</code></pre> 
+<ul><li> <p>创建MySQL引擎表必须要有一个字段</p> </li><li> <p>第6个参数默认为0；当为1时，clickhouse的insert into有replace into的功能(replace into当主键或唯一索引相同，删除原数据，插入新数据)，此时第7个参数必须为0</p> </li><li> <p>第7个参数默认为0；当为update字符串时，且Clickhouse insert的数据的主键或唯一索引与原数据相同时，则原数据应用update字符串，update没有的字段保留原字段数据</p> </li><li> <p>mysql的clickhouse_mysql_test表insert、delete、update操作，查询clickhouse的clickhouse_mysql_test_local表都是变化后的数据</p> </li></ul> 
+<ol start="3"><li>插入数据</li></ol> 
+<pre><code>clickhouse1 :) 
+clickhouse1 :) insert into clickhouse_mysql_test_local(id, name, city) values(3, 'name4', 'Shenzhen');
+
+INSERT INTO clickhouse_mysql_test_local (id, name, city) VALUES
+
+Query id: ebfb1435-aa19-4c38-9226-98775006d47c
+
+Ok.
+
+1 rows in set. Elapsed: 0.233 sec. 
+
+clickhouse1 :) 
+</code></pre> 
+<ol start="4"><li>查询数据</li></ol> 
+<pre><code>clickhouse1 :) 
+clickhouse1 :) select * from clickhouse_mysql_test_local;
+
+SELECT *
+FROM clickhouse_mysql_test_local
+
+Query id: 1b8f71e0-86d1-448d-9cf7-0a8614419665
+
+┌─id─┬─name─────────┬─city──────┐
+│  1 │ name1        │ Beijing   │
+│  2 │ name2        │ Shanghai  │
+│  4 │ update_name3 │ Guangzhou │
+└────┴──────────────┴───────────┘
+
+3 rows in set. Elapsed: 0.009 sec. 
+
+clickhouse1 :)
+</code></pre> 
+<h3><a id="22__346"></a>2.2 表引擎配合物化视图</h3> 
+<ol><li>创建表</li></ol> 
+<pre><code>clickhouse1 :) 
+clickhouse1 :) create table table_mysql_local on cluster sharding_ha(
+:-] id UInt32,
+:-] name String,
+:-] city String
+:-] ) engine = ReplicatedMergeTree('/clickhouse/tables/table_mysql/{shard}', '{replica}')
+:-] order by id
+:-] primary key id
+:-] partition by city;
+
+CREATE TABLE table_mysql_local ON CLUSTER sharding_ha
+(
+    `id` UInt32,
+    `name` String,
+    `city` String
+)
+ENGINE = ReplicatedMergeTree('/clickhouse/tables/table_mysql/{shard}', '{replica}')
+PARTITION BY city
+PRIMARY KEY id
+ORDER BY id
+
+Query id: 8aaf2bdd-d8c1-4e3c-a58d-e5adae2552c1
+
+ysql_all on cluster sharding_ha(
+id UInt32,
+name String,
+city String
+) engine = Distributed(sharding_ha, default, table_mysql_local, id)
+populate 
+as select * from clickhouse_mysql_test_local;
+┌─host────────┬─port─┬─status─┬─error─┬─num_hosts_remaining─┬─num_hosts_active─┐
+│ clickhouse2 │ 9000 │      0 │       │                   3 │                0 │
+│ clickhouse3 │ 9000 │      0 │       │                   2 │                0 │
+│ clickhouse1 │ 9000 │      0 │       │                   1 │                0 │
+│ clickhouse4 │ 9000 │      0 │       │                   0 │                0 │
+└─────────────┴──────┴────────┴───────┴─────────────────────┴──────────────────┘
+
+4 rows in set. Elapsed: 0.191 sec. 
+
+clickhouse1 :) 
+clickhouse1 :) create materialized view view_mysql_all on cluster sharding_ha(
+:-] id UInt32,
+:-] name String,
+:-] city String
+:-] ) engine = Distributed(sharding_ha, default, table_mysql_local, id)
+:-] populate 
+:-] as select * from clickhouse_mysql_test_local;
+
+CREATE MATERIALIZED VIEW view_mysql_all ON CLUSTER sharding_ha
+(
+    `id` UInt32,
+    `name` String,
+    `city` String
+)
+ENGINE = Distributed(sharding_ha, default, table_mysql_local, id) POPULATE AS
+SELECT *
+FROM clickhouse_mysql_test_local
+
+Query id: e9d07014-3bde-4026-8743-6e7ade47cbb7
+
+┌─host────────┬─port─┬─status─┬─error─┬─num_hosts_remaining─┬─num_hosts_active─┐
+│ clickhouse2 │ 9000 │      0 │       │                   3 │                0 │
+│ clickhouse1 │ 9000 │      0 │       │                   2 │                0 │
+│ clickhouse3 │ 9000 │      0 │       │                   1 │                0 │
+│ clickhouse4 │ 9000 │      0 │       │                   0 │                0 │
+└─────────────┴──────┴────────┴───────┴─────────────────────┴──────────────────┘
+
+4 rows in set. Elapsed: 0.282 sec. 
+
+clickhouse1 :) 
+</code></pre> 
+<ol start="2"><li>查询数据</li></ol> 
+<pre><code>clickhouse1 :) 
+clickhouse1 :) select * from view_mysql_all;
+
+SELECT *
+FROM view_mysql_all
+
+Query id: 8b523a07-8c1d-48ab-8d51-544e88f623c0
+
+┌─id─┬─name──┬─city─────┐
+│  2 │ name2 │ Shanghai │
+└────┴───────┴──────────┘
+┌─id─┬─name─────────┬─city──────┐
+│  4 │ update_name3 │ Guangzhou │
+└────┴──────────────┴───────────┘
+┌─id─┬─name──┬─city────┐
+│  1 │ name1 │ Beijing │
+└────┴───────┴─────────┘
+
+3 rows in set. Elapsed: 0.014 sec. 
+
+clickhouse1 :)
+</code></pre> 
+<ul><li>MySQL表引擎不支持update和delete，所以table_mysql_local表可以使用CollapsingMergeTree引擎来解决</li><li>物化视图view_mysql_all只能同步对clickhouse的clickhouse_mysql_test_local表insert操作，不能同步mysql的clickhouse_mysql_test表insert、delete、update操作</li></ul> 
+<h2><a id="3_JDBC_448"></a>3. JDBC表引擎</h2> 
+<p>todo</p> 
+<h2><a id="4_Kafka_452"></a>4. Kafka表引擎</h2> 
+<blockquote> 
+ <p>Kafka的安装可以参考<a href="https://blog.csdn.net/yy8623977/article/details/117738777">在Centos7上全分布式安装kafka2.8.0</a></p> 
+</blockquote> 
+<p>Kafka表引擎能实时接收Kafka的数据，但不支持Exactly Once语义</p> 
+<h3><a id="41_Kafka_458"></a>4.1 准备Kafka测试数据</h3> 
+<ol><li>创建topic</li></ol> 
+<pre><code>[root@clickhouse1 ~]#
+[root@clickhouse1 ~]# kafka_2.13-2.8.0/bin/kafka-topics.sh --bootstrap-server clickhouse1:9092,clickhouse2:9092,clickhouse3:9092 --create --topic clickhouse_kafka_test --replication-factor 1 --partitions 3
+WARNING: Due to limitations in metric names, topics with a period ('.') or underscore ('_') could collide. To avoid issues it is best to use either, but not both.
+Created topic clickhouse_kafka_test.
+[root@clickhouse1 ~]#
+</code></pre> 
+<ol start="2"><li>发送测试数据</li></ol> 
+<pre><code>[root@clickhouse1 ~]#
+[root@clickhouse1 ~]# kafka_2.13-2.8.0/bin/kafka-console-producer.sh --bootstrap-server clickhouse1:9092,clickhouse2:9092,clickhouse3:9092 --topic clickhouse_kafka_test
+&gt;{"id":1,"name":"name1","city":"Beijing"}
+&gt;{"id":2,"name":"name2","city":"Shanghai"}
+&gt;{"id":3,"name":"name3","city":"Guangzhou"}
+&gt;
+</code></pre> 
+<h3><a id="42_Kafkaselect_478"></a>4.2 Kafka表引擎操作(第二次select查询不到数据)</h3> 
+<ol><li>设置auto.offset.reset参数</li></ol> 
+<p>clickhouse的kafka表引擎消费时，auto.offset.reset默认是latest，编辑/etc/clickhouse-server/config.xml修改， 内容如下，然后重启clickhouse</p> 
+<pre><code>    &lt;kafka&gt;
+        &lt;auto_offset_reset&gt;earliest&lt;/auto_offset_reset&gt;
+    &lt;/kafka&gt;
+</code></pre> 
+<ol start="3"><li>创建表</li></ol> 
+<pre><code>clickhouse1 :) 
+clickhouse1 :) create table clickhouse_kafka_test_local(
+:-] id UInt32,
+:-] name String,
+:-] city String
+:-] ) engine = Kafka()
+:-] settings 
+:-] kafka_broker_list = 'clickhouse1:9092,clickhouse2:9092,clickhouse3:9092',
+:-] kafka_topic_list = 'clickhouse_kafka_test',
+:-] kafka_group_name = 'clickhouse_kafka_test_group',
+:-] kafka_format = 'JSONEachRow',
+:-] kafka_skip_broken_messages = 100;
+
+CREATE TABLE clickhouse_kafka_test_local
+(
+    `id` UInt32,
+    `name` String,
+    `city` String
+)
+ENGINE = Kafka
+SETTINGS kafka_broker_list = 'clickhouse1:9092,clickhouse2:9092,clickhouse3:9092', kafka_topic_list = 'clickhouse_kafka_test', kafka_group_name = 'clickhouse_kafka_test_group', kafka_format = 'JSONEachRow', kafka_skip_broken_messages = 100
+
+Query id: 20d1cb23-e3f7-40be-b227-d9a204fd7451
+
+Ok.
+
+0 rows in set. Elapsed: 0.035 sec. 
+
+clickhouse1 :)
+</code></pre> 
+<ol start="3"><li>查询数据</li></ol> 
+<pre><code>clickhouse1 :) select * from clickhouse_kafka_test_local;
+
+SELECT *
+FROM clickhouse_kafka_test_local
+
+Query id: 40ab902f-54b5-4cd2-98c6-d20c9985b9e8
+
+┌─id─┬─name──┬─city──────┐
+│  2 │ name2 │ Shanghai  │
+│  1 │ name1 │ Beijing   │
+│  3 │ name3 │ Guangzhou │
+└────┴───────┴───────────┘
+
+3 rows in set. Elapsed: 0.566 sec. 
+
+clickhouse1 :) select * from clickhouse_kafka_test_local;
+
+SELECT *
+FROM clickhouse_kafka_test_local
+
+Query id: 19479a67-9734-4f5e-99e8-6b708e0f5fb3
+
+Ok.
+
+0 rows in set. Elapsed: 5.013 sec. 
+
+clickhouse1 :)
+</code></pre> 
+<p>由上面可见，select一次数据就代表消费完了，再次select查询不到数据了，因为从kafka新的consumer offset消费数据了</p> 
+<h3><a id="43_Kafkaselect_553"></a>4.3 Kafka表引擎配合物化视图(多次select查询到数据)</h3> 
+<ol><li>准备工作</li></ol> 
+<p>删除clickhouse_kafka_test_local表</p> 
+<pre><code>clickhouse1 :) drop table clickhouse_kafka_test_local;
+</code></pre> 
+<p>删除kafka的topic clickhouse_kafka_test</p> 
+<pre><code>[root@clickhouse1 ~]# kafka_2.13-2.8.0/bin/kafka-topics.sh --bootstrap-server clickhouse1:9092,clickhouse2:9092,clickhouse3:9092 --delete --topic clickhouse_kafka_test
+</code></pre> 
+<p>再次执行步骤3.1</p> 
+<ol start="2"><li>创建表</li></ol> 
+<p>创建对接Kafka的拥有Kafka表引擎的分布式数据渠道表</p> 
+<pre><code>clickhouse1 :) 
+clickhouse1 :) create table clickhouse_kafka_test_channelLocal on cluster sharding_cluster(
+:-] id UInt32,
+:-] name String,
+:-] city String
+:-] ) engine = Kafka()
+:-] settings 
+:-] kafka_broker_list = 'clickhouse1:9092,clickhouse2:9092,clickhouse3:9092',
+:-] kafka_topic_list = 'clickhouse_kafka_test',
+:-] kafka_group_name = 'clickhouse_kafka_test_group',
+:-] kafka_format = 'JSONEachRow',
+:-] kafka_skip_broken_messages = 100;
+
+CREATE TABLE clickhouse_kafka_test_channelLocal ON CLUSTER sharding_cluster
+(
+    `id` UInt32,
+    `name` String,
+    `city` String
+)
+ENGINE = Kafka
+SETTINGS kafka_broker_list = 'clickhouse1:9092,clickhouse2:9092,clickhouse3:9092', kafka_topic_list = 'clickhouse_kafka_test', kafka_group_name = 'clickhouse_kafka_test_group', kafka_format = 'JSONEachRow', kafka_skip_broken_messages = 100
+
+Query id: a719f376-838f-4494-bcee-e4d470b34ae2
+
+┌─host────────┬─port─┬─status─┬─error─┬─num_hosts_remaining─┬─num_hosts_active─┐
+│ clickhouse2 │ 9000 │      0 │       │                   3 │                0 │
+│ clickhouse1 │ 9000 │      0 │       │                   2 │                0 │
+│ clickhouse3 │ 9000 │      0 │       │                   1 │                0 │
+│ clickhouse4 │ 9000 │      0 │       │                   0 │                0 │
+└─────────────┴──────┴────────┴───────┴─────────────────────┴──────────────────┘
+
+4 rows in set. Elapsed: 0.141 sec. 
+
+clickhouse1 :) 
+</code></pre> 
+<p>创建一个分布式的物化视图，用于同步kafka数据渠道表的数据，到分布式的副本合并树引擎表</p> 
+<pre><code>clickhouse1 :) 
+clickhouse1 :) create materialized view clickhouse_kafka_test_viewAll on cluster sharding_ha(
+:-] id UInt32,
+:-] name String,
+:-] city String
+:-] ) engine = Distributed(sharding_ha, default, clickhouse_kafka_test_storageLocal, id)
+:-] populate
+:-] as select * from clickhouse_kafka_test_channelLocal;
+
+CREATE MATERIALIZED VIEW clickhouse_kafka_test_viewAll ON CLUSTER sharding_ha
+(
+    `id` UInt32,
+    `name` String,
+    `city` String
+)
+ENGINE = Distributed(sharding_ha, default, clickhouse_kafka_test_storageLocal, id) POPULATE AS
+SELECT *
+FROM clickhouse_kafka_test_channelLocal
+
+Query id: e4084a86-f777-45e7-bef7-e2f568d93db2
+
+┌─host────────┬─port─┬─status─┬─error─┬─num_hosts_remaining─┬─num_hosts_active─┐
+│ clickhouse1 │ 9000 │      0 │       │                   3 │                3 │
+└─────────────┴──────┴────────┴───────┴─────────────────────┴──────────────────┘
+┌─host────────┬─port─┬─status─┬─error─┬─num_hosts_remaining─┬─num_hosts_active─┐
+│ clickhouse2 │ 9000 │      0 │       │                   2 │                1 │
+│ clickhouse3 │ 9000 │      0 │       │                   1 │                1 │
+└─────────────┴──────┴────────┴───────┴─────────────────────┴──────────────────┘
+┌─host────────┬─port─┬─status─┬─error─┬─num_hosts_remaining─┬─num_hosts_active─┐
+│ clickhouse4 │ 9000 │      0 │       │                   0 │                0 │
+└─────────────┴──────┴────────┴───────┴─────────────────────┴──────────────────┘
+
+4 rows in set. Elapsed: 15.574 sec. 
+
+clickhouse1 :) 
+</code></pre> 
+<p>创建一个分布式的副本合并树引擎表，用于储存物化视图的数据</p> 
+<pre><code>clickhouse1 :) 
+clickhouse1 :) create table clickhouse_kafka_test_storageLocal on cluster sharding_ha(
+:-] id UInt32,
+:-] name String,
+:-] city String
+:-] ) engine = ReplicatedMergeTree('/clickhouse/tables/clickhouse_kafka_test/{shard}', '{replica}')
+:-] order by id
+:-] primary key id
+:-] partition by city;
+
+CREATE TABLE clickhouse_kafka_test_storageLocal ON CLUSTER sharding_ha
+(
+    `id` UInt32,
+    `name` String,
+    `city` String
+)
+ENGINE = ReplicatedMergeTree('/clickhouse/tables/clickhouse_kafka_test/{shard}', '{replica}')
+PARTITION BY city
+PRIMARY KEY id
+ORDER BY id
+
+Query id: 9506837c-f1ca-4c0f-aa9a-2370cc423546
+
+┌─host────────┬─port─┬─status─┬─error─┬─num_hosts_remaining─┬─num_hosts_active─┐
+│ clickhouse3 │ 9000 │      0 │       │                   3 │                3 │
+└─────────────┴──────┴────────┴───────┴─────────────────────┴──────────────────┘
+┌─host────────┬─port─┬─status─┬─error─┬─num_hosts_remaining─┬─num_hosts_active─┐
+│ clickhouse2 │ 9000 │      0 │       │                   2 │                0 │
+│ clickhouse1 │ 9000 │      0 │       │                   1 │                0 │
+│ clickhouse4 │ 9000 │      0 │       │                   0 │                0 │
+└─────────────┴──────┴────────┴───────┴─────────────────────┴──────────────────┘
+
+4 rows in set. Elapsed: 0.194 sec. 
+
+clickhouse1 :)
+</code></pre> 
+<ol start="3"><li>查询数据</li></ol> 
+<pre><code>clickhouse1 :) 
+clickhouse1 :) select * from clickhouse_kafka_test_viewAll;
+
+SELECT *
+FROM clickhouse_kafka_test_viewAll
+
+Query id: 26073fb1-8011-465a-b52e-bec15174e451
+
+┌─id─┬─name──┬─city─────┐
+│  2 │ name2 │ Shanghai │
+└────┴───────┴──────────┘
+┌─id─┬─name──┬─city────┐
+│  1 │ name1 │ Beijing │
+└────┴───────┴─────────┘
+┌─id─┬─name──┬─city──────┐
+│  3 │ name3 │ Guangzhou │
+└────┴───────┴───────────┘
+
+3 rows in set. Elapsed: 0.017 sec. 
+
+clickhouse1 :) select * from clickhouse_kafka_test_viewAll;
+
+SELECT *
+FROM clickhouse_kafka_test_viewAll
+
+Query id: a7059da9-40b7-4143-b91c-708d807071eb
+
+┌─id─┬─name──┬─city─────┐
+│  2 │ name2 │ Shanghai │
+└────┴───────┴──────────┘
+┌─id─┬─name──┬─city────┐
+│  1 │ name1 │ Beijing │
+└────┴───────┴─────────┘
+┌─id─┬─name──┬─city──────┐
+│  3 │ name3 │ Guangzhou │
+└────┴───────┴───────────┘
+
+3 rows in set. Elapsed: 0.009 sec. 
+
+clickhouse1 :)
+</code></pre> 
+<p>两次select都是能查询到数据的，因为此时select查询的数据是clickhouse_kafka_test_storageLocal表的数据</p> 
+<ol start="4"><li>装载和卸载物化视图</li></ol> 
+<p>如果想停止同步，可以卸载物化视图</p> 
+<pre><code>clickhouse1 :)
+clickhouse1 :) detach table clickhouse_kafka_test_viewAll on cluster sharding_ha;
+
+DETACH TABLE clickhouse_kafka_test_viewAll ON CLUSTER sharding_ha
+
+Query id: dc221033-fc04-4e95-95ad-fbe9a052d27f
+
+┌─host────────┬─port─┬─status─┬─error─┬─num_hosts_remaining─┬─num_hosts_active─┐
+│ clickhouse2 │ 9000 │      0 │       │                   3 │                0 │
+│ clickhouse3 │ 9000 │      0 │       │                   2 │                0 │
+│ clickhouse1 │ 9000 │      0 │       │                   1 │                0 │
+│ clickhouse4 │ 9000 │      0 │       │                   0 │                0 │
+└─────────────┴──────┴────────┴───────┴─────────────────────┴──────────────────┘
+
+4 rows in set. Elapsed: 0.135 sec. 
+
+clickhouse1 :)
+</code></pre> 
+<p>想再次开启同步，可以装载物化视图</p> 
+<pre><code>clickhouse1 :)
+clickhouse1 :) ATTACH TABLE clickhouse_kafka_test_viewAll on cluster sharding_ha;
+
+ATTACH TABLE clickhouse_kafka_test_viewAll ON CLUSTER sharding_ha
+
+Query id: 7940821b-8d55-452a-840a-9da97082e1de
+
+┌─host────────┬─port─┬─status─┬─error─┬─num_hosts_remaining─┬─num_hosts_active─┐
+│ clickhouse2 │ 9000 │      0 │       │                   3 │                0 │
+│ clickhouse3 │ 9000 │      0 │       │                   2 │                0 │
+│ clickhouse1 │ 9000 │      0 │       │                   1 │                0 │
+│ clickhouse4 │ 9000 │      0 │       │                   0 │                0 │
+└─────────────┴──────┴────────┴───────┴─────────────────────┴──────────────────┘
+
+4 rows in set. Elapsed: 0.131 sec. 
+
+clickhouse1 :)
+</code></pre> 
+<h3><a id="44_kafka_774"></a>4.4 kafka表引擎的参数说明</h3> 
+<ul><li>kafka_format(必填)：kafka消息的格式，必须是clickhouse支持的格式，如TSV、JSONEachRow、CSV等</li><li>kafka_row_delimiter：两行之间的分隔符, 默认值是’\0’</li><li>kafka_num_consumers：消费组中实际消费数据的消费者数量，默认是1；一个partition只能被一个消费者消费</li><li>kafka_skip_broken_messages：默认是0，表示出现一条解析错误的消息，则停止接收数据；如果设置为10，则表示解析错误的消息总数达到10条时，停止接收数据，前9条错误消息自动忽略</li><li>stream_poll_timeout_ms：默认500ms，kafka表引擎拉取数据的时间间隔，数据拉取放入缓存，刷新到数据表由两个参数控制，只要一个满足即可： 
+  <ul><li>kafka_max_block_size：默认等于max_block_size=65536, 表示一个block写入的数据达到这个值时，刷新到数据表</li><li>stream_flush_interval_ms：缓存数据刷新到数据表的时间间隔</li></ul> </li><li>kafka_commit_every_batch：一个block由多个消息batch组成，参数默认为0，表示一个block写入数据表后，才提交kafka consumer offset；如果为1，则表示一个batch写入数据后，再提交kafka consumer offset</li><li>自定义参数：kafka表引擎底层与kafka通信的部分是基于librdkafka实现的，自定义参数<a href="https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md">看这里</a>，自定义参数需要在/etc/clickhouse-server/config.xml的kafka标签定义</li></ul> 
+<h2><a id="5_File_785"></a>5. File表引擎</h2> 
+<p>todo</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/d3d9b0dc0ef3f03ab187a47e98933742/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">JAVA Class类与反射</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/b0599b31aac486d762fece9a2449a336/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">固态容量和计算机的计算方式,如何选择SSD的容量大小？</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

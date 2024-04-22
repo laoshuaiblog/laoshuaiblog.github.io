@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>大数据技术学习笔记（十三）—— HBase - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/1a0e71e2fddafd62a6936b8dd78cc080/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="大数据技术学习笔记（十三）—— HBase">
+  <meta property="og:description" content="目录 1 Hbase 概述1.1 Hbase 定义1.2 HBase 数据模型1.2.1 HBase 逻辑结构1.2.2 HBase 物理存储结构1.2.3 数据模型 1.3 HBase 基本架构 2 HBase Shell 操作2.1 基本操作2.2 namespace 操作2.3 表操作 3 HBase 原理深入3.1 RegionServer 架构3.2 HBase 写流程3.3 MemStore Flush3.4 HBase 读流程3.5 StoreFile Compaction3.6 Region Split 4 HBase API5 HBase 优化5.1 预分区5.2 RowKey 设计5.3 内存优化5.4 基础优化 6 整合Phoenix7 与 Hive 的集成 1 Hbase 概述 1.1 Hbase 定义 HBase 是一种 分布式、可扩展、支持海量数据存储 的 NoSQL 数据库，支持对大数据进行随机、实时的读/写访问。
+NoSQL数据库（非关系型数据库）是一种不同于传统关系型数据库的数据库管理系统。它们使用灵活的数据模型，不遵循传统的表格关系模式，而是采用键值对（如Redis）、文档型（如MongoDB）、列族存储（如HBase）、图形数据库（如Neo4j）等各种数据模型。非关系型数据库主要用于存储和处理大量分散的数据，具有高性能、高可扩展性和高可用性的特点。
+Hadoop中的 HDFS 是不支持随机修改数据的，但可以追加写。HBase 底层基于Hadoop，为什么就可以支持对数据的随机读写了呢？让我们继续往下学习">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2024-03-19T11:56:58+08:00">
+    <meta property="article:modified_time" content="2024-03-19T11:56:58+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">大数据技术学习笔记（十三）—— HBase</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-light">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <p></p> 
+<div class="toc"> 
+ <h4>目录</h4> 
+ <ul><li><a href="#1_Hbase__2" rel="nofollow">1 Hbase 概述</a></li><li><ul><li><a href="#11_Hbase__3" rel="nofollow">1.1 Hbase 定义</a></li><li><a href="#12_HBase__14" rel="nofollow">1.2 HBase 数据模型</a></li><li><ul><li><a href="#121_HBase__21" rel="nofollow">1.2.1 HBase 逻辑结构</a></li><li><a href="#122_HBase__29" rel="nofollow">1.2.2 HBase 物理存储结构</a></li><li><a href="#123__42" rel="nofollow">1.2.3 数据模型</a></li></ul> 
+   </li><li><a href="#13_HBase__72" rel="nofollow">1.3 HBase 基本架构</a></li></ul> 
+  </li><li><a href="#2_HBase_Shell__103" rel="nofollow">2 HBase Shell 操作</a></li><li><ul><li><a href="#21__104" rel="nofollow">2.1 基本操作</a></li><li><a href="#22_namespace__119" rel="nofollow">2.2 namespace 操作</a></li><li><a href="#23__173" rel="nofollow">2.3 表操作</a></li></ul> 
+  </li><li><a href="#3_HBase__296" rel="nofollow">3 HBase 原理深入</a></li><li><ul><li><a href="#31_RegionServer__297" rel="nofollow">3.1 RegionServer 架构</a></li><li><a href="#32_HBase__324" rel="nofollow">3.2 HBase 写流程</a></li><li><a href="#33_MemStore_Flush_350" rel="nofollow">3.3 MemStore Flush</a></li><li><a href="#34_HBase__375" rel="nofollow">3.4 HBase 读流程</a></li><li><a href="#35_StoreFile_Compaction_407" rel="nofollow">3.5 StoreFile Compaction</a></li><li><a href="#36_Region_Split_423" rel="nofollow">3.6 Region Split</a></li></ul> 
+  </li><li><a href="#4_HBase_API_454" rel="nofollow">4 HBase API</a></li><li><a href="#5_HBase__460" rel="nofollow">5 HBase 优化</a></li><li><ul><li><a href="#51__461" rel="nofollow">5.1 预分区</a></li><li><a href="#52_RowKey__521" rel="nofollow">5.2 RowKey 设计</a></li><li><a href="#53__537" rel="nofollow">5.3 内存优化</a></li><li><a href="#54__543" rel="nofollow">5.4 基础优化</a></li></ul> 
+  </li><li><a href="#6_Phoenix_611" rel="nofollow">6 整合Phoenix</a></li><li><a href="#7__Hive__617" rel="nofollow">7 与 Hive 的集成</a></li></ul> 
+</div> 
+<p></p> 
+<h2><a id="1_Hbase__2"></a>1 Hbase 概述</h2> 
+<h3><a id="11_Hbase__3"></a>1.1 Hbase 定义</h3> 
+<br> 
+<p>HBase 是一种 <strong>分布式</strong>、<strong>可扩展</strong>、<strong>支持海量数据存储</strong> 的 <strong>NoSQL</strong> 数据库，<strong>支持对大数据进行随机、实时的读/写访问</strong>。</p> 
+<p>NoSQL数据库（非关系型数据库）是一种不同于传统关系型数据库的数据库管理系统。它们使用灵活的数据模型，不遵循传统的表格关系模式，而是采用键值对（如Redis）、文档型（如MongoDB）、列族存储（如HBase）、图形数据库（如Neo4j）等各种数据模型。非关系型数据库主要用于存储和处理大量分散的数据，具有高性能、高可扩展性和高可用性的特点。</p> 
+<blockquote> 
+ <p>Hadoop中的 HDFS 是不支持随机修改数据的，但可以追加写。HBase 底层基于Hadoop，为什么就可以支持对数据的随机读写了呢？让我们继续往下学习</p> 
+</blockquote> 
+<h3><a id="12_HBase__14"></a>1.2 HBase 数据模型</h3> 
+<br> 
+<p>逻辑上，HBase 的数据模型同关系型数据库很类似，数据存储在一张表中，有行有列。但从 HBase 的底层物理存储结构（K-V）来看，HBase更像是一个 multi-dimensional map。</p> 
+<h4><a id="121_HBase__21"></a>1.2.1 HBase 逻辑结构</h4> 
+<br> 
+<p><img src="https://images2.imgbox.com/5b/7b/wjbGtkQl_o.png" alt="在这里插入图片描述"></p> 
+<p>一个 Region 的数据是存在一个机器上的，一个 Region 的多个 store 是存储在不同的文件中的。</p> 
+<h4><a id="122_HBase__29"></a>1.2.2 HBase 物理存储结构</h4> 
+<br> 
+<p><img src="https://images2.imgbox.com/cf/a6/ACMWfAX3_o.png" alt="在这里插入图片描述"></p> 
+<p>对于Row Key 、Column Family 和 Column Qualifier 相同的数据，可以根据最新的时间戳来确定最终的值。</p> 
+<p>这对于前面的问题就有了答案。</p> 
+<p>为啥 HBase 支持对数据的随机修改？ 其实 HBase 底层基于 Hadoop，是不支持随机修改数据的。想要修改数据时，HBase 会对新数据进行末尾追加操作，并不会真正修改原始的旧数据，HBase 通过时间戳来标识这几个版本的数据，以最新的时间戳为最终的数据值。对于旧数据，HBase 会在合适的时机进行清理。</p> 
+<h4><a id="123__42"></a>1.2.3 数据模型</h4> 
+<br> 
+<p>（1）Name Space</p> 
+<p>命名空间，类似于关系型数据库的 database 概念，每个命名空间下有多个表。HBase有两个自带的命名空间，分别是 hbase 和 default，hbase 中存放的是HBase内置的表，default 表是用户默认使用的命名空间。</p> 
+<p>（2）Table</p> 
+<p>类似于关系型数据库的表概念。不同的是，<strong>HBase 定义表时只需要声明列族即可，不需要声明具体的列</strong>。这意味着，往HBase写入数据时，字段可以<strong>动态</strong>、<strong>按需</strong>指定。因此，和关系型数据库相比，HBase能够轻松应对字段变更的场景。</p> 
+<p>（3）Row</p> 
+<p>HBase表中的每行数据都由一个 RowKey 和多个Column（列）组成，<strong>数据是按照RowKey 的字典顺序存储的</strong>，并且<strong>查询数据时只能根据 RowKey 进行检索</strong>，所以<strong>RowKey 的设计十分重要。</strong></p> 
+<p>（4）Column</p> 
+<p>HBase中的每个列都由Column Family(列族)和Column Qualifier（列限定符）进行限定，例如info：name，info：age。建表时，只需指明列族，而列限定符无需预先定义。</p> 
+<p>（5）Time Stamp</p> 
+<p>用于标识数据的不同版本（version），每条数据写入时，系统会自动为其加上该字段，其值为写入HBase的时间。</p> 
+<p>（6）Cell</p> 
+<p>由 <code>{rowkey, column Family：column Qualifier, time Stamp}</code> 唯一确定的单元。cell 中的数据全部是 <strong>字节码</strong> 形式存贮。</p> 
+<h3><a id="13_HBase__72"></a>1.3 HBase 基本架构</h3> 
+<br> 
+<p><img src="https://images2.imgbox.com/c8/6a/LciafuLI_o.png" alt="在这里插入图片描述"></p> 
+<p>架构角色：</p> 
+<p>（1）Region Server</p> 
+<p>Region Server为 Region 的管理者，其实现类为 HRegionServer，主要作用如下:</p> 
+<ul><li>对于数据的操作：get, put, delete；</li><li>对于Region的操作：splitRegion、compactRegion。</li></ul> 
+<p>（3）Master</p> 
+<p>Master是所有 Region Server 的管理者，其实现类为 HMaster，主要作用如下：</p> 
+<ul><li>对于表的操作：create, delete, alter</li><li>对于 RegionServer 的操作：分配 regions 到每个 RegionServer，监控每个 RegionServer 的状态，负载均衡和故障转移。</li></ul> 
+<p>（4）Zookeeper</p> 
+<p>HBase通过Zookeeper来做 master 的高可用、RegionServer 的监控、元数据的入口以及集群配置的维护等工作。</p> 
+<p>（5）HDFS</p> 
+<p>HDFS为Hbase提供最终的底层数据存储服务，同时为HBase提供高可用的支持。</p> 
+<h2><a id="2_HBase_Shell__103"></a>2 HBase Shell 操作</h2> 
+<h3><a id="21__104"></a>2.1 基本操作</h3> 
+<br> 
+<p>（1）进入HBase 客户端命令行</p> 
+<pre><code class="prism language-powershell"><span class="token namespace">[huwei@hadoop102 hbase-2.0.5]</span>$ bin/hbase shell
+</code></pre> 
+<p>（2）查看帮助命令</p> 
+<pre><code class="prism language-powershell">hbase<span class="token punctuation">(</span>main<span class="token punctuation">)</span>:001:0&gt; help
+hbase<span class="token punctuation">(</span>main<span class="token punctuation">)</span>:001:0&gt; help <span class="token string">'create_namespace'</span>
+</code></pre> 
+<h3><a id="22_namespace__119"></a>2.2 namespace 操作</h3> 
+<br> 
+<p>（1）查看当前 Hbase 中有哪些 namespace</p> 
+<pre><code class="prism language-powershell">hbase<span class="token punctuation">(</span>main<span class="token punctuation">)</span>:002:0&gt; list_namespace
+</code></pre> 
+<p><img src="https://images2.imgbox.com/bd/1b/qQciCO1O_o.png" alt="在这里插入图片描述"></p> 
+<p>（2）创建 namespace</p> 
+<pre><code class="prism language-powershell">hbase<span class="token punctuation">(</span>main<span class="token punctuation">)</span>:003:0&gt; create_namespace <span class="token string">"test"</span>
+hbase<span class="token punctuation">(</span>main<span class="token punctuation">)</span>:004:0&gt; create_namespace <span class="token string">"test01"</span><span class="token punctuation">,</span> <span class="token punctuation">{<!-- --></span><span class="token string">"author"</span>=&gt;<span class="token string">"huwei"</span><span class="token punctuation">,</span> <span class="token string">"create_time"</span>=&gt;<span class="token string">"2024-03-6 17:38:08"</span><span class="token punctuation">}</span>
+</code></pre> 
+<p>（3）查看 namespace</p> 
+<pre><code class="prism language-powershell">hbase<span class="token punctuation">(</span>main<span class="token punctuation">)</span>:005:0&gt; describe_namespace <span class="token string">"test01"</span>
+</code></pre> 
+<p>（4）修改 namespace 的信息（添加或者修改属性）</p> 
+<pre><code class="prism language-powershell">hbase<span class="token punctuation">(</span>main<span class="token punctuation">)</span>:007:0&gt; alter_namespace <span class="token string">"test01"</span><span class="token punctuation">,</span> <span class="token punctuation">{<!-- --></span>METHOD =&gt; <span class="token string">'set'</span><span class="token punctuation">,</span> <span class="token string">'author'</span> =&gt; <span class="token string">'hw'</span><span class="token punctuation">}</span>
+</code></pre> 
+<p>添加或者修改属性:</p> 
+<pre><code class="prism language-powershell">alter_namespace <span class="token string">'ns1'</span><span class="token punctuation">,</span> <span class="token punctuation">{<!-- --></span>METHOD =&gt; <span class="token string">'set'</span><span class="token punctuation">,</span> <span class="token string">'PROPERTY_NAME'</span> =&gt; <span class="token string">'PROPERTY_VALUE'</span><span class="token punctuation">}</span> 
+</code></pre> 
+<p>删除属性:</p> 
+<pre><code class="prism language-powershell">alter_namespace <span class="token string">'ns1'</span><span class="token punctuation">,</span> <span class="token punctuation">{<!-- --></span>METHOD =&gt; <span class="token string">'unset'</span><span class="token punctuation">,</span> NAME =&gt; <span class="token string">' PROPERTY_NAME '</span><span class="token punctuation">}</span> 
+</code></pre> 
+<p>（5）删除 namespace</p> 
+<pre><code class="prism language-powershell">hbase<span class="token punctuation">(</span>main<span class="token punctuation">)</span>:008:0&gt; drop_namespace <span class="token string">"test01"</span>
+</code></pre> 
+<blockquote> 
+ <p>注意: 要删除的namespace必须是空的，其下没有表。</p> 
+</blockquote> 
+<h3><a id="23__173"></a>2.3 表操作</h3> 
+<br> 
+<p>（1）查看当前数据库中有哪些表</p> 
+<pre><code class="prism language-powershell">hbase<span class="token punctuation">(</span>main<span class="token punctuation">)</span>:009:0&gt; list
+</code></pre> 
+<p>（2）创建表</p> 
+<pre><code class="prism language-powershell">create <span class="token string">'student'</span><span class="token punctuation">,</span><span class="token string">'info'</span>
+</code></pre> 
+<blockquote> 
+ <p>如果不指定命名空间，新建表则默认在 default 下</p> 
+</blockquote> 
+<p>在 <strong>已存在</strong> 的命名空间中新建表</p> 
+<pre><code class="prism language-powershell">hbase<span class="token punctuation">(</span>main<span class="token punctuation">)</span>:013:0&gt; create <span class="token string">'test:tab'</span><span class="token punctuation">,</span><span class="token string">'f1'</span><span class="token punctuation">,</span><span class="token string">'f2'</span>
+</code></pre> 
+<p>二者等价</p> 
+<pre><code class="prism language-powershell">hbase<span class="token punctuation">(</span>main<span class="token punctuation">)</span>:015:0&gt; create <span class="token string">'test:tab1'</span><span class="token punctuation">,</span> <span class="token punctuation">{<!-- --></span>NAME =&gt; <span class="token string">'f1'</span><span class="token punctuation">}</span><span class="token punctuation">,</span> <span class="token punctuation">{<!-- --></span>NAME =&gt; <span class="token string">'f2'</span><span class="token punctuation">}</span><span class="token punctuation">,</span> <span class="token punctuation">{<!-- --></span>NAME =&gt; <span class="token string">'f3'</span><span class="token punctuation">}</span>
+</code></pre> 
+<p>（3）插入数据到表</p> 
+<pre><code class="prism language-powershell">hbase<span class="token punctuation">(</span>main<span class="token punctuation">)</span>:017:0&gt; put <span class="token string">'student'</span><span class="token punctuation">,</span><span class="token string">'1001'</span><span class="token punctuation">,</span><span class="token string">'info:sex'</span><span class="token punctuation">,</span><span class="token string">'male'</span>
+hbase<span class="token punctuation">(</span>main<span class="token punctuation">)</span>:018:0&gt; put <span class="token string">'student'</span><span class="token punctuation">,</span><span class="token string">'1001'</span><span class="token punctuation">,</span><span class="token string">'info:age'</span><span class="token punctuation">,</span><span class="token string">'18'</span>
+hbase<span class="token punctuation">(</span>main<span class="token punctuation">)</span>:019:0&gt; put <span class="token string">'student'</span><span class="token punctuation">,</span><span class="token string">'1002'</span><span class="token punctuation">,</span><span class="token string">'info:name'</span><span class="token punctuation">,</span><span class="token string">'Janna'</span>
+hbase<span class="token punctuation">(</span>main<span class="token punctuation">)</span>:020:0&gt; put <span class="token string">'student'</span><span class="token punctuation">,</span><span class="token string">'1002'</span><span class="token punctuation">,</span><span class="token string">'info:sex'</span><span class="token punctuation">,</span><span class="token string">'female'</span>
+hbase<span class="token punctuation">(</span>main<span class="token punctuation">)</span>:021:0&gt; put <span class="token string">'student'</span><span class="token punctuation">,</span><span class="token string">'1002'</span><span class="token punctuation">,</span><span class="token string">'info:age'</span><span class="token punctuation">,</span><span class="token string">'20'</span>
+</code></pre> 
+<p>（4）变更表信息</p> 
+<p>将 info 列族中的数据存放3个版本：</p> 
+<pre><code class="prism language-powershell">hbase<span class="token punctuation">(</span>main<span class="token punctuation">)</span>:022:0&gt; alter <span class="token string">'student'</span><span class="token punctuation">,</span><span class="token punctuation">{<!-- --></span>NAME=&gt;<span class="token string">'info'</span><span class="token punctuation">,</span>VERSIONS=&gt;3<span class="token punctuation">}</span>
+</code></pre> 
+<p>（5）扫描查看表数据</p> 
+<pre><code class="prism language-powershell">hbase<span class="token punctuation">(</span>main<span class="token punctuation">)</span>:023:0&gt; scan <span class="token string">'student'</span>
+hbase<span class="token punctuation">(</span>main<span class="token punctuation">)</span>:024:0&gt; scan <span class="token string">'student'</span><span class="token punctuation">,</span><span class="token punctuation">{<!-- --></span>STARTROW =&gt; <span class="token string">'1001'</span><span class="token punctuation">,</span> STOPROW  =&gt; <span class="token string">'1001'</span><span class="token punctuation">}</span>
+hbase<span class="token punctuation">(</span>main<span class="token punctuation">)</span>:025:0&gt; scan <span class="token string">'student'</span><span class="token punctuation">,</span><span class="token punctuation">{<!-- --></span>STARTROW =&gt; <span class="token string">'1001'</span><span class="token punctuation">}</span>
+</code></pre> 
+<p><img src="https://images2.imgbox.com/20/28/MQekYUku_o.png" alt="在这里插入图片描述"></p> 
+<p>（6）查看表结构</p> 
+<pre><code class="prism language-powershell">hbase<span class="token punctuation">(</span>main<span class="token punctuation">)</span>:026:0&gt; describe <span class="token string">'student'</span>
+</code></pre> 
+<p>（7）更新指定字段的数据</p> 
+<pre><code class="prism language-powershell">hbase<span class="token punctuation">(</span>main<span class="token punctuation">)</span>:027:0&gt; put <span class="token string">'student'</span><span class="token punctuation">,</span><span class="token string">'1001'</span><span class="token punctuation">,</span><span class="token string">'info:name'</span><span class="token punctuation">,</span><span class="token string">'Nick'</span>
+hbase<span class="token punctuation">(</span>main<span class="token punctuation">)</span>:028:0&gt; put <span class="token string">'student'</span><span class="token punctuation">,</span><span class="token string">'1001'</span><span class="token punctuation">,</span><span class="token string">'info:age'</span><span class="token punctuation">,</span><span class="token string">'100'</span>
+</code></pre> 
+<p>（8）查看“指定行”或“指定列族:列”的数据</p> 
+<pre><code class="prism language-powershell">hbase<span class="token punctuation">(</span>main<span class="token punctuation">)</span>:030:0&gt; get <span class="token string">'student'</span><span class="token punctuation">,</span><span class="token string">'1001'</span>
+hbase<span class="token punctuation">(</span>main<span class="token punctuation">)</span>:031:0&gt; get <span class="token string">'student'</span><span class="token punctuation">,</span><span class="token string">'1001'</span><span class="token punctuation">,</span><span class="token string">'info:name'</span>
+</code></pre> 
+<p><img src="https://images2.imgbox.com/c2/2e/sExuiKHj_o.png" alt="在这里插入图片描述"></p> 
+<p>（9）统计表数据行数</p> 
+<pre><code class="prism language-powershell">hbase<span class="token punctuation">(</span>main<span class="token punctuation">)</span>:033:0&gt; count <span class="token string">'student'</span>
+</code></pre> 
+<p><img src="https://images2.imgbox.com/ab/64/pX01mB1g_o.png" alt="在这里插入图片描述"></p> 
+<p>（10）删除数据</p> 
+<p>删除某 rowkey 的全部数据：</p> 
+<pre><code class="prism language-powershell">hbase<span class="token punctuation">(</span>main<span class="token punctuation">)</span>:034:0&gt; deleteall <span class="token string">'student'</span><span class="token punctuation">,</span><span class="token string">'1001'</span>
+</code></pre> 
+<p>删除某 rowkey 的某一列数据：</p> 
+<pre><code class="prism language-powershell">hbase<span class="token punctuation">(</span>main<span class="token punctuation">)</span>:035:0&gt; delete <span class="token string">'student'</span><span class="token punctuation">,</span><span class="token string">'1002'</span><span class="token punctuation">,</span><span class="token string">'info:sex'</span>
+</code></pre> 
+<p>（11）清空表数据</p> 
+<pre><code class="prism language-powershell">hbase<span class="token punctuation">(</span>main<span class="token punctuation">)</span>:036:0&gt; truncate <span class="token string">'student'</span>
+</code></pre> 
+<blockquote> 
+ <p>注意：清空表的操作顺序为先disable（不用自己操作），然后再truncate。</p> 
+</blockquote> 
+<p>（12）删除表</p> 
+<p>首先需要先让该表为disable状态：</p> 
+<pre><code class="prism language-powershell">hbase<span class="token punctuation">(</span>main<span class="token punctuation">)</span>:037:0&gt; disable <span class="token string">'student'</span>
+</code></pre> 
+<p>然后才能drop这个表：</p> 
+<pre><code class="prism language-powershell">hbase<span class="token punctuation">(</span>main<span class="token punctuation">)</span>:038:0&gt; drop <span class="token string">'student'</span>
+</code></pre> 
+<blockquote> 
+ <p>注意：如果直接drop表，会报错：ERROR: Table student is enabled. Disable it first.</p> 
+</blockquote> 
+<h2><a id="3_HBase__296"></a>3 HBase 原理深入</h2> 
+<h3><a id="31_RegionServer__297"></a>3.1 RegionServer 架构</h3> 
+<br> 
+<p><img src="https://images2.imgbox.com/03/3a/w4JLIZqb_o.png" alt="在这里插入图片描述"></p> 
+<p>WAL 和 StoreFile 都存储在 HDFS 中。</p> 
+<p>（1）StoreFile</p> 
+<p>保存实际数据的物理文件，StoreFile 以 Hfile 的形式存储在 HDFS 上。每个Store会有一个或多个StoreFile（HFile），<strong>数据在每个 StoreFile 中都是有序的</strong>。</p> 
+<p>（2）MemStore</p> 
+<p>写缓存，由于 HFile 中的数据要求是有序的，所以数据是先存储在 MemStore 中，排好序后，等到达刷写时机才会刷写到 HFile，每次刷写都会形成一个新的 HFile。</p> 
+<p>（3）WAL</p> 
+<p>由于数据要经 MemStore 排序后才能刷写到 HFile，但把数据保存在内存中会有很高的概率导致数据丢失，为了解决这个问题，<strong>数据会先写在一个叫做 Write-Ahead logfile 的文件中，然后再写入 MemStore 中</strong>。所以在系统出现故障的时候，数据可以通过这个日志文件重建。</p> 
+<p>（4）BlockCache</p> 
+<p>读缓存，每次查询出的数据会缓存在 BlockCache 中，方便下次查询。</p> 
+<h3><a id="32_HBase__324"></a>3.2 HBase 写流程</h3> 
+<br> 
+<blockquote> 
+ <p>想知道 <code>hbase:meta</code> 表 由哪一个 Region Server 维护，问 Zookeeper。<br> 想知道 其他表 由哪一个 Region Server 维护，问 <code>hbase:meta</code> 表。</p> 
+</blockquote> 
+<p><img src="https://images2.imgbox.com/34/ce/xfV0Zls2_o.png" alt="在这里插入图片描述"></p> 
+<p>写流程：</p> 
+<p>（1）Client 先访问 zookeeper ，获取 <code>hbase:meta</code> 表位于哪个Region Server。</p> 
+<p>（2）访问对应的 Region Server，获取 <code>hbase:meta</code> 表，根据读请求的 namespace:table/rowkey，查询出目标数据位于哪个Region Server中的哪个Region中。并将该table的region信息以及meta表的位置信息缓存在客户端的 meta cache，方便下次访问。</p> 
+<p>（3）与目标 Region Server 进行通讯；</p> 
+<p>（4）将数据顺序写入（追加）到 WAL；</p> 
+<p>（5）将数据写入对应的 MemStore，数据会在 MemStore 进行排序；</p> 
+<p>（6）向客户端发送 ack；</p> 
+<p>（7）等达到 MemStore 的刷写时机后，将数据刷写到HFile。</p> 
+<h3><a id="33_MemStore_Flush_350"></a>3.3 MemStore Flush</h3> 
+<br> 
+<p><img src="https://images2.imgbox.com/03/80/MfkutQ9u_o.png" alt="在这里插入图片描述"></p> 
+<p>MemStore 刷写时机：</p> 
+<p>（1）当某个 memstore 的大小达到了 <code>hbase.hregion.memstore.flush.size</code>（默认值128M），<strong>其所在region的所有memstore都会刷写</strong>。每次刷写都会有一个新的文件产生。<br> 当 memstore 的大小达到了 <code>hbase.hregion.memstore.flush.size(默认128M) * hbase.hregion.memstore.block.multiplier(默认4)</code><br> 时，会阻止继续往该memstore写数据。</p> 
+<p>（2） 当 region server 中 memstore 的总大小达到<br> <code>java_heapsize *hbase.regionserver.global.memstore.size(默认0.4) *hbase.regionserver.global.memstore.size.lower.limit(默认0.95)</code>，region 会按照其所有 memstore 的大小顺序（由大到小）依次进行刷写。直到 region server 中所有 memstore 的总大小减小到上述值以下。当 region server 中 memstore的总大小达到<br> <code>java_heapsize*hbase.regionserver.global.memstore.size(默认0.4)</code><br> 时，会阻止继续往所有的memstore写数据。</p> 
+<p>（3）到达自动刷写的时间，也会触发 memstore flush。自动刷新的时间间隔由该属性进行配置<code>hbase.regionserver.optionalcacheflushinterval(默认1小时)</code>。</p> 
+<p>（4）当WAL文件的数量超过 <code>hbase.regionserver.max.logs</code>，region会按照时间顺序依次进行刷写，直到WAL文件数量减小到 <code>hbase.regionserver.max.logs</code>以下（该属性名已经废弃，现无需手动设置，最大值为32）。</p> 
+<h3><a id="34_HBase__375"></a>3.4 HBase 读流程</h3> 
+<br> 
+<p>整体流程</p> 
+<p><img src="https://images2.imgbox.com/7f/82/HnVcsEp5_o.png" alt="在这里插入图片描述"></p> 
+<p>Merge 细节</p> 
+<p><img src="https://images2.imgbox.com/08/3c/JyKU9X9v_o.png" alt="在这里插入图片描述"></p> 
+<blockquote> 
+ <p>布隆过滤器能告诉你绝对不存在，但是不能告诉你存在。</p> 
+</blockquote> 
+<p>读流程</p> 
+<p>（1）Client 先访问 zookeeper，获取 <code>hbase:meta</code> 表位于哪个Region Server。</p> 
+<p>（2）访问对应的Region Server，获取 <code>hbase:meta</code> 表，根据读请求的namespace:table/rowkey，查询出目标数据位于哪个Region Server中的哪个Region中。并将该 table 的region信息以及meta表的位置信息缓存在客户端的 meta cache，方便下次访问。</p> 
+<p>（3）与目标Region Server进行通讯；</p> 
+<p>（4）分别在 MemStore 和 StoreFile（HFile）中查询目标数据，并将查到的所有数据进行合并。此处所有数据是指同一条数据的不同版本（time stamp）或者不同的类型（Put/Delete）。</p> 
+<p>（5）将查询到的新的数据块（Block，HFile 数据存储单元，默认大小为64KB）缓存到Block Cache。</p> 
+<p>（6）将合并后的最终结果返回给客户端。</p> 
+<blockquote> 
+ <p>整体上来看，HBase写数据的操作只需要把数据写入内存就算完成，反而读数据要从文件开始读。所以，对于HBase，会呈现出写数据比读数据更快的效果。</p> 
+</blockquote> 
+<h3><a id="35_StoreFile_Compaction_407"></a>3.5 StoreFile Compaction</h3> 
+<br> 
+<p>StoreFile Compaction 即 Regin 内部 StoreFile 的合并。</p> 
+<p>由于 memstore 每次刷写都会生成一个新的 HFile，且同一个字段的不同版本（timestamp）和不同类型（Put/Delete）有可能会分布在不同的 HFile 中，因此查询时需要遍历所有的 HFile。为了减少 HFile 的个数，以及清理掉过期和删除的数据，会进行 StoreFile Compaction。</p> 
+<p>Compaction分为两种，分别是Minor Compaction 和 Major Compaction。</p> 
+<ul><li>Minor Compaction会将临近的若干个较小的 HFile 合并成一个较大的 HFile，并<strong>清理掉部分过期和删除的数据</strong>。（每次 flush 都会小合并）</li><li>Major Compaction会将一个Store下的所有的 HFile 合并成一个大 HFile，并且会<strong>清理掉所有过期和删除的数据</strong>。（定时的，默认7天一次）</li></ul> 
+<p><img src="https://images2.imgbox.com/fe/6b/0h4tAcUc_o.png" alt="在这里插入图片描述"></p> 
+<h3><a id="36_Region_Split_423"></a>3.6 Region Split</h3> 
+<br> 
+<p>默认情况下，每个 Table 起初只有一个 Region，随着数据的不断写入，Region 会自动进行拆分。刚拆分时，两个子 Region 都位于当前的Region Server，但处于负载均衡的考虑，HMaster 有可能会将某个 Region 转移给其他的 Region Server。</p> 
+<p>Region Split 时机：</p> 
+<p>（1）当1个region中的某个Store下所有 StoreFile 的总大小超过 <code>hbase.hregion.max.filesize(默认10G)</code>，该Region就会进行拆分（0.94版本之前）。</p> 
+<p>（2）当1个region中的某个Store下所有StoreFile的总大小超过<code>Min(initialSize*R^3 ,hbase.hregion.max.filesize")</code>，该Region就会进行拆分。其中 <code>initialSize</code> 的默认值为<code>2*hbase.hregion.memstore.flush.size(默认128M)</code>，R 为当前 Region Server 中属于该 Table 的 Region个数（0.94版本之后）。</p> 
+<p>具体的切分策略为：</p> 
+<ul><li>第一次split：1^3 * 256 = 256MB</li><li>第二次split：2^3 * 256 = 2048MB</li><li>第三次split：3^3 * 256 = 6912MB</li><li>第四次split：4^3 * 256 = 16384MB &gt; 10GB，因此取较小的值10GB</li></ul> 
+<p>后面每次split的size都是10GB了。</p> 
+<p>（3）Hbase 2.0引入了新的 split 策略：如果当前 RegionServer 上该表只有一个 Region，按照<code>2 * hbase.hregion.memstore.flush.size</code>分裂，否则按照 <code>hbase.hregion.max.filesize</code> 分裂。</p> 
+<p><img src="https://images2.imgbox.com/c6/9d/EvAGK2LH_o.png" alt="在这里插入图片描述"></p> 
+<h2><a id="4_HBase_API_454"></a>4 HBase API</h2> 
+<br> 
+<p>暂时略。</p> 
+<h2><a id="5_HBase__460"></a>5 HBase 优化</h2> 
+<h3><a id="51__461"></a>5.1 预分区</h3> 
+<br> 
+<p>每一个 region 维护着 startRow 与 endRowKey ，如果加入的数据符合某个 region 维护的 rowKey范围，则该数据交给这个region维护。那么依照这个原则，我们可以将数据所要投放的分区提前大致的规划好，以提高HBase性能。（既然一定要 Region Split，为什么不提前分好呢？）</p> 
+<p>（1）手动设定预分区</p> 
+<pre><code class="prism language-powershell">hbase<span class="token punctuation">(</span>main<span class="token punctuation">)</span>:057:0&gt; create <span class="token string">'staff1'</span><span class="token punctuation">,</span><span class="token string">'info'</span><span class="token punctuation">,</span>SPLITS =&gt; <span class="token punctuation">[</span><span class="token string">'1000'</span><span class="token punctuation">,</span><span class="token string">'2000'</span><span class="token punctuation">,</span><span class="token string">'3000'</span><span class="token punctuation">,</span><span class="token string">'4000'</span><span class="token punctuation">]</span>
+</code></pre> 
+<p><img src="https://images2.imgbox.com/e1/0a/wWExOcrP_o.png" alt="在这里插入图片描述"></p> 
+<p><img src="https://images2.imgbox.com/f9/07/ge01JAmb_o.png" alt="在这里插入图片描述"></p> 
+<p>（2）生成16进制序列预分区</p> 
+<pre><code class="prism language-powershell">hbase<span class="token punctuation">(</span>main<span class="token punctuation">)</span>:058:0&gt; create <span class="token string">'staff2'</span><span class="token punctuation">,</span><span class="token string">'info'</span><span class="token punctuation">,</span><span class="token punctuation">{<!-- --></span>NUMREGIONS =&gt; 15<span class="token punctuation">,</span> SPLITALGO =&gt; <span class="token string">'HexStringSplit'</span><span class="token punctuation">}</span>
+</code></pre> 
+<p><img src="https://images2.imgbox.com/ae/d1/e8eiCqzX_o.png" alt="在这里插入图片描述"></p> 
+<p><img src="https://images2.imgbox.com/9c/90/0Ta1dW3E_o.png" alt="在这里插入图片描述"></p> 
+<p>（3）按照文件中设置的规则预分区</p> 
+<p>创建 <code>splits.txt</code> 文件</p> 
+<pre><code class="prism language-powershell"><span class="token namespace">[huwei@hadoop101 hbase-2.0.5]</span>$ vim splits<span class="token punctuation">.</span>txt
+</code></pre> 
+<p>内容如下：</p> 
+<pre><code>aaaa
+bbbb
+cccc
+dddd
+</code></pre> 
+<pre><code class="prism language-powershell">hbase<span class="token punctuation">(</span>main<span class="token punctuation">)</span>:059:0&gt; create <span class="token string">'staff3'</span><span class="token punctuation">,</span><span class="token string">'info'</span><span class="token punctuation">,</span>SPLITS_FILE =&gt; <span class="token string">'splits.txt'</span>
+</code></pre> 
+<p><img src="https://images2.imgbox.com/50/28/XBD7j9Vd_o.png" alt="在这里插入图片描述"></p> 
+<blockquote> 
+ <p>即使我们文件中设置的RowKey不是按顺序的，Hbase也会自动帮我们排好序。</p> 
+</blockquote> 
+<p>（4）使用 JavaAPI 创建预分区</p> 
+<h3><a id="52_RowKey__521"></a>5.2 RowKey 设计</h3> 
+<br> 
+<p>一条数据的唯一标识就是 rowkey，那么这条数据存储于哪个分区，取决于 rowkey 处于哪个一个预分区的区间内，设计 rowkey 的主要目的 ，就是让数据均匀的分布于所有的 region 中，在一定程度上防止数据倾斜。接下来我们就谈一谈rowkey常用的设计方案。</p> 
+<p>（1）生成随机数、hash、散列值</p> 
+<p>（2）字符串反转</p> 
+<p>这样也可以在一定程度上散列逐步put进来的数据。</p> 
+<p>（3）字符串拼接</p> 
+<h3><a id="53__537"></a>5.3 内存优化</h3> 
+<br> 
+<p>HBase操作过程中需要大量的内存开销，毕竟Table是可以缓存在内存中的，但是不建议分配非常大的堆内存，因为GC（Garbage Collection）过程持续太久会导致 RegionServer 处于长期不可用状态，一般16~36G内存就可以了，如果因为框架占用内存过高导致系统内存不足，框架一样会被系统服务拖死。</p> 
+<h3><a id="54__543"></a>5.4 基础优化</h3> 
+<br> 
+<p>（1）Zookeeper 会话超时时间</p> 
+<p><code>hbase-site.xml</code></p> 
+<p>属性：zookeeper.session.timeout<br> 解释：默认值为90000毫秒（90s）。当某个RegionServer挂掉，90s之后Master才能察觉到。可适当减小此值，以加快Master响应，可调整至60000毫秒。</p> 
+<p>（2）设置 RPC 监听数量</p> 
+<p><code>hbase-site.xml</code></p> 
+<p>属性：hbase.regionserver.handler.count<br> 解释：默认值为30，用于指定 RPC 监听的数量，可以根据客户端的请求数进行调整，读写请求较多时，增加此值。</p> 
+<blockquote> 
+ <p>RPC（Remote Procedure Call，远程过程调用）是一种计算机通信协议，允许在网络上的不同计算机之间进行通信和调用远程服务。通过RPC，一个计算机程序可以请求另一个计算机上的程序或服务执行特定的操作，就像调用本地函数一样，而无需了解底层网络细节。<br> 在HBase中，RPC 用于客户端与 RegionServer 之间的通信，客户端发送读写请求到RegionServer，RegionServer 收到请求后执行相应的操作并返回结果给客户端。属性"hbase.regionserver.handler.count"<strong>指定了RegionServer用于处理这些RPC请求的处理器数量。增加此值可以提高RegionServer同时处理请求的能力</strong>，特别是在读写请求较多的情况下，适当增加处理器数量可以提升系统的并发处理能力和性能。</p> 
+</blockquote> 
+<p>（3）手动控制Major Compaction</p> 
+<p><code>hbase-site.xml</code></p> 
+<p>属性：hbase.hregion.majorcompaction<br> 解释：默认值：604800000秒（7天）， Major Compaction的周期，若关闭自动Major Compaction，可将其设为0</p> 
+<p>（4）优化HStore文件大小</p> 
+<p><code>hbase-site.xml</code></p> 
+<p>属性：hbase.hregion.max.filesize（1个region中的某个Store下所有 StoreFile 的总大小）<br> 解释：默认值10737418240（10GB），如果需要运行HBase的MR任务，可以减小此值，因为一个region对应一个map任务，如果单个region过大，会导致map任务执行时间过长。该值的意思就是，如果HFile的大小达到这个数值，则这个region会被切分为两个Hfile。</p> 
+<p>（5）优化HBase客户端缓存</p> 
+<p><code>hbase-site.xml</code></p> 
+<p>属性：hbase.client.write.buffer<br> 解释：默认值2097152bytes（2M）用于指定HBase客户端缓存，增大该值可以减少RPC调用次数，但是会消耗更多内存，反之则反之。一般我们需要设定一定的缓存大小，以达到减少RPC次数的目的。</p> 
+<p>（6）指定scan.next扫描HBase所获取的行数</p> 
+<p><code>hbase-site.xml</code></p> 
+<p>属性：hbase.client.scanner.caching<br> 解释：用于指定scan.next方法获取的默认行数，值越大，消耗内存越大。</p> 
+<p>（7）BlockCache占用RegionServer堆内存的比例</p> 
+<p><code>hbase-site.xml</code></p> 
+<p>属性：hfile.block.cache.size<br> 解释：默认0.4，读请求比较多的情况下，可适当调大</p> 
+<p>（8）MemStore占用RegionServer堆内存的比例</p> 
+<p><code>hbase-site.xml</code></p> 
+<p>属性：hbase.regionserver.global.memstore.size<br> 解释：默认0.4，写请求较多的情况下，可适当调大</p> 
+<h2><a id="6_Phoenix_611"></a>6 整合Phoenix</h2> 
+<br> 
+<p>暂时略。</p> 
+<h2><a id="7__Hive__617"></a>7 与 Hive 的集成</h2> 
+<br> 
+<p>暂时略。</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/9bf96c29ec24227b193dbf641c69f97d/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">揭秘百度数仓融合计算引擎</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/fde8174f4093d0c0ff18e1a0e895a9c5/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">java8中，线程池拒绝策略有哪些？默认是哪个？</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

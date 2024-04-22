@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>java进阶之：AOP切入点和切面的使用 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/c17fcbbb5eeed7a9493f722b4ce28dc0/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="java进阶之：AOP切入点和切面的使用">
+  <meta property="og:description" content="AOP 基本概念 AOP = Aspect Oriented Programming面向切面编程，通过预编译方式和运行期【动态代理】实现【在不修改源代码】的情况下给程序动态统一添加功能的一种技术，主要用于【日志记录】、【性能统计】、【安全控制】、【事务处理】、【异常处理】等等。
+编程思想 OOP关注将需求功能划分为不同的并且相对独立、封装良好的类，并让它们有属于自己的行为，依靠继承和多态等来定义彼此的关系；而
+AOP则希望能够将从各个不相关的类中【分离出通用需求功能】，使很多类共享一个行为（方法）；这个行为（方法）一旦变化，不必修改很多类，只需修改这个行为（方法）即可。
+一些必要术语 &amp;amp;&amp;amp; Aspect 切面：可以看做一个类，其中包含【pointCut切点】 和【Advice暂且叫消息通知】
+&amp;amp;&amp;amp; Joint point 连接点：简单理解为类中的全部方法
+&amp;amp;&amp;amp; Cut point 切点：简单理解为需要被加强的方法（需要被代理的方法）
+&amp;amp;&amp;amp; Advice 消息通知：加强的行为，可以发生在方法执行前、正常执行后、执行异常【相当于catch中】、最终一定执行的位置【相当于finally中】
+——基于注解的spring AOP使用 resources中的xml &amp;lt;?xml version=&#34;1.0&#34; encoding=&#34;UTF-8&#34;?&amp;gt; &amp;lt;beans xmlns=&#34;http://www.springframework.org/schema/beans&#34; xmlns:xsi=&#34;http://www.w3.org/2001/XMLSchema-instance&#34; xmlns:aop=&#34;http://www.springframework.org/schema/aop&#34; xmlns:context=&#34;http://www.springframework.org/schema/context&#34; xsi:schemaLocation=&#34;http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd http://www.springframework.org/schema/aop http://www.springframework.org/schema/aop/spring-aop.xsd http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd&#34;&amp;gt; &amp;lt;context:component-scan base-package=&#34;aop&#34;&amp;gt;&amp;lt;/context:component-scan&amp;gt; &amp;lt;aop:aspectj-autoproxy&amp;gt;&amp;lt;/aop:aspectj-autoproxy&amp;gt; &amp;lt;/beans&amp;gt; 或者使用@EnableAspectJAutoProxy注解配置类，可代替以上aop:aspectj-autoproxy&amp;lt;/aop:aspectj-autoproxy&amp;gt; 项目配置的pom.xml依赖 &amp;lt;dependencies&amp;gt; &amp;lt;dependency&amp;gt; &amp;lt;groupId&amp;gt;mysql&amp;lt;/groupId&amp;gt; &amp;lt;artifactId&amp;gt;mysql-connector-java&amp;lt;/artifactId&amp;gt; &amp;lt;version&amp;gt;5.1.49&amp;lt;/version&amp;gt; &amp;lt;/dependency&amp;gt; &amp;lt;dependency&amp;gt; &amp;lt;groupId&amp;gt;org.springframework&amp;lt;/groupId&amp;gt; &amp;lt;artifactId&amp;gt;spring-context&amp;lt;/artifactId&amp;gt; &amp;lt;version&amp;gt;5.0.2.RELEASE&amp;lt;/version&amp;gt; &amp;lt;/dependency&amp;gt; &amp;lt;dependency&amp;gt; &amp;lt;groupId&amp;gt;cglib&amp;lt;/groupId&amp;gt; &amp;lt;artifactId&amp;gt;cglib&amp;lt;/artifactId&amp;gt; &amp;lt;version&amp;gt;2.1_3&amp;lt;/version&amp;gt; &amp;lt;/dependency&amp;gt; &amp;lt;dependency&amp;gt; &amp;lt;groupId&amp;gt;org.aspectj&amp;lt;/groupId&amp;gt; &amp;lt;artifactId&amp;gt;aspectjweaver&amp;lt;/artifactId&amp;gt; &amp;lt;version&amp;gt;1.8.7&amp;lt;/version&amp;gt; &amp;lt;/dependency&amp;gt; &amp;lt;/dependencies&amp;gt; 切面类（就是动态代理可以提供加强方法的类） package aop.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2020-07-24T11:30:03+08:00">
+    <meta property="article:modified_time" content="2020-07-24T11:30:03+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">java进阶之：AOP切入点和切面的使用</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-dark">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <h4><a id="AOP_0"></a>AOP</h4> 
+<h5><a id="_1"></a>基本概念</h5> 
+<p>AOP = Aspect Oriented Programming面向切面编程，通过预编译方式和运行期【动态代理】实现【在不修改源代码】的情况下给程序动态统一添加功能的一种技术，主要用于【日志记录】、【性能统计】、【安全控制】、【事务处理】、【异常处理】等等。</p> 
+<h5><a id="_4"></a>编程思想</h5> 
+<p>OOP关注将需求功能划分为不同的并且相对独立、封装良好的类，并让它们有属于自己的行为，依靠继承和多态等来定义彼此的关系；而<br> AOP则希望能够将从各个不相关的类中【分离出通用需求功能】，使很多类共享一个行为（方法）；这个行为（方法）一旦变化，不必修改很多类，只需修改这个行为（方法）即可。</p> 
+<h5><a id="_8"></a>一些必要术语</h5> 
+<p>&amp;&amp; Aspect 切面：可以看做一个类，其中包含【pointCut切点】 和【Advice暂且叫消息通知】<br> &amp;&amp; Joint point 连接点：简单理解为类中的全部方法<br> &amp;&amp; Cut point 切点：简单理解为需要被加强的方法（需要被代理的方法）<br> &amp;&amp; Advice 消息通知：加强的行为，可以发生在方法执行前、正常执行后、执行异常【相当于catch中】、最终一定执行的位置【相当于finally中】</p> 
+<h4><a id="spring_AOP_15"></a>——基于注解的spring AOP使用</h4> 
+<h5><a id="resourcesxml_16"></a>resources中的xml</h5> 
+<pre><code class="prism language-yaml">&lt;<span class="token punctuation">?</span>xml version="1.0" encoding="UTF<span class="token punctuation">-</span>8"<span class="token punctuation">?</span><span class="token punctuation">&gt;</span>
+&lt;beans xmlns="http<span class="token punctuation">:</span>//www.springframework.org/schema/beans"
+       xmlns<span class="token punctuation">:</span>xsi="http<span class="token punctuation">:</span>//www.w3.org/2001/XMLSchema<span class="token punctuation">-</span>instance"
+       xmlns<span class="token punctuation">:</span>aop="http<span class="token punctuation">:</span>//www.springframework.org/schema/aop"
+       xmlns<span class="token punctuation">:</span>context="http<span class="token punctuation">:</span>//www.springframework.org/schema/context"
+       xsi<span class="token punctuation">:</span>schemaLocation="http<span class="token punctuation">:</span>//www.springframework.org/schema/beans
+            http<span class="token punctuation">:</span>//www.springframework.org/schema/beans/spring<span class="token punctuation">-</span>beans.xsd
+            http<span class="token punctuation">:</span>//www.springframework.org/schema/aop
+            http<span class="token punctuation">:</span>//www.springframework.org/schema/aop/spring<span class="token punctuation">-</span>aop.xsd
+            http<span class="token punctuation">:</span>//www.springframework.org/schema/context
+            http<span class="token punctuation">:</span>//www.springframework.org/schema/context/spring<span class="token punctuation">-</span>context.xsd"<span class="token punctuation">&gt;</span>
+
+&lt;context<span class="token punctuation">:</span>component<span class="token punctuation">-</span>scan base<span class="token punctuation">-</span>package="aop"<span class="token punctuation">&gt;</span>&lt;/context<span class="token punctuation">:</span>component<span class="token punctuation">-</span>scan<span class="token punctuation">&gt;</span>
+
+&lt;aop<span class="token punctuation">:</span>aspectj<span class="token punctuation">-</span>autoproxy<span class="token punctuation">&gt;</span>&lt;/aop<span class="token punctuation">:</span>aspectj<span class="token punctuation">-</span>autoproxy<span class="token punctuation">&gt;</span>
+
+&lt;/beans<span class="token punctuation">&gt;</span>
+</code></pre> 
+<h5><a id="EnableAspectJAutoProxyaopaspectjautoproxyaopaspectjautoproxy_36"></a>或者使用@EnableAspectJAutoProxy注解配置类，可代替以上aop:aspectj-autoproxy&lt;/aop:aspectj-autoproxy&gt;</h5> 
+<h5><a id="pomxml_37"></a>项目配置的pom.xml依赖</h5> 
+<pre><code class="prism language-yaml">    &lt;dependencies<span class="token punctuation">&gt;</span>
+    
+        &lt;dependency<span class="token punctuation">&gt;</span>
+            &lt;groupId<span class="token punctuation">&gt;</span>mysql&lt;/groupId<span class="token punctuation">&gt;</span>
+            &lt;artifactId<span class="token punctuation">&gt;</span>mysql<span class="token punctuation">-</span>connector<span class="token punctuation">-</span>java&lt;/artifactId<span class="token punctuation">&gt;</span>
+            &lt;version<span class="token punctuation">&gt;</span>5.1.49&lt;/version<span class="token punctuation">&gt;</span>
+        &lt;/dependency<span class="token punctuation">&gt;</span>
+
+        &lt;dependency<span class="token punctuation">&gt;</span>
+            &lt;groupId<span class="token punctuation">&gt;</span>org.springframework&lt;/groupId<span class="token punctuation">&gt;</span>
+            &lt;artifactId<span class="token punctuation">&gt;</span>spring<span class="token punctuation">-</span>context&lt;/artifactId<span class="token punctuation">&gt;</span>
+            &lt;version<span class="token punctuation">&gt;</span>5.0.2.RELEASE&lt;/version<span class="token punctuation">&gt;</span>
+        &lt;/dependency<span class="token punctuation">&gt;</span>
+
+        &lt;dependency<span class="token punctuation">&gt;</span>
+            &lt;groupId<span class="token punctuation">&gt;</span>cglib&lt;/groupId<span class="token punctuation">&gt;</span>
+            &lt;artifactId<span class="token punctuation">&gt;</span>cglib&lt;/artifactId<span class="token punctuation">&gt;</span>
+            &lt;version<span class="token punctuation">&gt;</span>2.1_3&lt;/version<span class="token punctuation">&gt;</span>
+        &lt;/dependency<span class="token punctuation">&gt;</span>
+
+        &lt;dependency<span class="token punctuation">&gt;</span>
+            &lt;groupId<span class="token punctuation">&gt;</span>org.aspectj&lt;/groupId<span class="token punctuation">&gt;</span>
+            &lt;artifactId<span class="token punctuation">&gt;</span>aspectjweaver&lt;/artifactId<span class="token punctuation">&gt;</span>
+            &lt;version<span class="token punctuation">&gt;</span>1.8.7&lt;/version<span class="token punctuation">&gt;</span>
+        &lt;/dependency<span class="token punctuation">&gt;</span>
+
+    &lt;/dependencies<span class="token punctuation">&gt;</span>
+</code></pre> 
+<h5><a id="_67"></a>切面类（就是动态代理可以提供加强方法的类）</h5> 
+<pre><code class="prism language-java"><span class="token keyword">package</span> aop<span class="token punctuation">.</span>utils<span class="token punctuation">;</span>
+
+<span class="token keyword">import</span> org<span class="token punctuation">.</span>aspectj<span class="token punctuation">.</span>lang<span class="token punctuation">.</span>ProceedingJoinPoint<span class="token punctuation">;</span>
+<span class="token keyword">import</span> org<span class="token punctuation">.</span>aspectj<span class="token punctuation">.</span>lang<span class="token punctuation">.</span>annotation<span class="token punctuation">.</span>*<span class="token punctuation">;</span>
+<span class="token keyword">import</span> org<span class="token punctuation">.</span>springframework<span class="token punctuation">.</span>stereotype<span class="token punctuation">.</span>Component<span class="token punctuation">;</span>
+
+<span class="token comment">/**
+ * 用于记录日志的工具类，提供了公共的代码
+ * 配置Logger类   可以用于代理加强某些类的公共类
+ */</span>
+
+<span class="token annotation punctuation">@Component</span><span class="token punctuation">(</span><span class="token string">"logger"</span><span class="token punctuation">)</span>
+<span class="token annotation punctuation">@Aspect</span><span class="token comment">//表示当前类是一个切面类</span>
+<span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">Logger</span> <span class="token punctuation">{<!-- --></span>
+
+<span class="token comment">//        @Pointcut("execution(* aop.service.*.*(..))")</span>
+<span class="token comment">//        @Pointcut("execution(public void aop.service.AccountServiceImpl.saveAccount())")  //加强具体的某个类的某个函数</span>
+<span class="token comment">//        @Pointcut("execution(* aop.service.AccountServiceImpl.saveAccount())")//方法返回值可以通配符，表示任意返回值</span>
+<span class="token comment">//        @Pointcut("execution(* *.*.AccountServiceImpl.saveAccount())")//包名可以通配符，多少级包就多少个*</span>
+<span class="token comment">//        @Pointcut("execution(* *..*.saveAccount())")//类名可以通配符——哪个类名有指定方法，都可以得到加强，“*..”表示通配包，再来一个“*.”表示通配任意类</span>
+<span class="token comment">//        @Pointcut("execution(* *..*.*())")//方法名可以通配符</span>
+          <span class="token annotation punctuation">@Pointcut</span><span class="token punctuation">(</span><span class="token string">"execution(* *..*.*(..))"</span><span class="token punctuation">)</span><span class="token comment">//传参可以通配符，表示任意类型参数都可以</span>
+<span class="token comment">//=======================以上通过通配符的方式，声明需要加强的方法，用 @Pointcut 注解=================================</span>
+        <span class="token keyword">private</span> <span class="token keyword">void</span> <span class="token function">pointCut</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">{<!-- --></span><span class="token punctuation">}</span>
+
+    <span class="token comment">//前置通知</span>
+<span class="token comment">//    @Before("pointCut()")</span>
+    <span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">beforePrintLog</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">{<!-- --></span>
+        System<span class="token punctuation">.</span>out<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"前置通知：Logger类中的beforePrintLog方法开始记录日志了！"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token comment">//后置通知</span>
+<span class="token comment">//    @AfterReturning("pointCut()")</span>
+    <span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">afterReturningPrintLog</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">{<!-- --></span>
+        System<span class="token punctuation">.</span>out<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"后置通知：Logger类中的afterReturningPrintLog方法开始记录日志了！"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token comment">//异常通知</span>
+<span class="token comment">//    @AfterThrowing("pointCut()")</span>
+    <span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">afterThrowingPrintLog</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">{<!-- --></span>
+        System<span class="token punctuation">.</span>out<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"异常通知：Logger类中的afterThrowingPrintLog方法开始记录日志了！"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token comment">//最终通知</span>
+<span class="token comment">//    @After("pointCut()")</span>
+    <span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">afterPrintLog</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">{<!-- --></span>
+        System<span class="token punctuation">.</span>out<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"最终通知：Logger类中的afterPrintLog方法开始记录日志了！"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token comment">// 环绕通知：指定增强方法需要的额外操作，相对于原方法的执行位置【前置、后置、异常、最终：分别是</span>
+    <span class="token comment">// 原方法执行前（对应proceedingJoinPoint.proceed(args)之前）、</span>
+    <span class="token comment">// 原方法正常执行后（对应proceedingJoinPoint.proceed(args)之后）、</span>
+    <span class="token comment">// 原方法无法正常执行报异常（对应catch）、</span>
+    <span class="token comment">// 原方法执行后最终一定会执行（对应finally） 】</span>
+
+    <span class="token annotation punctuation">@Around</span><span class="token punctuation">(</span><span class="token string">"pointCut()"</span><span class="token punctuation">)</span>
+    <span class="token keyword">public</span> Object <span class="token function">aroundPrintLog</span><span class="token punctuation">(</span>ProceedingJoinPoint proceedingJoinPoint<span class="token punctuation">)</span><span class="token punctuation">{<!-- --></span>
+        Object returnValue<span class="token punctuation">;</span>
+        <span class="token keyword">try</span> <span class="token punctuation">{<!-- --></span>
+            Object<span class="token punctuation">[</span><span class="token punctuation">]</span> args <span class="token operator">=</span> proceedingJoinPoint<span class="token punctuation">.</span><span class="token function">getArgs</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span><span class="token comment">//获得需要加强的方法执行所需的参数</span>
+
+            System<span class="token punctuation">.</span>out<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"环绕通知：Logger类中的aroundPrintLog方法开始记录日志了！——前置"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+            returnValue <span class="token operator">=</span> proceedingJoinPoint<span class="token punctuation">.</span><span class="token function">proceed</span><span class="token punctuation">(</span>args<span class="token punctuation">)</span><span class="token punctuation">;</span><span class="token comment">//明确调用切入点方法，也就是需要加强的方法</span>
+
+            System<span class="token punctuation">.</span>out<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"环绕通知：Logger类中的aroundPrintLog方法开始记录日志了！——后置"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+            <span class="token keyword">return</span> returnValue<span class="token punctuation">;</span>
+        <span class="token punctuation">}</span> <span class="token keyword">catch</span> <span class="token punctuation">(</span><span class="token class-name">Throwable</span> throwable<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            System<span class="token punctuation">.</span>out<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"环绕通知：Logger类中的aroundPrintLog方法开始记录日志了！——异常"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token comment">//必须throw出来，只是throwable.printStackTrace()无法打断程序</span>
+            <span class="token keyword">throw</span> <span class="token keyword">new</span> <span class="token class-name">RuntimeException</span><span class="token punctuation">(</span>throwable<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span> <span class="token keyword">finally</span> <span class="token punctuation">{<!-- --></span>
+            System<span class="token punctuation">.</span>out<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"环绕通知：Logger类中的aroundPrintLog方法开始记录日志了！——最终"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+
+</code></pre> 
+<h5><a id="_148"></a>切面类的注解说明</h5> 
+<p>&amp;&amp; @Aspect：注解在类上，声明这是一个切面类<br> &amp;&amp; @Pointcut：固定写法，主要是注解内需要声明需要被加强代理的方法，可以通过【通配】、【正则表达式】等方式集中声明<br> &amp;&amp; @Before(“pointCut()”)、@AfterReturning(“pointCut()”)、@AfterThrowing(“pointCut()”)、@After(“pointCut()”)分别注解在“前置、后置、异常、最终”位置，但是实际执行时貌似没有完全按照我们需要的先后顺序执行，所以【推荐以下方式】<br> &amp;&amp; 用@Around(“pointCut()”)注解一个方法，接受（ProceedingJoinPoint proceedingJoinPoint）作为参数，详见代码说明</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/8eb918940cc559097836fbe465a646a4/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">ubuntu20.04 编译安装 grpc-c&#43;&#43;</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/1c6469c2b26da2cbbfb110728e0d39d4/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">vue中key的作用及其原理</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>使用Zerotier进行内网穿透的几种组网模式 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/615f10c7150629daae1ec586602844f8/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="使用Zerotier进行内网穿透的几种组网模式">
+  <meta property="og:description" content="Zerotier是一个非常好的内网穿透的软件，能够非常方便的组建自己的虚拟局域网，重点是：免费，速度快。因为它通过UDP打洞成功之后，不再经过服务器中转，相当于两个异地主机之间用QQ传在线文件有多快，那这个虚拟局域网就有多快。我常常用它来在办公室看家里的IPTV。将家里的NAS直接映射为办公室电脑的网盘而不用经过NAS的专用软件。貌似这种方式，可以直接把办公室的资料存在家里的NAS上，哪天干得不爽时，都不用删办公室电脑里面的文件，直接断开映射的网盘，取消Zerotier的网络授权就好。是不是很邪恶？
+因为Zerotier支持多种操作系统多种终端，所以组网方式也就非常灵活，特别是在路由器上装有Zerotier，设定好路由之后，在不同路由器下的设备，就可以无感互访了。
+一、简单主机模式
+典型的场景是：将家里和办公室的两台电脑都装上Zerotier，加入同一虚拟局域网。只要两台电脑不关机，就可以在异地进行远程操控。具体的使用方法，网上有太多太多的教程，这里就不啰嗦了。
+二、普通路由模式
+普通路由模式，是指在路由器上装上Zerotier，然后这个路由器下的主机全都能接入虚拟局域网。当然这个路由器要能够装Zerotier，那便不是普通的在网上或店里买回来的路由器。推荐使用将路由器刷机成OpenWRT的路由器，哪些路由器能够刷机成OpenWRT，可以去OpenWRT的官网上去查，具体刷机的方法，也可以在网上去找，这里不再啰嗦。其实很多路由器都是基于OpenWRT做的二次开发，重新定制了管理界面和相关应用。比如小米路由器。因为这些家用路由器就是一台嵌入式设备，内核是基于Linux的。而OpenWRT是一种非常流行的通用的嵌入式设备的操作系统，广泛应用在普通家用路由器上。OpenWRT为这些设备提供了统一的web和SSH管理接口，种类繁多的应用软件，类似Linux的操作，你使用之后一定会让你爱上它。
+典型的应用场景是：你办公室和家里都有一台路由器，分别装上了Zerotier，如果办公室的路由器得到的Zerotier网络地址是192.168.192.100，路由器LAN下的地址是192.168.10.*。家里的路由器得到的Zerotier网络地址是192.168.192.200，路由器LAN下的地址是192.168.2.*。则在Zerotier的管理网页中配置路由，在两台路由器的OpenWRT管理界面中设置一定的网络防火墙区域，并设定转发放行规则，就可以实现办公室和家中不同路由器下的设备互访了。
+依据上述场景和地址示例，在Zerotier的管理网页中，需要做如下配置：
+提交上图的路由规则，同时，还需要提交一条Destination为192.168.2.0/24，Via为192.168.192.200的路由规则。以此改变两地互访的路由。（PS：如果不在Zerotier的网页管理界面中做配置，也可以在路由器OpenWRT中设定路由规则）
+在路由器的OpenWRT管理界面中，还需要增加网络接口设定防火墙的转发规则。如图所示：
+1、在Network—Interface中增加接口
+2、指定其防火墙区域为
+3、在Network—Firewall中设定区域的转发规则
+（这三处图示设定，在旧版的OpenWRT中，也可能通过自定义的防火墙规则搞定）
+三、旁路由模式
+旁路由模式是因为在某些特定场合下，不能在主路由上装上Zerotier，而要实现对其下的设备进行单向访问的需求。比如：你家里的主路由是可以通过手机APP进行管理的路由器，所以你不想换成OpenWRT，而你又想将家里的NAS映射为办公室电脑的网盘。
+此时，你需要在主路由下接入一台装有Zerotier的路由器，弃用它的WAN口，LAN口配置为主路由器下地址段中的一个静态地址，网关配置为主路由的网关，用网线将它的LAN口与主路由的LAN口直连。在OpenWRT中增加网络接口和防火墙区域与普通路由模式一致，但转发规则有所区别，如图所示：
+形成的总览视图为：
+例如：主路由下LAN地址段为192.168.31.*，旁路由得到的Zerotier网络地址为：192.168.192.200，则需要在Zerotier管理网页中提交一条Destination为192.168.31.0/24，Via为192.168.192.200的路由规则。（当然，不在Zerotier的管理网页中配置，也可以在其它装有Zerotier的主机中配置）
+这样可以实现办公室的设备访问家中主路由器下的其他设备，但不能实现反向访问。
+四、混合模式
+如果要实现上述旁路由模式中的反向访问，则家中主路由下的电脑还是要装上Zerotier才能达到效果。但此时如果在Zerotier的管理网页中指定的某些路由，则会改变家中电脑的路由，所以不建议在Zerotier的管理网页中统一配置路由，而将不同位置的装有Zerotier的设备按不同的需求进行路由配置。
+更进一步的是，如我办公室的上一级网络是172.16.*.*的，公司服务器的地址是202.10.10.*的，则配置家中的主机的路由时，将以上两个网段的路由全部转发到办公室的装有Zeroiter的路由器的Zerotier网络地址。这样家里的电脑就能够无感访问公司的内网资源了。
+如果你有一台笔记本电脑，这台笔记本电脑有时在办公室，有时在家里，有时会随你出差在外，要能灵活使用这虚拟局域网，根据需要自己启用或禁用Zerotier网络，或在笔记本电脑上灵活配置不同的路由规则达到异地访问的目的。">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2023-03-31T11:11:30+08:00">
+    <meta property="article:modified_time" content="2023-03-31T11:11:30+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">使用Zerotier进行内网穿透的几种组网模式</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <p style="margin-left:0;text-align:justify;"></p> 
+<p style="margin-left:0;text-align:justify;">Zerotier是一个非常好的内网穿透的软件，能够非常方便的组建自己的虚拟局域网，重点是：免费，速度快。因为它通过UDP打洞成功之后，不再经过服务器中转，相当于两个异地主机之间用QQ传在线文件有多快，那这个虚拟局域网就有多快。我常常用它来在办公室看家里的IPTV。将家里的NAS直接映射为办公室电脑的网盘而不用经过NAS的专用软件。貌似这种方式，可以直接把办公室的资料存在家里的NAS上，哪天干得不爽时，都不用删办公室电脑里面的文件，直接断开映射的网盘，取消Zerotier的网络授权就好。是不是很邪恶？</p> 
+<p style="margin-left:0;text-align:justify;">因为Zerotier支持多种操作系统多种终端，所以组网方式也就非常灵活，特别是在路由器上装有Zerotier，设定好路由之后，在不同路由器下的设备，就可以无感互访了。</p> 
+<p style="margin-left:0;text-align:justify;">一、简单主机模式</p> 
+<p style="margin-left:0;text-align:justify;">典型的场景是：将家里和办公室的两台电脑都装上Zerotier，加入同一虚拟局域网。只要两台电脑不关机，就可以在异地进行远程操控。具体的使用方法，网上有太多太多的教程，这里就不啰嗦了。</p> 
+<p style="margin-left:0;text-align:justify;">二、普通路由模式</p> 
+<p style="margin-left:0;text-align:justify;">普通路由模式，是指在路由器上装上Zerotier，然后这个路由器下的主机全都能接入虚拟局域网。当然这个路由器要能够装Zerotier，那便不是普通的在网上或店里买回来的路由器。推荐使用将路由器刷机成OpenWRT的路由器，哪些路由器能够刷机成OpenWRT，可以去OpenWRT的官网上去查，具体刷机的方法，也可以在网上去找，这里不再啰嗦。其实很多路由器都是基于OpenWRT做的二次开发，重新定制了管理界面和相关应用。比如小米路由器。因为这些家用路由器就是一台嵌入式设备，内核是基于Linux的。而OpenWRT是一种非常流行的通用的嵌入式设备的操作系统，广泛应用在普通家用路由器上。OpenWRT为这些设备提供了统一的web和SSH管理接口，种类繁多的应用软件，类似Linux的操作，你使用之后一定会让你爱上它。</p> 
+<p style="margin-left:0;text-align:justify;">典型的应用场景是：你办公室和家里都有一台路由器，分别装上了Zerotier，如果办公室的路由器得到的Zerotier网络地址是192.168.192.100，路由器LAN下的地址是192.168.10.*。家里的路由器得到的Zerotier网络地址是192.168.192.200，路由器LAN下的地址是192.168.2.*。则在Zerotier的管理网页中配置路由，在两台路由器的OpenWRT管理界面中设置一定的网络防火墙区域，并设定转发放行规则，就可以实现办公室和家中不同路由器下的设备互访了。</p> 
+<p style="margin-left:0;text-align:justify;">依据上述场景和地址示例，在Zerotier的管理网页中，需要做如下配置：</p> 
+<p style="margin-left:0;text-align:justify;"><img alt="" height="321" src="https://images2.imgbox.com/35/78/edrq6UCI_o.png" width="740"></p> 
+<p style="margin-left:0;text-align:justify;">提交上图的路由规则，同时，还需要提交一条Destination为192.168.2.0/24，Via为192.168.192.200的路由规则。以此改变两地互访的路由。（PS：如果不在Zerotier的网页管理界面中做配置，也可以在路由器OpenWRT中设定路由规则）</p> 
+<p style="margin-left:0;text-align:justify;">在路由器的OpenWRT管理界面中，还需要增加网络接口设定防火墙的转发规则。如图所示：</p> 
+<p style="margin-left:0;text-align:justify;">1、在Network—Interface中增加接口</p> 
+<p style="margin-left:0;text-align:justify;"><img alt="" height="227" src="https://images2.imgbox.com/d1/73/8hznB5yO_o.png" width="902"></p> 
+<p style="margin-left:0;text-align:justify;">2、指定其防火墙区域为</p> 
+<p style="margin-left:0;text-align:justify;"><img alt="" height="275" src="https://images2.imgbox.com/34/e2/FmO62H8m_o.png" width="905"></p> 
+<p style="margin-left:0;text-align:justify;">3、在Network—Firewall中设定区域的转发规则</p> 
+<p style="margin-left:0;text-align:justify;"><img alt="" height="717" src="https://images2.imgbox.com/b6/01/WLwEZaMy_o.png" width="902"></p> 
+<p style="margin-left:0;text-align:justify;">（这三处图示设定，在旧版的OpenWRT中，也可能通过自定义的防火墙规则搞定）</p> 
+<p style="margin-left:0;text-align:justify;">三、旁路由模式</p> 
+<p style="margin-left:0;text-align:justify;">旁路由模式是因为在某些特定场合下，不能在主路由上装上Zerotier，而要实现对其下的设备进行单向访问的需求。比如：你家里的主路由是可以通过手机APP进行管理的路由器，所以你不想换成OpenWRT，而你又想将家里的NAS映射为办公室电脑的网盘。</p> 
+<p style="margin-left:0;text-align:justify;">此时，你需要在主路由下接入一台装有Zerotier的路由器，弃用它的WAN口，LAN口配置为主路由器下地址段中的一个静态地址，网关配置为主路由的网关，用网线将它的LAN口与主路由的LAN口直连。在OpenWRT中增加网络接口和防火墙区域与普通路由模式一致，但转发规则有所区别，如图所示：</p> 
+<p style="margin-left:0;text-align:justify;"><img alt="" height="716" src="https://images2.imgbox.com/30/3a/D9t0J59t_o.png" width="901"></p> 
+<p style="margin-left:0;text-align:justify;">形成的总览视图为：</p> 
+<p style="margin-left:0;text-align:justify;"><img alt="" height="229" src="https://images2.imgbox.com/f4/7f/t8SGcUfY_o.png" width="956"></p> 
+<p style="margin-left:0;text-align:justify;">例如：主路由下LAN地址段为192.168.31.*，旁路由得到的Zerotier网络地址为：192.168.192.200，则需要在Zerotier管理网页中提交一条Destination为192.168.31.0/24，Via为192.168.192.200的路由规则。（当然，不在Zerotier的管理网页中配置，也可以在其它装有Zerotier的主机中配置）</p> 
+<p style="margin-left:0;text-align:justify;">这样可以实现办公室的设备访问家中主路由器下的其他设备，但不能实现反向访问。</p> 
+<p style="margin-left:0;text-align:justify;">四、混合模式</p> 
+<p style="margin-left:0;text-align:justify;">如果要实现上述旁路由模式中的反向访问，则家中主路由下的电脑还是要装上Zerotier才能达到效果。但此时如果在Zerotier的管理网页中指定的某些路由，则会改变家中电脑的路由，所以不建议在Zerotier的管理网页中统一配置路由，而将不同位置的装有Zerotier的设备按不同的需求进行路由配置。</p> 
+<p style="margin-left:0;text-align:justify;">更进一步的是，如我办公室的上一级网络是172.16.*.*的，公司服务器的地址是202.10.10.*的，则配置家中的主机的路由时，将以上两个网段的路由全部转发到办公室的装有Zeroiter的路由器的Zerotier网络地址。这样家里的电脑就能够无感访问公司的内网资源了。</p> 
+<p style="margin-left:0;text-align:justify;">如果你有一台笔记本电脑，这台笔记本电脑有时在办公室，有时在家里，有时会随你出差在外，要能灵活使用这虚拟局域网，根据需要自己启用或禁用Zerotier网络，或在笔记本电脑上灵活配置不同的路由规则达到异地访问的目的。</p> 
+<p style="margin-left:0;text-align:justify;"></p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/bce70f89595aa9005aed6d3be839ba5f/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">中国地面气候资料日值数据集(V3.0)</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/f77b7fdb93cd276649026f89e647a34f/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">2000-2020年全国各城市湿度（逐日、逐月、逐年）</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

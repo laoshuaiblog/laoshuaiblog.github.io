@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>CAS单点登录(十)——通过Restful协议请求认证和退出 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/b88b4ca2d863549f2ed13f507170ea79/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="CAS单点登录(十)——通过Restful协议请求认证和退出">
+  <meta property="og:description" content="前面我们讲解了一些列的CAS文章，对CAS有了很多了解。今天我们讲解一个现在服务常用的REST协议来完成CAS的登录、认证，不需要我们手动登录跳转到CAS的登录页面就可以完成CAS的一些列操作。
+我们知道CAS认证支持包括多种协议去认证，包括CAS、OAuth、SAML1、SAML2、REST Protocol等协议，这里我们采用REST协议去获取TGT，然后获取到TGT后获取到ST，最后拿到ST后再去访问服务。
+一、认证服务 首先我们加入Rest服务依赖：
+&amp;lt;!-- Restful support --&amp;gt; &amp;lt;dependency&amp;gt; &amp;lt;groupId&amp;gt;org.apereo.cas&amp;lt;/groupId&amp;gt; &amp;lt;artifactId&amp;gt;cas-server-support-rest&amp;lt;/artifactId&amp;gt; &amp;lt;version&amp;gt;${cas.version}&amp;lt;/version&amp;gt; &amp;lt;/dependency&amp;gt; 开启Rest认证方式，我们在前面的文章介也绍过CAS单点登录(三)——多种认证方式。
+在application.properties中，我们配置restful的链接。
+## # Rest配置 # cas.authn.rest.uri=http://localhost:8088/login cas.authn.rest.name= 这里需要注意，这个是自定义Rest认证配置的相关参数，与这里是通过公开方法RESTful来获取票证授予票证然后使用它来获取服务票证来实现的是不一样的。
+所以这里我们可以不用配置Rest认证配置的参数，这里提出来为了区分一下区别。
+注意：这里通过REST协议去获取TGT，暂时支持用户名和密码，我们在前面demo应用中加入了验证码的，因此继续使用该demo时，需要在CustomAuthenticationConfiguration配置中启用CustomUsernamePasswordAuthentication来实现认证。如下：
+/** * @author anumbrella */ @Configuration(&#34;customAuthenticationConfiguration&#34;) @EnableConfigurationProperties(CasConfigurationProperties.class) public class CustomAuthenticationConfiguration implements AuthenticationEventExecutionPlanConfigurer { @Autowired private CasConfigurationProperties casProperties; @Autowired @Qualifier(&#34;servicesManager&#34;) private ServicesManager servicesManager; @Bean public AuthenticationHandler myAuthenticationHandler() { // 参数: name, servicesManager, principalFactory, order // 定义为优先使用它进行认证 return new CustomUsernamePasswordAuthentication(CustomUsernamePasswordAuthentication.class.getName(), servicesManager, new DefaultPrincipalFactory(), 1); // return new CustomerHandlerAuthentication(CustomerHandlerAuthentication.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2019-03-30T17:11:35+08:00">
+    <meta property="article:modified_time" content="2019-03-30T17:11:35+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">CAS单点登录(十)——通过Restful协议请求认证和退出</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-dark">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <p>前面我们讲解了一些列的CAS文章，对CAS有了很多了解。今天我们讲解一个现在服务常用的REST协议来完成CAS的登录、认证，不需要我们手动登录跳转到CAS的登录页面就可以完成CAS的一些列操作。</p> 
+<p>我们知道CAS认证支持包括多种协议去认证，包括CAS、OAuth、SAML1、SAML2、REST Protocol等协议，这里我们采用REST协议去获取TGT，然后获取到TGT后获取到ST，最后拿到ST后再去访问服务。</p> 
+<p><img src="https://images2.imgbox.com/f3/67/fn32rLUL_o.png" alt="rest"></p> 
+<h3><a id="_7"></a>一、认证服务</h3> 
+<p>首先我们加入Rest服务依赖：</p> 
+<pre><code>        &lt;!-- Restful support --&gt;
+        &lt;dependency&gt;
+            &lt;groupId&gt;org.apereo.cas&lt;/groupId&gt;
+            &lt;artifactId&gt;cas-server-support-rest&lt;/artifactId&gt;
+            &lt;version&gt;${cas.version}&lt;/version&gt;
+        &lt;/dependency&gt;
+</code></pre> 
+<p>开启Rest认证方式，我们在前面的文章介也绍过<a href="https://blog.csdn.net/Anumbrella/article/details/81149249">CAS单点登录(三)——多种认证方式</a>。</p> 
+<p>在application.properties中，我们配置restful的链接。</p> 
+<pre><code>##
+# Rest配置
+#
+cas.authn.rest.uri=http://localhost:8088/login
+cas.authn.rest.name=
+</code></pre> 
+<p><img src="https://images2.imgbox.com/8c/e1/Y4q3eGAD_o.png" alt="rest protocol"></p> 
+<p><strong>这里需要注意，这个是自定义Rest认证配置的相关参数，与这里是通过公开方法RESTful来获取票证授予票证然后使用它来获取服务票证来实现的是不一样的。</strong></p> 
+<p>所以这里我们可以不用配置Rest认证配置的参数，这里提出来为了区分一下区别。</p> 
+<p><strong>注意</strong>：这里通过REST协议去获取TGT，暂时支持用户名和密码，我们在前面demo应用中加入了验证码的，因此继续使用该demo时，需要在CustomAuthenticationConfiguration配置中启用CustomUsernamePasswordAuthentication来实现认证。如下：</p> 
+<pre><code>/**
+ * @author anumbrella
+ */
+@Configuration("customAuthenticationConfiguration")
+@EnableConfigurationProperties(CasConfigurationProperties.class)
+public class CustomAuthenticationConfiguration implements AuthenticationEventExecutionPlanConfigurer {
+
+    @Autowired
+    private CasConfigurationProperties casProperties;
+
+    @Autowired
+    @Qualifier("servicesManager")
+    private ServicesManager servicesManager;
+
+    @Bean
+    public AuthenticationHandler myAuthenticationHandler() {
+        // 参数: name, servicesManager, principalFactory, order
+        // 定义为优先使用它进行认证
+        return new CustomUsernamePasswordAuthentication(CustomUsernamePasswordAuthentication.class.getName(),
+                servicesManager, new DefaultPrincipalFactory(), 1);
+
+//        return new CustomerHandlerAuthentication(CustomerHandlerAuthentication.class.getName(),
+//                servicesManager, new DefaultPrincipalFactory(), 1);
+    }
+
+    @Override
+    public void configureAuthenticationExecutionPlan(final AuthenticationEventExecutionPlan plan) {
+        plan.registerAuthenticationHandler(myAuthenticationHandler());
+    }
+}
+</code></pre> 
+<p>其他操作呢？没了，就是如此简单，启动服务，接下来就是Restful操作。</p> 
+<h4><a id="1TGT_75"></a>1、获取TGT票据</h4> 
+<p>官方文档给的操作如下：</p> 
+<pre><code>POST /cas/v1/tickets HTTP/1.0
+'Content-type': 'Application/x-www-form-urlencoded'
+username=battags&amp;password=password&amp;additionalParam1=paramvalue
+</code></pre> 
+<p>除了用户名和密码外，当然还可以传递其他参数，这里我们原有验证码的，也可以通过该方式传递进去。</p> 
+<p>这里我们使用POSTMAN来模拟一下：</p> 
+<p><img src="https://images2.imgbox.com/42/52/PHfZ2WRE_o.png" alt="01"></p> 
+<p>这里的service参数就是其他参数，不是必填的。是一个可选的参数，因此不用必须传过去，如果像我们之前像服务认证有验证码一样，可以自己实现通过这里传递过去。</p> 
+<h4><a id="2TGTST_93"></a>2、用TGT申请ST票据</h4> 
+<p>我们在上面获取到TGT后，然后通过<code>https://sso.anumbrella.net:8443/cas/v1/tickets/TGT-2-CbkNRl2u4WS3-WVbtGhJCYBoxbVwzC2SPEj9DEAN5Gbd2f4YWaBkJrFTdBcivytGGcoanumbrelladeiMac</code>，就是上面获取的路径去获取ST票据。</p> 
+<pre><code>POST /cas/v1/tickets/{TGT id} HTTP/1.0
+
+service={form encoded parameter for the service url}
+</code></pre> 
+<p>这里有一个参数，service就是客户端地址，为POST请求。</p> 
+<p>如下：<br> <img src="https://images2.imgbox.com/27/3c/tQoIlX9B_o.png" alt="rest3"></p> 
+<p>我们拿到ST = <code>ST-5-0bAcjZ92h6QjLYx7WJ8MFtenXakanumbrelladeiMac</code>后，再通过它去访问具体服务。</p> 
+<h4><a id="3ST_111"></a>3、通过ST票据去访问服务</h4> 
+<p>CAS默认的ST过期策略是使用一次或者超过10秒，这个对咱们做测试来说有点短所以在application.properties中更改如下。</p> 
+<pre><code>##
+# Ticket过期设置
+#
+cas.ticket.st.numberOfUses=1
+cas.ticket.st.timeToKillInSeconds=60
+</code></pre> 
+<p>使用浏览器访问<code>https://client.anumbrella.net:9443/?ticket=ST-5-0bAcjZ92h6QjLYx7WJ8MFtenXakanumbrelladeiMac</code>路径，可以发现不用登录直接进入应用。</p> 
+<p><img src="https://images2.imgbox.com/a1/a6/JkgVhlrD_o.png" alt="example"></p> 
+<h3><a id="_128"></a>二、票据验证以及销毁</h3> 
+<h4><a id="1_130"></a>1、验证</h4> 
+<p>官方提供restful接口来验证票据，这里是通过cas协议来验证，路径为/p3/serviceValidate，具体详情，如下。</p> 
+<pre><code>GET /cas/p3/serviceValidate?service={service url}&amp;ticket={service ticket}
+</code></pre> 
+<p>因为票据是一次性使用的，所以我们再申请一个ticket，并进行验证。</p> 
+<p>如下，可以看到具体验证的信息。<br> <img src="https://images2.imgbox.com/d1/d1/eM9CHjGa_o.png" alt="验证票据"></p> 
+<p>除了票据的验证，还有TGT的有效性验证。</p> 
+<pre><code>GET /cas/v1/tickets/TGT-fdsjfsdfjkalfewrihfdhfaie HTTP/1.0
+</code></pre> 
+<p>比如TGT为：<code>TGT-2-CbkNRl2u4WS3-WVbtGhJCYBoxbVwzC2SPEj9DEAN5Gbd2f4YWaBkJrFTdBcivytGGcoanumbrelladeiMac</code>；<br> 访问路径<code>https://sso.anumbrella.net:8443/cas/v1/tickets/TGT-2-CbkNRl2u4WS3-WVbtGhJCYBoxbVwzC2SPEj9DEAN5Gbd2f4YWaBkJrFTdBcivytGGcoanumbrelladeiMac</code>来进行验证</p> 
+<p><img src="https://images2.imgbox.com/02/4c/mh6VdRvC_o.png" alt="票据验证2"></p> 
+<h4><a id="2_154"></a>2、退出</h4> 
+<p>在CAS中还提供了销毁TGT的请求，发起一个DELETE请求即可。</p> 
+<pre><code>DELETE /cas/v1/tickets/TGT-fdsjfsdfjkalfewrihfdhfaie HTTP/1.0
+</code></pre> 
+<p>比如，刚才的票据<code>TGT-2-CbkNRl2u4WS3-WVbtGhJCYBoxbVwzC2SPEj9DEAN5Gbd2f4YWaBkJrFTdBcivytGGcoanumbrelladeiMac</code>，我们想退出使它无效，发起一个DELETE请求即可。</p> 
+<p>然后我们再去验证，可以发现TGT无效，不在了，刷新刚才登录的应用，也会自动退出。</p> 
+<p><img src="https://images2.imgbox.com/63/c0/gExEpd35_o.png" alt="TGT"></p> 
+<p>代码实例：<a href="https://github.com/Shuyun123/CAS/tree/master/Chapter9">Chapter9</a></p> 
+<h3><a id="_170"></a>参考</h3> 
+<ul><li><a href="https://blog.csdn.net/u010588262/article/details/79818494">手把手教Apereo CAS5.2.3 Server端开启restful验证</a></li><li><a href="https://apereo.github.io/cas/5.3.x/installation/Configuration-Properties.html#service-tickets-behavior" rel="nofollow">https://apereo.github.io/cas/5.3.x/installation/Configuration-Properties.html#service-tickets-behavior</a></li><li><a href="https://apereo.github.io/cas/5.3.x/protocol/Protocol-Overview.html" rel="nofollow">https://apereo.github.io/cas/5.3.x/protocol/Protocol-Overview.html</a></li></ul>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/7a5d6604dc0ddf63c06d676bcc9af4a9/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">输入一个年份和一个月份，输出该年此月天数；知道日期，计算该日是本年的第几天（c语言）</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/5799d611534bf5e9b941f30b61e15b82/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">电脑连不上WiFi，右下角出现红叉怎么解决</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

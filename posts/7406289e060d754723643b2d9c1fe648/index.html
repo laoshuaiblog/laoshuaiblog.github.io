@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Android内存优化项目经验分享 兼顾效率与性能 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/7406289e060d754723643b2d9c1fe648/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="Android内存优化项目经验分享 兼顾效率与性能">
+  <meta property="og:description" content="背景 项目上线一段时间后,回顾重要页面 保证更好用户体验及生产效率，做了内存优化和下载导出优化，具体效果如最后的一节的表格所示。
+下面针对拍摄流程的两个页面 预览页 导出页优化实例进行介绍：
+一.拍摄前预览页面优化 预览效果问题 存在内存回收不及时情况 问题描述 在预览页面两分钟的情况时： 内存回收不及时 会持续上涨到阈值 才会触发回收情况
+对比图 处理前 AddCaptureActivity
+处理后 AddCaptureActivity
+原因 预览图未及时清除 到达阈值的时候才会回收
+解决方案 对临时预览图不光置空 还要对其标记回收
+效果 减少40%常驻值
+后续提升 针对低性能设备可以降低预览视频 帧率及分辨率
+二.拍摄保存页面 目标 业务目标：在减少导出时间 减少预览加载时间
+技术目标：兼顾效率的情况下内存优化
+现状 进入页面会加载预览图（全屏可滑动的全景图 ）,点击下方保存按钮会下载图片。
+需要导出的图片规格 6720x3360 预览组件 在compose下用个webview实现 下载好了图片转为base64通过js桥传到web中 web中负责渲染
+组件布局 加载的具体实现 下载组件 通过网络请求对数据下载 默认重试时间10s 失败有toast提示 成功返回房源编辑页面
+内存情况 内存常驻值为628 峰值780
+内存情况 现状总结 现状情况总结:预览组件和下载导出是独立的组件
+优点:独立进行加载 保证了两个业务相互独立 可以在没有预览的情况下 仍能够正常导出
+缺点:导出时间长 且没有及时反馈,10s重试、占用内存峰值高
+整改 第一步 打通两个组件的加载逻辑 实现缓存共用 打通两个组件的加载逻辑 实现缓存共用 实现以空间换时间实现速度提升,就是将预览组件的缓存 在导出的时候使用。">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2024-03-24T21:59:41+08:00">
+    <meta property="article:modified_time" content="2024-03-24T21:59:41+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">Android内存优化项目经验分享 兼顾效率与性能</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <h2>背景</h2> 
+<p>        项目上线一段时间后,回顾重要页面 保证更好用户体验及生产效率，做了内存优化和下载导出优化，具体效果如最后的一节的表格所示。</p> 
+<p>下面针对拍摄流程的两个页面 预览页 导出页优化实例进行介绍：</p> 
+<h2>一.拍摄前预览页面优化</h2> 
+<h3>预览效果问题 存在内存回收不及时情况</h3> 
+<h4>问题描述</h4> 
+<p>在预览页面两分钟的情况时： 内存回收不及时 会持续上涨到阈值 才会触发回收情况</p> 
+<h4>对比图</h4> 
+<p>处理前 AddCaptureActivity</p> 
+<p><img alt="" height="742" src="https://images2.imgbox.com/af/b9/5aMutAFQ_o.png" width="1200"></p> 
+<p>处理后 AddCaptureActivity<img alt="" height="769" src="https://images2.imgbox.com/d9/92/QVe4MI2X_o.png" width="1200"></p> 
+<h4>原因</h4> 
+<p>预览图未及时清除 到达阈值的时候才会回收</p> 
+<h4>解决方案</h4> 
+<p>对临时预览图不光置空 还要对其标记回收</p> 
+<h5>效果</h5> 
+<p>减少40%常驻值</p> 
+<h4>后续提升</h4> 
+<p>针对低性能设备可以降低预览视频 帧率及分辨率</p> 
+<p></p> 
+<h2 style="background-color:transparent;">二.拍摄保存页面</h2> 
+<h3>目标</h3> 
+<p>业务目标：在减少导出时间 减少预览加载时间</p> 
+<p>技术目标：兼顾效率的情况下内存优化</p> 
+<h3>现状</h3> 
+<p>进入页面会加载预览图（全屏可滑动的全景图 ）,点击下方保存按钮会下载图片。</p> 
+<p class="img-center"><img alt="" height="280" src="https://images2.imgbox.com/ed/08/9kSIYM2P_o.png" width="129"></p> 
+<div class="img-center"> 
+ <figure class="image"> 
+  <img alt="" height="368" src="https://images2.imgbox.com/08/3d/rJbT720d_o.png" width="690"> 
+  <figcaption>
+    需要导出的图片规格 6720x3360 
+  </figcaption> 
+ </figure> 
+</div> 
+<h4 style="background-color:transparent;">预览组件</h4> 
+<p>在compose下用个webview实现 下载好了图片转为base64通过js桥传到web中 web中负责渲染</p> 
+<div class="img-center"> 
+ <figure class="image"> 
+  <img alt="" height="372" src="https://images2.imgbox.com/a4/6a/4ELNICHe_o.png" width="369"> 
+  <figcaption>
+    组件布局 
+  </figcaption> 
+ </figure> 
+</div> 
+<div class="img-center"> 
+ <figure class="image"> 
+  <img alt="" height="251" src="https://images2.imgbox.com/ca/cb/T6tLX6uJ_o.png" width="406"> 
+  <figcaption>
+    加载的具体实现 
+  </figcaption> 
+ </figure> 
+</div> 
+<h4>下载组件</h4> 
+<p>通过网络请求对数据下载 默认重试时间10s 失败有toast提示 成功返回房源编辑页面</p> 
+<h4>内存情况</h4> 
+<p>内存常驻值为628 峰值780</p> 
+<div class="img-center"> 
+ <figure class="image"> 
+  <img alt="" height="725" src="https://images2.imgbox.com/83/4f/vxX4oAJk_o.png" width="1200"> 
+  <figcaption>
+    内存情况 
+  </figcaption> 
+ </figure> 
+</div> 
+<h4 style="background-color:transparent;">现状总结</h4> 
+<p>现状情况总结:预览组件和下载导出是独立的组件</p> 
+<p>优点:独立进行加载 保证了两个业务相互独立 可以在没有预览的情况下 仍能够正常导出</p> 
+<p>缺点:导出时间长 且没有及时反馈,10s重试、占用内存峰值高</p> 
+<p></p> 
+<h3>整改</h3> 
+<h4>第一步 打通两个组件的加载逻辑 实现缓存共用</h4> 
+<p>打通两个组件的加载逻辑 实现缓存共用 实现以空间换时间实现速度提升,就是将预览组件的缓存 在导出的时候使用。</p> 
+<h5>措施</h5> 
+<p>通过图片缓存框架进行通过控制图片加载、缓存机制，减少无用开销、提升图片复用情况。</p> 
+<h5>效果</h5> 
+<p>导出速度显著提升,但是内存波动大、处在此页面时内存一直处于高位。</p> 
+<p><img alt="" height="723" src="https://images2.imgbox.com/53/38/0gqtzmvv_o.png" width="1200"></p> 
+<h4>第二步 针对内存情况进行优化</h4> 
+<h5>分析</h5> 
+<p>经过分析：</p> 
+<p>内存高位： 导出后bitmap在内存中并没有及时回收、缓存数据缓存了原始数据及对应UI组件大小的缩放资源</p> 
+<p>内存波动大：导出时io操作 读取bitmap 且本身io操作就会占用一定量的内存</p> 
+<h5>措施</h5> 
+<ol><li>导出时 将从glide中读取bitmap保存文件后临时变量标记回收，改为获取flie形式直接copy到指定目录中。</li><li>不再缓存解码后的数据、避免浪费资源。 <pre><code class="hljs">diskCacheStrategy(DiskCacheStrategy.DATA)</code></pre> </li><li>减少预览渲染的图片大小 不展示原始图片、降低分辨率。、</li><li>在compose中及时销毁webview <pre><code class="hljs">DisposableEffect(webView) { onDispose { webView?.destroy() // 销毁WebView } }</code></pre> </li></ol> 
+<div class="img-center"> 
+ <figure class="image"> 
+  <img alt="" height="964" src="https://images2.imgbox.com/d6/58/o4i2zQ8C_o.png" width="1064"> 
+  <figcaption>
+    glide 磁盘缓存描述 
+  </figcaption> 
+ </figure> 
+</div> 
+<h2>总体流程改造后的效果</h2> 
+<p>拍摄数量大于40张+，</p> 
+<table><tbody><tr><td colspan="1" rowspan="1"> <p>时期</p> </td><td colspan="1" rowspan="1"> <p>内存</p> </td><td colspan="1" rowspan="1"> <p>效果</p> </td><td colspan="1" rowspan="1"> <p>导出时间</p> </td></tr><tr><td colspan="1" rowspan="1"> <p>优化前</p> </td><td colspan="1" rowspan="1"> <p>内存常驻值为628 峰值780</p> </td><td colspan="1" rowspan="1"><img alt="" height="725" src="https://images2.imgbox.com/6a/78/nWp09dgY_o.png" width="1200"></td><td colspan="1" rowspan="1"> <p>z1 3s</p> <p>SC2 弱信号下导出23.36s 正常导出 5s内</p> <p></p> </td></tr><tr><td colspan="1" rowspan="1"> <p>优化中</p> </td><td colspan="1" rowspan="1"> <p>导出速度显著提升,但是内存波动大、处在此页面时内存一直处于高位。</p> <p></p> </td><td colspan="1" rowspan="1"><img alt="" height="723" src="https://images2.imgbox.com/0c/6d/SqU3MVr4_o.png" width="1200"></td><td colspan="1" rowspan="1"> <p><img alt="" height="182" src="https://images2.imgbox.com/09/2b/X3tsnTvk_o.png" width="1200">7ms</p> <p></p> </td></tr><tr><td colspan="1" rowspan="1"> <p>优化后</p> </td><td colspan="1" rowspan="1"> <p>房源编辑页常驻值为530~550</p> <p>拍摄预览页为550~560</p> <p>拍摄保存页内存为588~600</p> <p>峰值670</p> <p></p> </td><td colspan="1" rowspan="1"> <p><img alt="" height="734" src="https://images2.imgbox.com/30/9f/nMLLNapk_o.png" width="1200"></p> <p><img alt="" height="813" src="https://images2.imgbox.com/39/4f/iHb023xz_o.png" width="1200"></p> </td><td colspan="1" rowspan="1"> <p><img alt="" height="182" src="https://images2.imgbox.com/c1/ba/hgjMOFZm_o.png" width="1200">7ms</p> <p></p> </td></tr></tbody></table>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/37c59cf339d4f10f4f76bc1492b83ed9/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">无极低码SQL模板引擎使用教程示例，自己手撸一个sql模板引擎进行动态sql生成。</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/70eb7eb50dddd31792b47adbbdd08c72/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">【WEEK4】 【DAY5】AJAX - Part Two【English Version】</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

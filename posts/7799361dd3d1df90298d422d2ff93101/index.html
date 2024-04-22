@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>浅谈ClickHouse聚合和窗口函数 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/7799361dd3d1df90298d422d2ff93101/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="浅谈ClickHouse聚合和窗口函数">
+  <meta property="og:description" content="ClickHouse聚合和窗口函数 ClickHouse是一个高性能、列式存储的分布式数据库，广泛应用于实时数据分析、大数据处理等场景。在ClickHouse中，聚合函数和窗口函数是两类非常重要的函数，它们可以帮助我们对数据进行汇总、统计和分析。本文将详细介绍ClickHouse中的聚合函数（如count、sum、avg等）和窗口函数（如row_number、rank、dense_rank等）以及其他高级功能进行高级数据分析。
+1. 聚合函数 聚合函数用于对一组值进行汇总和计算，返回一个单一的结果。以下是ClickHouse中常用的聚合函数：
+1.1 COUNT COUNT函数用于计算表中的记录数或满足特定条件的记录数。
+语法：
+COUNT([DISTINCT] expression) 示例：
+-- 计算表中的记录数 SELECT COUNT(*) FROM table_name; -- 计算满足特定条件的记录数 SELECT COUNT(*) FROM table_name WHERE condition; -- 计算不同值的数量 SELECT COUNT(DISTINCT column_name) FROM table_name; 1.2 SUM SUM函数用于计算表中某列值的总和。
+语法：
+SUM(expression) 示例：
+-- 计算某列值的总和 SELECT SUM(column_name) FROM table_name; -- 计算满足特定条件的某列值的总和 SELECT SUM(column_name) FROM table_name WHERE condition; 1.3 AVG AVG函数用于计算表中某列值的平均值。
+语法：
+AVG(expression) 示例：
+-- 计算某列值的平均值 SELECT AVG(column_name) FROM table_name; -- 计算满足特定条件的某列值的平均值 SELECT AVG(column_name) FROM table_name WHERE condition; 1.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2023-11-02T16:57:51+08:00">
+    <meta property="article:modified_time" content="2023-11-02T16:57:51+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">浅谈ClickHouse聚合和窗口函数</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-dark">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <h2><a id="ClickHouse_0"></a>ClickHouse聚合和窗口函数</h2> 
+<p>ClickHouse是一个高性能、列式存储的分布式数据库，广泛应用于实时数据分析、大数据处理等场景。在ClickHouse中，聚合函数和窗口函数是两类非常重要的函数，它们可以帮助我们对数据进行汇总、统计和分析。本文将详细介绍ClickHouse中的聚合函数（如count、sum、avg等）和窗口函数（如row_number、rank、dense_rank等）以及其他高级功能进行高级数据分析。</p> 
+<h3><a id="1__4"></a>1. 聚合函数</h3> 
+<p>聚合函数用于对一组值进行汇总和计算，返回一个单一的结果。以下是ClickHouse中常用的聚合函数：</p> 
+<h4><a id="11_COUNT_8"></a>1.1 COUNT</h4> 
+<p><code>COUNT</code>函数用于计算表中的记录数或满足特定条件的记录数。</p> 
+<p>语法：</p> 
+<pre><code>COUNT([DISTINCT] expression)
+</code></pre> 
+<p>示例：</p> 
+<pre><code class="prism language-sql"><span class="token comment">-- 计算表中的记录数</span>
+<span class="token keyword">SELECT</span> <span class="token function">COUNT</span><span class="token punctuation">(</span><span class="token operator">*</span><span class="token punctuation">)</span> <span class="token keyword">FROM</span> table_name<span class="token punctuation">;</span>
+
+<span class="token comment">-- 计算满足特定条件的记录数</span>
+<span class="token keyword">SELECT</span> <span class="token function">COUNT</span><span class="token punctuation">(</span><span class="token operator">*</span><span class="token punctuation">)</span> <span class="token keyword">FROM</span> table_name <span class="token keyword">WHERE</span> condition<span class="token punctuation">;</span>
+
+<span class="token comment">-- 计算不同值的数量</span>
+<span class="token keyword">SELECT</span> <span class="token function">COUNT</span><span class="token punctuation">(</span><span class="token keyword">DISTINCT</span> column_name<span class="token punctuation">)</span> <span class="token keyword">FROM</span> table_name<span class="token punctuation">;</span>
+</code></pre> 
+<h4><a id="12_SUM_31"></a>1.2 SUM</h4> 
+<p><code>SUM</code>函数用于计算表中某列值的总和。</p> 
+<p>语法：</p> 
+<pre><code>SUM(expression)
+</code></pre> 
+<p>示例：</p> 
+<pre><code class="prism language-sql"><span class="token comment">-- 计算某列值的总和</span>
+<span class="token keyword">SELECT</span> <span class="token function">SUM</span><span class="token punctuation">(</span>column_name<span class="token punctuation">)</span> <span class="token keyword">FROM</span> table_name<span class="token punctuation">;</span>
+
+<span class="token comment">-- 计算满足特定条件的某列值的总和</span>
+<span class="token keyword">SELECT</span> <span class="token function">SUM</span><span class="token punctuation">(</span>column_name<span class="token punctuation">)</span> <span class="token keyword">FROM</span> table_name <span class="token keyword">WHERE</span> condition<span class="token punctuation">;</span>
+</code></pre> 
+<h4><a id="13_AVG_51"></a>1.3 AVG</h4> 
+<p><code>AVG</code>函数用于计算表中某列值的平均值。</p> 
+<p>语法：</p> 
+<pre><code>AVG(expression)
+</code></pre> 
+<p>示例：</p> 
+<pre><code class="prism language-sql"><span class="token comment">-- 计算某列值的平均值</span>
+<span class="token keyword">SELECT</span> <span class="token function">AVG</span><span class="token punctuation">(</span>column_name<span class="token punctuation">)</span> <span class="token keyword">FROM</span> table_name<span class="token punctuation">;</span>
+
+<span class="token comment">-- 计算满足特定条件的某列值的平均值</span>
+<span class="token keyword">SELECT</span> <span class="token function">AVG</span><span class="token punctuation">(</span>column_name<span class="token punctuation">)</span> <span class="token keyword">FROM</span> table_name <span class="token keyword">WHERE</span> condition<span class="token punctuation">;</span>
+</code></pre> 
+<h4><a id="14_MIN__MAX_71"></a>1.4 MIN 和 MAX</h4> 
+<p><code>MIN</code>和<code>MAX</code>函数分别用于计算表中某列值的最小值和最大值。</p> 
+<p>语法：</p> 
+<pre><code>MIN(expression)
+MAX(expression)
+</code></pre> 
+<p>示例：</p> 
+<pre><code class="prism language-sql"><span class="token comment">-- 计算某列值的最小值和最大值</span>
+<span class="token keyword">SELECT</span> <span class="token function">MIN</span><span class="token punctuation">(</span>column_name<span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token function">MAX</span><span class="token punctuation">(</span>column_name<span class="token punctuation">)</span> <span class="token keyword">FROM</span> table_name<span class="token punctuation">;</span>
+
+<span class="token comment">-- 计算满足特定条件的某列值的最小值和最大值</span>
+<span class="token keyword">SELECT</span> <span class="token function">MIN</span><span class="token punctuation">(</span>column_name<span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token function">MAX</span><span class="token punctuation">(</span>column_name<span class="token punctuation">)</span> <span class="token keyword">FROM</span> table_name <span class="token keyword">WHERE</span> condition<span class="token punctuation">;</span>
+</code></pre> 
+<h4><a id="15_GROUP_CONCAT_92"></a>1.5 GROUP_CONCAT</h4> 
+<p><code>GROUP_CONCAT</code>函数用于将多个值连接成一个字符串。</p> 
+<p>语法：</p> 
+<pre><code>GROUP_CONCAT([DISTINCT] expression [, separator])
+</code></pre> 
+<p>示例：</p> 
+<pre><code class="prism language-sql"><span class="token comment">-- 将多个值连接成一个字符串</span>
+<span class="token keyword">SELECT</span> GROUP_CONCAT<span class="token punctuation">(</span>column_name<span class="token punctuation">)</span> <span class="token keyword">FROM</span> table_name<span class="token punctuation">;</span>
+
+<span class="token comment">-- 使用自定义分隔符连接多个值</span>
+<span class="token keyword">SELECT</span> GROUP_CONCAT<span class="token punctuation">(</span>column_name<span class="token punctuation">,</span> <span class="token string">','</span><span class="token punctuation">)</span> <span class="token keyword">FROM</span> table_name<span class="token punctuation">;</span>
+
+<span class="token comment">-- 连接不同的值</span>
+<span class="token keyword">SELECT</span> GROUP_CONCAT<span class="token punctuation">(</span><span class="token keyword">DISTINCT</span> column_name<span class="token punctuation">)</span> <span class="token keyword">FROM</span> table_name<span class="token punctuation">;</span>
+</code></pre> 
+<h3><a id="2__115"></a>2. 窗口函数</h3> 
+<p>窗口函数用于对数据集中的每一行记录进行计算，同时考虑与当前行相关的其他行。以下是ClickHouse中常用的窗口函数：</p> 
+<h4><a id="21_ROW_NUMBER_119"></a>2.1 ROW_NUMBER</h4> 
+<p><code>ROW_NUMBER</code>函数用于为结果集中的每一行分配一个唯一的序号。</p> 
+<p>语法：</p> 
+<pre><code>ROW_NUMBER() OVER ([PARTITION BY expression] [ORDER BY expression])
+</code></pre> 
+<p>示例：</p> 
+<pre><code class="prism language-sql"><span class="token comment">-- 为结果集中的每一行分配一个唯一的序号</span>
+<span class="token keyword">SELECT</span> column_name<span class="token punctuation">,</span> ROW_NUMBER<span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token keyword">OVER</span> <span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token keyword">AS</span> row_number <span class="token keyword">FROM</span> table_name<span class="token punctuation">;</span>
+
+<span class="token comment">-- 按某列分区并排序后，为每一行分配一个唯一的序号</span>
+<span class="token keyword">SELECT</span> column_name<span class="token punctuation">,</span> ROW_NUMBER<span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token keyword">OVER</span> <span class="token punctuation">(</span><span class="token keyword">PARTITION</span> <span class="token keyword">BY</span> column1 <span class="token keyword">ORDER</span> <span class="token keyword">BY</span> column2<span class="token punctuation">)</span> <span class="token keyword">AS</span> row_number <span class="token keyword">FROM</span> table_name<span class="token punctuation">;</span>
+</code></pre> 
+<h4><a id="22_RANK__DENSE_RANK_139"></a>2.2 RANK 和 DENSE_RANK</h4> 
+<p><code>RANK</code>和<code>DENSE_RANK</code>函数用于为结果集中的每一行分配一个排名。<code>RANK</code>函数在遇到相同值时会跳过排名，而<code>DENSE_RANK</code>函数则会连续分配排名。</p> 
+<p>语法：</p> 
+<pre><code>RANK() OVER ([PARTITION BY expression] [ORDER BY expression])
+DENSE_RANK() OVER ([PARTITION BY expression] [ORDER BY expression])
+</code></pre> 
+<p>示例：</p> 
+<pre><code class="prism language-sql"><span class="token comment">-- 为结果集中的每一行分配一个排名</span>
+<span class="token keyword">SELECT</span> column_name<span class="token punctuation">,</span> RANK<span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token keyword">OVER</span> <span class="token punctuation">(</span><span class="token keyword">ORDER</span> <span class="token keyword">BY</span> column_name<span class="token punctuation">)</span> <span class="token keyword">AS</span> rank <span class="token keyword">FROM</span> table_name<span class="token punctuation">;</span>
+<span class="token keyword">SELECT</span> column_name<span class="token punctuation">,</span> DENSE_RANK<span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token keyword">OVER</span> <span class="token punctuation">(</span><span class="token keyword">ORDER</span> <span class="token keyword">BY</span> column_name<span class="token punctuation">)</span> <span class="token keyword">AS</span> dense_rank <span class="token keyword">FROM</span> table_name<span class="token punctuation">;</span>
+
+<span class="token comment">-- 按某列分区并排序后，为每一行分配一个排名</span>
+<span class="token keyword">SELECT</span> column_name<span class="token punctuation">,</span> RANK<span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token keyword">OVER</span> <span class="token punctuation">(</span><span class="token keyword">PARTITION</span> <span class="token keyword">BY</span> column1 <span class="token keyword">ORDER</span> <span class="token keyword">BY</span> column2<span class="token punctuation">)</span> <span class="token keyword">AS</span> rank <span class="token keyword">FROM</span> table_name<span class="token punctuation">;</span>
+<span class="token keyword">SELECT</span> column_name<span class="token punctuation">,</span> DENSE_RANK<span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token keyword">OVER</span> <span class="token punctuation">(</span><span class="token keyword">PARTITION</span> <span class="token keyword">BY</span> column1 <span class="token keyword">ORDER</span> <span class="token keyword">BY</span> column2<span class="token punctuation">)</span> <span class="token keyword">AS</span> dense_rank <span class="token keyword">FROM</span> table_name<span class="token punctuation">;</span>
+</code></pre> 
+<h4><a id="23_ROWS_BETWEEN__RANGE_BETWEEN_162"></a>2.3 ROWS BETWEEN 和 RANGE BETWEEN</h4> 
+<p><code>ROWS BETWEEN</code>和<code>RANGE BETWEEN</code>子句用于定义窗口函数的计算范围。<code>ROWS BETWEEN</code>子句根据行数定义范围，而<code>RANGE BETWEEN</code>子句根据值定义范围。</p> 
+<p>语法：</p> 
+<pre><code>ROWS BETWEEN start AND end
+RANGE BETWEEN start AND end
+</code></pre> 
+<p>示例：</p> 
+<pre><code class="prism language-sql"><span class="token comment">-- 计算当前行及前两行的某列值的总和</span>
+<span class="token keyword">SELECT</span> column_name<span class="token punctuation">,</span> <span class="token function">SUM</span><span class="token punctuation">(</span>column_name<span class="token punctuation">)</span> <span class="token keyword">OVER</span> <span class="token punctuation">(</span><span class="token keyword">ROWS</span> <span class="token operator">BETWEEN</span> <span class="token number">2</span> <span class="token keyword">PRECEDING</span> <span class="token operator">AND</span> <span class="token keyword">CURRENT</span> <span class="token keyword">ROW</span><span class="token punctuation">)</span> <span class="token keyword">AS</span> sum <span class="token keyword">FROM</span> table_name<span class="token punctuation">;</span>
+
+<span class="token comment">-- 计算当前行及前两行的某列值的平均值</span>
+<span class="token keyword">SELECT</span> column_name<span class="token punctuation">,</span> <span class="token function">AVG</span><span class="token punctuation">(</span>column_name<span class="token punctuation">)</span> <span class="token keyword">OVER</span> <span class="token punctuation">(</span>RANGE <span class="token operator">BETWEEN</span> <span class="token number">2</span> <span class="token keyword">PRECEDING</span> <span class="token operator">AND</span> <span class="token keyword">CURRENT</span> <span class="token keyword">ROW</span><span class="token punctuation">)</span> <span class="token keyword">AS</span> avg <span class="token keyword">FROM</span> table_name<span class="token punctuation">;</span>
+</code></pre> 
+<h3><a id="3__183"></a>3. 使用聚合函数进行数据汇总</h3> 
+<p>聚合函数可以帮助我们对数据进行汇总和计算。以下是一些使用聚合函数进行数据汇总的示例：</p> 
+<h4><a id="31__187"></a>3.1 计算总销售额</h4> 
+<p>假设我们有一个名为<code>sales</code>的表，其中包含每笔销售的<code>price</code>列。我们可以使用<code>SUM</code>函数计算总销售额：</p> 
+<pre><code class="prism language-sql"><span class="token keyword">SELECT</span> <span class="token function">SUM</span><span class="token punctuation">(</span>price<span class="token punctuation">)</span> <span class="token keyword">AS</span> total_sales <span class="token keyword">FROM</span> sales<span class="token punctuation">;</span>
+</code></pre> 
+<h4><a id="32__195"></a>3.2 计算每个产品的销售额</h4> 
+<p>如果<code>sales</code>表还包含一个<code>product_id</code>列，我们可以使用<code>GROUP BY</code>子句和<code>SUM</code>函数计算每个产品的销售额：</p> 
+<pre><code class="prism language-sql"><span class="token keyword">SELECT</span> product_id<span class="token punctuation">,</span> <span class="token function">SUM</span><span class="token punctuation">(</span>price<span class="token punctuation">)</span> <span class="token keyword">AS</span> product_sales <span class="token keyword">FROM</span> sales <span class="token keyword">GROUP</span> <span class="token keyword">BY</span> product_id<span class="token punctuation">;</span>
+</code></pre> 
+<h4><a id="33__203"></a>3.3 计算每个月的销售额</h4> 
+<p>如果<code>sales</code>表还包含一个<code>date</code>列，我们可以使用<code>toStartOfMonth</code>函数和<code>GROUP BY</code>子句计算每个月的销售额：</p> 
+<pre><code class="prism language-sql"><span class="token keyword">SELECT</span> toStartOfMonth<span class="token punctuation">(</span><span class="token keyword">date</span><span class="token punctuation">)</span> <span class="token keyword">AS</span> <span class="token keyword">month</span><span class="token punctuation">,</span> <span class="token function">SUM</span><span class="token punctuation">(</span>price<span class="token punctuation">)</span> <span class="token keyword">AS</span> monthly_sales <span class="token keyword">FROM</span> sales <span class="token keyword">GROUP</span> <span class="token keyword">BY</span> <span class="token keyword">month</span><span class="token punctuation">;</span>
+</code></pre> 
+<h3><a id="4__211"></a>4. 使用窗口函数进行数据分析</h3> 
+<p>窗口函数可以帮助我们对数据集中的每一行记录进行计算，同时考虑与当前行相关的其他行。以下是一些使用窗口函数进行数据分析的示例：</p> 
+<h4><a id="41__215"></a>4.1 计算每个产品的累计销售额</h4> 
+<p>我们可以使用<code>SUM</code>函数和<code>ROWS BETWEEN</code>子句计算每个产品的累计销售额：</p> 
+<pre><code class="prism language-sql"><span class="token keyword">SELECT</span> product_id<span class="token punctuation">,</span> <span class="token keyword">date</span><span class="token punctuation">,</span> price<span class="token punctuation">,</span> <span class="token function">SUM</span><span class="token punctuation">(</span>price<span class="token punctuation">)</span> <span class="token keyword">OVER</span> <span class="token punctuation">(</span><span class="token keyword">PARTITION</span> <span class="token keyword">BY</span> product_id <span class="token keyword">ORDER</span> <span class="token keyword">BY</span> <span class="token keyword">date</span> <span class="token keyword">ROWS</span> <span class="token operator">BETWEEN</span> <span class="token keyword">UNBOUNDED</span> <span class="token keyword">PRECEDING</span> <span class="token operator">AND</span> <span class="token keyword">CURRENT</span> <span class="token keyword">ROW</span><span class="token punctuation">)</span> <span class="token keyword">AS</span> cumulative_sales <span class="token keyword">FROM</span> sales<span class="token punctuation">;</span>
+</code></pre> 
+<h4><a id="42__223"></a>4.2 计算每个产品的月度销售增长率</h4> 
+<p>我们可以使用<code>LAG</code>函数和<code>RATIO_TO_REPORT</code>函数计算每个产品的月度销售增长率：</p> 
+<pre><code class="prism language-sql"><span class="token keyword">WITH</span> monthly_sales <span class="token keyword">AS</span> <span class="token punctuation">(</span>
+  <span class="token keyword">SELECT</span> product_id<span class="token punctuation">,</span> toStartOfMonth<span class="token punctuation">(</span><span class="token keyword">date</span><span class="token punctuation">)</span> <span class="token keyword">AS</span> <span class="token keyword">month</span><span class="token punctuation">,</span> <span class="token function">SUM</span><span class="token punctuation">(</span>price<span class="token punctuation">)</span> <span class="token keyword">AS</span> sales <span class="token keyword">FROM</span> sales <span class="token keyword">GROUP</span> <span class="token keyword">BY</span> product_id<span class="token punctuation">,</span> <span class="token keyword">month</span>
+<span class="token punctuation">)</span>
+<span class="token keyword">SELECT</span> product_id<span class="token punctuation">,</span> <span class="token keyword">month</span><span class="token punctuation">,</span> sales<span class="token punctuation">,</span> <span class="token punctuation">(</span>sales <span class="token operator">-</span> LAG<span class="token punctuation">(</span>sales<span class="token punctuation">)</span> <span class="token keyword">OVER</span> <span class="token punctuation">(</span><span class="token keyword">PARTITION</span> <span class="token keyword">BY</span> product_id <span class="token keyword">ORDER</span> <span class="token keyword">BY</span> <span class="token keyword">month</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token operator">/</span> LAG<span class="token punctuation">(</span>sales<span class="token punctuation">)</span> <span class="token keyword">OVER</span> <span class="token punctuation">(</span><span class="token keyword">PARTITION</span> <span class="token keyword">BY</span> product_id <span class="token keyword">ORDER</span> <span class="token keyword">BY</span> <span class="token keyword">month</span><span class="token punctuation">)</span> <span class="token keyword">AS</span> growth_rate <span class="token keyword">FROM</span> monthly_sales<span class="token punctuation">;</span>
+</code></pre> 
+<h3><a id="5__234"></a>5. 使用高级功能进行数据分析</h3> 
+<p>ClickHouse还提供了许多高级功能，如数组函数、表达式索引等，可以帮助我们进行高级数据分析。以下是一些使用高级功能进行数据分析的示例：</p> 
+<h4><a id="51__238"></a>5.1 使用数组函数分析多值属性</h4> 
+<p>假设我们有一个名为<code>user_events</code>的表，其中包含一个名为<code>tags</code>的数组列。我们可以使用<code>ARRAY JOIN</code>子句和<code>COUNT</code>函数计算每个标签的事件数量：</p> 
+<pre><code class="prism language-sql"><span class="token keyword">SELECT</span> tag<span class="token punctuation">,</span> <span class="token function">COUNT</span><span class="token punctuation">(</span><span class="token operator">*</span><span class="token punctuation">)</span> <span class="token keyword">AS</span> event_count <span class="token keyword">FROM</span> user_events ARRAY <span class="token keyword">JOIN</span> tags <span class="token keyword">AS</span> tag <span class="token keyword">GROUP</span> <span class="token keyword">BY</span> tag<span class="token punctuation">;</span>
+</code></pre> 
+<h4><a id="52__246"></a>5.2 使用表达式索引优化查询性能</h4> 
+<p>假设我们经常需要查询特定日期范围内的销售数据。我们可以创建一个名为<code>date_index</code>的表达式索引，以提高查询性能：</p> 
+<pre><code class="prism language-sql"><span class="token keyword">CREATE</span> <span class="token keyword">INDEX</span> date_index <span class="token keyword">ON</span> sales <span class="token punctuation">(</span>toStartOfDay<span class="token punctuation">(</span><span class="token keyword">date</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre> 
+<p>然后，我们可以在查询时使用<code>FINAL</code>子句和<code>WHERE</code>子句来利用表达式索引：</p> 
+<pre><code class="prism language-sql"><span class="token keyword">SELECT</span> <span class="token operator">*</span> <span class="token keyword">FROM</span> sales FINAL <span class="token keyword">WHERE</span> toStartOfDay<span class="token punctuation">(</span><span class="token keyword">date</span><span class="token punctuation">)</span> <span class="token operator">BETWEEN</span> <span class="token string">'2021-01-01'</span> <span class="token operator">AND</span> <span class="token string">'2021-12-31'</span><span class="token punctuation">;</span>
+</code></pre> 
+<p>通过使用ClickHouse中的聚合函数、窗口函数以及其他高级功能，我们可以轻松地进行高级数据分析。以下是本文的总结：</p> 
+<ul><li>使用聚合函数进行数据汇总，如计算总销售额、每个产品的销售额和每个月的销售额。</li><li>使用窗口函数进行数据分析，如计算每个产品的累计销售额和月度销售增长率。</li><li>使用高级功能进行数据分析，如使用数组函数分析多值属性和使用表达式索引优化查询性能。</li></ul> 
+<p>在实际应用中，您可能需要根据具体的业务场景和需求来选择合适的聚合函数、窗口函数和高级功能，以实现高效的数据处理和分析。希望本文能为您提供有关如何使用ClickHouse进行高级数据分析的有用信息。</p> 
+<h3><a id="_268"></a>总结</h3> 
+<p>本文详细介绍了ClickHouse中的聚合函数（如count、sum、avg等）和窗口函数（如row_number、rank、dense_rank等）。通过使用这些函数，您可以轻松地对数据进行汇总、统计和分析。在实际应用中，您可能需要根据具体的业务场景和需求来选择合适的聚合函数和窗口函数，以实现高效的数据处理和分析。</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/59a7de372e4394f7f57643fbe2ffb4b9/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">Collectors.toMap报错：空指针 &amp; key重复</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/4d5229d85555fafd2b69d75a80d201cf/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">接收机时间，接收机钟差，接收机时间减去接收机钟差</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

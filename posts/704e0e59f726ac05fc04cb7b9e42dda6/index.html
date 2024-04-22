@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>爱的魔力转圈圈-流水灯电路原理详解-PCB系列教程4-1 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/704e0e59f726ac05fc04cb7b9e42dda6/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="爱的魔力转圈圈-流水灯电路原理详解-PCB系列教程4-1">
+  <meta property="og:description" content="作为第二个案例，流水灯电路，比贴片元件焊接练习板稍微复杂一点。它的主要功能是：通过拨码开关来配置哪个灯亮，电路可以自动或手动产生周期脉冲，调整灯“流水”的速度。它的效果如下。
+设计原理图，当然需要知道它的原理了。
+供电电路 电路采用type-C接口，5V供电，也可以使用其它5V直流电源，通过测试点T1与T2供电。SW1是电源总开关，F1是自恢复保险丝，D1是稳压管（又称齐纳二极管），稳定电压是5.1V。R1与LED1构成电源指示电路。
+F1与D1构成了经典的防反接电路，如果电源正负极接反，或者输入电源电压过大，会烧坏保险丝，保护后续电路。下图是简化的电路。
+当正负极接反时，稳压二极管D导通，导通电压不到1V，不会烧坏后面的电路；导通电流非常大，瞬间把保险丝F熔断，电源断开。
+即便正负极没有接反，如果输入电压太高，超过稳压二极管的稳定电压，导致稳压二极管反向击穿，同样会把保险丝熔断，保护后续的电路。
+C1到C6，按照功能，被称为去耦电容。电容相当于蓄水池，避免由于电流的突变而使电压下降。有时会与去耦电容就近并联小容值的旁路电容，去除高频噪声。
+虽然原理图中，这几个电容放在一起，但是布局时，这几个电容要分散开，各自靠近芯片的电源入口。
+非对称式多谐振荡器 流水灯电路将以一定的速度来“流水”，必然需要周期变化的脉冲信号作为系统的“心跳”。流水灯电路中使用反相器产生多谐振荡器。它的原理以前的文章有提到，这里放个视频回顾一下：
+产生脉冲的环节中，限流电阻设置为阻值可调的电位器，可以大幅度改变脉冲的频率。按键K2可以产生手动的脉冲，拨动开关SW2可以选择是自动产生脉冲或手动产生脉冲。LED2可以作为产生脉冲的指示灯，每个脉冲周期内LED2都会闪烁一次。74HC14的C部分用于提升脉冲的带负载能力，因为B部分的输出端既要为电容充电，又要为LED2供电，可能会影响脉冲周期的稳定性。
+LED配置电路 流水灯电路用拨码开关来控制某个LED亮灭，但是又不想让开关与LED一一对应，因为对应的太死，就没办法实现流水的效果。可以先用一个“并入串出”芯片，获取所有拨码开关的状态，再用一个“串入并出”的芯片，来控制多个LED。
+74HC165是一个8位串行或并行输入，串行输出的移位寄存器。74HC165具有一个串行输入（SI引脚），8个并行数据输入（A-H）和两个互补串行输出的功能。当S/L引脚为低时，A-H端的数据进入移位寄存器。当S/L引脚为高时，数据从DS引脚串行进入寄存器。当使能时钟时，数据在时钟CP上升时按位输出。74HC165的“并入串出”，是指数据一下子全部进入（并行进入）寄存器，然后一位一位的输出。
+引脚
+名称
+别名
+功能
+说明
+1
+S/L
+___
+PL
+并行/串行输入选择
+为低时，并行数据进入移位寄存器；
+为高时，串行数据进入移位寄存器。
+2
+CLK
+CP
+时钟输入
+上升沿有效
+3-6，11-14
+A-H
+D0-D7
+并行数据输入
+7
+___
+QH
+___
+Q7
+末级互补输出
+与末级串行输出极性相反
+9
+QH
+Q7
+末级串行输出
+上升沿时，把移位寄存器的数据按位从此引脚输出。
+10
+SI
+DS
+数据串行输入
+数据在此引脚上一位一位输入。
+15
+CLKINH
+___
+CE
+输入时钟使能
+低电平有效
+8
+16
+GND,VCC
+地，电源
+供电引脚。
+它的常见用法为在PL为低电平的时候，装载并行数据。然后时钟使能，在时钟输入上升沿的时候，把移位寄存器从高位开始，按位移出。串行输入可以接上一级的串行输出，实现级联，或者接自身的串行输出，形成循环。
+74HC165的1引脚接按键，默认情况下为高电平，装载串行数据；按下时变为低电平，装载并行数据，也就是读取拨码开关的状态，因此这个按键的功能就是“更新设定”。由于串行输入的数据也是自身串行输出的数据，所以默认状态下，按照之前显示的内容周期循环；如果按下了按键，会根据当前拨码开关配置的状态，更新下一个周期的状态。拨码开关默认为低电平，拨动后变为高电平。拨码开关的8个下拉电阻阻值完全一样，故可以使用排阻，简化设计。
+LED驱动电路 74HC164芯片与74HC165相对应，是“串入并出”的芯片。它有两个串行数据输入(A和B)， 8个并行数据输出(QA到QH)。数据在时钟输入上升沿时移位输出。复位引脚低电平可以清除寄存器，并且强制输出为低。">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2021-01-29T07:00:00+08:00">
+    <meta property="article:modified_time" content="2021-01-29T07:00:00+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">爱的魔力转圈圈-流水灯电路原理详解-PCB系列教程4-1</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <div id="js_content"> 
+ <p>作为第二个案例，流水灯电路，比贴片元件焊接练习板稍微复杂一点。它的主要功能是：通过拨码开关来配置哪个灯亮，电路可以自动或手动产生周期脉冲，调整灯“流水”的速度。它的效果如下。</p> 
+ <p><strong>设计原理图，当然需要知道它的原理了。</strong></p> 
+ <p><img alt="" src="https://images2.imgbox.com/f4/b0/O060POJL_o.png"></p> 
+ <p> </p> 
+ <h2>供电电路</h2> 
+ <p><img alt="" height="181" src="https://images2.imgbox.com/18/fe/LaRpW127_o.png" width="738"></p> 
+ <p>电路采用type-C接口，5V供电，也可以使用其它5V直流电源，通过测试点T1与T2供电。SW1是电源总开关，F1是自恢复保险丝，D1是稳压管（又称齐纳二极管），稳定电压是5.1V。R1与LED1构成电源指示电路。</p> 
+ <p><strong>F1与D1构成了经典的防反接电路，</strong>如果电源正负极接反，或者输入电源电压过大，会烧坏保险丝，保护后续电路。下图是简化的电路。</p> 
+ <p><img alt="" height="113" src="https://images2.imgbox.com/54/2c/sqnC4rML_o.png" width="300"></p> 
+ <p>当正负极接反时，稳压二极管D导通，导通电压不到1V，不会烧坏后面的电路；导通电流非常大，瞬间把保险丝F熔断，电源断开。</p> 
+ <p>即便正负极没有接反，如果输入电压太高，超过稳压二极管的稳定电压，导致稳压二极管反向击穿，同样会把保险丝熔断，保护后续的电路。</p> 
+ <p>C1到C6，按照功能，被称为去耦电容。电容相当于蓄水池，避免由于电流的突变而使电压下降。有时会与去耦电容就近并联小容值的旁路电容，去除高频噪声。</p> 
+ <p>虽然原理图中，这几个电容放在一起，但是<strong>布局时，这几个电容要分散开，各自靠近芯片的电源入口。</strong></p> 
+ <p> </p> 
+ <h2>非对称式多谐振荡器</h2> 
+ <p><img alt="" height="351" src="https://images2.imgbox.com/36/2d/CzJ1sI0r_o.png" width="672"></p> 
+ <p>流水灯电路将以一定的速度来“流水”，必然需要周期变化的脉冲信号作为系统的“心跳”。流水灯电路中使用反相器产生多谐振荡器。它的原理以前的文章有提到，这里放个视频回顾一下：</p> 
+ <p>产生脉冲的环节中，限流电阻设置为阻值可调的电位器，可以大幅度改变脉冲的频率。按键K2可以产生手动的脉冲，拨动开关SW2可以选择是自动产生脉冲或手动产生脉冲。LED2可以作为产生脉冲的指示灯，每个脉冲周期内LED2都会闪烁一次。74HC14的C部分用于提升脉冲的带负载能力，因为B部分的输出端既要为电容充电，又要为LED2供电，可能会影响脉冲周期的稳定性。</p> 
+ <p> </p> 
+ <h2>LED配置电路</h2> 
+ <p>流水灯电路用拨码开关来控制某个LED亮灭，但是又不想让开关与LED一一对应，因为对应的太死，就没办法实现流水的效果。可以先用一个“并入串出”芯片，获取所有拨码开关的状态，再用一个“串入并出”的芯片，来控制多个LED。</p> 
+ <p>74HC165是一个8位串行或并行输入，串行输出的移位寄存器。74HC165具有一个串行输入（SI引脚），8个并行数据输入（A-H）和两个互补串行输出的功能。当S/L引脚为低时，A-H端的数据进入移位寄存器。当S/L引脚为高时，数据从DS引脚串行进入寄存器。当使能时钟时，数据在时钟CP上升时按位输出。74HC165的“并入串出”，是指数据一下子全部进入（并行进入）寄存器，然后一位一位的输出。</p> 
+ <table><tbody><tr><td> <p>引脚</p> </td><td> <p>名称</p> </td><td> <p>别名</p> </td><td> <p>功能</p> </td><td> <p>说明</p> </td></tr><tr><td> <p>1</p> </td><td> <p>S/L</p> </td><td> <p>___</p> <p>PL</p> </td><td> <p>并行/串行输入选择</p> </td><td> <p>为低时，并行数据进入移位寄存器；</p> <p>为高时，串行数据进入移位寄存器。</p> </td></tr><tr><td> <p>2</p> </td><td> <p>CLK</p> </td><td> <p>CP</p> </td><td> <p>时钟输入</p> </td><td> <p>上升沿有效</p> </td></tr><tr><td> <p>3-6，11-14</p> </td><td> <p>A-H</p> </td><td> <p>D0-D7</p> </td><td> <p>并行数据输入</p> </td><td> </td></tr><tr><td> <p>7</p> </td><td> <p>___</p> <p>QH</p> </td><td> <p>___</p> <p>Q7</p> </td><td> <p>末级互补输出</p> </td><td> <p>与末级串行输出极性相反</p> </td></tr><tr><td> <p>9</p> </td><td> <p>QH</p> </td><td> <p>Q7</p> </td><td> <p>末级串行输出</p> </td><td> <p>上升沿时，把移位寄存器的数据按位从此引脚输出。</p> </td></tr><tr><td> <p>10</p> </td><td> <p>SI</p> </td><td> <p>DS</p> </td><td> <p>数据串行输入</p> </td><td> <p>数据在此引脚上一位一位输入。</p> </td></tr><tr><td> <p>15</p> </td><td> <p>CLKINH</p> </td><td> <p>___</p> <p>CE</p> </td><td> <p>输入时钟使能</p> </td><td> <p>低电平有效</p> </td></tr><tr><td> <p>8</p> <p>16</p> </td><td> <p>GND,VCC</p> </td><td> </td><td> <p>地，电源</p> </td><td> <p>供电引脚。</p> </td></tr></tbody></table> 
+ <p>它的常见用法为在PL为低电平的时候，装载并行数据。然后时钟使能，在时钟输入上升沿的时候，把移位寄存器从高位开始，按位移出。串行输入可以接上一级的串行输出，实现级联，或者接自身的串行输出，形成循环。</p> 
+ <p><img alt="" height="392" src="https://images2.imgbox.com/3c/12/wucgEUZW_o.png" width="576"></p> 
+ <p>74HC165的1引脚接按键，默认情况下为高电平，装载串行数据；按下时变为低电平，装载并行数据，也就是读取拨码开关的状态，因此这个按键的功能就是“更新设定”。由于串行输入的数据也是自身串行输出的数据，所以默认状态下，按照之前显示的内容周期循环；如果按下了按键，会根据当前拨码开关配置的状态，更新下一个周期的状态。拨码开关默认为低电平，拨动后变为高电平。拨码开关的8个下拉电阻阻值完全一样，故可以使用排阻，简化设计。</p> 
+ <p> </p> 
+ <h2>LED驱动电路</h2> 
+ <p>74HC164芯片与74HC165相对应，是“串入并出”的芯片。它有两个串行数据输入(A和B)， 8个并行数据输出(QA到QH)。数据在时钟输入上升沿时移位输出。复位引脚低电平可以清除寄存器，并且强制输出为低。</p> 
+ <table><tbody><tr><td> <p>引脚</p> </td><td> <p>名称</p> </td><td> <p>别名</p> </td><td> <p>功能</p> </td><td> <p>说明</p> </td></tr><tr><td> <p>1</p> </td><td> <p>A</p> </td><td> <p>DSA</p> </td><td> <p>数据输入</p> </td><td rowspan="2"> <p>两路输入为“与”的关系</p> </td></tr><tr><td> <p>2</p> </td><td> <p>B</p> </td><td> <p>DSB</p> </td><td> <p>数据输入</p> </td></tr><tr><td> <p>3-6，10-13</p> </td><td> <p>QA-QH</p> </td><td> <p>Q0-Q7</p> </td><td> <p>输出</p> </td><td> </td></tr><tr><td> <p>8</p> </td><td> <p>CLK</p> </td><td> <p>CP</p> </td><td> <p>时钟输入</p> </td><td> <p>上升沿有效</p> </td></tr><tr><td> <p>9</p> </td><td> <p>___</p> <p>CLR</p> </td><td> <p>___</p> <p>MR</p> </td><td> <p>复位</p> </td><td> <p>低电平有效</p> </td></tr><tr><td> <p>7</p> <p>14</p> </td><td> <p>GND,VCC</p> </td><td> </td><td> <p>地，电源</p> </td><td> <p>供电引脚。</p> </td></tr></tbody></table> 
+ <p><img alt="" height="151" src="https://images2.imgbox.com/22/8e/ra0oiqSc_o.png" width="373"></p> 
+ <p>从功能框图中可以看出，两路输入为后接“与门”，如果只需要一路输入，可以把另外一路的输入接高电平。此芯片内只有移位寄存器，没有存储寄存器，因此无法实现锁存功能。所有输入的变化，都会直接影响输出。</p> 
+ <p>如果只需要8个拨码开关控制8个LED灯，74HC164输出电流可以达到25mA，足以驱动LED，后直接连接LED就可以。如果想控制16个LED，或者更多LED，可以再连接若干个74HC245的芯片。这个芯片具备8位3态输出，只需微安级别的电流输入，就可以输出最大35mA的电流，具有较强的带负载能力，常用于增强电路的驱动能力。</p> 
+ <p>74HC245使用起来极其简单，它的1脚可以设定输入与输出的方向。电路的输入与输出逻辑一模一样。</p> 
+ <table><tbody><tr><td> <p>引脚</p> </td><td> <p>名称</p> </td><td> <p>别名</p> </td><td> <p>功能</p> </td></tr><tr><td> <p>1</p> </td><td> <p>T/R</p> </td><td> <p>DIR</p> </td><td> <p>方向控制</p> </td></tr><tr><td> <p>2-9</p> </td><td> <p>A0-A7</p> </td><td> </td><td> <p>数据输入/输出</p> </td></tr><tr><td> <p>11-18</p> </td><td> <p>QA-QH</p> </td><td> </td><td> <p>数据输入/输出</p> </td></tr><tr><td> <p>19</p> </td><td> <p>___</p> <p>OE</p> </td><td> </td><td> <p>输入输出使能，低电平有效</p> </td></tr><tr><td> <p>10、</p> <p>20</p> </td><td> <p>GND,VCC</p> </td><td> </td><td> <p>地，电源</p> </td></tr></tbody></table> 
+ <p>74HC245与74HC244的引脚对比</p> 
+ <p><img alt="" src="https://images2.imgbox.com/aa/86/1Mdse3Rs_o.png"></p> 
+ <p>74HC165的串行输出接74HC164的串行输入，所以74HC165输入的并行数据，其实也就是74HC164的并行输出数据，逻辑上是“串行→并行→串行”，好像没有变化。但没有这个环节，拨码开关与LED一一对应，就没办法显示“流水”的效果了。</p> 
+ <p>最后是两个74HC245并联，输出的内容完全一样，但PCB上16个LED是圆形的，而且中心对称，看上去就是LED转圈圈。图中比较粗的连接线是</p> 
+ <p><img alt="" src="https://images2.imgbox.com/98/90/iu4cZip0_o.png"></p> 
+ <p>有一说一，虽然现象有趣，但是理解原理还是有难度的。电路的原理并非PCB教程的重点，但确实电路设计的难点，还是好好看一看吧。我把流水灯排成了圆圈，你可以排成心形嘛，万一表白呢？</p> 
+ <p><img alt="" src="https://images2.imgbox.com/8e/96/v7gilHlA_o.png"></p> 
+ <p><strong>关注公众号“yummy说电子”，后台回复“流水灯原理图”，获取完整的PDF格式流水灯原理图。</strong></p> 
+</div>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/3b415109b589e5a213ae45004495a946/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">识别波峰波谷算法_马丁普林格：趋势交易波峰波谷演进法</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/0d8e703bcdc30de20ba1696b5cd086ec/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">mysql批量删除表操作</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>BatchNorm, LayerNorm, InstanceNorm和GroupNorm - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/72e4227e52f69b85c925fb92538d2322/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="BatchNorm, LayerNorm, InstanceNorm和GroupNorm">
+  <meta property="og:description" content="1. 介绍 Batch Norm: 对NHW计算归一化参数(均值和方差)，总共得到C组归一化参数, 相当于对每个channel进行归一化。BN主要缺点是对batchsize的大小比较敏感，由于每次计算均值和方差是在一个batch上，所以如果batchsize太小，则计算的均值、方差不足以代表整个数据分布Layer Norm: 对CHW计算归一化参数，得到N(batch)组归一化参数，对于Batch为1，相当于对整个Feature map 做归一化。主要对RNN及Transformer作用明显，不适应输入变化很大的数据，大Batch较差Instance Norm: 对HW计算归一化参数，总共输出N*C组归一化参数，相当于对每个channel和每个Batch都需要进行归一化。优点：适用图像风格迁移, 缺点：不适应通道之间的相关性较强数据。**GroupNorm：**将channel方向分group，然后每个group内做归一化，算(C//G)HW的均值；这样与batchsize无关，不受其约束 1.1 BatchNorm torch.nn.BatchNorm1d(num_features, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True) torch.nn.BatchNorm2d(num_features, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True) torch.nn.BatchNorm3d(num_features, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True) 参数：
+num_features： 来自期望输入的特征数，该期望输入的大小为’batch_size x num_features [x width]’eps： 为保证数值稳定性（分母不能趋近或取0）,给分母加上的值。默认为1e-5。momentum： 动态均值和动态方差所使用的动量。默认为0.1。affine： 布尔值，当设为true，给该层添加可学习的仿射变换参数。track_running_stats：布尔值，当设为true，记录训练过程中的均值和方差； 实现公式：
+1.2 GroupNorm torch.nn.GroupNorm(num_groups, num_channels, eps=1e-05, affine=True) 参数：
+num_groups：需要划分为的groupsnum_features： 来自期望输入的特征数，该期望输入的大小为’batch_size x num_features [x width]’eps： 为保证数值稳定性（分母不能趋近或取0）,给分母加上的值。默认为1e-5。momentum： 动态均值和动态方差所使用的动量。默认为0.1。affine： 布尔值，当设为true，给该层添加可学习的仿射变换参数。 实现公式：
+1.3 InstanceNorm torch.nn.InstanceNorm1d(num_features, eps=1e-05, momentum=0.1, affine=False, track_running_stats=False) torch.nn.InstanceNorm2d(num_features, eps=1e-05, momentum=0.1, affine=False, track_running_stats=False) torch.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2023-07-23T19:21:32+08:00">
+    <meta property="article:modified_time" content="2023-07-23T19:21:32+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">BatchNorm, LayerNorm, InstanceNorm和GroupNorm</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-light">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <h3><a id="1___0"></a>1. 介绍</h3> 
+<p><img src="https://images2.imgbox.com/f0/96/9DCJ7fkI_o.png" alt="在这里插入图片描述"></p> 
+<ul><li><strong>Batch Norm</strong>: 对<code>NHW</code>计算归一化参数(均值和方差)，总共得到<code>C</code>组归一化参数, 相当于对每个<code>channel</code>进行归一化。BN主要<code>缺点</code>是对<code>batchsize</code>的大小比较<code>敏感</code>，由于每次计算均值和方差是在一个batch上，所以如果batchsize太小，则计算的均值、方差不足以代表整个数据分布</li><li><strong>Layer Norm</strong>: 对<code>CHW</code>计算归一化参数，得到<code>N</code>(batch)组归一化参数，对于Batch为1，相当于对整个Feature map 做归一化。主要对RNN及Transformer作用明显，不适应输入变化很大的数据，<code>大Batch较差</code></li><li><strong>Instance Norm</strong>: 对<code>HW</code>计算归一化参数，总共输出<code>N*C</code>组归一化参数，相当于对每个channel和每个Batch都需要进行归一化。<code>优点：</code>适用图像风格迁移, <code>缺点：</code>不适应通道之间的相关性较强数据。</li><li>**GroupNorm：**将channel方向分group，然后每个group内做归一化，算(C//G)HW的均值；这样与batchsize无关，不受其约束</li></ul> 
+<h4><a id="11_BatchNorm_8"></a>1.1 BatchNorm</h4> 
+<pre><code class="prism language-python">torch<span class="token punctuation">.</span>nn<span class="token punctuation">.</span>BatchNorm1d<span class="token punctuation">(</span>num_features<span class="token punctuation">,</span> eps<span class="token operator">=</span><span class="token number">1e-05</span><span class="token punctuation">,</span> momentum<span class="token operator">=</span><span class="token number">0.1</span><span class="token punctuation">,</span> affine<span class="token operator">=</span><span class="token boolean">True</span><span class="token punctuation">,</span> track_running_stats<span class="token operator">=</span><span class="token boolean">True</span><span class="token punctuation">)</span>
+torch<span class="token punctuation">.</span>nn<span class="token punctuation">.</span>BatchNorm2d<span class="token punctuation">(</span>num_features<span class="token punctuation">,</span> eps<span class="token operator">=</span><span class="token number">1e-05</span><span class="token punctuation">,</span> momentum<span class="token operator">=</span><span class="token number">0.1</span><span class="token punctuation">,</span> affine<span class="token operator">=</span><span class="token boolean">True</span><span class="token punctuation">,</span> track_running_stats<span class="token operator">=</span><span class="token boolean">True</span><span class="token punctuation">)</span>
+torch<span class="token punctuation">.</span>nn<span class="token punctuation">.</span>BatchNorm3d<span class="token punctuation">(</span>num_features<span class="token punctuation">,</span> eps<span class="token operator">=</span><span class="token number">1e-05</span><span class="token punctuation">,</span> momentum<span class="token operator">=</span><span class="token number">0.1</span><span class="token punctuation">,</span> affine<span class="token operator">=</span><span class="token boolean">True</span><span class="token punctuation">,</span> track_running_stats<span class="token operator">=</span><span class="token boolean">True</span><span class="token punctuation">)</span>
+</code></pre> 
+<p><strong>参数：</strong></p> 
+<ul><li>num_features： 来自期望输入的特征数，该期望输入的大小为’batch_size x num_features [x width]’</li><li>eps： 为保证数值稳定性（分母不能趋近或取0）,给分母加上的值。默认为1e-5。</li><li>momentum： 动态均值和动态方差所使用的动量。默认为0.1。</li><li>affine： 布尔值，当设为true，给该层添加可学习的仿射变换参数。</li><li>track_running_stats：布尔值，当设为true，记录训练过程中的均值和方差；</li></ul> 
+<p><strong>实现公式：</strong><br> <img src="https://images2.imgbox.com/d3/a2/n7zWLC4w_o.png" alt="在这里插入图片描述"></p> 
+<h4><a id="12_GroupNorm_24"></a>1.2 GroupNorm</h4> 
+<pre><code class="prism language-python">torch<span class="token punctuation">.</span>nn<span class="token punctuation">.</span>GroupNorm<span class="token punctuation">(</span>num_groups<span class="token punctuation">,</span> num_channels<span class="token punctuation">,</span> eps<span class="token operator">=</span><span class="token number">1e-05</span><span class="token punctuation">,</span> affine<span class="token operator">=</span><span class="token boolean">True</span><span class="token punctuation">)</span>
+</code></pre> 
+<p><strong>参数：</strong></p> 
+<ul><li><code>num_groups</code>：需要划分为的groups</li><li><code>num_features</code>： 来自期望输入的特征数，该期望输入的大小为’batch_size x num_features [x width]’</li><li><code>eps</code>： 为保证数值稳定性（分母不能趋近或取0）,给分母加上的值。默认为1e-5。</li><li><code>momentum</code>： 动态均值和动态方差所使用的动量。默认为0.1。</li><li><code>affine</code>： 布尔值，当设为true，给该层添加可学习的仿射变换参数。</li></ul> 
+<p><strong>实现公式：</strong><br> <img src="https://images2.imgbox.com/df/96/m1PKI7WH_o.png" alt="在这里插入图片描述"></p> 
+<h4><a id="13_InstanceNorm_39"></a>1.3 InstanceNorm</h4> 
+<pre><code class="prism language-python">torch<span class="token punctuation">.</span>nn<span class="token punctuation">.</span>InstanceNorm1d<span class="token punctuation">(</span>num_features<span class="token punctuation">,</span> eps<span class="token operator">=</span><span class="token number">1e-05</span><span class="token punctuation">,</span> momentum<span class="token operator">=</span><span class="token number">0.1</span><span class="token punctuation">,</span> affine<span class="token operator">=</span><span class="token boolean">False</span><span class="token punctuation">,</span> track_running_stats<span class="token operator">=</span><span class="token boolean">False</span><span class="token punctuation">)</span>
+torch<span class="token punctuation">.</span>nn<span class="token punctuation">.</span>InstanceNorm2d<span class="token punctuation">(</span>num_features<span class="token punctuation">,</span> eps<span class="token operator">=</span><span class="token number">1e-05</span><span class="token punctuation">,</span> momentum<span class="token operator">=</span><span class="token number">0.1</span><span class="token punctuation">,</span> affine<span class="token operator">=</span><span class="token boolean">False</span><span class="token punctuation">,</span> track_running_stats<span class="token operator">=</span><span class="token boolean">False</span><span class="token punctuation">)</span>
+torch<span class="token punctuation">.</span>nn<span class="token punctuation">.</span>InstanceNorm3d<span class="token punctuation">(</span>num_features<span class="token punctuation">,</span> eps<span class="token operator">=</span><span class="token number">1e-05</span><span class="token punctuation">,</span> momentum<span class="token operator">=</span><span class="token number">0.1</span><span class="token punctuation">,</span> affine<span class="token operator">=</span><span class="token boolean">False</span><span class="token punctuation">,</span> track_running_stats<span class="token operator">=</span><span class="token boolean">False</span><span class="token punctuation">)</span>
+</code></pre> 
+<p><strong>参数：</strong></p> 
+<ul><li>num_features： 来自期望输入的特征数，该期望输入的大小为’batch_size x num_features [x width]’</li><li>eps： 为保证数值稳定性（分母不能趋近或取0）,给分母加上的值。默认为1e-5。</li><li>momentum： 动态均值和动态方差所使用的动量。默认为0.1。</li><li>affine： 布尔值，当设为true，给该层添加可学习的仿射变换参数。</li><li>track_running_stats：布尔值，当设为true，记录训练过程中的均值和方差；</li></ul> 
+<p><strong>实现公式：</strong><br> <img src="https://images2.imgbox.com/33/0b/D88ZzIrl_o.png" alt="在这里插入图片描述"></p> 
+<h4><a id="14_LayerNorm_56"></a>1.4 LayerNorm</h4> 
+<pre><code>torch.nn.LayerNorm(normalized_shape, eps=1e-05, elementwise_affine=True)
+</code></pre> 
+<p><strong>参数：</strong></p> 
+<ul><li>normalized_shape： 输入尺寸</li><li>[∗×normalized_shape[0]×normalized_shape[1]×…×normalized_shape[−1]]</li><li>eps： 为保证数值稳定性（分母不能趋近或取0）,给分母加上的值。默认为1e-5。</li><li>elementwise_affine： 布尔值，当设为true，给该层添加可学习的仿射变换参数。</li></ul> 
+<p><strong>实现公式：</strong></p> 
+<p><img src="https://images2.imgbox.com/7f/dd/Z4ewpfH8_o.png" alt="在这里插入图片描述"></p> 
+<h3><a id="2_Batch_Normalization_72"></a>2. Batch Normalization</h3> 
+<blockquote> 
+ <p><a href="https://arxiv.org/abs/1502.03167" rel="nofollow">Ioffe S, Szegedy C. Batch normalization: Accelerating deep network training by reducing internal covariate shift[C]//International conference on machine learning. PMLR, 2015: 448-456.</a></p> 
+</blockquote> 
+<p><img src="https://images2.imgbox.com/49/6f/dMZMTlor_o.png" alt="在这里插入图片描述"></p> 
+<h4><a id="21__77"></a>2.1 提出原因</h4> 
+<p>1、在训练神经网络过程中，通常输入batch个数据进行训练，这样每个batch具有不同的分布，使模型训练起来相对困难。</p> 
+<p>2、Internal Covariate Shift (ICS) 问题：在训练深层网络时，激活函数会改变各层数据的分布以及量级，随着网络的加深，这种改变会越来越大，模型不稳定不容易收敛，甚至可能出现梯度消失的问题。</p> 
+<p>那我们就看看下面的两个动图, 这就是在每层神经网络有无 batch normalization 的区别</p> 
+<p><img src="https://images2.imgbox.com/92/22/aB1g9q6g_o.gif" alt=""></p> 
+<center>
+  图* 没有BN的模型权值分布 
+</center> 
+<p><img src="https://images2.imgbox.com/7f/a3/CNNgd8Fj_o.gif" alt=""></p> 
+<center>
+  图* 使用BN的模型权值分布 
+</center> 
+<p><code>没有normalization 的输出数据很多都等于0，导致后面的神经元“死掉”，起不到任何作用。</code></p> 
+<h4><a id="22__92"></a>2.2 原理</h4> 
+<p>BN的主要思想：沿着通道维度，在batch维度上，计算(N, H, W)均值和方差，然后对feature map进行归一化，这样不仅数据分布一致，而且避免发生梯度消失。保证每一次数据经过归一化后还保留原有学习来的特征，同时又能完成归一化操作，加速训练。</p> 
+<p><strong>计算过程：</strong></p> 
+<ul><li>沿着通道计算每个batch的均值<span class="katex--inline"><span class="katex"><span class="katex-mathml"> 
+      
+       
+        
+        
+          μ 
+         
+        
+       
+         \mu 
+        
+       
+     </span><span class="katex-html"><span class="base"><span class="strut" style="height: 0.625em; vertical-align: -0.1944em;"></span><span class="mord mathnormal">μ</span></span></span></span></span>和方差<span class="katex--inline"><span class="katex"><span class="katex-mathml"> 
+      
+       
+        
+        
+          σ 
+         
+        
+       
+         \sigma 
+        
+       
+     </span><span class="katex-html"><span class="base"><span class="strut" style="height: 0.4306em;"></span><span class="mord mathnormal" style="margin-right: 0.0359em;">σ</span></span></span></span></span></li><li>做归一化</li><li>加入缩放<span class="katex--inline"><span class="katex"><span class="katex-mathml"> 
+      
+       
+        
+        
+          γ 
+         
+        
+       
+         \gamma 
+        
+       
+     </span><span class="katex-html"><span class="base"><span class="strut" style="height: 0.625em; vertical-align: -0.1944em;"></span><span class="mord mathnormal" style="margin-right: 0.0556em;">γ</span></span></span></span></span>和平移 <span class="katex--inline"><span class="katex"><span class="katex-mathml"> 
+      
+       
+        
+        
+          β 
+         
+        
+       
+         \beta 
+        
+       
+     </span><span class="katex-html"><span class="base"><span class="strut" style="height: 0.8889em; vertical-align: -0.1944em;"></span><span class="mord mathnormal" style="margin-right: 0.0528em;">β</span></span></span></span></span>可学习变量</li></ul> 
+<p><img src="https://images2.imgbox.com/f2/6b/BcUnFqJs_o.png" alt="在这里插入图片描述"></p> 
+<h4><a id="23_BN_101"></a>2.3 BN的使用</h4> 
+<p>BN的一个问题是训练时batch size一般较大，但是测试时batch size一般为1，而均值和方差的计算依赖batch，这将导致训练和测试不一致。BN的解决方案是在训练时估计一个均值和方差量来作为测试时的归一化参数，一般对每次mini-batch的均值和方差进行指数加权平均来得到这个量。这样一来就解决了训练和测试的不一致性，在训练的时候计算均值和方差，在推理的使用使用均值和方差</p> 
+<p>BN的使用位置：激活函数之前，ResNet V1：conv&gt;BN&gt;Relu结构；resnet v2采用BN&gt;Relu&gt;conv结构。但无论如何都是在激活前使用BN。</p> 
+<pre><code class="prism language-python">torch<span class="token punctuation">.</span>nn<span class="token punctuation">.</span>BatchNorm1d<span class="token punctuation">(</span>num_features<span class="token punctuation">,</span> eps<span class="token operator">=</span><span class="token number">1e-05</span><span class="token punctuation">,</span> momentum<span class="token operator">=</span><span class="token number">0.1</span><span class="token punctuation">,</span> affine<span class="token operator">=</span><span class="token boolean">True</span><span class="token punctuation">,</span> track_running_stats<span class="token operator">=</span><span class="token boolean">True</span><span class="token punctuation">,</span> device<span class="token operator">=</span><span class="token boolean">None</span><span class="token punctuation">,</span> dtype<span class="token operator">=</span><span class="token boolean">None</span><span class="token punctuation">)</span>　　<span class="token comment"># 1维</span>
+torch<span class="token punctuation">.</span>nn<span class="token punctuation">.</span>BatchNorm2d<span class="token punctuation">(</span>num_features<span class="token punctuation">,</span> eps<span class="token operator">=</span><span class="token number">1e-05</span><span class="token punctuation">,</span> momentum<span class="token operator">=</span><span class="token number">0.1</span><span class="token punctuation">,</span> affine<span class="token operator">=</span><span class="token boolean">True</span><span class="token punctuation">,</span> track_running_stats<span class="token operator">=</span><span class="token boolean">True</span><span class="token punctuation">,</span> device<span class="token operator">=</span><span class="token boolean">None</span><span class="token punctuation">,</span> dtype<span class="token operator">=</span><span class="token boolean">None</span><span class="token punctuation">)</span>　　<span class="token comment"># 2维</span>
+</code></pre> 
+<p><strong>优点</strong></p> 
+<ul><li>BN使得网络中每层输入数据的分布相对稳定，不仅极大提升了训练速度，收敛过程大大加快；</li><li>BN使得模型对网络中的参数不那么敏感，减弱对初始化的强依赖性，简化调参过程，使得网络学习更加稳定</li><li>BN允许网络使用饱和性激活函数（例如sigmoid，tanh等），缓解梯度消失问题</li><li>允许较大的学习率</li><li>有轻微的正则化作用（相当于给隐藏层加入噪声，类似Dropout），能缓解 过拟合：深层网络容易过拟合，有时候dropout可能也解决不了。所以有时候BN可以替代dropout</li></ul> 
+<h3><a id="_117"></a>缺点</h3> 
+<ul><li>1、如果Batch Size太小，则BN效果明显下降。</li></ul> 
+<blockquote> 
+ <p>如果batch size太小，则计算的均值、方差不足以代表整个数据分布。小的 bath size 引入的随机性更大，难以达到收敛。对于一个比较大的模型，由于显存限制，batch size难以很大，比如目标检测模型，这时候BN层可能会成为一种限制。</p> 
+</blockquote> 
+<ul><li> <p>2、如果batch size太大：会超过内存容量；需要跑更多的epoch，导致总训练时间变长；深度学习的优化（training loss降不下去）和泛化（generalization gap很大）都会出问题。可能会出现局部最优的情况</p> </li><li> <p>3、RNN等动态网络使用BN效果不佳且使用起来不方便</p> </li></ul> 
+<blockquote> 
+ <p>BN实际使用时需要计算并且保存某一层神经网络batch的均值和方差等统计信息，对于固定深度的前向神经网络（DNN，CNN）使用BN，很方便；</p> 
+</blockquote> 
+<blockquote> 
+ <p>对于RNN来说，尽管其结构看上去是个静态网络，但在实际运行展开时是个动态网络结构，因为输入的Sequence序列是不定长的，这源自同一个Mini-Batch中的训练实例有长有短。对于类似RNN这种动态网络结构，BN使用起来不方便，因为要应用BN，那么RNN的每个时间步需要维护各自的统计量，而Mini-Batch中的训练实例长短不一，这意味着RNN不同时间步的隐层会看到不同数量的输入数据，而这会给BN的正确使用带来问题。假设Mini-Batch中只有个别特别长的例子，那么对较深时间步深度的RNN网络隐层来说，其统计量不方便统计而且其统计有效性也非常值得怀疑。另外，如果在推理阶段遇到长度特别长的例子，也许根本在训练阶段都无法获得深层网络的统计量。综上，在RNN这种动态网络中使用BN很不方便，而且很多改进版本的BN应用在RNN效果也一般。</p> 
+</blockquote> 
+<ul><li> <p>4、例如图像分割这类任务，可能 batch size 只能是个位数，再大显存就不够用了。而当 batch size 是个位数时，BN 的表现很差，因为没办法通过几个样本的数据量，来近似总体的均值和标准差。GN 也是不依赖于batch。</p> </li><li> <p>5、对于有些像素级图片生成任务来说，BN效果不佳；</p> </li></ul> 
+<blockquote> 
+ <p>对于图片分类等任务，只要能够找出关键特征，就能正确分类，这算是一种粗粒度的任务，在这种情形下通常BN是有积极效果的。但是对于有些输入输出都是图片的像素级别图片生成任务，比如图片风格转换等应用场景，使用BN会带来负面效果，这很可能是因为在Mini-Batch内多张无关的图片之间计算统计量，弱化了单张图片本身特有的一些细节信息。</p> 
+</blockquote> 
+<h3><a id="3_Layer_Normalizaiton_137"></a>3. Layer Normalizaiton</h3> 
+<blockquote> 
+ <p><a href="https://arxiv.org/pdf/1607.06450v1.pdf" rel="nofollow">Ba J L, Kiros J R, Hinton G E. Layer normalization[J]. arXiv preprint arXiv:1607.06450, 2016.</a></p> 
+</blockquote> 
+<p><img src="https://images2.imgbox.com/e5/e6/2IWmI3N1_o.png" alt="在这里插入图片描述"></p> 
+<h4><a id="31__141"></a>3.1 提出原因</h4> 
+<p>前面介绍了Batch Normalization的原理，我们知道，BN层在CNN中可以加速模型的训练，并防止模型过拟合和梯度消失。但是，如果将BN层直接应用在RNN中可不可行呢，原则上也是可以的，但是会出现一些问题，因为我们知道Batch Normalization是基于mini batch进行标准化，在文本任务中(NLP)，不同的样本其长度往往是不一样的，因此，如果在每一个时间步也采用Batch Normalization时，则在不同的时间步其规范化会强行对每个文本都执行，因此，这是不大合理的，另外，在测试时，如果一个测试文本比训练时的文本长度长时，此时Batch Normalization也会出现问题。因此，在RNN中，我们一般比较少使用Batch Normalization，但是我们会使用一种非常类似的做法，即Layer Normalization。</p> 
+<h4><a id="32__144"></a>3.2 原理</h4> 
+<p>Layer Normalization的思想与Batch Normalization非常类似，只是Batch Normalization是在每个神经元对一个mini batch大小的样本进行规范化，而Layer Normalization则是在每一层对单个样本的所有神经元节点进行规范化，即C,W,H维度求均值方差进行归一化（当前层一共会求batch size个均值和方差，每个batch size分别规范化）。 LN 不需要批训练，在单条数据内部就能归一化。</p> 
+<h4><a id="33__147"></a>3.3 计算过程</h4> 
+<p><img src="https://images2.imgbox.com/97/bd/P8KwYZLn_o.png" alt="在这里插入图片描述"></p> 
+<pre><code class="prism language-python">torch<span class="token punctuation">.</span>nn<span class="token punctuation">.</span>LayerNorm<span class="token punctuation">(</span>normalized_shape<span class="token punctuation">,</span> eps<span class="token operator">=</span><span class="token number">1e-05</span><span class="token punctuation">,</span> elementwise_affine<span class="token operator">=</span><span class="token boolean">True</span><span class="token punctuation">,</span> device<span class="token operator">=</span><span class="token boolean">None</span><span class="token punctuation">,</span> dtype<span class="token operator">=</span><span class="token boolean">None</span><span class="token punctuation">)</span>
+</code></pre> 
+<h4><a id="_152"></a>优点</h4> 
+<p>LN的一个优势就说不需要批训练。在单条数据内部就能完成归一化操作，因此可以用于batch_size=1和RNN训练中，在RNN中，使用Layer Normalization的效果要比Batch Normalization更优，不同的输入样本有不同的均值和方差，可以更快、更好地达到最优效果。LN 不需要保存 mini-batch 的均值和方差，节省了额外的存储空间。</p> 
+<h4><a id="_155"></a>缺点</h4> 
+<p>LN与batch size无关，在小batchsize上效果可能会比BN好，但是大batch size的话还是BN效果好。LN 对于一整层的神经元训练得到同一个转换——所有的输入都在同一个区间范围内。如果不同输入特征不属于相似的类别（比如颜色和大小），那么 LN 的处理可能会降低模型的表达能力。</p> 
+<h3><a id="4_Instance_Normalization_158"></a>4. Instance Normalization</h3> 
+<blockquote> 
+ <p><a href="https://arxiv.org/pdf/1607.08022.pdf" rel="nofollow">Ulyanov D, Vedaldi A, Lempitsky V. Instance normalization: The missing ingredient for fast stylization[J]. arXiv preprint arXiv:1607.08022, 2016.</a><br> <img src="https://images2.imgbox.com/cf/59/jKerTdNy_o.png" alt="在这里插入图片描述"></p> 
+</blockquote> 
+<h4><a id="31__161"></a>3.1 提出原因</h4> 
+<p>BN注重对batch size数据归一化，但是在图像风格化任务中，生成的风格结果主要依赖于某个图像实例，所以对整个batchsize数据进行归一化是不合适的，因而提出了IN只对HW维度进行归一化。</p> 
+<h4><a id="32__164"></a>3.2 原理</h4> 
+<p>IN保留了N、C的维度，只在Channel内部对于H和W进行求均值和标准差的操作。</p> 
+<h4><a id="33__167"></a>3.3 计算过程</h4> 
+<p><img src="https://images2.imgbox.com/ac/53/obklXrwF_o.png" alt="在这里插入图片描述"></p> 
+<h4><a id="_170"></a>优点</h4> 
+<p>IN适用于生成模型中，比如图片风格迁移。因为图片生成的结果主要依赖于某个图像实例，所以对整个Batch进行Normalization操作并不适合图像风格化的任务，在风格迁移中适用IN不仅可以加速模型收敛，并且可以保持每个图像实例之间的独立性。IN的计算就是把每个HW单独拿出来归一化处理，不受通道和batch size 的影响</p> 
+<h4><a id="_174"></a>缺点</h4> 
+<p>如果特征图可以用到通道之间的相关性，那么就不建议使用它做归一化处理</p> 
+<h3><a id="5Group_Normalization_177"></a>5.Group Normalization</h3> 
+<blockquote> 
+ <p><a href="https://openaccess.thecvf.com/content_ECCV_2018/html/Yuxin_Wu_Group_Normalization_ECCV_2018_paper.html" rel="nofollow">Wu Y, He K. Group normalization[C]//Proceedings of the European conference on computer vision (ECCV). 2018: 3-19.</a></p> 
+</blockquote> 
+<p><img src="https://images2.imgbox.com/6b/34/DZ28n153_o.png" alt="在这里插入图片描述"></p> 
+<h4><a id="51__181"></a>5.1 提出原因</h4> 
+<p>GN是为了解决BN对较小的batch size效果差的问题。LN虽然不依赖batch size，但是在CNN中直接对当前层所有通道数据进行规范化也不太好。</p> 
+<p>BN在在batch上进行归一化时维度并不是固定不变的，就比如在训练时，它是通过在训练集上计算好归一化的值，而在测试时则会直接使用，但是训练集和测试集的数据分布存在偏差，就会存在不一致？GN计算步骤与BN一样，只不过与batch size大小无关。</p> 
+<p>论文中作者在ImageNet数据集上设置batch size为32和GN进行对比，结果发现在训练时候GN的表现要优于BN，但是在验证时却要比BN差一些。</p> 
+<h4><a id="52__188"></a>5.2 原理</h4> 
+<p>Group Normalization 将 channel 分成 num_groups组，每组包含channel / num_groups通道，则feature map变为(N, G, C//G, H, W)，然后计算每组 (C//G, H, W)维度平均值和标准差。这样就与batch size无关，不受其约束。事实上，GN的极端情况就是LN和I N，分别对应G等于C和G等于1。</p> 
+<p><img src="https://images2.imgbox.com/2a/80/u1i1iicP_o.png" alt="在这里插入图片描述"></p> 
+<h4><a id="53__193"></a>5.3 计算过程</h4> 
+<p><img src="https://images2.imgbox.com/be/93/iDHqESDc_o.png" alt="在这里插入图片描述"></p> 
+<pre><code class="prism language-python">torch<span class="token punctuation">.</span>nn<span class="token punctuation">.</span>GroupNorm<span class="token punctuation">(</span>num_groups<span class="token punctuation">,</span> num_channels<span class="token punctuation">,</span> eps<span class="token operator">=</span><span class="token number">1e-05</span><span class="token punctuation">,</span> affine<span class="token operator">=</span><span class="token boolean">True</span><span class="token punctuation">,</span> device<span class="token operator">=</span><span class="token boolean">None</span><span class="token punctuation">,</span> dtype<span class="token operator">=</span><span class="token boolean">None</span><span class="token punctuation">)</span>
+
+<span class="token keyword">def</span> <span class="token function">GroupNorm</span><span class="token punctuation">(</span>x<span class="token punctuation">,</span> gamma<span class="token punctuation">,</span> beta<span class="token punctuation">,</span> G<span class="token punctuation">,</span> eps<span class="token operator">=</span><span class="token number">1e-5</span><span class="token punctuation">)</span><span class="token punctuation">:</span>
+    <span class="token comment"># x:input features with shape [N,C,H,W]</span>
+    <span class="token comment"># gamma,beta:scale and offset,with shape [1,C,1,1]</span>
+    <span class="token comment"># G:number of groups for GN</span>
+    N<span class="token punctuation">,</span> C<span class="token punctuation">,</span> H<span class="token punctuation">,</span> W <span class="token operator">=</span> x<span class="token punctuation">.</span>shape
+    x <span class="token operator">=</span> tf<span class="token punctuation">.</span>reshape<span class="token punctuation">(</span>x<span class="token punctuation">,</span> <span class="token punctuation">[</span>N<span class="token punctuation">,</span> G<span class="token punctuation">,</span> C <span class="token operator">/</span> G<span class="token punctuation">,</span> H<span class="token punctuation">,</span> W<span class="token punctuation">]</span><span class="token punctuation">)</span>
+    mean<span class="token punctuation">,</span> var <span class="token operator">=</span> tf<span class="token punctuation">.</span>nn<span class="token punctuation">.</span>moments<span class="token punctuation">(</span>x<span class="token punctuation">,</span> <span class="token punctuation">[</span><span class="token number">2</span><span class="token punctuation">,</span> <span class="token number">3</span><span class="token punctuation">,</span> <span class="token number">4</span><span class="token punctuation">]</span><span class="token punctuation">,</span> keep_dims<span class="token operator">=</span><span class="token boolean">True</span><span class="token punctuation">)</span>
+    x <span class="token operator">=</span> <span class="token punctuation">(</span>x <span class="token operator">-</span> mean<span class="token punctuation">)</span> <span class="token operator">/</span> tf<span class="token punctuation">.</span>sqrt<span class="token punctuation">(</span>var <span class="token operator">+</span> eps<span class="token punctuation">)</span>
+    x <span class="token operator">=</span> tf<span class="token punctuation">.</span>reshape<span class="token punctuation">(</span>x<span class="token punctuation">,</span> <span class="token punctuation">[</span>N<span class="token punctuation">,</span> C<span class="token punctuation">,</span> H<span class="token punctuation">,</span> W<span class="token punctuation">]</span><span class="token punctuation">)</span>
+    <span class="token keyword">return</span> x<span class="token punctuation">,</span> gamma<span class="token punctuation">,</span> beta
+</code></pre> 
+<h4><a id="_209"></a>优点</h4> 
+<p>GN不依赖Batch Size，同时还带来依然令人惊奇的效果。GN是在channel维度上进行的norm，可以很好适用于RNN，这是GN的巨大优势。虽然文中没做关于RNN的实验，但这无疑提供了一条新思路。</p> 
+<h4><a id="_212"></a>缺点</h4> 
+<p>GN对比的BN并不是BN最强的状态。旷视科技提出的MegDet用了一种超大的batch size=256，BN效果比batch_size=32的时候好很多，并且顺便拿下COCO2017检测的冠军。</p> 
+<h3><a id="6_Weight_Normalization_215"></a>6 Weight Normalization</h3> 
+<h4><a id="61__216"></a>6.1 原理</h4> 
+<p><img src="https://images2.imgbox.com/9d/5a/9bujkcAu_o.png" alt="在这里插入图片描述"><br> <img src="https://images2.imgbox.com/d7/79/2F9rRFPk_o.png" alt="在这里插入图片描述"></p> 
+<pre><code class="prism language-python">torch<span class="token punctuation">.</span>nn<span class="token punctuation">.</span>utils<span class="token punctuation">.</span>weight_norm<span class="token punctuation">(</span>module<span class="token punctuation">,</span> name<span class="token operator">=</span><span class="token string">'weight'</span><span class="token punctuation">,</span> dim<span class="token operator">=</span><span class="token number">0</span><span class="token punctuation">)</span>
+</code></pre> 
+<h4><a id="_223"></a>优点</h4> 
+<p>WN的归一化操作作用在了权值矩阵之上。从其计算方法上来看，WN完全不像是一个归一化方法，更像是基于矩阵分解的一种优化策略，它带来的好处有：</p> 
+<p>更快的收敛速度；<br> 更强的学习率鲁棒性；<br> 可以应用在RNN等动态网络中；<br> WN也是和样本量无关的，所以可以使用较小的batch size<br> WN 的规范化不直接使用输入数据的统计量，因此避免了 BN 过于依赖 mini-batch 的不足，以及 LN 每层唯一转换器的限制，<br> 另外BN使用的基于mini-batch的归一化统计量代替全局统计量，相当于在梯度计算中引入了噪声。而WN则没有这个问题，所以在生成模型，强化学习等噪声敏感的环境中WN的效果也要优于BN。<br> WN没有一如额外参数，这样更节约显存。同时WN的计算效率也要优于要计算归一化统计量的BN。</p> 
+<h4><a id="_234"></a>缺点</h4> 
+<p>说WN不像归一化的原因是它并没有对得到的特征范围进行约束的功能，所以WN依旧对参数的初始值非常敏感，这也是WN一个比较严重的问题</p> 
+<h3><a id="_237"></a>总结</h3> 
+<p>BN通常可以在中、大批量中取得良好的性能。然而在小批量他的性能会下降比较多；GN在不同Batch Size下具有较大的稳定性，而GN在中、大Batch Size下性能略差于BN。IN、LN、PN、CBN在特定任务中表现良好，例如：IN在图像风格迁移中表现较好，LN在RNN中表现较好，PN在生成网络中表现较好，CBN在目标检测任务中较好，但这几个在其他视觉任务中泛化性能较差。SN集万千宠爱为一身，但训练过于复杂。FRN和BGN比其他归一化方法占据明显优势，但是目前还没大范围采用。</p> 
+<p>在这些归一化方法中，BN通常可以在中、大批量中取得良好的性能。然而，在小批量它的性能便会下降比较多；GN在不同的Batch Size下具有较大的稳定性，而GN在中、大Batch Size下的性能略差于BN。其他归一化方法，包括IN、LN和PN在特定任务中表现良好，但在其他视觉任务中泛化性比较差。</p> 
+<p>BGN：超大Batch下BN会出现饱和（比如，Batch为128），并提出在小/超大Batch下BN的退化/饱和是由噪声/混淆的统计计算引起的。因此，在不增加新训练参数和引入额外计算的情况下，通过引入通道、高度和宽度维度来补偿，解决了批量标准化在小/超大Batch下BN的噪声/混淆统计计算问题。</p> 
+<p>参考：<a href="https://www.cnblogs.com/lxp-never/p/11566064.html" rel="nofollow">https://www.cnblogs.com/lxp-never/p/11566064.html</a></p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/d454b3d36dec295a60b6a83b0ce8c821/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">数据结构初阶（链表）</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/97d06b7db46a913070722471ef17504a/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">YOLO 划分数据集（训练集、验证集、测试集）</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

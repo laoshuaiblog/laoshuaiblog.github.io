@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>BatchNorm怎样解决训练和推理时batch size 不同的问题？ - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/06d78178b6c720bff03f189c2c107e22/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="BatchNorm怎样解决训练和推理时batch size 不同的问题？">
+  <meta property="og:description" content="BatchNorm怎样解决训练和推理时batch size 不同的问题？ BatchNorm是在batch维度上计算每个相同通道上的均值和方差，通常情况下，训练阶段的batchsize较大，而推理时batchsize基本为1。这样的话，就会导致训练和推理阶段得到不同的标准化，均值和方差时靠每一个mini-batch的统计得到的，因为推理时只有一个样本，在只有1个向量的数据组上进行标准化后，成了一个全0向量，导致模型出现BUG。为了解决这个问题，不改变训练时的BatchNorm计算方式，仅仅改变推理时计算均值和方差方法。
+做法就是用训练集来估计总体均值 μ \mu μ和总体标准差 σ \sigma σ。主要有两种方法：简单平均法和移动指数平均
+简单平均法
+把每个mini-batch的均值和方差都保存下来，然后训练完了求均值的均值，方差的均值即可。 移动指数平均（Exponential Moving Average）
+本文仅以 μ \mu μ的计算为例：
+μ t o t a l = d e c a y ∗ μ t o t a l &#43; ( 1 − d e c a y ) ∗ μ \mu_{total}=decay*\mu_{total}&#43;(1-decay)*\mu μtotal​=decay∗μtotal​&#43;(1−decay)∗μ
+其中decay是衰减系数。即总均值 μ t o t a l \mu_{total} μtotal​是前一个mini-batch统计的总均值和本次mini-batch的 μ \mu μ加权求和。至于衰减率 decay在区间[0,1]之间，decay越接近1，结果 μ t o t a l \mu_{total} μtotal​越稳定，越受较远的大范围的样本影响；decay越接近0，结果 μ t o t a l \mu_{total} μtotal​越波动，越受较近的小范围的样本影响。 事实上，简单平均可能更好，简单平均本质上是平均权重，但是简单平均需要保存所有BN层在所有mini-batch上的均值向量和方差向量，如果训练数据量很大，会有较可观的存储代价。移动指数平均在实际的框架中更常见（例如tensorflow），可能的好处是EMA不需要存储每一个mini-batch的值，永远只保存着三个值：总统计值、本batch的统计值，decay系数。">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2022-02-10T11:35:07+08:00">
+    <meta property="article:modified_time" content="2022-02-10T11:35:07+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">BatchNorm怎样解决训练和推理时batch size 不同的问题？</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-dark">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <p></p> 
+<div class="toc"> 
+ <h4>BatchNorm怎样解决训练和推理时batch size 不同的问题？</h4> 
+</div> 
+<p></p> 
+<p>BatchNorm是在batch维度上计算每个相同通道上的均值和方差，通常情况下，训练阶段的batchsize较大，而推理时batchsize基本为1。这样的话，就会导致训练和推理阶段得到不同的标准化，均值和方差时靠每一个mini-batch的统计得到的，因为推理时只有一个样本，在只有1个向量的数据组上进行标准化后，成了一个全0向量，导致模型出现BUG。为了解决这个问题，不改变训练时的BatchNorm计算方式，仅仅改变推理时计算均值和方差方法。</p> 
+<p>做法就是用训练集来估计总体均值<span class="katex--inline"><span class="katex"><span class="katex-mathml"> 
+     
+      
+       
+       
+         μ 
+        
+       
+      
+        \mu 
+       
+      
+    </span><span class="katex-html"><span class="base"><span class="strut" style="height: 0.625em; vertical-align: -0.19444em;"></span><span class="mord mathdefault">μ</span></span></span></span></span>和总体标准差<span class="katex--inline"><span class="katex"><span class="katex-mathml"> 
+     
+      
+       
+       
+         σ 
+        
+       
+      
+        \sigma 
+       
+      
+    </span><span class="katex-html"><span class="base"><span class="strut" style="height: 0.43056em; vertical-align: 0em;"></span><span style="margin-right: 0.03588em;" class="mord mathdefault">σ</span></span></span></span></span>。主要有两种方法：<strong>简单平均法</strong>和<strong>移动指数平均</strong></p> 
+<blockquote> 
+ <ol><li>简单平均法<br> 把每个mini-batch的均值和方差都保存下来，然后训练完了求均值的均值，方差的均值即可。</li></ol> 
+</blockquote> 
+<blockquote> 
+ <ol start="2"><li>移动指数平均（Exponential Moving Average）<br> 本文仅以<span class="katex--inline"><span class="katex"><span class="katex-mathml"> 
+       
+        
+         
+         
+           μ 
+          
+         
+        
+          \mu 
+         
+        
+      </span><span class="katex-html"><span class="base"><span class="strut" style="height: 0.625em; vertical-align: -0.19444em;"></span><span class="mord mathdefault">μ</span></span></span></span></span>的计算为例：<br> <span class="katex--display"><span class="katex-display"><span class="katex"><span class="katex-mathml"> 
+        
+         
+          
+           
+           
+             μ 
+            
+            
+            
+              t 
+             
+            
+              o 
+             
+            
+              t 
+             
+            
+              a 
+             
+            
+              l 
+             
+            
+           
+          
+            = 
+           
+          
+            d 
+           
+          
+            e 
+           
+          
+            c 
+           
+          
+            a 
+           
+          
+            y 
+           
+          
+            ∗ 
+           
+           
+           
+             μ 
+            
+            
+            
+              t 
+             
+            
+              o 
+             
+            
+              t 
+             
+            
+              a 
+             
+            
+              l 
+             
+            
+           
+          
+            + 
+           
+          
+            ( 
+           
+          
+            1 
+           
+          
+            − 
+           
+          
+            d 
+           
+          
+            e 
+           
+          
+            c 
+           
+          
+            a 
+           
+          
+            y 
+           
+          
+            ) 
+           
+          
+            ∗ 
+           
+          
+            μ 
+           
+          
+         
+           \mu_{total}=decay*\mu_{total}+(1-decay)*\mu 
+          
+         
+       </span><span class="katex-html"><span class="base"><span class="strut" style="height: 0.625em; vertical-align: -0.19444em;"></span><span class="mord"><span class="mord mathdefault">μ</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height: 0.336108em;"><span class="" style="top: -2.55em; margin-left: 0em; margin-right: 0.05em;"><span class="pstrut" style="height: 2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathdefault mtight">t</span><span class="mord mathdefault mtight">o</span><span class="mord mathdefault mtight">t</span><span class="mord mathdefault mtight">a</span><span style="margin-right: 0.01968em;" class="mord mathdefault mtight">l</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height: 0.15em;"><span class=""></span></span></span></span></span></span><span class="mspace" style="margin-right: 0.277778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right: 0.277778em;"></span></span><span class="base"><span class="strut" style="height: 0.88888em; vertical-align: -0.19444em;"></span><span class="mord mathdefault">d</span><span class="mord mathdefault">e</span><span class="mord mathdefault">c</span><span class="mord mathdefault">a</span><span style="margin-right: 0.03588em;" class="mord mathdefault">y</span><span class="mspace" style="margin-right: 0.222222em;"></span><span class="mbin">∗</span><span class="mspace" style="margin-right: 0.222222em;"></span></span><span class="base"><span class="strut" style="height: 0.77777em; vertical-align: -0.19444em;"></span><span class="mord"><span class="mord mathdefault">μ</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height: 0.336108em;"><span class="" style="top: -2.55em; margin-left: 0em; margin-right: 0.05em;"><span class="pstrut" style="height: 2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathdefault mtight">t</span><span class="mord mathdefault mtight">o</span><span class="mord mathdefault mtight">t</span><span class="mord mathdefault mtight">a</span><span style="margin-right: 0.01968em;" class="mord mathdefault mtight">l</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height: 0.15em;"><span class=""></span></span></span></span></span></span><span class="mspace" style="margin-right: 0.222222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right: 0.222222em;"></span></span><span class="base"><span class="strut" style="height: 1em; vertical-align: -0.25em;"></span><span class="mopen">(</span><span class="mord">1</span><span class="mspace" style="margin-right: 0.222222em;"></span><span class="mbin">−</span><span class="mspace" style="margin-right: 0.222222em;"></span></span><span class="base"><span class="strut" style="height: 1em; vertical-align: -0.25em;"></span><span class="mord mathdefault">d</span><span class="mord mathdefault">e</span><span class="mord mathdefault">c</span><span class="mord mathdefault">a</span><span style="margin-right: 0.03588em;" class="mord mathdefault">y</span><span class="mclose">)</span><span class="mspace" style="margin-right: 0.222222em;"></span><span class="mbin">∗</span><span class="mspace" style="margin-right: 0.222222em;"></span></span><span class="base"><span class="strut" style="height: 0.625em; vertical-align: -0.19444em;"></span><span class="mord mathdefault">μ</span></span></span></span></span></span><br> 其中decay是衰减系数。即总均值<span class="katex--inline"><span class="katex"><span class="katex-mathml"> 
+       
+        
+         
+          
+          
+            μ 
+           
+           
+           
+             t 
+            
+           
+             o 
+            
+           
+             t 
+            
+           
+             a 
+            
+           
+             l 
+            
+           
+          
+         
+        
+          \mu_{total} 
+         
+        
+      </span><span class="katex-html"><span class="base"><span class="strut" style="height: 0.625em; vertical-align: -0.19444em;"></span><span class="mord"><span class="mord mathdefault">μ</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height: 0.336108em;"><span class="" style="top: -2.55em; margin-left: 0em; margin-right: 0.05em;"><span class="pstrut" style="height: 2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathdefault mtight">t</span><span class="mord mathdefault mtight">o</span><span class="mord mathdefault mtight">t</span><span class="mord mathdefault mtight">a</span><span style="margin-right: 0.01968em;" class="mord mathdefault mtight">l</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height: 0.15em;"><span class=""></span></span></span></span></span></span></span></span></span></span>是前一个mini-batch统计的总均值和本次mini-batch的<span class="katex--inline"><span class="katex"><span class="katex-mathml"> 
+       
+        
+         
+         
+           μ 
+          
+         
+        
+          \mu 
+         
+        
+      </span><span class="katex-html"><span class="base"><span class="strut" style="height: 0.625em; vertical-align: -0.19444em;"></span><span class="mord mathdefault">μ</span></span></span></span></span>加权求和。至于衰减率 decay在区间[0,1]之间，decay越接近1，结果<span class="katex--inline"><span class="katex"><span class="katex-mathml"> 
+       
+        
+         
+          
+          
+            μ 
+           
+           
+           
+             t 
+            
+           
+             o 
+            
+           
+             t 
+            
+           
+             a 
+            
+           
+             l 
+            
+           
+          
+         
+        
+          \mu_{total} 
+         
+        
+      </span><span class="katex-html"><span class="base"><span class="strut" style="height: 0.625em; vertical-align: -0.19444em;"></span><span class="mord"><span class="mord mathdefault">μ</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height: 0.336108em;"><span class="" style="top: -2.55em; margin-left: 0em; margin-right: 0.05em;"><span class="pstrut" style="height: 2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathdefault mtight">t</span><span class="mord mathdefault mtight">o</span><span class="mord mathdefault mtight">t</span><span class="mord mathdefault mtight">a</span><span style="margin-right: 0.01968em;" class="mord mathdefault mtight">l</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height: 0.15em;"><span class=""></span></span></span></span></span></span></span></span></span></span>越稳定，越受较远的大范围的样本影响；decay越接近0，结果 <span class="katex--inline"><span class="katex"><span class="katex-mathml"> 
+       
+        
+         
+          
+          
+            μ 
+           
+           
+           
+             t 
+            
+           
+             o 
+            
+           
+             t 
+            
+           
+             a 
+            
+           
+             l 
+            
+           
+          
+         
+        
+          \mu_{total} 
+         
+        
+      </span><span class="katex-html"><span class="base"><span class="strut" style="height: 0.625em; vertical-align: -0.19444em;"></span><span class="mord"><span class="mord mathdefault">μ</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height: 0.336108em;"><span class="" style="top: -2.55em; margin-left: 0em; margin-right: 0.05em;"><span class="pstrut" style="height: 2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathdefault mtight">t</span><span class="mord mathdefault mtight">o</span><span class="mord mathdefault mtight">t</span><span class="mord mathdefault mtight">a</span><span style="margin-right: 0.01968em;" class="mord mathdefault mtight">l</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height: 0.15em;"><span class=""></span></span></span></span></span></span></span></span></span></span>越波动，越受较近的小范围的样本影响。</li></ol> 
+</blockquote> 
+<p>事实上，简单平均可能更好，简单平均本质上是平均权重，但是简单平均需要保存所有BN层在所有mini-batch上的均值向量和方差向量，如果训练数据量很大，会有较可观的存储代价。移动指数平均在实际的框架中更常见（例如tensorflow），可能的好处是EMA不需要存储每一个mini-batch的值，永远只保存着三个值：总统计值、本batch的统计值，decay系数。</p> 
+<p>在训练阶段同步获得了<span class="katex--inline"><span class="katex"><span class="katex-mathml"> 
+     
+      
+       
+        
+        
+          μ 
+         
+         
+         
+           t 
+          
+         
+           o 
+          
+         
+           t 
+          
+         
+           a 
+          
+         
+           l 
+          
+         
+        
+       
+      
+        \mu_{total} 
+       
+      
+    </span><span class="katex-html"><span class="base"><span class="strut" style="height: 0.625em; vertical-align: -0.19444em;"></span><span class="mord"><span class="mord mathdefault">μ</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height: 0.336108em;"><span class="" style="top: -2.55em; margin-left: 0em; margin-right: 0.05em;"><span class="pstrut" style="height: 2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathdefault mtight">t</span><span class="mord mathdefault mtight">o</span><span class="mord mathdefault mtight">t</span><span class="mord mathdefault mtight">a</span><span style="margin-right: 0.01968em;" class="mord mathdefault mtight">l</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height: 0.15em;"><span class=""></span></span></span></span></span></span></span></span></span></span>和<span class="katex--inline"><span class="katex"><span class="katex-mathml"> 
+     
+      
+       
+        
+        
+          σ 
+         
+         
+         
+           t 
+          
+         
+           o 
+          
+         
+           t 
+          
+         
+           a 
+          
+         
+           l 
+          
+         
+        
+       
+      
+        \sigma_{total} 
+       
+      
+    </span><span class="katex-html"><span class="base"><span class="strut" style="height: 0.58056em; vertical-align: -0.15em;"></span><span class="mord"><span style="margin-right: 0.03588em;" class="mord mathdefault">σ</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height: 0.336108em;"><span class="" style="top: -2.55em; margin-left: -0.03588em; margin-right: 0.05em;"><span class="pstrut" style="height: 2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathdefault mtight">t</span><span class="mord mathdefault mtight">o</span><span class="mord mathdefault mtight">t</span><span class="mord mathdefault mtight">a</span><span style="margin-right: 0.01968em;" class="mord mathdefault mtight">l</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height: 0.15em;"><span class=""></span></span></span></span></span></span></span></span></span></span>后，在推理时即可对样本进行BN操作。</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/39020517a317fd2ac3884c28099a086c/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">gstreamer_搭建rtsp服务器</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/218edec3bab5880bb07e2b9854716e98/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">Linux环境下安装将html转化为pdf的工具wkhtmltopdf，并使用Java调用。</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

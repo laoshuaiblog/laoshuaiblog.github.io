@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>记一次公司jmeter压测时cpu过高，jvm调优解决方案 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/1d6d51a9cd6e693ff4e70927ede41a63/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="记一次公司jmeter压测时cpu过高，jvm调优解决方案">
+  <meta property="og:description" content="问题现象 因为涉及到人行征信报文测试的报文有2.7M需要进行特征计算衍生。使用jmeter压力测试发现服务器cpu几乎打满，qps始终只有25左右。换成90k小报文后qps立马就能上到1200后来我使用了一下阿里巴巴的一款Arthas工具打算先分析一下是GC导致的cpu高还是代码中存在死循环之类的代码
+解决过程 因为服务器不能连接外网所以从改地址先下载arthas 后再上传到服务器
+下载 — Arthas 3.5.4 文档
+启动命令：
+java -jar arthas-boot.jar 然后回车输入：dashboard 用于查看cpu，内存，GC等情况
+可以看出大半的cpu资源都是被GC回收所占用。
+接下来的问题就是要解决GC频繁的问题了。
+使用：jstat -gcutil 进程号 1000 1000 示例：jstat -gcutil 11051 1000 1000
+查看到 full GC发生频繁，而且 O 列很明显每次GC后回收了一半的内存空间。（此处还有一种情况，就算full GC频繁，但是O列的内存空间几乎没什么变化，这种情况大概率就是代码里有很多对象放到老年代始终无法回收，需要具体到代码层面分析了,Arthas也可以做到，此处就不再讲述了）
+那么很明显了，我了解到的对象会加入老年代有两种情况：1，对象经过15次gc后会从年轻代挪到老年代；2，一次插入的对象太大了超过了年轻代空间的1/2会直接挪到老年代。
+很显然我们的问题应该是第二种情况，因为body体中的一个请求就有2.7M.
+解决方法：由于jvm默认的年轻代和老年代空间大家比例是1：2。故将年轻代的空间调大即可，从而避免以上第二种情况的发生，同时也是减少年轻代垃圾回收的频率。
+vi ~/.bash_profile 将年轻代调整为10G
+source ~/.bash_profile 再测qps提升了近4倍，GC不再频繁
+如果不是gc导致的cpu异常的高。可以通过thread -n 10这个命令来查看是什么代码消耗cpu资源比较多。
+补充：thread -n 10 这个命令只能看到瞬时是cpu资源消耗，有时候为了精准的调优代码，可以通过arthas 输出一个火焰图，上面可以看到单位时间内的cpu消耗从而进行压测调优代码">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2023-07-31T14:57:48+08:00">
+    <meta property="article:modified_time" content="2023-07-31T14:57:48+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">记一次公司jmeter压测时cpu过高，jvm调优解决方案</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <h3>问题现象</h3> 
+<p></p> 
+<p>因为涉及到人行征信报文测试的报文有2.7M需要进行特征计算衍生。使用jmeter压力测试发现服务器cpu几乎打满，qps始终只有25左右。换成90k小报文后qps立马就能上到1200后来我使用了一下阿里巴巴的一款Arthas工具打算先分析一下是GC导致的cpu高还是代码中存在死循环之类的代码</p> 
+<h3>解决过程</h3> 
+<p>因为服务器不能连接外网所以从改地址先下载arthas 后再上传到服务器</p> 
+<p><a href="https://arthas.gitee.io/download.html" rel="nofollow" title="下载 — Arthas 3.5.4 文档">下载 — Arthas 3.5.4 文档</a></p> 
+<p>启动命令：</p> 
+<pre><code>java -jar arthas-boot.jar</code></pre> 
+<p>然后回车输入：dashboard 用于查看cpu，内存，GC等情况</p> 
+<p><img alt="" height="839" src="https://images2.imgbox.com/b8/70/5wMeUsAx_o.png" width="1200"></p> 
+<p>可以看出大半的cpu资源都是被GC回收所占用。</p> 
+<p>接下来的问题就是要解决GC频繁的问题了。</p> 
+<p>使用：jstat -gcutil  进程号 1000 1000  示例：<strong>jstat -gcutil 11051 1000 1000</strong></p> 
+<p>查看到 full GC发生频繁，而且 O 列很明显每次GC后回收了一半的内存空间。（此处还有一种情况，就算full GC频繁，但是O列的内存空间几乎没什么变化，这种情况大概率就是代码里有很多对象放到老年代始终无法回收，需要具体到代码层面分析了,Arthas也可以做到，此处就不再讲述了）</p> 
+<p>那么很明显了，我了解到的对象会加入老年代有两种情况：1，对象经过15次gc后会从年轻代挪到老年代；2，一次插入的对象太大了超过了年轻代空间的1/2会直接挪到老年代。</p> 
+<p>很显然我们的问题应该是第二种情况，因为body体中的一个请求就有2.7M.</p> 
+<p>解决方法：由于jvm默认的年轻代和老年代空间大家比例是1：2。故将年轻代的空间调大即可，从而避免以上第二种情况的发生，同时也是减少年轻代垃圾回收的频率。</p> 
+<p>vi ~/.bash_profile  将年轻代调整为10G</p> 
+<p><img alt="" height="53" src="https://images2.imgbox.com/e8/9f/5uryIN9B_o.png" width="1200"></p> 
+<p>source ~/.bash_profile </p> 
+<p>再测qps提升了近4倍，GC不再频繁</p> 
+<p>如果不是gc导致的cpu异常的高。可以通过thread -n 10这个命令来查看是什么代码消耗cpu资源比较多。</p> 
+<p>补充：thread -n 10 这个命令只能看到瞬时是cpu资源消耗，有时候为了精准的调优代码，可以通过arthas 输出一个火焰图，上面可以看到单位时间内的cpu消耗从而进行压测调优代码</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/7e19f43bd4eb7aa536a2d4e33b7a6052/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">无网环境的GCC更新安装（适用于Redis6的编译）</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/49c27e124e0042034c8e18844393f9ba/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">【Linux】中如何安装nginx</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

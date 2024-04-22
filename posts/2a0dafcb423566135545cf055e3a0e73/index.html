@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Postgresql实战：使用pg_basebackup或pg_start_backup方式搭建Postgresql主从流复制 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/2a0dafcb423566135545cf055e3a0e73/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="Postgresql实战：使用pg_basebackup或pg_start_backup方式搭建Postgresql主从流复制">
+  <meta property="og:description" content="官方文档https://www.postgresql.org/docs/current/high-availability.html
+主从原理或逻辑理解：
+将一个基于文件日志传送slave服务器转变成流复制slave服务器的步骤是把该slave服务器recovery.conf文件中的primary_conninfo设置指向master服务器。这样slave服务器可以连接到master服务器上的伪数据库replication。当slave服务器被启动并且primary_conninfo被正确设置，slave服务器将在重放完归档中所有可用的WAL文件之后连接到master服务器。如果连接被成功建立，你将在slave服务器中看到一个walreceiver进程，并且在master服务器中有一个相应的walsender进程。
+流复制允许一台后备服务器比使用基于文件的日志传送(日志传送是异步的，即 WAL 记录是在事务提交后才被传送。)更能保持为最新的状态。后备服务器连接到主服务器，主服务器则在 WAL 记录产生时即将它们以流式传送给后备服务器而不必等到 WAL 文件被填充。 默认情况下流复制是异步的，在这种情况下主服务器上提交一个事务与该变化在后备服务器上变得可见之间存在短暂的延迟。不过这种延迟比基于文件的日志传送方式中要小得多，在后备服务器的能力足以跟得上负载的前提下延迟通常低于一秒。如果你使用的流复制没有基于文件的连续归档，该服务器可能在后备机收到 WAL 段之 前回收这些旧的 WAL 段。如果发生这种情况，后备机将需要重新从一个新的基础备 份初始化。通过设置wal_keep_segments为一个足够高的值来确保旧 的 WAL 段不会被太早重用或者为后备机配置一个复制槽，可以避免发生这种情况。如果设置了一个后备机可以访问的 WAL 归档，就不需要这些解决方案，因为该归档可以 为后备机保留足够的段，后备机总是可以使用该归档来追赶主控机。 一旦流复制已经被配置，配置同步复制就只需要一个额外的配置步骤：synchronous_standby_names必须被设置为一个非空值。synchronous_commit也必须被设置为on，但由于这是默认值，通常不需要改变。这样的配置将导致每一次提交都等待确认消息，以保证后备服务器已经将提交记录写入到持久化存储中。将synchronous_commit设置为remote_write将导致每次提交都等待后备服务器已经接收提交记录并将它写出到其自身所在的操作系统的确认，但并非等待数据都被刷出到后备服务器上的磁盘。这种设置提供了比on要弱一点的持久性保障：在一次操作系统崩溃事件中后备服务器可能丢失数据，尽管它不是一次PostgreSQL崩溃。不过，在实际中它是一种有用的设置，因为它可以减少事务的响应时间。只有当主服务器和后备服务器都崩溃并且主服务器的数据库同时被损坏的情况下，数据丢失才会发生。
+主节点：172.22.136.146
+从节点：172.22.136.147
+pg_basebackup的过程中，主库可读可写
+pg_start_backup&#43;copy&#43;pg_stop_backup，copy的过程，主库可读可写
+pg_basebackup的方式
+1、master节点172.22.136.146创建用于同步的账号repdev3，修改postgresql.conf文件和pg_hba.conf文件
+create user repdev3 SUPERUSER LOGIN password &#39;123456&#39;; pg_hba.conf文件新增如下
+host replication repdev3 172.22.136.147 md5 postgresql.conf修改如下
+wal_level=replica max_wal_senders = 2 wal_keep_segments = 256 2、重启master节点
+3、在slave节点172.22.136.147执行psql看是否可以连接master节点
+psql -h172.22.136.146 -p 5432 -U repdev3 -d postgres -W 4、在slave节点172.22.136.147，删除$PGDATA目录下所有文件，否则pg_basebackup过程会报错pg_basebackup: directory “/XX” exists but is not empty">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2023-03-27T22:21:29+08:00">
+    <meta property="article:modified_time" content="2023-03-27T22:21:29+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">Postgresql实战：使用pg_basebackup或pg_start_backup方式搭建Postgresql主从流复制</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-dark">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <p>官方文档https://www.postgresql.org/docs/current/high-availability.html<br> 主从原理或逻辑理解：<br> 将一个基于文件日志传送slave服务器转变成流复制slave服务器的步骤是把该slave服务器recovery.conf文件中的primary_conninfo设置指向master服务器。这样slave服务器可以连接到master服务器上的伪数据库replication。当slave服务器被启动并且primary_conninfo被正确设置，slave服务器将在重放完归档中所有可用的WAL文件之后连接到master服务器。如果连接被成功建立，你将在slave服务器中看到一个walreceiver进程，并且在master服务器中有一个相应的walsender进程。</p> 
+<p>流复制允许一台后备服务器比使用基于文件的日志传送(日志传送是异步的，即 WAL 记录是在事务提交后才被传送。)更能保持为最新的状态。后备服务器连接到主服务器，主服务器则在 WAL 记录产生时即将它们以流式传送给后备服务器而不必等到 WAL 文件被填充。 默认情况下流复制是异步的，在这种情况下主服务器上提交一个事务与该变化在后备服务器上变得可见之间存在短暂的延迟。不过这种延迟比基于文件的日志传送方式中要小得多，在后备服务器的能力足以跟得上负载的前提下延迟通常低于一秒。如果你使用的流复制没有基于文件的连续归档，该服务器可能在后备机收到 WAL 段之 前回收这些旧的 WAL 段。如果发生这种情况，后备机将需要重新从一个新的基础备 份初始化。通过设置wal_keep_segments为一个足够高的值来确保旧 的 WAL 段不会被太早重用或者为后备机配置一个复制槽，可以避免发生这种情况。如果设置了一个后备机可以访问的 WAL 归档，就不需要这些解决方案，因为该归档可以 为后备机保留足够的段，后备机总是可以使用该归档来追赶主控机。 一旦流复制已经被配置，配置同步复制就只需要一个额外的配置步骤：synchronous_standby_names必须被设置为一个非空值。synchronous_commit也必须被设置为on，但由于这是默认值，通常不需要改变。这样的配置将导致每一次提交都等待确认消息，以保证后备服务器已经将提交记录写入到持久化存储中。将synchronous_commit设置为remote_write将导致每次提交都等待后备服务器已经接收提交记录并将它写出到其自身所在的操作系统的确认，但并非等待数据都被刷出到后备服务器上的磁盘。这种设置提供了比on要弱一点的持久性保障：在一次操作系统崩溃事件中后备服务器可能丢失数据，尽管它不是一次PostgreSQL崩溃。不过，在实际中它是一种有用的设置，因为它可以减少事务的响应时间。只有当主服务器和后备服务器都崩溃并且主服务器的数据库同时被损坏的情况下，数据丢失才会发生。</p> 
+<p>主节点：172.22.136.146<br> 从节点：172.22.136.147</p> 
+<p>pg_basebackup的过程中，主库可读可写<br> pg_start_backup+copy+pg_stop_backup，copy的过程，主库可读可写</p> 
+<p>pg_basebackup的方式</p> 
+<p>1、master节点172.22.136.146创建用于同步的账号repdev3，修改postgresql.conf文件和pg_hba.conf文件</p> 
+<pre><code class="prism language-powershell">create user repdev3 SUPERUSER LOGIN password <span class="token string">'123456'</span><span class="token punctuation">;</span> 
+</code></pre> 
+<p>pg_hba.conf文件新增如下</p> 
+<pre><code class="prism language-powershell">host  replication  repdev3  172<span class="token punctuation">.</span>22<span class="token punctuation">.</span>136<span class="token punctuation">.</span>147  md5
+</code></pre> 
+<p>postgresql.conf修改如下</p> 
+<pre><code class="prism language-powershell">wal_level=replica
+max_wal_senders = 2
+wal_keep_segments = 256
+</code></pre> 
+<p>2、重启master节点</p> 
+<p>3、在slave节点172.22.136.147执行psql看是否可以连接master节点</p> 
+<pre><code class="prism language-sql">psql <span class="token operator">-</span>h172<span class="token punctuation">.</span><span class="token number">22.136</span><span class="token number">.146</span> <span class="token operator">-</span>p <span class="token number">5432</span> <span class="token operator">-</span>U repdev3 <span class="token operator">-</span>d postgres <span class="token operator">-</span>W
+</code></pre> 
+<p>4、在slave节点172.22.136.147，删除$PGDATA目录下所有文件，否则pg_basebackup过程会报错pg_basebackup: directory “/XX” exists but is not empty</p> 
+<p>5、在slave节点172.22.136.147执行pg_basebackup把master的文件拷贝到slave</p> 
+<pre><code class="prism language-powershell">pg_basebackup <span class="token operator">-</span>D<span class="token variable">$PGDATA</span> <span class="token operator">-</span>F p <span class="token operator">-</span>X stream <span class="token operator">-</span>v <span class="token operator">-</span>P <span class="token operator">-</span>h 172<span class="token punctuation">.</span>22<span class="token punctuation">.</span>136<span class="token punctuation">.</span>146 <span class="token operator">-</span>p 5432 <span class="token operator">-</span>U repdev3 <span class="token operator">-</span>W
+</code></pre> 
+<p>-D参数表示指定备节点用来接收主库数据的目标路径<br> -F参数表示指定pg_basebackup命令生成的备份数据格式，P表示生成的备份数据和主库上的数据文件布局一样，类似于操作系统命令将数据库<span class="katex--inline"><span class="katex"><span class="katex-mathml"> 
+     
+      
+       
+       
+         P 
+        
+       
+         G 
+        
+       
+         D 
+        
+       
+         A 
+        
+       
+         T 
+        
+       
+         A 
+        
+       
+         系统数据文件、表空间文件完全拷贝到备节点。当集簇没有额外表空间时，整个数据库将被放在目标目录中。如果集簇包含额外的表空间，主数据目录将被放置在目标目录中，但是所有其他表空间将被放在它们位于服务器上的相同的绝对路径中。如果主库存在额外的表空间且这个表空间目录和主库 
+        
+       
+      
+        PGDATA系统数据文件、表空间文件完全拷贝到备节点。当集簇没有额外表空间时，整个数据库将被放在目标目录中。如果集簇包含额外的表空间，主数据目录将被放置在目标目录中，但是所有其他表空间将被放在它们位于服务器上的相同的绝对路径中。如果主库存在额外的表空间且这个表空间目录和主库 
+       
+      
+    </span><span class="katex-html"><span class="base"><span class="strut" style="height: 0.6833em;"></span><span class="mord mathnormal">PG</span><span style="margin-right: 0.0278em;" class="mord mathnormal">D</span><span class="mord mathnormal">A</span><span style="margin-right: 0.1389em;" class="mord mathnormal">T</span><span class="mord mathnormal">A</span><span class="mord cjk_fallback">系统数据文件、表空间文件完全拷贝到备节点。当集簇没有额外表空间时，整个数据库将被放在目标目录中。如果集簇包含额外的表空间，主数据目录将被放置在目标目录中，但是所有其他表空间将被放在它们位于服务器上的相同的绝对路径中。如果主库存在额外的表空间且这个表空间目录和主库</span></span></span></span></span>PGDATA目录不一样，从库没有这样的目录，pg_basebackup过程会自动在从库上建立表空间对应的目录，但是如果从库没有权限操作对应的目录则pg_basebackup过程会报错pg_basebackup: could not create directory “/Pgtablespace”: Permission denied。<br> -X参数表示指定在备份过程中产生的WAL日志包含在备份中的方式，fetch表示基准备份完成后再把备份过程中产生的wal日志拷贝到从库，如果备份过程很长，wal在主库已经被覆盖了，那么这个备份就不成功了。stream表示主库上除了启动一个基准备份进程外还会额外启动一个进程发送主库主库产生的wal增量日志(这两个进程都属于max_wal_senders参数指定的wal发送进程数)，这样的话就避免了fetch方式过程中主库的wal被覆盖的情况，生产环境推荐使用stream<br> -v参数表示命令执行过程中打印各个阶段的日志<br> -P参数表示显示数据文件、表空间文件的传输百分比</p> 
+<p>pg_basebackup执行过程的输出内容</p> 
+<pre><code class="prism language-powershell">pg_basebackup: initiating base backup<span class="token punctuation">,</span> waiting <span class="token keyword">for</span> checkpoint to complete
+pg_basebackup: checkpoint completed
+pg_basebackup: <span class="token function">write-ahead</span> log <span class="token function">start</span> point: 0/3E000028 on timeline 1
+pg_basebackup: starting background WAL receiver
+pg_basebackup: created temporary replication slot <span class="token string">"pg_basebackup_25932"</span>
+33059/33059 kB <span class="token punctuation">(</span>100%<span class="token punctuation">)</span><span class="token punctuation">,</span> 1/1 tablespace
+pg_basebackup: <span class="token function">write-ahead</span> log <span class="token keyword">end</span> point: 0/3E0000F8
+pg_basebackup: waiting <span class="token keyword">for</span> background <span class="token keyword">process</span> to finish streaming <span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+pg_basebackup: base backup completed
+</code></pre> 
+<p>拷贝过程中和拷贝后，主库可以正常读写。拷贝完后，发现在从库比主库少了postmaster.opts和postmaster.pid这两个文件，但是比主库多了一个文件backup_label，backup_label内容如下</p> 
+<pre><code class="prism language-powershell"><span class="token function">START</span> WAL LOCATION: 0/3E000028 <span class="token punctuation">(</span>file 00000001000000000000001F<span class="token punctuation">)</span>
+CHECKPOINT LOCATION: 0/3E000060
+BACKUP METHOD: streamed
+BACKUP <span class="token keyword">FROM</span>: master
+<span class="token function">START</span> TIME: 2022-03-21 05:58:25 PDT
+LABEL: pg_basebackup base backup
+<span class="token function">START</span> TIMELINE: 1
+</code></pre> 
+<p>6、拷贝完成后，在slave节点172.22.136.147修改postgresql.conf文件新增recovery.conf文件，recovery.conf文件内容如下</p> 
+<pre><code class="prism language-powershell">recovery_target_timeline = <span class="token string">'latest'</span>
+standby_mode = <span class="token string">'on'</span>
+primary_conninfo = <span class="token string">'host=172.22.136.146 port=5432 user=repdev3 password=123456'</span>
+</code></pre> 
+<p>备注：standby_mode参数为on通俗理解就是说自己是备库并且会不停地从主库上获取WAL日志流直到获取主库上最新的wAL日志流</p> 
+<p>postgresql.conf文件修改内容如下</p> 
+<pre><code class="prism language-powershell">hot_standby = on
+</code></pre> 
+<p>可选参数max_standby_streaming_delay(流复制最大延迟)、wal_receiver_status_interval(从向主报告状态的最大间隔时间)<br> 备注：hot_standby参数指定从库在恢复期间，你是否能够连接并运行查询，默认为ON，设置为off的话，则psql无法连接从库会报错:the database system is starting up</p> 
+<p>7、启动slave节点172.22.136.147</p> 
+<pre><code class="prism language-powershell">pg_ctl <span class="token function">start</span>
+</code></pre> 
+<p>从库的backup_label变成了backup_label.old,并且backup_label.old里面的内容和重启前backup_label里面的内容一致</p> 
+<p>8、验证<br> 8.1、在master或slave执行ps -ef|grep wal，发现master节点出现walsender进程，slave节点出现walreceiver进程<br> 8.2、在master执行select client_addr,sync_state from pg_stat_replication;可以看到从库信息<br> 8.3、在slave从库执行dml和ddl都会报错，类似如下<br> ERROR: cannot execute CREATE TABLE AS in a read-only transaction<br> ERROR: cannot execute DELETE in a read-only transaction<br> 8.4、如果主库新建表空间且这个表空间目录和主库$PGDATA目录不一样，从库没有这样的目录，从库流复制会报错并且从库的postgresql会down掉</p> 
+<pre><code class="prism language-powershell">2023-03-21 00:12:12<span class="token punctuation">.</span>776 PDT <span class="token punctuation">[</span>397<span class="token punctuation">]</span> FATAL:  directory <span class="token string">"/Pgtablespace/dw2"</span> does not exist
+2023-03-21 00:12:12<span class="token punctuation">.</span>776 PDT <span class="token punctuation">[</span>397<span class="token punctuation">]</span> HINT:  Create this directory <span class="token keyword">for</span> the tablespace before restarting the server<span class="token punctuation">.</span>
+2023-03-21 00:12:12<span class="token punctuation">.</span>776 PDT <span class="token punctuation">[</span>397<span class="token punctuation">]</span> CONTEXT:  WAL redo at 2/C4000740 <span class="token keyword">for</span> Tablespace/CREATE: 24670 <span class="token string">"/Pgtablespace/dw2"</span>
+2023-03-21 00:12:12<span class="token punctuation">.</span>779 PDT <span class="token punctuation">[</span>395<span class="token punctuation">]</span> LOG:  startup <span class="token keyword">process</span> <span class="token punctuation">(</span>PID 397<span class="token punctuation">)</span> exited with <span class="token keyword">exit</span> code 1
+2023-03-21 00:12:12<span class="token punctuation">.</span>779 PDT <span class="token punctuation">[</span>395<span class="token punctuation">]</span> LOG:  terminating any other active server processes
+2023-03-21 00:12:12<span class="token punctuation">.</span>780 PDT <span class="token punctuation">[</span>484<span class="token punctuation">]</span> WARNING:  terminating connection because of crash of another server <span class="token keyword">process</span>
+2023-03-21 00:12:12<span class="token punctuation">.</span>780 PDT <span class="token punctuation">[</span>484<span class="token punctuation">]</span> DETAIL:  The postmaster has commanded this server <span class="token keyword">process</span> to roll back the current transaction and <span class="token keyword">exit</span><span class="token punctuation">,</span> because another server <span class="token keyword">process</span> exited abnormally and possibly corrupted shared memory<span class="token punctuation">.</span>
+2023-03-21 00:12:12<span class="token punctuation">.</span>780 PDT <span class="token punctuation">[</span>484<span class="token punctuation">]</span> HINT:  In a moment you should be able to reconnect to the database and repeat your command<span class="token punctuation">.</span>
+2023-03-21 00:12:12<span class="token punctuation">.</span>789 PDT <span class="token punctuation">[</span>395<span class="token punctuation">]</span> LOG:  database system is shut down
+</code></pre> 
+<p>pg_start_backup+copy_pg_stop_backup的方式<br> 如果是使用pg_start_backup+copy_pg_stop_backup替代pg_basebackup的话，其他步骤和pb_basebackup一样不用改，只需要把上面第五步改成如下<br> 5.1、master节点执行select pg_start_backup (‘/pgdata’)设置master节点为备份状态<br> 此时master节点的/pgdata目录下会出现一个文件backup_label，内容格式大概如下</p> 
+<pre><code class="prism language-powershell"><span class="token function">START</span> WAL LOCATION: 0/19000028 <span class="token punctuation">(</span>file 000000010000000000000019<span class="token punctuation">)</span>
+CHECKPOINT LOCATION: 0/19000060
+BACKUP METHOD: pg_start_backup
+BACKUP <span class="token keyword">FROM</span>: master
+<span class="token function">START</span> TIME: 2022-03-20 07:53:54 PDT
+LABEL: <span class="token operator">/</span>pgdata
+<span class="token function">START</span> TIMELINE: 1
+</code></pre> 
+<p>5.2、拷贝master节点的数据文件到slave节点</p> 
+<p>5.3、拷贝完成后，master执行select pg_stop_backup()取消备份状态<br> 此时master节点的/pgdata目录下的文件backup_label消失了<br> 如果不执行此步，直接执行后面的步骤，则从库无法启动，会报错类似如下错误，此时只要关闭从库，再在主库上执行select pg_stop_backup()，再次启动从库，从库就可以正常启动了</p> 
+<pre><code class="prism language-powershell">2022-03-20 08:35:33<span class="token punctuation">.</span>450 PDT <span class="token punctuation">[</span>17049<span class="token punctuation">]</span> LOG:  database system was interrupted <span class="token keyword">while</span> in recovery at log time 2022-03-20 08:13:37 PDT
+2022-03-20 08:35:33<span class="token punctuation">.</span>450 PDT <span class="token punctuation">[</span>17049<span class="token punctuation">]</span> HINT:  <span class="token keyword">If</span> this has occurred more than once some <span class="token keyword">data</span> might be corrupted and you might need to choose an earlier recovery target<span class="token punctuation">.</span>
+2022-03-20 08:35:33<span class="token punctuation">.</span>483 PDT <span class="token punctuation">[</span>17049<span class="token punctuation">]</span> LOG:  entering standby mode
+2022-03-20 08:35:33<span class="token punctuation">.</span>485 PDT <span class="token punctuation">[</span>17049<span class="token punctuation">]</span> LOG:  redo starts at 0/1B000060
+2022-03-20 08:35:33<span class="token punctuation">.</span>485 PDT <span class="token punctuation">[</span>17049<span class="token punctuation">]</span> LOG:  invalid record length at 0/1B000140: wanted 24<span class="token punctuation">,</span> got 0
+</code></pre>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/40ae1d7ec4606d7dec749ce591fe012f/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">【Android Gradle 插件】Android Studio 工程 Gradle 构建流程 ② ( settings.gradle 构建脚本分析 | 根目录下 build.gradle 分析 )</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/458a94ac47f520fa53db5dce776ee79d/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">百元买百鸡问题</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

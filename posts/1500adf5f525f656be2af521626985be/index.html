@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>【Unity】在Inspector上显示自定义的位掩码枚举（Flags） - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/1500adf5f525f656be2af521626985be/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="【Unity】在Inspector上显示自定义的位掩码枚举（Flags）">
+  <meta property="og:description" content="【Unity】在Inspector上显示自定义的位掩码枚举（Flags） 前面啰嗦了踩坑过程，想看源码直接拉到最后。。。
+以 IMGUI 实现，版本原因，没有查看 UIElements 。
+Unity编辑器默认并不支持将 Flags 枚举以位掩码形式显示在Inspector上，像Layers这些控件，并不通用。
+想让所有带有 Flags 特性的枚举都能支持多选，就要自定义编辑器扩展。然后，坑就来了！
+坑1：EditorGUI.MaskField() EditorGUI.MaskField() ，这个方法一看名字，就感觉是我需要的，然后我写出了这玩意：
+// ... property.intValue = EditorGUI.MaskField(position, label, property.intValue, property.enumDisplayNames); // ... Inspector成功地以位掩码形式显示出了 Flags 枚举，但是，用着用着感觉不对啊！它错位了！
+问题在于，这个方法返回的不是所选的枚举的总值，而是所选的枚举项的索引，也就是说，他表示你选了哪几个枚举项。
+这个方法的文档里，对返回值的说明是“The value modified by the user”，我觉得他应该改成“The indexes selected by the user”。
+所以，如果要用这种方法正确地实现需求，要手动去获得 当前所选枚举值、每个枚举项的值、每个枚举项的名称，然后通过 位运算 手动去计算 当前选择了哪些枚举项 ，再调用 MaskField() 方法绘制控件。然后再拿到代表 当前所选枚举项索引 的返回值，通过 位运算 手动去计算 所选的索引对应的最终枚举值。
+我这样做了下，确实是能正确显示了，但是不支持组合掩码（AB=A|B这种，见示例），不支持1&amp;lt;&amp;lt;31（见示例）。嫌烦没有去处理这个问题，所以查了下有没有其他方式实现，然后遇到了坑2。
+坑2：EditorGUI.EnumFlagsField() EnumFlagsField() 方法是这样用的：
+Enum currentEnum = (Enum)fieldInfo.GetValue(property.serializedObject.targetObject); Enum newEnum = EditorGUI.EnumFlagsField(position, label, currentEnum); property.intValue = Convert.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2020-04-18T10:39:12+08:00">
+    <meta property="article:modified_time" content="2020-04-18T10:39:12+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">【Unity】在Inspector上显示自定义的位掩码枚举（Flags）</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-light">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <h2><a id="UnityInspectorFlags_0"></a>【Unity】在Inspector上显示自定义的位掩码枚举（Flags）</h2> 
+<blockquote> 
+ <p>前面啰嗦了踩坑过程，想看源码直接拉到最后。。。</p> 
+ <p>以 <strong>IMGUI</strong> 实现，版本原因，没有查看 <strong>UIElements</strong> 。</p> 
+</blockquote> 
+<p>Unity编辑器默认并不支持将 <code>Flags</code> 枚举以位掩码形式显示在Inspector上，像Layers这些控件，并不通用。</p> 
+<p>想让所有带有 <code>Flags</code> 特性的枚举都能支持多选，就要自定义编辑器扩展。然后，坑就来了！</p> 
+<hr> 
+<h3><a id="1EditorGUIMaskField_12"></a>坑1：<code>EditorGUI.MaskField()</code></h3> 
+<p><code>EditorGUI.MaskField()</code> ，这个方法一看名字，就感觉是我需要的，然后我写出了这玩意：</p> 
+<pre><code class="prism language-csharp"><span class="token comment">// ...</span>
+property<span class="token punctuation">.</span>intValue <span class="token operator">=</span> EditorGUI<span class="token punctuation">.</span><span class="token function">MaskField</span><span class="token punctuation">(</span>position<span class="token punctuation">,</span> label<span class="token punctuation">,</span> property<span class="token punctuation">.</span>intValue<span class="token punctuation">,</span> property<span class="token punctuation">.</span>enumDisplayNames<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token comment">// ...</span>
+</code></pre> 
+<p>Inspector成功地以位掩码形式显示出了 <code>Flags</code> 枚举，但是，用着用着感觉不对啊！它错位了！</p> 
+<p>问题在于，<strong>这个方法返回的不是所选的枚举的总值，而是所选的枚举项的索引</strong>，也就是说，他表示你选了哪几个枚举项。</p> 
+<p>这个方法的文档里，对返回值的说明是“The value modified by the user”，我觉得他应该改成“The indexes selected by the user”。</p> 
+<p>所以，如果要用这种方法正确地实现需求，要手动去获得 <strong>当前所选枚举值</strong>、<strong>每个枚举项的值</strong>、<strong>每个枚举项的名称</strong>，然后通过 <strong>位运算</strong> 手动去计算 <strong>当前选择了哪些枚举项</strong> ，再调用 <code>MaskField()</code> 方法绘制控件。然后再拿到代表 <strong>当前所选枚举项索引</strong> 的返回值，通过 <strong>位运算</strong> 手动去计算 <strong>所选的索引对应的最终枚举值</strong>。</p> 
+<p>我这样做了下，确实是能正确显示了，但是不支持组合掩码（AB=A|B这种，见示例），不支持1&lt;&lt;31（见示例）。嫌烦没有去处理这个问题，所以查了下有没有其他方式实现，然后遇到了坑2。</p> 
+<hr> 
+<h3><a id="2EditorGUIEnumFlagsField_33"></a>坑2：<code>EditorGUI.EnumFlagsField()</code></h3> 
+<p><code>EnumFlagsField()</code> 方法是这样用的：</p> 
+<pre><code class="prism language-csharp"><span class="token class-name">Enum</span> currentEnum <span class="token operator">=</span> <span class="token punctuation">(</span>Enum<span class="token punctuation">)</span>fieldInfo<span class="token punctuation">.</span><span class="token function">GetValue</span><span class="token punctuation">(</span>property<span class="token punctuation">.</span>serializedObject<span class="token punctuation">.</span>targetObject<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token class-name">Enum</span> newEnum <span class="token operator">=</span> EditorGUI<span class="token punctuation">.</span><span class="token function">EnumFlagsField</span><span class="token punctuation">(</span>position<span class="token punctuation">,</span> label<span class="token punctuation">,</span> currentEnum<span class="token punctuation">)</span><span class="token punctuation">;</span>
+property<span class="token punctuation">.</span>intValue <span class="token operator">=</span> Convert<span class="token punctuation">.</span><span class="token function">ToInt32</span><span class="token punctuation">(</span>newEnum<span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre> 
+<p>很简单，完美地解决了坑1中的所有问题。</p> 
+<p>但是，当把 <code>Flags</code> 枚举作为某个类型的字段，然后这个类型又在某个 <code>ScriptableObject</code> 中作为 <strong>数组成员</strong> 时，上述代码就会抛出异常：<code>ArgumentException: Field &lt;enum_flags&gt; defined on type &lt;host_type&gt; is not a field on the target object which is of type &lt;scriptable_object&gt;.</code>。</p> 
+<p>问题出在 <code>property.serializedObject.targetObject</code> 上，它有些乱七八糟的归属问题。</p> 
+<hr> 
+<h3><a id="_50"></a>解决归属问题</h3> 
+<p>偷懒了，没解决，我把它绕过去了。</p> 
+<p>既然 <code>property.serializedObject.targetObject</code> 有归属问题，那么不通过这个对象获取枚举值就好了。但是我找了一圈，也没找到 <strong>通过枚举类型和枚举值来生成Enum对象</strong> 的方法。</p> 
+<p>这时我的想法是，看看 <code>EnumFlagsField()</code> 的内部是怎么实现的，然后照搬它的方式重新填一下坑1，于是反编译了 <code>EnumFlagsField()</code> 的代码。</p> 
+<p>反编译之后，在 <code>EnumFlagsField()</code> 的实现中有个意外的发现：<code>EditorGUI</code> 类型中含有个内部静态方法 <code>IntToEnumFlags()</code>，可以<strong>通过枚举类型和枚举值来生成Enum对象</strong>，那么，有了这个方法，又可以回到坑2中来了！</p> 
+<p>用反射，拿到这个方法，然后生成枚举对象，代码变成了这样：</p> 
+<pre><code class="prism language-csharp"><span class="token class-name">MethodInfo</span> miIntToEnumFlags <span class="token operator">=</span> <span class="token keyword">typeof</span><span class="token punctuation">(</span>EditorGUI<span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">GetMethod</span><span class="token punctuation">(</span><span class="token string">"IntToEnumFlags"</span><span class="token punctuation">,</span> BindingFlags<span class="token punctuation">.</span>Static <span class="token operator">|</span> BindingFlags<span class="token punctuation">.</span>NonPublic<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token class-name">Enum</span> currentEnum <span class="token operator">=</span> miIntToEnumFlags<span class="token punctuation">.</span><span class="token function">Invoke</span><span class="token punctuation">(</span><span class="token keyword">null</span><span class="token punctuation">,</span> <span class="token keyword">new</span> <span class="token keyword">object</span><span class="token punctuation">[</span><span class="token punctuation">]</span> <span class="token punctuation">{<!-- --></span> fieldInfo<span class="token punctuation">.</span>FieldType<span class="token punctuation">,</span> property<span class="token punctuation">.</span>intValue <span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token class-name">Enum</span> newEnum <span class="token operator">=</span> EditorGUI<span class="token punctuation">.</span><span class="token function">EnumFlagsField</span><span class="token punctuation">(</span>position<span class="token punctuation">,</span> label<span class="token punctuation">,</span> currentEnum<span class="token punctuation">)</span><span class="token punctuation">;</span>
+property<span class="token punctuation">.</span>intValue <span class="token operator">=</span> Convert<span class="token punctuation">.</span><span class="token function">ToInt32</span><span class="token punctuation">(</span>newEnum<span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre> 
+<p>到此，坑填好了，所有问题已解决！（PS：其实我没特别全面地进行测试。。。）</p> 
+<hr> 
+<h3><a id="_72"></a>完整代码</h3> 
+<pre><code class="prism language-csharp"><span class="token keyword">using</span> System<span class="token punctuation">;</span>
+<span class="token keyword">using</span> UnityEngine<span class="token punctuation">;</span>
+
+<span class="token comment">/// &lt;summary&gt;</span>
+<span class="token comment">/// 将枚举以位掩码的形式显示在Inspector上。</span>
+<span class="token comment">/// &lt;/summary&gt;</span>
+<span class="token punctuation">[</span><span class="token class-name">AttributeUsage</span><span class="token punctuation">(</span>AttributeTargets<span class="token punctuation">.</span>Field<span class="token punctuation">,</span> AllowMultiple <span class="token operator">=</span> <span class="token keyword">false</span><span class="token punctuation">)</span><span class="token punctuation">]</span>
+<span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">ShowAsFlagsAttribute</span> <span class="token punctuation">:</span> <span class="token class-name">PropertyAttribute</span>
+<span class="token punctuation">{<!-- --></span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<pre><code class="prism language-csharp"><span class="token keyword">using</span> System<span class="token punctuation">;</span>
+<span class="token keyword">using</span> System<span class="token punctuation">.</span>Reflection<span class="token punctuation">;</span>
+<span class="token keyword">using</span> UnityEditor<span class="token punctuation">;</span>
+<span class="token keyword">using</span> UnityEngine<span class="token punctuation">;</span>
+
+<span class="token comment">/// &lt;summary&gt;</span>
+<span class="token comment">/// 自定义属性绘制器，将枚举以位掩码的形式显示在Inspector上。</span>
+<span class="token comment">/// &lt;/summary&gt;</span>
+<span class="token punctuation">[</span><span class="token class-name">CustomPropertyDrawer</span><span class="token punctuation">(</span><span class="token keyword">typeof</span><span class="token punctuation">(</span>ShowAsFlagsAttribute<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">]</span>
+<span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">ShowAsFlagsDrawer</span> <span class="token punctuation">:</span> <span class="token class-name">PropertyDrawer</span>
+<span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">private</span> <span class="token class-name">MethodInfo</span> _miIntToEnumFlags<span class="token punctuation">;</span>
+
+    <span class="token keyword">public</span> <span class="token keyword">override</span> <span class="token keyword">void</span> <span class="token function">OnGUI</span><span class="token punctuation">(</span><span class="token class-name">Rect</span> position<span class="token punctuation">,</span> <span class="token class-name">SerializedProperty</span> property<span class="token punctuation">,</span> <span class="token class-name">GUIContent</span> label<span class="token punctuation">)</span>
+    <span class="token punctuation">{<!-- --></span>
+        <span class="token comment">// 如果不是枚举，则按默认显示</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>property<span class="token punctuation">.</span>propertyType <span class="token operator">!=</span> SerializedPropertyType<span class="token punctuation">.</span>Enum<span class="token punctuation">)</span>
+        <span class="token punctuation">{<!-- --></span>
+            EditorGUI<span class="token punctuation">.</span><span class="token function">PropertyField</span><span class="token punctuation">(</span>position<span class="token punctuation">,</span> property<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token keyword">return</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>_miIntToEnumFlags <span class="token operator">==</span> <span class="token keyword">null</span><span class="token punctuation">)</span>
+        <span class="token punctuation">{<!-- --></span>
+            _miIntToEnumFlags <span class="token operator">=</span> <span class="token keyword">typeof</span><span class="token punctuation">(</span>EditorGUI<span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">GetMethod</span><span class="token punctuation">(</span><span class="token string">"IntToEnumFlags"</span><span class="token punctuation">,</span> BindingFlags<span class="token punctuation">.</span>Static <span class="token operator">|</span> BindingFlags<span class="token punctuation">.</span>NonPublic<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+
+        <span class="token comment">// 复杂的转换问题，让Unity来解决（参考EditorGUI.EnumFlagsField()方法的反编译结果）</span>
+        <span class="token class-name">Enum</span> currentEnum <span class="token operator">=</span> <span class="token punctuation">(</span>Enum<span class="token punctuation">)</span>_miIntToEnumFlags<span class="token punctuation">.</span><span class="token function">Invoke</span><span class="token punctuation">(</span><span class="token keyword">null</span><span class="token punctuation">,</span> <span class="token keyword">new</span> <span class="token keyword">object</span><span class="token punctuation">[</span><span class="token punctuation">]</span> <span class="token punctuation">{<!-- --></span> fieldInfo<span class="token punctuation">.</span>FieldType<span class="token punctuation">,</span> property<span class="token punctuation">.</span>intValue <span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        EditorGUI<span class="token punctuation">.</span><span class="token function">BeginProperty</span><span class="token punctuation">(</span>position<span class="token punctuation">,</span> label<span class="token punctuation">,</span> property<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token class-name">Enum</span> newEnum <span class="token operator">=</span> EditorGUI<span class="token punctuation">.</span><span class="token function">EnumFlagsField</span><span class="token punctuation">(</span>position<span class="token punctuation">,</span> label<span class="token punctuation">,</span> currentEnum<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        property<span class="token punctuation">.</span>intValue <span class="token operator">=</span> Convert<span class="token punctuation">.</span><span class="token function">ToInt32</span><span class="token punctuation">(</span>newEnum<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        EditorGUI<span class="token punctuation">.</span><span class="token function">EndProperty</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        <span class="token comment">// 备注：</span>
+        <span class="token comment">// 不能使用以下方式获取枚举值：</span>
+        <span class="token comment">// Enum currentEnum = (Enum)fieldInfo.GetValue(property.serializedObject.targetObject);</span>
+        <span class="token comment">// 使用以下方式时，如果ScriptableObject中包含一个某类型的数组，该类型中包含了Flags枚举，将会导致Editor抛出ArgumentException：</span>
+        <span class="token comment">// ArgumentException: Field &lt;enum_flags&gt; defined on type &lt;host_type&gt; is not a field on the target object which is of type &lt;unity_object&gt;.</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<hr> 
+<h3><a id="_132"></a>使用示例</h3> 
+<pre><code class="prism language-csharp"><span class="token keyword">using</span> UnityEngine<span class="token punctuation">;</span>
+
+<span class="token punctuation">[</span><span class="token class-name">System<span class="token punctuation">.</span>Flags</span><span class="token punctuation">]</span>
+<span class="token keyword">public</span> <span class="token keyword">enum</span> MyFlags
+<span class="token punctuation">{<!-- --></span>
+    A <span class="token operator">=</span> <span class="token number">1</span> <span class="token operator">&lt;</span><span class="token operator">&lt;</span> <span class="token number">0</span><span class="token punctuation">,</span>
+    B <span class="token operator">=</span> <span class="token number">1</span> <span class="token operator">&lt;</span><span class="token operator">&lt;</span> <span class="token number">2</span><span class="token punctuation">,</span>
+    Z <span class="token operator">=</span> <span class="token number">1</span> <span class="token operator">&lt;</span><span class="token operator">&lt;</span> <span class="token number">31</span><span class="token punctuation">,</span>
+
+    AB <span class="token operator">=</span> A <span class="token operator">|</span> B<span class="token punctuation">,</span>
+    AZ <span class="token operator">=</span> A <span class="token operator">|</span> Z<span class="token punctuation">,</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">Test</span> <span class="token punctuation">:</span> <span class="token class-name">MonoBehaviour</span>
+<span class="token punctuation">{<!-- --></span>
+    <span class="token punctuation">[</span><span class="token class-name">ShowAsFlags</span><span class="token punctuation">]</span> <span class="token comment">// 这样用</span>
+    <span class="token keyword">public</span> <span class="token class-name">MyFlags</span> flags<span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p><img src="https://images2.imgbox.com/71/66/lOiIwmoi_o.png" alt="示例图"></p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/da3412784026c38cf532c7b3e5fb24f0/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">【TS】566- 一文读懂 TS 中 Object, object, {} 类型之间的区别</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/3327cf1d32993e6751413d3bf907993a/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">Collectors.toMap报错 ：Duplicate key</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

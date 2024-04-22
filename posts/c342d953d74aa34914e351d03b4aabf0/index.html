@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>操作系统——进程的概念 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/c342d953d74aa34914e351d03b4aabf0/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="操作系统——进程的概念">
+  <meta property="og:description" content="文章目录 1.进程的概念1.1 进程初始1.2 进程控制块—test_struct1.3 进程组织 2.人为管理进程的操作2.1 查看进程2.2 进程标识符的获取2.3 创建进程fork()2.4 消灭指定进程 3. 进程的状态3.1 基本的进程状态(1)R运行状态。(2)S和D睡眠状态(3)T暂停状态(4)X状态进程结束 3.2 特殊的进程状态(1)Z状态僵尸进程(2)孤儿进程 4.进程的优先级4.1 查看进程的优先级4.2 修改进程优先级 前言： 进程是什么？为什么有进程？怎样管理进程？这是本篇文章要搞定的问题。同学们注意了，鸡汤来喽！！！ 1.进程的概念 1.1 进程初始 操作系统只认识二进制文件，所谓程序就是一个二进制文件，操作系统要运行程序时，该怎么操作呢？这就需要进程：程序被触发后，执行者的权限与属性，程序的代码与所需数据都会被加载到内存中，这个过程就是进程。
+进程：程序代码&#43;相关数据集
+加载进内存该如何管理呢?操作系统需要直接面向加载到内存中的代码嘛？答案是不需要。
+举个例子：
+操作系统(校长)，老师(进程控制块)，学生(程序)。校长想要了解某个学生的学习情况，会去直接找学生嘛？一般不会，会去找对应的老师，向她问候一下学生情况，结果表示学生的成绩好，可以考虑保送(优先级高)，校长说那就保送吧(开始执行)，校长通过老师把学生给办了。
+1.2 进程控制块—test_struct 所以每个程序在进入内存时，操作系统会自动创建一个PCB结构体来存放进程信息，Linux操作系统的PCB是task_struct，大家可能好奇程序代码也存在task_struct中嘛？task_struct存信息，它存的是指向程序代码的指针，程序代码是加载到内存中的。
+可以看下task_struct中的内容：
+struct task_struct { //说明了该进程是否可以执行,还是可中断等信息 volatile long state; //Flage 是进程号,在调用fork()时给出 unsigned long flags; //进程上是否有待处理的信号 int sigpending; //进程地址空间,区分内核进程与普通进程在内存存放的位置不同 mm_segment_t addr_limit; //0-0xBFFFFFFF for user-thead //0-0xFFFFFFFF for kernel-thread //调度标志,表示该进程是否需要重新调度,若非0,则当从内核态返回到用户态,会发生调度 volatile long need_resched; //锁深度 int lock_depth; //进程的基本时间片 long nice; //进程的调度策略,有三种,实时进程:SCHED_FIFO,SCHED_RR, 分时进程:SCHED_OTHER unsigned long policy; //进程内存管理信息 struct mm_struct *mm; int processor; //若进程不在任何CPU上运行, cpus_runnable 的值是0，否则是1 这个值在运行队列被锁时更新 unsigned long cpus_runnable, cpus_allowed; //指向运行队列的指针 struct list_head run_list; //进程的睡眠时间 unsigned long sleep_time; //用于将系统中所有的进程连成一个双向循环链表, 其根是init_task struct task_struct *next_task, *prev_task; struct mm_struct *active_mm; struct list_head local_pages; //指向本地页面 unsigned int allocation_order, nr_local_pages; struct linux_binfmt *binfmt; //进程所运行的可执行文件的格式 int exit_code, exit_signal; int pdeath_signal; //父进程终止是向子进程发送的信号 unsigned long personality; //Linux可以运行由其他UNIX操作系统生成的符合iBCS2标准的程序 int did_exec:1; pid_t pid; //进程标识符,用来代表一个进程 pid_t pgrp; //进程组标识,表示进程所属的进程组 pid_t tty_old_pgrp; //进程控制终端所在的组标识 pid_t session; //进程的会话标识 pid_t tgid; int leader; //表示进程是否为会话主管 struct task_struct *p_opptr,*p_pptr,*p_cptr,*p_ysptr,*p_osptr; struct list_head thread_group; //线程链表 struct task_struct *pidhash_next; //用于将进程链入HASH表 struct task_struct **pidhash_pprev; wait_queue_head_t wait_chldexit; //供wait4()使用 struct completion *vfork_done; //供vfork() 使用 unsigned long rt_priority; //实时优先级，用它计算实时进程调度时的weight值 //it_real_value，it_real_incr用于REAL定时器，单位为jiffies, 系统根据it_real_value //设置定时器的第一个终止时间.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2022-08-31T22:38:45+08:00">
+    <meta property="article:modified_time" content="2022-08-31T22:38:45+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">操作系统——进程的概念</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-dracula">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <p></p> 
+<div class="toc"> 
+ <h4>文章目录</h4> 
+ <ul><li><ul><li><ul><li><a href="#1_3" rel="nofollow">1.进程的概念</a></li><li><ul><li><a href="#11__4" rel="nofollow">1.1 进程初始</a></li><li><a href="#12_test_struct_10" rel="nofollow">1.2 进程控制块—test_struct</a></li><li><a href="#13__170" rel="nofollow">1.3 进程组织</a></li></ul> 
+    </li><li><a href="#2_174" rel="nofollow">2.人为管理进程的操作</a></li><li><ul><li><a href="#21__175" rel="nofollow">2.1 查看进程</a></li><li><a href="#22__189" rel="nofollow">2.2 进程标识符的获取</a></li><li><a href="#23_fork_205" rel="nofollow">2.3 创建进程fork()</a></li><li><a href="#24__258" rel="nofollow">2.4 消灭指定进程</a></li></ul> 
+    </li><li><a href="#3__267" rel="nofollow">3. 进程的状态</a></li><li><ul><li><a href="#31__270" rel="nofollow">3.1 基本的进程状态</a></li><li><ul><li><a href="#1R_278" rel="nofollow">(1)R运行状态。</a></li><li><a href="#2SD_311" rel="nofollow">(2)S和D睡眠状态</a></li><li><a href="#3T_344" rel="nofollow">(3)T暂停状态</a></li><li><a href="#4X_351" rel="nofollow">(4)X状态进程结束</a></li></ul> 
+     </li><li><a href="#32__356" rel="nofollow">3.2 特殊的进程状态</a></li><li><ul><li><a href="#1Z_357" rel="nofollow">(1)Z状态僵尸进程</a></li><li><a href="#2_387" rel="nofollow">(2)孤儿进程</a></li></ul> 
+    </li></ul> 
+    </li><li><a href="#4_423" rel="nofollow">4.进程的优先级</a></li><li><ul><li><a href="#41__427" rel="nofollow">4.1 查看进程的优先级</a></li><li><a href="#42__437" rel="nofollow">4.2 修改进程优先级</a></li></ul> 
+   </li></ul> 
+  </li></ul> 
+ </li></ul> 
+</div> 
+<br> 
+<strong>前言：</strong> 进程是什么？为什么有进程？怎样管理进程？这是本篇文章要搞定的问题。同学们注意了，鸡汤来喽！！！ 
+<p></p> 
+<hr> 
+<h4><a id="1_3"></a>1.进程的概念</h4> 
+<h5><a id="11__4"></a>1.1 进程初始</h5> 
+<p>操作系统只认识二进制文件，所谓程序就是一个二进制文件，操作系统要运行程序时，该怎么操作呢？这就需要进程：程序被触发后，执行者的权限与属性，程序的代码与所需数据都会被加载到内存中，这个过程就是进程。<br> 进程：程序代码+相关数据集<br> 加载进内存该如何管理呢?操作系统需要直接面向加载到内存中的代码嘛？答案是不需要。<br> 举个例子：<br> 操作系统(校长)，老师(进程控制块)，学生(程序)。校长想要了解某个学生的学习情况，会去直接找学生嘛？一般不会，会去找对应的老师，向她问候一下学生情况，结果表示学生的成绩好，可以考虑保送(优先级高)，校长说那就保送吧(开始执行)，校长通过老师把学生给办了。</p> 
+<h5><a id="12_test_struct_10"></a>1.2 进程控制块—test_struct</h5> 
+<p>所以每个程序在进入内存时，操作系统会自动创建一个PCB结构体来存放进程信息，Linux操作系统的PCB是task_struct，大家可能好奇程序代码也存在task_struct中嘛？task_struct存信息，它存的是指向程序代码的指针，程序代码是加载到内存中的。<br> <img src="https://images2.imgbox.com/b5/15/hneIWQuC_o.png" alt="在这里插入图片描述"><br> 可以看下task_struct中的内容：</p> 
+<pre><code class="prism language-cpp"><span class="token keyword">struct</span> <span class="token class-name">task_struct</span>
+<span class="token punctuation">{<!-- --></span>
+ <span class="token comment">//说明了该进程是否可以执行,还是可中断等信息</span>
+    <span class="token keyword">volatile</span> <span class="token keyword">long</span> state<span class="token punctuation">;</span> 
+ <span class="token comment">//Flage 是进程号,在调用fork()时给出</span>
+ <span class="token keyword">unsigned</span> <span class="token keyword">long</span> flags<span class="token punctuation">;</span> 
+ <span class="token comment">//进程上是否有待处理的信号</span>
+ <span class="token keyword">int</span> sigpending<span class="token punctuation">;</span>  
+ <span class="token comment">//进程地址空间,区分内核进程与普通进程在内存存放的位置不同</span>
+ mm_segment_t addr_limit<span class="token punctuation">;</span> <span class="token comment">//0-0xBFFFFFFF for user-thead </span>
+      <span class="token comment">//0-0xFFFFFFFF for kernel-thread</span>
+                       
+ <span class="token comment">//调度标志,表示该进程是否需要重新调度,若非0,则当从内核态返回到用户态,会发生调度</span>
+ <span class="token keyword">volatile</span> <span class="token keyword">long</span> need_resched<span class="token punctuation">;</span>
+ <span class="token comment">//锁深度</span>
+ <span class="token keyword">int</span> lock_depth<span class="token punctuation">;</span> 
+ <span class="token comment">//进程的基本时间片</span>
+ <span class="token keyword">long</span> nice<span class="token punctuation">;</span>      
+
+ <span class="token comment">//进程的调度策略,有三种,实时进程:SCHED_FIFO,SCHED_RR, 分时进程:SCHED_OTHER</span>
+ <span class="token keyword">unsigned</span> <span class="token keyword">long</span> policy<span class="token punctuation">;</span>
+ <span class="token comment">//进程内存管理信息</span>
+ <span class="token keyword">struct</span> <span class="token class-name">mm_struct</span> <span class="token operator">*</span>mm<span class="token punctuation">;</span>
+ 
+ <span class="token keyword">int</span> processor<span class="token punctuation">;</span>
+ <span class="token comment">//若进程不在任何CPU上运行, cpus_runnable 的值是0，否则是1 这个值在运行队列被锁时更新</span>
+ <span class="token keyword">unsigned</span> <span class="token keyword">long</span> cpus_runnable<span class="token punctuation">,</span> cpus_allowed<span class="token punctuation">;</span>
+ <span class="token comment">//指向运行队列的指针</span>
+ <span class="token keyword">struct</span> <span class="token class-name">list_head</span> run_list<span class="token punctuation">;</span>
+ <span class="token comment">//进程的睡眠时间</span>
+ <span class="token keyword">unsigned</span> <span class="token keyword">long</span> sleep_time<span class="token punctuation">;</span> 
+
+ <span class="token comment">//用于将系统中所有的进程连成一个双向循环链表, 其根是init_task</span>
+ <span class="token keyword">struct</span> <span class="token class-name">task_struct</span> <span class="token operator">*</span>next_task<span class="token punctuation">,</span> <span class="token operator">*</span>prev_task<span class="token punctuation">;</span>
+ <span class="token keyword">struct</span> <span class="token class-name">mm_struct</span> <span class="token operator">*</span>active_mm<span class="token punctuation">;</span>
+ <span class="token keyword">struct</span> <span class="token class-name">list_head</span> local_pages<span class="token punctuation">;</span>       <span class="token comment">//指向本地页面     </span>
+ <span class="token keyword">unsigned</span> <span class="token keyword">int</span> allocation_order<span class="token punctuation">,</span> nr_local_pages<span class="token punctuation">;</span>
+ <span class="token keyword">struct</span> <span class="token class-name">linux_binfmt</span> <span class="token operator">*</span>binfmt<span class="token punctuation">;</span>  <span class="token comment">//进程所运行的可执行文件的格式</span>
+ <span class="token keyword">int</span> exit_code<span class="token punctuation">,</span> exit_signal<span class="token punctuation">;</span>
+ <span class="token keyword">int</span> pdeath_signal<span class="token punctuation">;</span>     <span class="token comment">//父进程终止是向子进程发送的信号</span>
+ <span class="token keyword">unsigned</span> <span class="token keyword">long</span> personality<span class="token punctuation">;</span>
+ <span class="token comment">//Linux可以运行由其他UNIX操作系统生成的符合iBCS2标准的程序</span>
+ <span class="token keyword">int</span> did_exec<span class="token operator">:</span><span class="token number">1</span><span class="token punctuation">;</span>
+ pid_t pid<span class="token punctuation">;</span>    <span class="token comment">//进程标识符,用来代表一个进程</span>
+ pid_t pgrp<span class="token punctuation">;</span>   <span class="token comment">//进程组标识,表示进程所属的进程组</span>
+ pid_t tty_old_pgrp<span class="token punctuation">;</span>  <span class="token comment">//进程控制终端所在的组标识</span>
+ pid_t session<span class="token punctuation">;</span>  <span class="token comment">//进程的会话标识</span>
+ pid_t tgid<span class="token punctuation">;</span>
+ <span class="token keyword">int</span> leader<span class="token punctuation">;</span>     <span class="token comment">//表示进程是否为会话主管</span>
+ <span class="token keyword">struct</span> <span class="token class-name">task_struct</span> <span class="token operator">*</span>p_opptr<span class="token punctuation">,</span><span class="token operator">*</span>p_pptr<span class="token punctuation">,</span><span class="token operator">*</span>p_cptr<span class="token punctuation">,</span><span class="token operator">*</span>p_ysptr<span class="token punctuation">,</span><span class="token operator">*</span>p_osptr<span class="token punctuation">;</span>
+ <span class="token keyword">struct</span> <span class="token class-name">list_head</span> thread_group<span class="token punctuation">;</span>   <span class="token comment">//线程链表</span>
+ <span class="token keyword">struct</span> <span class="token class-name">task_struct</span> <span class="token operator">*</span>pidhash_next<span class="token punctuation">;</span> <span class="token comment">//用于将进程链入HASH表</span>
+ <span class="token keyword">struct</span> <span class="token class-name">task_struct</span> <span class="token operator">*</span><span class="token operator">*</span>pidhash_pprev<span class="token punctuation">;</span>
+ wait_queue_head_t wait_chldexit<span class="token punctuation">;</span>  <span class="token comment">//供wait4()使用</span>
+ <span class="token keyword">struct</span> <span class="token class-name">completion</span> <span class="token operator">*</span>vfork_done<span class="token punctuation">;</span>  <span class="token comment">//供vfork() 使用</span>
+ <span class="token keyword">unsigned</span> <span class="token keyword">long</span> rt_priority<span class="token punctuation">;</span> <span class="token comment">//实时优先级，用它计算实时进程调度时的weight值</span>
+ <span class="token comment">//it_real_value，it_real_incr用于REAL定时器，单位为jiffies, 系统根据it_real_value</span>
+
+ <span class="token comment">//设置定时器的第一个终止时间. 在定时器到期时，向进程发送SIGALRM信号，同时根据</span>
+
+ <span class="token comment">//it_real_incr重置终止时间，it_prof_value，it_prof_incr用于Profile定时器，单位为jiffies。</span>
+
+ <span class="token comment">//当进程运行时，不管在何种状态下，每个tick都使it_prof_value值减一，当减到0时，向进程发送</span>
+
+ <span class="token comment">//信号SIGPROF，并根据it_prof_incr重置时间.</span>
+ <span class="token comment">//it_virt_value，it_virt_value用于Virtual定时器，单位为jiffies。当进程运行时，不管在何种</span>
+
+ <span class="token comment">//状态下，每个tick都使it_virt_value值减一当减到0时，向进程发送信号SIGVTALRM，根据</span>
+
+ <span class="token comment">//it_virt_incr重置初值。</span>
+
+ <span class="token keyword">unsigned</span> <span class="token keyword">long</span> it_real_value<span class="token punctuation">,</span> it_prof_value<span class="token punctuation">,</span> it_virt_value<span class="token punctuation">;</span>
+ <span class="token keyword">unsigned</span> <span class="token keyword">long</span> it_real_incr<span class="token punctuation">,</span> it_prof_incr<span class="token punctuation">,</span> it_virt_value<span class="token punctuation">;</span>
+ <span class="token keyword">struct</span> <span class="token class-name">timer_list</span> real_timer<span class="token punctuation">;</span>   <span class="token comment">//指向实时定时器的指针</span>
+ <span class="token keyword">struct</span> <span class="token class-name">tms</span> times<span class="token punctuation">;</span>      <span class="token comment">//记录进程消耗的时间</span>
+ <span class="token keyword">unsigned</span> <span class="token keyword">long</span> start_time<span class="token punctuation">;</span>  <span class="token comment">//进程创建的时间</span>
+
+ <span class="token comment">//记录进程在每个CPU上所消耗的用户态时间和核心态时间</span>
+ <span class="token keyword">long</span> per_cpu_utime<span class="token punctuation">[</span>NR_CPUS<span class="token punctuation">]</span><span class="token punctuation">,</span> per_cpu_stime<span class="token punctuation">[</span>NR_CPUS<span class="token punctuation">]</span><span class="token punctuation">;</span>
+ <span class="token comment">//内存缺页和交换信息:</span>
+
+ <span class="token comment">//min_flt, maj_flt累计进程的次缺页数（Copy on　Write页和匿名页）和主缺页数（从映射文件或交换</span>
+
+ <span class="token comment">//设备读入的页面数）； nswap记录进程累计换出的页面数，即写到交换设备上的页面数。</span>
+ <span class="token comment">//cmin_flt, cmaj_flt, cnswap记录本进程为祖先的所有子孙进程的累计次缺页数，主缺页数和换出页面数。</span>
+
+ <span class="token comment">//在父进程回收终止的子进程时，父进程会将子进程的这些信息累计到自己结构的这些域中</span>
+ <span class="token keyword">unsigned</span> <span class="token keyword">long</span> min_flt<span class="token punctuation">,</span> maj_flt<span class="token punctuation">,</span> nswap<span class="token punctuation">,</span> cmin_flt<span class="token punctuation">,</span> cmaj_flt<span class="token punctuation">,</span> cnswap<span class="token punctuation">;</span>
+ <span class="token keyword">int</span> swappable<span class="token operator">:</span><span class="token number">1</span><span class="token punctuation">;</span> <span class="token comment">//表示进程的虚拟地址空间是否允许换出</span>
+ <span class="token comment">//进程认证信息</span>
+ <span class="token comment">//uid,gid为运行该进程的用户的用户标识符和组标识符，通常是进程创建者的uid，gid</span>
+
+ <span class="token comment">//euid，egid为有效uid,gid</span>
+ <span class="token comment">//fsuid，fsgid为文件系统uid,gid，这两个ID号通常与有效uid,gid相等，在检查对于文件</span>
+
+ <span class="token comment">//系统的访问权限时使用他们。</span>
+ <span class="token comment">//suid，sgid为备份uid,gid</span>
+ uid_t uid<span class="token punctuation">,</span>euid<span class="token punctuation">,</span>suid<span class="token punctuation">,</span>fsuid<span class="token punctuation">;</span>
+ gid_t gid<span class="token punctuation">,</span>egid<span class="token punctuation">,</span>sgid<span class="token punctuation">,</span>fsgid<span class="token punctuation">;</span>
+ <span class="token keyword">int</span> ngroups<span class="token punctuation">;</span> <span class="token comment">//记录进程在多少个用户组中</span>
+ gid_t groups<span class="token punctuation">[</span>NGROUPS<span class="token punctuation">]</span><span class="token punctuation">;</span> <span class="token comment">//记录进程所在的组</span>
+
+ <span class="token comment">//进程的权能，分别是有效位集合，继承位集合，允许位集合</span>
+ kernel_cap_t cap_effective<span class="token punctuation">,</span> cap_inheritable<span class="token punctuation">,</span> cap_permitted<span class="token punctuation">;</span>
+
+ <span class="token keyword">int</span> keep_capabilities<span class="token operator">:</span><span class="token number">1</span><span class="token punctuation">;</span>
+ <span class="token keyword">struct</span> <span class="token class-name">user_struct</span> <span class="token operator">*</span>user<span class="token punctuation">;</span>
+ <span class="token keyword">struct</span> <span class="token class-name">rlimit</span> rlim<span class="token punctuation">[</span>RLIM_NLIMITS<span class="token punctuation">]</span><span class="token punctuation">;</span>  <span class="token comment">//与进程相关的资源限制信息</span>
+ <span class="token keyword">unsigned</span> <span class="token keyword">short</span> used_math<span class="token punctuation">;</span>   <span class="token comment">//是否使用FPU</span>
+ <span class="token keyword">char</span> comm<span class="token punctuation">[</span><span class="token number">16</span><span class="token punctuation">]</span><span class="token punctuation">;</span>   <span class="token comment">//进程正在运行的可执行文件名</span>
+ <span class="token comment">//文件系统信息</span>
+ <span class="token keyword">int</span> link_count<span class="token punctuation">,</span> total_link_count<span class="token punctuation">;</span>
+
+ <span class="token comment">//NULL if no tty 进程所在的控制终端，如果不需要控制终端，则该指针为空</span>
+ <span class="token keyword">struct</span> <span class="token class-name">tty_struct</span> <span class="token operator">*</span>tty<span class="token punctuation">;</span>
+ <span class="token keyword">unsigned</span> <span class="token keyword">int</span> locks<span class="token punctuation">;</span>
+ <span class="token comment">//进程间通信信息</span>
+ <span class="token keyword">struct</span> <span class="token class-name">sem_undo</span> <span class="token operator">*</span>semundo<span class="token punctuation">;</span>  <span class="token comment">//进程在信号灯上的所有undo操作</span>
+ <span class="token keyword">struct</span> <span class="token class-name">sem_queue</span> <span class="token operator">*</span>semsleeping<span class="token punctuation">;</span> <span class="token comment">//当进程因为信号灯操作而挂起时，他在该队列中记录等待的操作</span>
+ <span class="token comment">//进程的CPU状态，切换时，要保存到停止进程的task_struct中</span>
+ <span class="token keyword">struct</span> <span class="token class-name">thread_struct</span> thread<span class="token punctuation">;</span>
+   <span class="token comment">//文件系统信息</span>
+ <span class="token keyword">struct</span> <span class="token class-name">fs_struct</span> <span class="token operator">*</span>fs<span class="token punctuation">;</span>
+   <span class="token comment">//打开文件信息</span>
+ <span class="token keyword">struct</span> <span class="token class-name">files_struct</span> <span class="token operator">*</span>files<span class="token punctuation">;</span>
+   <span class="token comment">//信号处理函数</span>
+ spinlock_t sigmask_lock<span class="token punctuation">;</span>
+ <span class="token keyword">struct</span> <span class="token class-name">signal_struct</span> <span class="token operator">*</span>sig<span class="token punctuation">;</span> <span class="token comment">//信号处理函数</span>
+ sigset_t blocked<span class="token punctuation">;</span>  <span class="token comment">//进程当前要阻塞的信号，每个信号对应一位</span>
+ <span class="token keyword">struct</span> <span class="token class-name">sigpending</span> pending<span class="token punctuation">;</span>  <span class="token comment">//进程上是否有待处理的信号</span>
+ <span class="token keyword">unsigned</span> <span class="token keyword">long</span> sas_ss_sp<span class="token punctuation">;</span>
+ size_t sas_ss_size<span class="token punctuation">;</span>
+ <span class="token keyword">int</span> <span class="token punctuation">(</span><span class="token operator">*</span>notifier<span class="token punctuation">)</span><span class="token punctuation">(</span><span class="token keyword">void</span> <span class="token operator">*</span>priv<span class="token punctuation">)</span><span class="token punctuation">;</span>
+ <span class="token keyword">void</span> <span class="token operator">*</span>notifier_data<span class="token punctuation">;</span>
+ sigset_t <span class="token operator">*</span>notifier_mask<span class="token punctuation">;</span>
+ u32 parent_exec_id<span class="token punctuation">;</span>
+ u32 self_exec_id<span class="token punctuation">;</span>
+
+ spinlock_t alloc_lock<span class="token punctuation">;</span>
+ <span class="token keyword">void</span> <span class="token operator">*</span>journal_info<span class="token punctuation">;</span>
+ <span class="token punctuation">}</span><span class="token punctuation">;</span>
+</code></pre> 
+<p>内容很多，学习成本较大，这里简单讲讲其中的内容：</p> 
+<blockquote> 
+ <p>标示符: 描述本进程的唯一标示符，用来区别其他进程。<br> 状态: 任务状态，退出代码，退出信号等。<br> 优先级: 相对于其他进程的优先级。<br> 程序计数器: 程序中即将被执行的下一条指令的地址。<br> 内存指针: 包括程序代码和进程相关数据的指针，还有和其他进程共享的内存块的指针<br> 上下文数据: 进程执行时处理器的寄存器中的数据[休学例子，要加图CPU，寄存器]。<br> I／O状态信息: 包括显示的I/O请求,分配给进程的I／O设备和被进程使用的文件列表。<br> 记账信息: 可能包括处理器时间总和，使用的时钟数总和，时间限制，记账号等。<br> 其他信息；</p> 
+</blockquote> 
+<p>这些内容在下面的学习中，都会遇见，倒是在细讲。</p> 
+<h5><a id="13__170"></a>1.3 进程组织</h5> 
+<p>进程信息由进程控制块存放，操作系统直接查看进程控制块就可以做出相应的操作。还有个问题：就是多个进程之间如何管理呢？谁先谁后?<br> 多个进程控制块，用双向链表的形式存着，每个都是一个节点，这样就管理起来了，可以更据优先级信息等来判断，那个先执行等。</p> 
+<hr> 
+<h4><a id="2_174"></a>2.人为管理进程的操作</h4> 
+<h5><a id="21__175"></a>2.1 查看进程</h5> 
+<p>(1)进程信息可以通过 /porc系统文件夹查看，具体查看那个进程，需要得知其标识符(PID)。<br> 看到以下有很多的数字还是蓝标的，数字就是PID，蓝标说明这是个目录，比如接下来我想看看PID为1286的进程信息。<br> <img src="https://images2.imgbox.com/07/cc/f5fXjy2F_o.png" alt="在这里插入图片描述"><br> 这个信息查看的不够银杏，所以可以带上 -l选项查看详细信息<br> <img src="https://images2.imgbox.com/86/a2/prDVzxbW_o.png" alt="在这里插入图片描述"><br> 详细了不少，但是也许只能看懂一个exe可执行文件。<br> <img src="https://images2.imgbox.com/b4/b8/EFPZk5zb_o.png" alt="在这里插入图片描述"><br> (2)用ps工具来查看<br> 关于ps工具，咱们只需要记住，只查看自己的bash进程选项为 <code>-l</code>，查看系统所有运行的进程选项为<code>aux</code>，这个不加<code>-</code>。<br> <img src="https://images2.imgbox.com/d0/2e/KqxLTE6p_o.png" alt="在这里插入图片描述"><br> 这里可以看到，标识符PID展示出来了，还有一个PPID，这是父进程的PID，我们惊奇的发现，下面的ps指令的PPID是上面bash的PID。<br> <img src="https://images2.imgbox.com/bf/0f/kD3NL7Xe_o.png" alt="在这里插入图片描述"><br> 命令行上的命令的父进程基本上都是bash。</p> 
+<h5><a id="22__189"></a>2.2 进程标识符的获取</h5> 
+<pre><code class="prism language-cpp"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdio.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;sys/types.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;unistd.h&gt;</span></span>
+ <span class="token keyword">int</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token punctuation">{<!-- --></span>
+ <span class="token comment">//getpid()获取进程标识符</span>
+ <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"pid: %d\n"</span><span class="token punctuation">,</span> <span class="token function">getpid</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+ <span class="token comment">//getppid()获取父进程标识符</span>
+ <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"ppid: %d\n"</span><span class="token punctuation">,</span> <span class="token function">getppid</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+ <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p><img src="https://images2.imgbox.com/df/d4/Z6sIJAAK_o.png" alt="在这里插入图片描述"></p> 
+<h5><a id="23_fork_205"></a>2.3 创建进程fork()</h5> 
+<p>利用fork()可以创建子进程。</p> 
+<pre><code class="prism language-cpp">  <span class="token number">1</span> #include <span class="token operator">&lt;</span>stdio<span class="token punctuation">.</span>h<span class="token operator">&gt;</span>
+  <span class="token number">2</span> #include <span class="token operator">&lt;</span>sys<span class="token operator">/</span>types<span class="token punctuation">.</span>h<span class="token operator">&gt;</span>
+  <span class="token number">3</span> #include <span class="token operator">&lt;</span>unistd<span class="token punctuation">.</span>h<span class="token operator">&gt;</span>
+  <span class="token number">4</span> <span class="token keyword">int</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+  <span class="token number">5</span> <span class="token punctuation">{<!-- --></span>
+  <span class="token number">6</span>    <span class="token function">fork</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                                                                                                                                                             
+  <span class="token number">7</span>    <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"hollow fork\n"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token number">8</span>    <span class="token function">sleep</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token number">9</span>  <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+ <span class="token number">10</span> <span class="token punctuation">}</span>
+</code></pre> 
+<p>看看运行结果：<br> <img src="https://images2.imgbox.com/8f/3b/LRQRMS1i_o.png" alt="在这里插入图片描述"><br> 惊奇的发现，hollow fork被打印了两遍。这就有些奇怪了。因为fork()创建了子进程，俩个进程所以会打印俩次。为什么两个进程会打印俩次呢？</p> 
+<p>默认情况下：子进程会继承父进程的代码和数据，包括PCB也会以父进程的PCB为模板来初始化。</p> 
+<p>因为子进程继承了父进程的代码，所以它会打印俩次。创建一个子进程去做父进程一样的事有意义嘛？没有，所以fork()有返回值，通过返回值来区别子进程和父进程。</p> 
+<ul><li>返回值&lt;0,子进程创建失败</li><li>返回值=0,这是子进程</li><li>返回值&gt;0,并且等于子进程的PID，这是父进程</li></ul> 
+<p>所以利用返回值，我们来让子进程做点不一样的事：</p> 
+<pre><code class="prism language-cpp">  <span class="token number">1</span> #include <span class="token operator">&lt;</span>stdio<span class="token punctuation">.</span>h<span class="token operator">&gt;</span>
+  <span class="token number">2</span> #include <span class="token operator">&lt;</span>sys<span class="token operator">/</span>types<span class="token punctuation">.</span>h<span class="token operator">&gt;</span>                                                    
+  <span class="token number">3</span> #include <span class="token operator">&lt;</span>unistd<span class="token punctuation">.</span>h<span class="token operator">&gt;</span>
+  <span class="token number">4</span> <span class="token keyword">int</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+  <span class="token number">5</span> <span class="token punctuation">{<!-- --></span>
+  <span class="token number">6</span>     pid_t i<span class="token operator">=</span> <span class="token function">fork</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token number">7</span>     <span class="token keyword">if</span><span class="token punctuation">(</span>i<span class="token operator">==</span><span class="token number">0</span><span class="token punctuation">)</span>
+  <span class="token number">8</span>     <span class="token punctuation">{<!-- --></span>
+  <span class="token number">9</span>       <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"i am child\n"</span><span class="token punctuation">,</span>i<span class="token punctuation">)</span><span class="token punctuation">;</span>
+ <span class="token number">10</span>     <span class="token punctuation">}</span>
+ <span class="token number">11</span>    <span class="token keyword">else</span> <span class="token keyword">if</span><span class="token punctuation">(</span>i<span class="token operator">&gt;</span><span class="token number">0</span><span class="token punctuation">)</span>
+ <span class="token number">12</span>    <span class="token punctuation">{<!-- --></span>
+ <span class="token number">13</span>      <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"i am father\n"</span><span class="token punctuation">,</span>i<span class="token punctuation">)</span><span class="token punctuation">;</span>
+ <span class="token number">14</span>    <span class="token punctuation">}</span>
+ <span class="token number">15</span>    <span class="token keyword">else</span> 
+ <span class="token number">16</span>    <span class="token punctuation">{<!-- --></span>
+ <span class="token number">17</span>      <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"nonono\n"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                                                                                                                                               
+ <span class="token number">18</span>    <span class="token punctuation">}</span>                                                                                                                       
+ <span class="token number">19</span>                                                                                                             
+ <span class="token number">20</span>  <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>                                                                                                                 
+ <span class="token number">21</span> <span class="token punctuation">}</span>                       
+</code></pre> 
+<p><img src="https://images2.imgbox.com/ba/b2/Csz0i4xz_o.png" alt="在这里插入图片描述"><br> 有两个返回值，是因为有两个进程。</p> 
+<h5><a id="24__258"></a>2.4 消灭指定进程</h5> 
+<p>这个用的是指令kill，我们可以看一下kill的选项。<br> <img src="https://images2.imgbox.com/08/0a/YU2Taqoz_o.png" alt="在这里插入图片描述"><br> 着重记住：</p> 
+<blockquote> 
+ <p>-9 干掉指定的进程 <code>kill -9 PID</code><br> -19 暂停指定进程 <code>kill -19 PID</code><br> -18 解除暂停 <code>kill -18 PID</code></p> 
+</blockquote> 
+<h4><a id="3__267"></a>3. 进程的状态</h4> 
+<p><img src="https://images2.imgbox.com/9a/c8/GSaqmGx3_o.png" alt="在这里插入图片描述"><br> 在读课本的时候，或是听老师讲解时，多数会给出以上的图片。但是具体有哪些状态呢？就三种状态吗？如何进行查看进程状态呢？这都是没解决的问题。</p> 
+<h5><a id="31__270"></a>3.1 基本的进程状态</h5> 
+<blockquote> 
+ <ul><li>R运行状态（running）: 并不意味着进程一定在运行中，它表明进程要么是在运行中要么在运行队列</li><li>S睡眠状态（sleeping): 意味着进程在等待事件完成（这里的睡眠有时候也叫做可中断睡眠）</li><li>D磁盘休眠状态（Disk sleep）有时候也叫不可中断睡眠状态（uninterruptible sleep），在这个状态的进程通常会等待IO的结束。</li><li>T停止状态（stopped）： 可以通过发送 SIGSTOP 信号给进程来停止（T）进程。这个被暂停的进程可<br> 以通过发送 SIGCONT 信号让进程继续运行。</li><li>X死亡状态（dead）：这个状态只是一个返回状态，你不会在任务列表里看到这个状态。</li></ul> 
+</blockquote> 
+<h6><a id="1R_278"></a>(1)R运行状态。</h6> 
+<p>前文讲过进程是靠进程控制块来管理的，操作系统通过管理进程控制块来决定执行哪个进程。该先执行哪个进程？得排队对吧。所以用队列这种数据结构来管理一堆得进程控制块，轮到谁就运行谁。<br> <img src="https://images2.imgbox.com/76/a9/qaHg53C8_o.png" alt="在这里插入图片描述"><br> 这些进程都是R状态：随时都准备被运行的状态（在运行队列中）。<br> 这个状态给人的感觉就是箭在弦上，蓄势待发，或者已经出发。<br> <mark>验证</mark>：</p> 
+<p>一个死循环程序，来看看进程的运行状态,程序名为ll。</p> 
+<pre><code class="prism language-cpp"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span><span class="token string">&lt;stdio.h&gt;</span></span>
+  <span class="token number">2</span> <span class="token keyword">int</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+  <span class="token number">3</span> <span class="token punctuation">{<!-- --></span>                                                                                                                                                                                      
+  <span class="token number">4</span>   <span class="token keyword">while</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span>
+  <span class="token number">5</span>     <span class="token punctuation">;</span>
+  <span class="token number">6</span>   <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+  <span class="token number">7</span> <span class="token punctuation">}</span>
+  <span class="token number">8</span> 
+</code></pre> 
+<pre><code class="prism language-bash"><span class="token function">ps</span> aux<span class="token operator">|</span><span class="token function">grep</span> 程序名
+</code></pre> 
+<p><img src="https://images2.imgbox.com/2a/7e/ZD0JfKpE_o.png" alt="在这里插入图片描述"><br> 可以看到运行状态时R+，这个加号代表在前台运行，如果想要从前台切换到后台运行，那么可以在运行程序命令行后加上<code>&amp;</code>。<br> 比如：</p> 
+<pre><code class="prism language-cpp"><span class="token punctuation">.</span><span class="token operator">/</span>ll <span class="token operator">&amp;</span>
+</code></pre> 
+<p><img src="https://images2.imgbox.com/81/41/1OoZ8lLc_o.png" alt="在这里插入图片描述"><br> 可以看到这次为R运行状态。<br> <img src="https://images2.imgbox.com/61/e6/ick90hRJ_o.png" alt="在这里插入图片描述"></p> 
+<h6><a id="2SD_311"></a>(2)S和D睡眠状态</h6> 
+<p>一个是可被打断睡眠，一个是不可被打断睡眠。为什么会有这俩种状态呢？我们进程有可能没有达到可执行的条件。</p> 
+<p>比如：一个进程需要调用显示器，但是显示器已经被其他的进程给占用了；那么这个进程就需要等待，而且有等待队列，它就去里面排队了。如果它在运行队列中，那么操作系统毫无疑问会把这个进程踢到等待队列里，不让它占用资源。</p> 
+<p>操作系统可以把S状态的等待进程，踢到等待队列里。但是D状态不行，D状态为不可打断睡眠，操作系统不可以将D状态的进程，放到等待队列中。D状态是大哥呀，睡得死死得，一直得等达到可执行条件满足，而且依旧占用CPU资源。如果想干掉D状态进程，可以考虑关机。</p> 
+<p>那么为什么存在D状态进程，首先它肯定是有必须等待的理由，比如这个进程正准备在从磁盘里读重要数据，但是磁盘在忙，如果操作系统看见此进程在等待，把它给踢走了，等磁盘将数据拿出来了，该给谁？这个锅谁背？其次，可能就是自己代码写的有些问题，需要去好好查看一下。</p> 
+<p>等待队列是一个双向链表。<br> <img src="https://images2.imgbox.com/6d/0b/guJQxtpn_o.png" alt="在这里插入图片描述"><br> 这里解释两个定义：</p> 
+<ul><li>将进程从运行队列，搞到等待队列，这就叫做挂起进程。</li><li>将进程从等待队列，搞到运行队列，这就叫做唤醒进程。</li></ul> 
+<p><mark>验证：</mark><br> 还是改改那个上面那个ll程序。</p> 
+<pre><code class="prism language-cpp"> <span class="token number">1</span> #include<span class="token operator">&lt;</span>stdio<span class="token punctuation">.</span>h<span class="token operator">&gt;</span>
+  <span class="token number">2</span> <span class="token keyword">int</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+  <span class="token number">3</span> <span class="token punctuation">{<!-- --></span>
+  <span class="token number">4</span>   <span class="token keyword">while</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span>
+  <span class="token number">5</span>   <span class="token punctuation">{<!-- --></span>
+  <span class="token number">6</span>     <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"hollow S\n"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                                                                                                                                              
+  <span class="token number">7</span>   <span class="token punctuation">}</span>                                                                                                                         
+  <span class="token number">8</span>   <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>                                                                                                                 
+  <span class="token number">9</span> <span class="token punctuation">}</span>                                                                                                                                               
+</code></pre> 
+<p>可能有疑问，这不死循环吗？是R状态吧？<br> <img src="https://images2.imgbox.com/5d/8d/lUzMxQHr_o.png" alt="在这里插入图片描述"><br> 这个程序的状态是S+，+号表示前台运行。是S的原因：IO流太慢了相对于CPU，所以一直是挂起又唤醒，挂起又唤醒的。咱们也许看到刷屏挺快，但对于CPU来说，要输入到显示器上太慢了，所以秒挂起进程，又秒唤醒进程。<br> 至于D状态我就不验证了。</p> 
+<h6><a id="3T_344"></a>(3)T暂停状态</h6> 
+<p>暂停状态，就是进程暂停不动了。可以用<code>kill -19</code>来暂停进程。<br> <mark>验证</mark>：<br> <img src="https://images2.imgbox.com/b8/f0/7zeGPdK1_o.png" alt="在这里插入图片描述"><br> 这就把进程暂停了，<br> 解除暂停<code>kill -18</code><br> <img src="https://images2.imgbox.com/92/00/04e7uFcp_o.png" alt="在这里插入图片描述"></p> 
+<h6><a id="4X_351"></a>(4)X状态进程结束</h6> 
+<p>进程结束，操作系统会回收进程的资源：内核数据结构+代码，数据<br> 有一个疑问：子进程结束就直接结束吗？它是如何结束的？异常退出？正常执行结束？如果是异常结束，证明有问题，需要查出问题所在。所以子进程结束时，父进程会读取进程退出信息。</p> 
+<p>在这里引出两种特殊的进程状态。</p> 
+<h5><a id="32__356"></a>3.2 特殊的进程状态</h5> 
+<h6><a id="1Z_357"></a>(1)Z状态僵尸进程</h6> 
+<p>子进程结束，但是它的退出信息没有被父进程读取，子进程会进入Z状态等待被父进程读取退出信息。</p> 
+<p><mark>验证</mark>：可以写个程序</p> 
+<pre><code class="prism language-cpp">  <span class="token number">1</span> #include<span class="token operator">&lt;</span>stdio<span class="token punctuation">.</span>h<span class="token operator">&gt;</span>
+  <span class="token number">2</span> #include<span class="token operator">&lt;</span>unistd<span class="token punctuation">.</span>h<span class="token operator">&gt;</span>
+  <span class="token number">3</span> <span class="token keyword">int</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+  <span class="token number">4</span> <span class="token punctuation">{<!-- --></span>
+  <span class="token number">5</span>   pid_t i<span class="token operator">=</span><span class="token function">fork</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token number">6</span>   <span class="token keyword">if</span><span class="token punctuation">(</span>i<span class="token operator">==</span><span class="token number">0</span><span class="token punctuation">)</span>
+  <span class="token number">7</span>   <span class="token punctuation">{<!-- --></span>
+  <span class="token number">8</span>     <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"i am child my father:%d\n"</span><span class="token punctuation">,</span><span class="token function">getppid</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token number">9</span>     <span class="token function">sleep</span><span class="token punctuation">(</span><span class="token number">5</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+ <span class="token number">10</span>   <span class="token punctuation">}</span>
+ <span class="token number">11</span>   <span class="token keyword">else</span> 
+ <span class="token number">12</span>   <span class="token punctuation">{<!-- --></span>
+ <span class="token number">13</span>     <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"i am father,i am runing\n"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+ <span class="token number">14</span>     <span class="token function">sleep</span><span class="token punctuation">(</span><span class="token number">100</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                                                        
+ <span class="token number">15</span>   <span class="token punctuation">}</span>                                                            
+ <span class="token number">16</span>   <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>                                                    
+ <span class="token number">17</span> <span class="token punctuation">}</span>                                                              
+ <span class="token number">18</span>                                        
+</code></pre> 
+<p>可以看到我让父进程多运行了一段时间，保证子进程退出时，父进程还在运行。<br> <img src="https://images2.imgbox.com/bd/ae/e8gbWPbE_o.png" alt="在这里插入图片描述"></p> 
+<p><img src="https://images2.imgbox.com/d9/5f/XvYERdLQ_o.png" alt="在这里插入图片描述"><br> 子进程的父进程PID是22875，它明显还在运行，但是子进程已经退出，父进程在运行无法查看子进程的退出信息，所以子进程为僵尸进程，状态为Z。</p> 
+<h6><a id="2_387"></a>(2)孤儿进程</h6> 
+<p>因为父进程没有读取子进程的退出信息，子进程为Z状态，父进程还在运行没有时间去查看子进程的退出信息，这时候子进程为僵尸进程。<br> 如果父进程比子进程要早结束，这种情况下，因为没有父进程所以被称为孤儿进程。但是孤儿进程会被领养，那就是PID为1的Init，最终也会由Init来读取其退出信息。被领养时，孤儿进程还在运行那么进程状态为R或S；若不运行了，那么它的进程状态为Z，Init接受退出信息后，由Z转为X。</p> 
+<p><mark>验证</mark>：只需要对上面的程序稍作改动，让父进程提前结束掉即可</p> 
+<pre><code class="prism language-cpp">  <span class="token number">1</span> #include<span class="token operator">&lt;</span>stdio<span class="token punctuation">.</span>h<span class="token operator">&gt;</span>
+  <span class="token number">2</span> #include<span class="token operator">&lt;</span>unistd<span class="token punctuation">.</span>h<span class="token operator">&gt;</span>
+  <span class="token number">3</span> #include<span class="token operator">&lt;</span>stdlib<span class="token punctuation">.</span>h<span class="token operator">&gt;</span>                                                                     
+  <span class="token number">4</span> <span class="token keyword">int</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token punctuation">)</span>                           
+  <span class="token number">5</span> <span class="token punctuation">{<!-- --></span>                                    
+  <span class="token number">6</span>   pid_t i<span class="token operator">=</span><span class="token function">fork</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                    
+  <span class="token number">7</span>   <span class="token keyword">if</span><span class="token punctuation">(</span>i<span class="token operator">==</span><span class="token number">0</span><span class="token punctuation">)</span>                           
+  <span class="token number">8</span>   <span class="token punctuation">{<!-- --></span>                                               
+  <span class="token number">9</span>     <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"i am child my father:%d\n"</span><span class="token punctuation">,</span><span class="token function">getppid</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+ <span class="token number">10</span>     <span class="token function">sleep</span><span class="token punctuation">(</span><span class="token number">100</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                      
+ <span class="token number">11</span>   <span class="token punctuation">}</span>                                  
+ <span class="token number">12</span>   <span class="token keyword">else</span>                               
+ <span class="token number">13</span>   <span class="token punctuation">{<!-- --></span>                                                
+ <span class="token number">14</span>     <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"i am father,i don't need you,chile\n"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+ <span class="token number">15</span>     <span class="token function">sleep</span><span class="token punctuation">(</span><span class="token number">3</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                        
+ <span class="token number">16</span>     <span class="token function">exit</span><span class="token punctuation">(</span><span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                      
+ <span class="token number">17</span>   <span class="token punctuation">}</span>                                               
+ <span class="token number">18</span>   <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>                                       
+ <span class="token number">19</span> <span class="token punctuation">}</span>                                                 
+ <span class="token number">20</span>                                    
+</code></pre> 
+<p>为了查看最后它的养父Init，用<code>ps-elf|grep ll</code>来查看。这个可以看到父进程的PID。<br> <img src="https://images2.imgbox.com/f0/92/8vyutzrn_o.png" alt="在这里插入图片描述"><br> 首先，父进程没退出时，父进程的PID为28501<br> <img src="https://images2.imgbox.com/69/0b/xq07jPWQ_o.png" alt="在这里插入图片描述"><br> 这幅图片，上面的是父进程28501，下面是子进程28502。然后父进程提早结束，看看父进程会是PID为1的Init吗？<br> <img src="https://images2.imgbox.com/0a/49/OKbRLgwo_o.png" alt="在这里插入图片描述"><br> 很明显，子进程28502的父进程变成了PID为1的Init。</p> 
+<hr> 
+<h4><a id="4_423"></a>4.进程的优先级</h4> 
+<p>上文讲过，有运行队列，也就是说在运行队列中的进程都是R状态。但运行队列应该怎样排队呢？<br> 讲一个生活中的例子：假如去做车保养，普通车主可能就得排队，但是VIP车主就不用排队，直接去享受服务。<br> 运行队列也是如此，用进程的优先级进行排队。可不是先来先得，是按照优先级来排列的，假如刚来了一个进程，它的优先级高，那它肯定排在优先级低的前面，可不管你先来后来。</p> 
+<h5><a id="41__427"></a>4.1 查看进程的优先级</h5> 
+<p>用这个命令去查看：</p> 
+<pre><code class="prism language-bash"><span class="token function">ps</span> -l
+</code></pre> 
+<p><img src="https://images2.imgbox.com/f7/4c/o9bkEaDd_o.png" alt="在这里插入图片描述"><br> -PRI ：进程的优先级，数值越小，优先级越大，PRI默认为80<br> -NI ：nice值，进程优先级的修正值，PRI(new)=PRI(默认)+NI</p> 
+<p>nice值是为了修正PRI值，它的范围是<code>-19~20</code>，也就是40个nice值。nice值为负数，进程的优先级会提高；如果是正数，进程的优先级会变低。这nice范围也不大，这为了防止“饥饿进程”的出现，如果把一个进程的优先级调的非常低，导致进程一直都无法运行，也就是饥饿进程，必须保证每个进程都有口饭吃。</p> 
+<h5><a id="42__437"></a>4.2 修改进程优先级</h5> 
+<p>用top命令可以修改进程优先级。</p> 
+<pre><code class="prism language-bash">进入top后，
+输入r,
+再输入进程的PID
+最后输入nice值
+按q退出 
+</code></pre> 
+<p><mark>验证</mark>：<br> 死循环，方便验证。注意验证要用<code>ps -al</code>指令查看。</p> 
+<pre><code class="prism language-cpp"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span><span class="token string">&lt;stdio.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span><span class="token string">&lt;unistd.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span><span class="token string">&lt;stdlib.h&gt;</span></span>
+<span class="token keyword">int</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token punctuation">{<!-- --></span>
+ <span class="token keyword">while</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span>
+ <span class="token punctuation">{<!-- --></span>
+   <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"hollow PRI\n"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+ <span class="token punctuation">}</span>
+ <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p><img src="https://images2.imgbox.com/2f/22/Sn2ecvJH_o.png" alt="在这里插入图片描述"><br> （1）进入top<br> <img src="https://images2.imgbox.com/6b/6c/jX3I51UG_o.png" alt="在这里插入图片描述"></p> 
+<p>（2）输入r，再输入PID，再输入nice值.(每次输入后按回车，这是常识)</p> 
+<p>大家可以用翻译一下top里的这句话，一般能看懂。<br> <img src="https://images2.imgbox.com/4d/0a/6H8kqOG5_o.png" alt="在这里插入图片描述"><br> 很明显我输入的nice值是10，所以qq这个进程的PRI变成了90。<br> <img src="https://images2.imgbox.com/f9/20/nbOeJMzZ_o.png" alt="在这里插入图片描述"><br> <code>注意</code>：nice值输入100，-1000,这种超出范围的值，也不会报错之类的，默认会修改成nice值的最大（20），或者最小（-19）。</p> 
+<hr> 
+<p><strong>结尾语：</strong> 这就是进程的基本概念了，后续还会更新进程的知识。喜欢的朋友，可以点点关注。</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/640134a3353bdc848d47c1f33e5840b7/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">CentOS配置jmeter或-bash: /root/apache-jmeter-5.5/bin/jmeter: Permission denied</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/590f622d737b3598bd76d9b91fa16525/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">操作系统—— I/O 相关知识</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

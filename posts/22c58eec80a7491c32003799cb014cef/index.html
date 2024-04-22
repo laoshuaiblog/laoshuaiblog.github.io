@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>史上最全JVM大全详解！java程序员细节到极致的一次，魔鬼 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/22c58eec80a7491c32003799cb014cef/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="史上最全JVM大全详解！java程序员细节到极致的一次，魔鬼">
+  <meta property="og:description" content="前言
+作为 Java 的从业者，在找工作的时候，一定会被问及关于 JVM 相关的知识。 JVM 知识的掌握程度，在很多面试官眼里是候选人技术深度的一个重要评判标准。而大多数人可能没有对 JVM 的实际开发和使用经验，接下来这一系列文章将带你深入了解 JVM 需要掌握的各个知识点。这也将帮助你完成从初级程序员到高级程序员的转变。
+目录
+线程（详解）
+JVM内存区域（详解）
+JVM运行时内存
+垃圾回收与算法
+JAVA四种引用类型
+GC分代收集算法VS分区收集算法
+GC垃圾收集器
+JAVA IO/NIO
+JVM类加载机制
+正文
+一、线程(详解)
+这里所说的线程指程序执行过程中的一个线程实体。JVM 允许一个应用并发执行多个线程。Hotspot JVM 中的 Java 线程与原生操作系统线程有直接的映射关系。当线程本地存储、缓冲区分配、同步对象、栈、程序计数器等准备好以后，就会创建一个操作系统原生线程。Java 线程结束，原生线程随之被回收。操作系统负责调度所有线程，并把它们分配到任何可用的 CPU 上。当原生线程初始化完毕，就会调用 Java 线程的 run() 方法。当线程结束时，会释放原生线程和 Java 线程的所有资源。
+Hotspot JVM 后台运行的系统线程主要有下面几个：
+二、JVM内存区域（详解）
+​
+JVM 内存区域主要分为线程私有区域【程序计数器、虚拟机栈、本地方法区】、线程共享区域【JAVA 堆、方法区】、直接内存。
+线程私有数据区域生命周期与线程相同, 依赖用户线程的启动/结束 而 创建/销毁(在 HotspotVM 内, 每个线程都与操作系统的本地线程直接映射, 因此这部分内存区域的存/否跟随本地线程的生/死对应)。
+线程共享区域随虚拟机的启动/关闭而创建/销毁。
+直接内存并不是 JVM 运行时数据区的一部分, 但也会被频繁的使用: 在 JDK 1.4 引入的 NIO 提供了基于 Channel 与 Buffer 的 IO 方式, 它可以使用 Native 函数库直接分配堆外内存, 然后使用DirectByteBuffer 对象作为这块内存的引用进行操作(详见: Java I/O 扩展), 这样就避免了在 Java堆和 Native 堆中来回复制数据, 因此在一些场景中可以显著提高性能。">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2023-03-15T15:13:21+08:00">
+    <meta property="article:modified_time" content="2023-03-15T15:13:21+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">史上最全JVM大全详解！java程序员细节到极致的一次，魔鬼</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <h3></h3> 
+<p>前言</p> 
+<p>作为 Java 的从业者，在找工作的时候，一定会被问及关于 JVM 相关的知识。 JVM 知识的掌握程度，在很多面试官眼里是候选人技术深度的一个重要评判标准。而大多数人可能没有对 JVM 的实际开发和使用经验，接下来这一系列文章将带你深入了解 JVM 需要掌握的各个知识点。这也将帮助你完成从初级程序员到高级程序员的转变。</p> 
+<h3></h3> 
+<p>目录</p> 
+<ul><li> <p>线程（详解）</p> </li><li> <p>JVM内存区域（详解）</p> </li><li> <p>JVM运行时内存</p> </li><li> <p>垃圾回收与算法</p> </li><li> <p>JAVA四种引用类型</p> </li><li> <p>GC分代收集算法VS分区收集算法</p> </li><li> <p>GC垃圾收集器</p> </li><li> <p>JAVA IO/NIO</p> </li><li> <p>JVM类加载机制</p> </li></ul> 
+<h3></h3> 
+<p>正文</p> 
+<h3></h3> 
+<p>一、线程(详解)</p> 
+<p>这里所说的线程指程序执行过程中的一个线程实体。JVM 允许一个应用并发执行多个线程。Hotspot JVM 中的 Java 线程与原生操作系统线程有直接的映射关系。当线程本地存储、缓冲区分配、同步对象、栈、程序计数器等准备好以后，就会创建一个操作系统原生线程。Java 线程结束，原生线程随之被回收。操作系统负责调度所有线程，并把它们分配到任何可用的 CPU 上。当原生线程初始化完毕，就会调用 Java 线程的 run() 方法。当线程结束时，会释放原生线程和 Java 线程的所有资源。</p> 
+<p>Hotspot JVM 后台运行的系统线程主要有下面几个：</p> 
+<p></p> 
+<p class="img-center"><img alt="" src="https://images2.imgbox.com/84/51/gzYJGXTX_o.png"></p> 
+<p></p> 
+<h3></h3> 
+<p>二、JVM内存区域（详解）</p> 
+<p></p> 
+<p class="img-center"><img alt="" src="https://images2.imgbox.com/24/f1/WoVjehqI_o.png"></p> 
+<p>​</p> 
+<p></p> 
+<p>JVM 内存区域主要分为线程私有区域【程序计数器、虚拟机栈、本地方法区】、线程共享区域【JAVA 堆、方法区】、直接内存。</p> 
+<p>线程私有数据区域生命周期与线程相同, 依赖用户线程的启动/结束 而 创建/销毁(在 HotspotVM 内, 每个线程都与操作系统的本地线程直接映射, 因此这部分内存区域的存/否跟随本地线程的生/死对应)。</p> 
+<p>线程共享区域随虚拟机的启动/关闭而创建/销毁。</p> 
+<p>直接内存并不是 JVM 运行时数据区的一部分, 但也会被频繁的使用: 在 JDK 1.4 引入的 NIO 提供了基于 Channel 与 Buffer 的 IO 方式, 它可以使用 Native 函数库直接分配堆外内存, 然后使用DirectByteBuffer 对象作为这块内存的引用进行操作(详见: Java I/O 扩展), 这样就避免了在 Java堆和 Native 堆中来回复制数据, 因此在一些场景中可以显著提高性能。</p> 
+<p></p> 
+<p class="img-center"><img alt="" src="https://images2.imgbox.com/c3/ea/xfKVginc_o.png"></p> 
+<p>​</p> 
+<p></p> 
+<p>1、程序计数器( 线程私有)</p> 
+<ul><li> <p>一块较小的内存空间, 是当前线程所执行的字节码的行号指示器，每条线程都要有一个独立的程序计数器，这类内存也称为“线程私有”的内存。</p> </li><li> <p>正在执行 java 方法的话，计数器记录的是虚拟机字节码指令的地址（当前指令的地址）。如果还是 Native 方法，则为空。</p> </li><li> <p>这个内存区域是唯一一个在虚拟机中没有规定任何 OutOfMemoryError 情况的区域。</p> </li></ul> 
+<p>2、虚拟机栈( 线程私有)</p> 
+<p>是描述java方法执行的内存模型，每个方法在执行的同时都会创建一个栈帧（Stack Frame）用于存储局部变量表、操作数栈、动态链接、方法出口等信息。每一个方法从调用直至执行完成的过程，就对应着一个栈帧在虚拟机栈中入栈到出栈的过程。</p> 
+<p>栈帧（ Frame）是用来存储数据和部分过程结果的数据结构，同时也被用来处理动态链接(Dynamic Linking)、 方法返回值和异常分派（ Dispatch Exception）。栈帧随着方法调用而创建，随着方法结束而销毁——无论方法是正常完成还是异常完成（抛出了在方法内未被捕获的异常）都算作方法结束。</p> 
+<p></p> 
+<p class="img-center"><img alt="" src="https://images2.imgbox.com/e2/40/xWNlpfQs_o.png"></p> 
+<p>​</p> 
+<p></p> 
+<p>3、本地方法区(线程私有）</p> 
+<p>本地方法区和 Java Stack 作用类似, 区别是虚拟机栈为执行 Java 方法服务, 而本地方法栈则为Native 方法服务, 如果一个 VM 实现使用 C-linkage 模型来支持 Native 调用, 那么该栈将会是一个C 栈，但 HotSpot VM 直接就把本地方法栈和虚拟机栈合二为一。</p> 
+<p>4、堆（Heap- 线程共享）-运行时数据区</p> 
+<p>是被线程共享的一块内存区域，创建的对象和数组都保存在 Java 堆内存中，也是垃圾收集器进行垃圾收集的最重要的内存区域。由于现代 VM 采用分代收集算法, 因此 Java 堆从 GC 的角度还可以细分为: 新生代( Eden 区 、 From Survivor 区 和 To Survivor 区 )和老年代。</p> 
+<p>5、方法区/ 永久代（线程共享）</p> 
+<p>即我们常说的永久代(Permanent Generation), 用于存储被 JVM 加载的类信息、常量、静态变量、即时编译器编译后的代码等数据. HotSpot VM把GC分代收集扩展至方法区, 即使用Java堆的永久代来实现方法区, 这样 HotSpot 的垃圾收集器就可以像管理 Java 堆一样管理这部分内存,而不必为方法区开发专门的内存管理器(永久带的内存回收的主要目标是针对常量池的回收和类型的卸载, 因此收益一般很小)。</p> 
+<p>运行时常量池（Runtime Constant Pool）是方法区的一部分。Class 文件中除了有类的版本、字段、方法、接口等描述等信息外，还有一项信息是常量池Constant Pool Table），用于存放编译期生成的各种字面量和符号引用，这部分内容将在类加载后存放到方法区的运行时常量池中。 Java 虚拟机对 Class 文件的每一部分（自然也包括常量池）的格式都有严格的规定，每一个字节用于存储哪种数据都必须符合规范上的要求，这样才会被虚拟机认可、装载和执行。</p> 
+<p>更多解析：</p> 
+<p></p> 
+<p class="img-center"><img alt="" src="https://images2.imgbox.com/99/16/2kcOJoA3_o.png"></p> 
+<p></p> 
+<p></p> 
+<h3></h3> 
+<p>三、JVM运行时内存</p> 
+<ul><li> <p>新生代</p> </li><li> <p>老年代</p> </li><li> <p>永久代</p> </li></ul> 
+<p></p> 
+<p class="img-center"><img alt="" src="https://images2.imgbox.com/d5/10/Tk58jdrh_o.png"></p> 
+<p>​</p> 
+<h3></h3> 
+<p>四、垃圾回收与算法</p> 
+<ul><li> <p>如何确定垃圾</p> </li><li> <p>标记清除算法（ Mark-Sweep ）</p> </li><li> <p>复制算法（copying）</p> </li><li> <p>标记整理算法(Mark-Compact)</p> </li><li> <p>分代收集算法</p> </li></ul> 
+<p></p> 
+<p class="img-center"><img alt="" src="https://images2.imgbox.com/8b/37/NhfRopK0_o.png"></p> 
+<p></p> 
+<p>五、JAVA 四中引用类型</p> 
+<ul><li> <p>强引用</p> </li><li> <p>软引用</p> </li><li> <p>弱应用</p> </li><li> <p>虚引用</p> </li></ul> 
+<p></p> 
+<p class="img-center"><img alt="" src="https://images2.imgbox.com/29/63/nYx471UP_o.png"></p> 
+<p>​</p> 
+<p></p> 
+<h3></h3> 
+<p>六、GC分代收集算法VS分区收集算法</p> 
+<ul><li> <p>分代收集算法</p> </li><li> <p>分区收集算法</p> </li></ul> 
+<p></p> 
+<p class="img-center"><img alt="" src="https://images2.imgbox.com/53/35/bHOja17x_o.png"></p> 
+<p>​</p> 
+<p></p> 
+<h3></h3> 
+<p>七、GC垃圾收集器</p> 
+<ul><li> <p>Serial 垃圾收集器 （单线程、 复制算法）</p> </li><li> <p>ParNew 垃圾收集器 （Serial+ 多线程）</p> </li><li> <p>Parallel Scavenge 收集器（多线程复制算法、高效）</p> </li><li> <p>Serial Old 收集器 （单线程标记整理算法 ）</p> </li><li> <p>Parallel Old 收集器（多线程标记整理算法）</p> </li><li> <p>CMS 收集器（多线程标记清除算法）</p> </li><li> <p>G1 收集器（解析）</p> </li></ul> 
+<p>G1 收集器（解析）</p> 
+<p>Garbage first 垃圾收集器是目前垃圾收集器理论发展的最前沿成果，相比与 CMS 收集器，G1 收集器两个最突出的改进是：</p> 
+<p>1. 基于标记-整理算法，不产生内存碎片。</p> 
+<p>2. 可以非常精确控制停顿时间，在不牺牲吞吐量前提下，实现低停顿垃圾回收。</p> 
+<p>G1 收集器避免全区域垃圾收集，它把堆内存划分为大小固定的几个独立区域，并且跟踪这些区域的垃圾收集进度，同时在后台维护一个优先级列表，每次根据所允许的收集时间，优先回收垃圾最多的区域。区域划分和优先级区域回收机制，确保 G1 收集器可以在有限时间获得最高的垃圾收集效率。</p> 
+<p></p> 
+<p class="img-center"><img alt="" src="https://images2.imgbox.com/25/3c/PhJsXxgk_o.png"></p> 
+<p>​</p> 
+<p></p> 
+<h3></h3> 
+<p>八、JAVA IO/NIO</p> 
+<ul><li> <p>阻塞 IO模型</p> </li><li> <p>非阻塞 IO模型</p> </li><li> <p>多路复用 IO模型</p> </li><li> <p>信号驱动 IO模型</p> </li><li> <p>异步 IO模型</p> </li><li> <p>JAVA IO包</p> </li><li> <p>JAVA NIO</p> </li><li> <p>Channel</p> </li><li> <p>Buffer</p> </li><li> <p>Selector</p> </li></ul> 
+<p></p> 
+<p class="img-center"><img alt="" src="https://images2.imgbox.com/4e/a1/aIO61jcj_o.png"></p> 
+<p></p> 
+<p></p> 
+<h3></h3> 
+<p>九、JVM类加载机制</p> 
+<ul><li> <p>加载、验证、准备、解析</p> </li><li> <p>符号引用、直接引用</p> </li><li> <p>初始化</p> </li><li> <p>类构造器&lt;client&gt;</p> </li><li> <p>类加载器</p> </li><li> <p>双亲委派</p> </li><li> <p>OSGI（动态模型系统）</p> </li></ul> 
+<p></p> 
+<p class="img-center"><img alt="" src="https://images2.imgbox.com/04/a1/FQEXx9JO_o.png"></p> 
+<p>​</p> 
+<p></p> 
+<h3><a href="https://gitmind.cn/app/docs/mq9hdxsj" rel="nofollow"><img alt="在这里插入图片描述" src="https://images2.imgbox.com/99/f8/jf4v4tlm_o.png"></a></h3>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/f9beb61ee5e3b5ea40f6c90e7e6d795a/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">JAVA高级编程之多线程（看完这一篇就够了）</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/e72f40352b3789cda4b93517f1aff3fd/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">doxygen-gui linux 使用</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

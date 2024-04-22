@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Vue源码学习之callHook钩子函数 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/3e8819b9cc789e12b35504297120f2d2/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="Vue源码学习之callHook钩子函数">
+  <meta property="og:description" content="Vue实例在不同的生命周期阶段，都调用了callHook方法。比如在实例初始化（_init）的时候调用callHook(vm, &#39;beforeCreate&#39;)和callHook(vm, &#39;created&#39;)。
+这里的&#34;beforeCreate&#34;,&#34;created&#34;状态并非随意定义，而是来自于Vue内部的定义的生命周期钩子。
+var LIFECYCLE_HOOKS = [ &#39;beforeCreate&#39;, &#39;created&#39;, &#39;beforeMount&#39;, &#39;mounted&#39;, &#39;beforeUpdate&#39;, &#39;updated&#39;, &#39;beforeDestroy&#39;, &#39;destroyed&#39;, &#39;activated&#39;, &#39;deactivated&#39;, &#39;errorCaptured&#39; ]; 再研究Vue官网的生命周期图示，是不是更容易理解了。
+接下来我们来看一下Vue中实现钩子函数的源码：
+function callHook (vm, hook) { // #7573 disable dep collection when invoking lifecycle hooks pushTarget(); var handlers = vm.$options[hook]; if (handlers) { for (var i = 0, j = handlers.length; i &amp;lt; j; i&#43;&#43;) { try { handlers[i].call(vm); } catch (e) { handleError(e, vm, (hook &#43; &#34; hook&#34;">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2018-07-24T14:56:18+08:00">
+    <meta property="article:modified_time" content="2018-07-24T14:56:18+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">Vue源码学习之callHook钩子函数</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <div class="article fmt article__content"> 
+ <p>Vue实例在不同的生命周期阶段，都调用了callHook方法。比如在实例初始化（_init）的时候调用callHook(vm, 'beforeCreate')和callHook(vm, 'created')。</p> 
+ <p><span class="img-wrap"><img src="https://images2.imgbox.com/52/b9/CMN0R5fD_o.png" alt="clipboard.png" title="clipboard.png"></span></p> 
+ <p>这里的"beforeCreate","created"状态并非随意定义，而是来自于Vue内部的定义的生命周期钩子。</p> 
+ <pre><code class="javascript">var LIFECYCLE_HOOKS = [
+  'beforeCreate',
+  'created',
+  'beforeMount',
+  'mounted',
+  'beforeUpdate',
+  'updated',
+  'beforeDestroy',
+  'destroyed',
+  'activated',
+  'deactivated',
+  'errorCaptured'
+];</code></pre> 
+ <p>再研究Vue官网的生命周期图示，是不是更容易理解了。</p> 
+ <p><span class="img-wrap"><img src="https://images2.imgbox.com/85/57/6dwi5TDs_o.png" alt="clipboard.png" title="clipboard.png"></span></p> 
+ <p>接下来我们来看一下Vue中实现钩子函数的源码：</p> 
+ <pre><code class="javascript">function callHook (vm, hook) {
+  // #7573 disable dep collection when invoking lifecycle hooks
+  pushTarget();
+  var handlers = vm.$options[hook];
+  if (handlers) {
+    for (var i = 0, j = handlers.length; i &lt; j; i++) {
+      try {
+        handlers[i].call(vm);
+      } catch (e) {
+        handleError(e, vm, (hook + " hook"));
+      }
+    }
+  }
+  if (vm._hasHookEvent) {
+    vm.$emit('hook:' + hook);
+  }
+  popTarget();
+}</code></pre> 
+ <p>举个例子说明：</p> 
+ <pre><code class="javascript">    let test = new Vue({
+                      data: {
+                           a: 1
+                      },
+                      created: function () {
+                        console.log("这里是Created");
+                      }
+                });</code></pre> 
+ <p>实例化一个Vue组件test,给test定义了数据data，以及created方法。而在实例化组件的时候，Vue内部调用了callHook(vm,'created')（上文已说明）。执行callHook函数的时候，Vue在test组件的$options中查找created是否存在，如果存在的话就执行created相对应的方法。这里就会执行console.log("这里是Created")。<br>callHook的作用就是执行用户自定义的钩子函数，并将钩子中this指向指为当前组件实例。</p> 
+</div>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/1d45d5efcf8799f4b65b0bb6ea1f6cdc/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">关于Vue中props的详解</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/e5a8a7646cf89202b75b6cec5dd0a783/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">LeetCode 455. 分发饼干</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

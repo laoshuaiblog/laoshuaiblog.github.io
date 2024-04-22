@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Java8下Collectors.toMap方法当key重复时报错信息错误 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/a809f4811f7c077cdb06701675eb3235/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="Java8下Collectors.toMap方法当key重复时报错信息错误">
+  <meta property="og:description" content="现象： 在Java 8下，使用Collectors.toMap聚合流数据，如果key重复时，会报错如下：
+明明是key重复，并且错误信息前缀是Duplicate key，后边却是value1。
+分析： 查看Collectors.toMap源码如下
+toMap最终是调用了Map.merge方法，传入的mergeFunction是throwingMerger直接抛出异常，日志信息使用的是第一个参数u。传入的mapSupplier是HashMap对象（HashMap::new）。所以最终会调用到HashMap.merge。
+而在HashMap.merge中，对于mergeFunction的应用如下：
+在HashMap.merge的语义中，mergeFunction用于合并value，比如对于key的计数，可以使用map.merge(key, 1, Integer::sum)。若不存在则置1，存在则&#43;1。这里的入参是oldValue和newValue。
+所以最终传递给throwingMerger的两个参数就不是k-v了。所以报错的所谓Duplicate key其实是oldValue。
+解决： 保证toMap的key不重复调用重载方法，主动指定当key重复时，需要做的合并操作。
+高版本JDK的修复措施 这个问题在后续版本中得到修复，比如在JDK 11中的处理。
+https://bugs.java.com/bugdatabase/view_bug.do?bug_id=8178142
+https://bugs.openjdk.java.net/browse/JDK-8040892l
+参考资料：
+https://stackoverflow.com/questions/32312876/ignore-duplicates-when-producing-map-using-streams
+https://stackoverflow.com/questions/57311435/java-8-collectors-tomap-duplicate-key">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2021-09-26T10:20:38+08:00">
+    <meta property="article:modified_time" content="2021-09-26T10:20:38+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">Java8下Collectors.toMap方法当key重复时报错信息错误</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-light">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <h3><a id="_0"></a>现象：</h3> 
+<p>在Java 8下，使用<code>Collectors.toMap</code>聚合流数据，如果key重复时，会报错如下：<br> <img src="https://images2.imgbox.com/e5/2f/W6VX1sAT_o.png" alt="在这里插入图片描述"><img src="https://images2.imgbox.com/f8/cf/M9jhy9UG_o.png" alt="在这里插入图片描述">明明是key重复，并且错误信息前缀是Duplicate key，后边却是value1。</p> 
+<h3><a id="_5"></a>分析：</h3> 
+<p>查看<code>Collectors.toMap</code>源码如下<br> <img src="https://images2.imgbox.com/92/f0/FzNJmLLC_o.png" alt="在这里插入图片描述"><br> <img src="https://images2.imgbox.com/8c/bc/02IiFA2u_o.png" alt="在这里插入图片描述"></p> 
+<p><code>toMap</code>最终是调用了<code>Map.merge</code>方法，传入的<code>mergeFunction</code>是<code>throwingMerger</code>直接抛出异常，日志信息使用的是第一个参数<code>u</code>。传入的<code>mapSupplier</code>是<code>HashMap</code>对象（HashMap::new）。所以最终会调用到<code>HashMap.merge</code>。</p> 
+<p>而在<code>HashMap.merge</code>中，对于<code>mergeFunction</code>的应用如下：<br> <img src="https://images2.imgbox.com/2b/66/ERPdq1JO_o.png" alt="在这里插入图片描述"><br> 在<code>HashMap.merge</code>的语义中，<code>mergeFunction</code>用于合并<code>value</code>，比如对于<code>key</code>的计数，可以使用<code>map.merge(key, 1, Integer::sum)</code>。若不存在则置1，存在则+1。这里的入参是<code>oldValue</code>和<code>newValue</code>。</p> 
+<p>所以最终传递给<code>throwingMerger</code>的两个参数就不是k-v了。所以报错的所谓Duplicate key其实是<code>oldValue</code>。</p> 
+<h3><a id="_19"></a>解决：</h3> 
+<ul><li>保证<code>toMap</code>的key不重复</li><li>调用重载方法，主动指定当key重复时，需要做的合并操作。<br> <img src="https://images2.imgbox.com/07/03/9xWrgUzQ_o.png" alt="在这里插入图片描述"></li></ul> 
+<h3><a id="JDK_23"></a>高版本JDK的修复措施</h3> 
+<p>这个问题在后续版本中得到修复，比如在JDK 11中的处理。<br> <img src="https://images2.imgbox.com/72/52/lddSDQkm_o.png" alt="在这里插入图片描述"><br> <img src="https://images2.imgbox.com/f6/fe/BZt5U9Gg_o.png" alt="在这里插入图片描述"><br> <a href="https://bugs.java.com/bugdatabase/view_bug.do?bug_id=8178142" rel="nofollow">https://bugs.java.com/bugdatabase/view_bug.do?bug_id=8178142</a><br> <a href="https://bugs.openjdk.java.net/browse/JDK-8040892l" rel="nofollow">https://bugs.openjdk.java.net/browse/JDK-8040892l</a></p> 
+<p><strong>参考资料：</strong><br> <a href="https://stackoverflow.com/questions/32312876/ignore-duplicates-when-producing-map-using-streams" rel="nofollow">https://stackoverflow.com/questions/32312876/ignore-duplicates-when-producing-map-using-streams</a><br> <a href="https://stackoverflow.com/questions/57311435/java-8-collectors-tomap-duplicate-key" rel="nofollow">https://stackoverflow.com/questions/57311435/java-8-collectors-tomap-duplicate-key</a></p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/84ea929e1f22e842dca91e0b10458bbb/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">Uniapp之APP离线打包</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/c07a8cedde795b0c80ff93e6efe650be/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">关于PLEX 不能硬解4K hdr 强制转码播放的问题</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

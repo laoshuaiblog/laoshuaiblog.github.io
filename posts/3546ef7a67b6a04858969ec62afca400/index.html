@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>关于SynchronousQueue的一些随笔v1.1 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/3546ef7a67b6a04858969ec62afca400/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="关于SynchronousQueue的一些随笔v1.1">
+  <meta property="og:description" content="最近用到了SynchronousQueue，也在网上查阅了相关资料，总感觉有些话说得让人费解，下面结合自己的理解总结下。
+1、一个不存储元素的阻塞队列。这句话就让我困惑了，不存储元素，那元素保存到哪里了？通过阅读源码，以非公平模式为例：
+...
+casHead(h, s = snode(s, e, h, mode))
+...
+static SNode snode(SNode s, Object e, SNode next, int mode) {
+if (s == null) s = new SNode(e);
+s.mode = mode;
+s.next = next;
+return s;
+}
+...
+Thread w = Thread.currentThread();
+...
+else if (s.waiter == null)
+s.waiter = w;
+实际上元素还是保存下来了（不考虑take操作，可以暂时理解为链表），而且把调用put方法的线程也保存了。通过调试也可看到SynchronousQueue对象信息：
+说明：启用了线程 put-t1放入整型数据1和线程put-t2放入整型数据2，put-t1先执行。通过阅读源码，发现其size()方法返回固定值0，为什么会这样呢？通过本文第3点分析，SynchronousQueue会存储放数据的节点和取数据的节点，这时候获取的长度是无效的，没有任何意义，所以返回了0，但“不存储元素”表述不准确。 2、SynchronousQueue吞吐量高于LinkedBlockingQueue和ArrayBlockingQueue。这种必然是有前提的，put（生产者）和take（消费者）效率一致。否则，生产者和消费者互相等待，吞吐量会手影响。
+3、SynchronousQueue作为一个空集合，此队列不允许 null 元素。对于这句话我同样无法理解，为什么？看看源码，比较put和take操作：
+put操作时，...transferer.transfer(e, false, 0)...；
+take操作时,...E e = transferer.transfer(null, false, 0)...;">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2021-07-12T17:52:24+08:00">
+    <meta property="article:modified_time" content="2021-07-12T17:52:24+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">关于SynchronousQueue的一些随笔v1.1</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <p>最近用到了SynchronousQueue，也在网上查阅了相关资料，总感觉有些话说得让人费解，下面结合自己的理解总结下。</p> 
+<p>1、一个<span style="color:#fe2c24;">不存储元素</span>的阻塞队列。这句话就让我困惑了，不存储元素，那元素保存到哪里了？通过阅读源码，以非公平模式为例：</p> 
+<p>        ...</p> 
+<p>        casHead(h, s = snode(s, e, h, mode))</p> 
+<p>        ...</p> 
+<p>        static SNode snode(SNode s, Object e, SNode next, int mode) {<!-- --><br>             if (s == null) s = new SNode(e);<br>             s.mode = mode;<br>             s.next = next;<br>             return s;<br>         }</p> 
+<p>        ...</p> 
+<p>         Thread w = Thread.currentThread();</p> 
+<p>        ...</p> 
+<p>        else if (s.waiter == null)<br>                     s.waiter = w;</p> 
+<p>        实际上元素还是保存下来了（不考虑take操作，可以暂时理解为链表），而且把调用put方法的线程也保存了。通过调试也可看到SynchronousQueue对象信息：</p> 
+<p><img alt="" height="453" src="https://images2.imgbox.com/6e/14/9aloPhpm_o.png" width="456"></p> 
+<p>说明：启用了线程 put-t1放入整型数据1和线程put-t2放入整型数据2，put-t1先执行。通过阅读源码，发现其size()方法返回固定值0，为什么会这样呢？通过本文第3点分析，<span style="color:#0d0016;">SynchronousQueue会存储放数据的节点和取数据的节点，这时候获取的长度是无效的，没有任何意义，所以返回了0，但“不存储元素”表述不准确。</span> </p> 
+<p>2、<span style="color:#fe2c24;">SynchronousQueue吞吐量高于LinkedBlockingQueue和ArrayBlockingQueue</span>。这种必然是有前提的，put（生产者）和take（消费者）效率一致。否则，生产者和消费者互相等待，吞吐量会手影响。</p> 
+<p>3、<span style="color:#fe2c24;">SynchronousQueue作为一个空集合，此队列不允许 null 元素。</span><span style="color:#0d0016;">对于这句话我同样无法理解，为什么？看看源码，比较put和take操作：</span></p> 
+<p><span style="color:#0d0016;">        put操作时，...transferer.transfer(e, false, 0)...；</span></p> 
+<p><span style="color:#0d0016;">        take操作时,...E e = transferer.transfer(null, false, 0)...;</span></p> 
+<p><span style="color:#0d0016;">一下子就明白了，如果放入了null，表示这个节点对应的是take操作；放入非null表示这个节点对应的是put操作。</span></p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/e1ab95ce0f4781492524ff04c68f6ca8/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">JAVA集合——可维护插入、大小、访问顺序的Map集合</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/a9d1658c1b8104a566e82b3df9bcc89c/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">vue 中 key 值的作用？</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

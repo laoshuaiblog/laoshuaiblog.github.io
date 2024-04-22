@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta name="generator" content="Hugo 0.125.1">
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="老帅的博客">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="老帅的博客">
+  <meta property="og:description" content="老帅的博客">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="website">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+	<link rel="alternate" type="application/rss+xml" href="/index.xml" title="老帅的博客">
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main list" role="main">
+	<article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/f0c7606a2ea9cdb1a4978022a792f276/" rel="bookmark">
+			SQL Server 快速删除/归档数据方法小结
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		最近遇到了清理历史数据的需求，整理一下不同场景及对应处理方法
+一、 可删除整张表数据 这是最简单的，TRUNCATE / DROP TABLE即可。
+二、日志表或历史信息表 这种情况是，代码会不断往表里插入新数据但是并不会去查询，一般是系统异常时开发手动去查。
+这种情况可以停业务将原表重命名为bak表，再按原有表结构创建一个新表让系统插入。bak表根据业务要求时间保留，例如三个月，三个月后删除。
+-- 重命名 exec sp_rename 'mytab','mytab_bak'; -- 创建新表 select * into mytab from mytab_bak; --按原表创建索引、约束 三、需要实际删除部分数据 这其实才是大部分时候会遇到的情况，对于业务表，通常无法使用前面两种讨巧的方法。
+首先需要对表的数据量和需删除的数据量做一个统计，计算删除的比例。
+sp_spaceused 'dbo.TEST'; SELECT COUNT(*) from TEST WHERE &lt;删除条件&gt; 根据要删除的数据量可以再分为两类
+1. 删除表中绝大部分数据 这个绝大部分怎么定义不好量化，所以我们这里就量化为60%。如果删除的数据比例超过60%，就采用下面方法： 停业务，新建临时表并插入待保留数据。 对于有alwayson的数据库，事务日志收缩相当麻烦，必须注意insert数据量和产生的事务日志量。如果实在很大，需要分批insert并手动备份事务日志。
+-- 创建临时表 select * into mytab_tmp from mytab where xxx; DBCC SQLPERF(LOGSPACE); --按时间批量插入数据 DECLARE @begindate DATETIME = '2020-02-01'; WHILE @begindate &lt;= '2020-08-24' BEGIN INSERT tmp0824 select * from schemalog where logdate&gt;=@begindate and logdate&lt;dateadd(day,7,@begindate) SET @begindate = dateadd(day,7,@begindate) END rename原表 exec sp_rename 'mytab','mytab_bak'; rename新表为原表名 exec sp_rename 'mytab_tmp','mytab'; 按原表新建索引，检查相关的触发器、约束，进行触发器或约束的重命名启动业务，确认无误后（或者保留一段时间），TRUANCATE或DROP bak表 2.
+	</div>
+	<div class="list__footer clearfix">
+		<a class="list__footer-readmore btn" href="/posts/f0c7606a2ea9cdb1a4978022a792f276/">Read more…</a>
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/d0bea0da7ddb14a397ddfe3e25af1451/" rel="bookmark">
+			Python报错 SettingWithCopyWarning:  A value is trying to be set on a copy of a slice from a DataFrame ...
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		SettingWithCopyWarning 是由于在进行 DataFrame 的索引和赋值操作时出现了复制问题。具体来说，这是因为你在对一个副本进行操作，而不是直接在原始数据上操作。为了避免这个警告，你可以使用 .loc 或者 .iloc 来进行索引和赋值操作。
+解决这个问题的另一种方法是使用 .copy() 方法来创建一个副本，然后在副本上进行操作。
+警告并不是一个错误，你的程序可能仍然可以正常运行，但是如果你想要避免这个警告的出现，你可以按照上面的建议来修改你的代码。
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/c5ae50f18f79a0d602f1e1ae94938852/" rel="bookmark">
+			【十二】数据结构之树、二叉树、二叉查找树、平衡二叉查找树AVL、红黑树、B树、B&#43;树简介
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		一、树 1.只有一个特殊节点，它没有父节点，它就是根节点
+2.每一个非根节点有且只有一个父节点
+3.每个节点包含多个指针指向其子节点
+4.该例子有3层，40那一层，130那一层，10那一层，故该数的深度为3。
+5.没有子节点的叫叶子节点。
+6.拥有相同父节点的叫兄弟节点。
+二、二叉树 在树的基础上多了些限制条件：
+1.每个节点最多只能有2个子节点。
+2.节点的子节点，分为左孩子节点和右孩子节点。
+2.1 完全二叉树 在二叉树的基础上多了一个限制：
+除最后一层外，若其余层都是满的，并且最后一层要么是满的，要么是在右边缺少连续若干节点
+2.2 满二叉树 在二叉树的基础上多了两个限制：
+所有分支结点都存在左子树和右子树。
+所有叶子结点都在同一层上。
+三、二叉查找树 在二叉树的基础上多了些限制条件
+1.任何一个节点，如果它的左子树不为空，则左子树上所有节点的值都比它小
+2.任何一个节点，如果它的右子树不为空，则右子树上所有节点的值都比它大
+3.对于任意一个子树：左&lt;根&lt;右
+查找效率与树的高度成反比。
+二叉查找树（其实这是二叉树的遍历）的遍历分为： 1.深度优先遍历(Depth First Search) 对于一颗二叉树，深度优先搜索是沿着树的深度遍历树的节点，尽可能深的搜索树的分支。
+1.前序遍历： 根节点----左子树----右子树 以上图为例，结果是：80，40，10，50，115，90，95，130
+2.中序变量： 左子树----根节点----右子树 在二叉查找树中使用序遍历并且打印的时候，最后打印出的结果会是从小到大的
+以上图为例，结果是：10，40，50，80，90，95，115，130
+3.后序遍历： 左子树----右子树----根节点
+以上图为例，结果是：10，50，40，95，90，130，115，80
+2.广度优先遍历（Breadth-First Search） 从树的root开始，从上到下从从左到右遍历整个树的节点
+1.层次遍历：按层次遍历 以上图为例，结果是：80，40，115，10，50，90，130，95
+3.删除节点 1.删除叶子节点。直接删。不会破坏BST的结构
+2.删除带有一个子节点的的节点。将待删除节点的左/右子树 赋值给 待删除节点的父节点的左/右子树
+3.删除带两个子节点的节点
+首先需要找到待删除节点的后继节点和该后继节点的父节点，（一个节点的后继节点是指，这个节点在中序遍历序列中的下一个节点，相应的，前驱节点是指这个节点在中序遍历序列中的上一个节点）。
+由于二叉查找树的性质，如果将当前节点替换为左子树中最大的或者右子树中最小的一定不会破坏二叉查找树的结构。
+下图是删除5号节点
+四、平衡二叉查找树（AVL） 平衡二叉查找树：
+在二叉查找树的基础上多了些限制：
+1.所有叶子的深度趋于平衡
+2.每个节点的左子树和右子树的深度差的绝对值不超过1
+平衡二叉树是在二叉查找树上引入是为了解决二叉排序树的不平衡性导致时间复杂度大大下降 不平衡的二叉查找树可能会出现极端情况编程链表：
+针对上面不平衡的二叉查找树调整成平衡树，主要是通过旋转最小失衡子树来完成。
+1、平衡因子：左子树的高度减去右子树的高度。
+2、失衡：每个结点的左右子树的高度之差的绝对值超过1
+3、最小失衡子树：离新插入的节点最近的，平衡因子最小的子树称为最小失衡子树。
+旋转： 左旋和右旋：
+左旋：把“最小失衡根结点”的右孩子节点A“提上去”，使得原来的“最小失衡根结点”成为节点A的左孩子节点。
+	</div>
+	<div class="list__footer clearfix">
+		<a class="list__footer-readmore btn" href="/posts/c5ae50f18f79a0d602f1e1ae94938852/">Read more…</a>
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/feea0bba0c683020a981ea1db4df413b/" rel="bookmark">
+			嵌入式系统——ARM架构及分类
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		文章目录 一、什么是架构二、ARM架构分类Arm-A架构Armv7-A（1）指令集（2）处理器模式（3）通用寄存器（4）特殊寄存器 Armv8-A寄存器指令集异常模型及处理器模式 一、什么是架构 “架构”（Architecture）指的是功能规范，ARM架构即是ARM处理器的功能规范，包括以下主要内容：
+指令集：每条指令的功能，指令在存储器中的表示方法（编码）;寄存器集：寄存器的数量、大小、功能，以及寄存器的初始状态；异常模型：不同特权级、异常类型，以及采纳异常和从异常返回时的处理动作；存储器模型：存储器的访问顺序，当软件必须执行准确维护时，缓存的行为；调试、跟踪和统计：如何设置和触发断点，跟踪工具可以捕获的信息和采用的方式。 “架构”没有直接说明如何构建处理器并工作，它只是提供了一种软件和硬件之间行为规范，具体的处理器的构建和设计称为“微架构”Micro-Architecture，微架构包括：
+流水线的长度和布局缓存的数量和大小单个指令的周期数（一条指令周期对应几个时钟周期）其它可选特性 二、ARM架构分类 ARM提供了三种架构概要：
+A-Profile（应用）：用于复杂得计算应用领域，如服务器、移动电话、汽车主机；R-Profile（实时）：用于需要实时响应的地方，如安全关键应用或需要确定性响应的应用，如医疗设备、车辆转向、制动和信号等；M-Profile（微控制器）：用于能效、功耗、尺寸有较强需求的地方，如深度嵌入式芯片、小型传感器、通信模块、智能家居产品等。 处理器的构建和设计称为“微架构”，微架构定义处理器的工作原理，包括：流水线的长度和布局，缓存的数量和大小，单个指令的周期数以及其它可选特性。
+Arm-A架构 Armv7-A （1）指令集 ARMv7-A架构是32位处理器架构,也是load/store架构，即数据处理指令操作在通用寄存器完成，只有load/store指令可以访问内存。此外ARM指令集还有一大特点，就是ARM指令集几乎所有的指令都可以增加条件码。
+ARM指令集可以归为一下四类：
+数据处理操作（ALU操作例如ADD）；内存操作（load/store）；控制流（循环，跳转，条件码等）；系统（协处理器，debug，模式切换等等）。
+Armv7-A支持Arm（A32）和Thumb（T32）数据集。
+ARM core只能在寄存器上执行数据处理，而不能直接在内存上执行。
+数据操作指令一般由一个目标寄存器和两个源操作数组成，所有ARM数据处理指令都可以加后缀（Suffix），并影响状态标志（CPSR）。其基本格式如下：
+Operation{cond}{S}Rd,Rn,Operand2Operation : 指令助记符；cond： 执行条件；S：后缀，是否影响CPSR寄存器状态位；Rd：目标寄存器；Rn：第一个操作数寄存器；Operand2：第二个操作数；{}：可选。 （2）处理器模式 ARMv7架构支持安全扩展，如果使能了安全扩展，ARMv7-A架构分为安全模式（Secure State）和非安全模式（Non-secure State）两个世界。
+在非安全模式下，存在三种运行特权PL0,PL1和PL2（privilege level）。
+特权等级描述PL0PL0运行在用户模式（User），用于运行应用程序。该模式程序受限访问系统资源。对应Linux用户态。PL1PL1运行非用户模式和Hyp模式外的所有模式。Linux内核运行在PL1。包含了ARMv6架构中的System,SVC,FIQ,IRQ,UNDEF及Abort模式。此外，安全模式中的Montior也运行在PL1等级，管理安全模式和非安全模式的切换。PL2PL2用于虚拟化。虚拟化超级管理程序(Hypervisor)运行在 PL2。 处理器模式：
+User：用户模式，运行再 PL0 这个特权等级上，也就是没有特权等级，他是OS上运行应用程序时候的等级，他不可以访问系统资源（MMU 等），在这个模式下，无法主动切换模式，除非遇到中断或者异常（诸如 SWI 触发系统调用）；FIQ：快中断模式，发生 FIQ快中断的时候处理器模式；IRQ：中断模式，发生 IRQ 快中断的时候处理器模式；Supervisor：管理员模式，复位后的默认模式，运行再 PL1 特权等级，可以通过 SWI(SVC) 系统调用呼叫产生Supervisor Call 异常，进入 Supervisor 模式，操作系统常用的模式；Monitor：监视模式，针对Security 扩展，不详细讨论；Abort：停止模式，当发生 Data Abort exception 或者 Prefetch Abort exception 异常时候进入这个模式；Hyp：当支持虚拟化扩展的时候模式，不详细讨论；Undefined：这是执行和指令相关的模式，当企图执行 UNDEFINED 指令的时候进入这个模式；System：系统模式，也是PL1 特权等级，和 Supervisor 的区别是，System 模式具有和 User 模式一样的寄存器，目前大多数系统未使用； （3）通用寄存器 ARMv7-A 处理器有 16 个通用寄存器：R0~R15，其中：
+	</div>
+	<div class="list__footer clearfix">
+		<a class="list__footer-readmore btn" href="/posts/feea0bba0c683020a981ea1db4df413b/">Read more…</a>
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/c17f7c2f33f4092d8cc5a0090bf05196/" rel="bookmark">
+			流水灯电路设计实验--VHDL
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		一、实验目的 （1）学习并掌握Quartus II的使用方法
+（2）学习简单时序电路的设计和硬件测试。
+（3）学习使用VHDL 语言方法进行逻辑设计输入
+（4）学习设计一个流水灯电路，并在实验开发系统上熟悉运行输入及仿真步骤原理
+二、实验仪器设备 （1） PC机一台。
+（2）Quartus Ⅱ开发软件一套
+（3）EDA实验开发系统一套(EP1C12Q240C8)
+三、实验原理 FPGA 的所有I/O控制块都可以允许每个1/O引脚单独配置为输入口,不过这种配置是系统自动完成的，一旦该输入口被设置为输入口使用时,该I/O控制模块将直接使三态缓冲区的控制端接地，便得该IO 引脚对外呈高阻态,这样该I/O引脚即可用作专用输入引脚。只旦在KEY1-KEY8中有键输入,要正确地分配并锁定引脚后,在检测到键盘输入的情况下,继续判断其键盘值并作出相应的处理。
+四、实验内容 （1）基于VHDL 语言设计可用于控制LED流水灯的简单逻辑电路,电路包含三个输入、八个输出。输入信号为清零信号端CLR、时钟信号CLK 和使能信号ENA,输出信号Y接八个发光二极管。当清零信号端CLR 为低时,系统清零,此时8个LED灯全灭。当 ENA输入信号为高电平，CLK的上升沿到来时，流水灯开始流动，流动顺D1→D2→D3→D4→D5→D6→D7→D8，然后再返回D1;当ENA输入信号为低电平时,流水灯暂停，保持在原有状态。
+其对应关系见表如下
+（2）在Quartus II上用V
+HDL 文本方式设计该流水灯电路;对该设计进行编辑、编译、综合、适配、仿真。将经过仿真的设计下载到硬件实验箱进行验证。注意选择:输入信号线3根（ENA接按键1，clr接按键2和CLK 接CLK0）、输出线8根（接发光二极管指示灯);硬件测试时为便于观察,流水速率最好在4Hz左右，测试时根据输入信号的变化观察输出信号的改变。
+流水灯控制电路仿真如图所示
+实验引脚锁定:
+八个按键:按键1～8分别对应FPGA上的引脚233,234,235,236,237,238,239,240。
+八个发光二极管:发光.极管D1～D8分别对应 FPGA 上的引脚168~161。
+时钟端口:CLKO对应28CLK2对应153，CLK5对应152，CLK90对应29。
+五、实验步骤 （1）启动Quartus II建立一个空白工程,然后命名为 HIGHT8.qpf。
+（2）新建VHDL 源程序文件HIGHT8.vhd,输入程序代码并保存，进行综合编译,若编译过程中发现错误，则找出并更正错误，直至编译成功为止。
+（3）选择目标器件并对相应的引脚进行锁定,在这里所选择的器件为Altera公司 Cyclone系列的EPIC12Q240C8芯片。将未使用的管脚设置为三态输入。则找出并更正错误,
+（4）对该工程文件进行全程编译处理，若在编译过程中发现错误直至编译成功为止。接到PC机的打印机并
+（5）拿出 Altera Byte Blaster II下载电缆，并将此电缆的两端分别接到PC机的打印机并口和实验箱的JTAG下载口上，打开电源，执行下载命令，把程序下载到 FPGA器件中，观察发光管发光二极管LED1～LED8的亮灭状态。
+六、实验扩展 在前面实验的基础上实现其他花样流水显示，控制8个 LED灯进行花样显示,设计3种
+模式:
+①从左到右逐个点亮LED;
+实例代码：
+LIBRARY IEEE;	--流水灯顶层文件 USE IEEE.STD_LOGIC_1164.ALL; ENTITY HIGHT8 IS	--顶层实体名称 PORT(	--定义端口数据 CLK: IN STD_LOGIC;	--定义时钟信号输入端口 CLR: IN STD_LOGIC;	--定义清零控制端输入端口 ENA: IN STD_LOGIC;	--定义使能信号输入端口 LED: OUT STD_LOGIC_VECTOR(7 DOWNTO 0)	--定义LED灯输出端口 ); END; ARCHITECTURE BEHAV OF HIGHT8 IS SIGNAL A:INTEGER RANGE 0 TO 7; SIGNAL B:STD_LOGIC_VECTOR(7 DOWNTO 0); SIGNAL C:STD_LOGIC_VECTOR(7 DOWNTO 0); BEGIN P1:PROCESS(CLK,CLR,ENA) BEGIN IF CLR='0' THEN C&lt;="
+	</div>
+	<div class="list__footer clearfix">
+		<a class="list__footer-readmore btn" href="/posts/c17f7c2f33f4092d8cc5a0090bf05196/">Read more…</a>
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/360115c1501009142173503519b64eb5/" rel="bookmark">
+			一文读懂Java垃圾回收机制及算法原理万字详解
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		Java垃圾回收机制及算法 文章目录 Java垃圾回收机制及算法垃圾回收概述垃圾回收-对象是否已死判断对象是否存活 - 引用计数算法判断对象是否存活-可达性分析算法可达性分析算法JVM之判断对象是否存活再谈引用 垃圾收集算法分代收集理论标记-清除算法什么是标记-清除算法?标记-复制算法标记-整理算法 垃圾收集器垃圾收集器概述串行垃圾回收（Serial）并行垃圾回收（Parallel）并发垃圾回收（CMS）G1垃圾回收 Serial收集器ParNew 收集器Parallel Scavenge收集器Serial Old收集器Parallel Old收集器CMS 收集器CMS垃圾回收器CMS垃圾收集过程并发可达性分析 CMS收集器三个缺点 G1收集器G1垃圾收集器简介G1收集器特点Region区域G1 GC过程G1 YoungGCG1 Mix GC G1常用参数 垃圾回收概述 什么是垃圾回收
+说起垃圾收集（Garbage Collection， 下文简称GC） ， 有不少人把这项技术当作Java语言的伴生产物。 事实上，垃圾收集的历史远远比Java久远， 在1960年诞生于麻省理工学院的Lisp是第一门开始使 用内存动态分配和垃圾收集技术的语言。垃圾收集需要完成的三件事情：
+哪些内存需要回收？
+什么时候回收？
+如何回收？
+java垃圾回收的优缺点:
+优点:
+不需要考虑内存管理可以有效的防止内存泄漏，有效的利用可使用的内存由于有垃圾回收机制，Java中的对象不再有"作用域"的概念，只有对象的引用才有"作用域" 缺点:
+java开发人员不了解自动内存管理, 内存管理就像一个黑匣子,过度依赖就会降低我们解决内存溢出/内存泄漏等问题的能力。 垃圾回收-对象是否已死 判断对象是否存活 - 引用计数算法 引用计数算法可以这样实现：给每个创建的对象添加一个引用计数器，每当此对象被某个地方引用时，计数值+1，引用失效时-1，所以当计数值为0时表示对象已经不能被使用。 引用计数算法大多数情况下是个比较不错的算法，简单直接，也有一些著名的应用案例。但是对于Java虚拟机来说，并不是一个好的选择，因为它很难解决对象直接相互循环引用的问题。
+优点：
+实现简单，执行效率高，很好的和程序交织。 缺点：
+无法检测出循环引用。 譬如有A和B两个对象，他们都互相引用，除此之外都没有任何对外的引用，那么理论上A和B都可以被作为垃圾回收掉，但实际如果采用引用计数算法，则A、B的引用计数都是1，并不满足被回收的条件，如果A和B之间的引用一直存在，那么就永远无法被回收了
+public class App { public static void main(String[] args) { Test object1 = new Test(); Test object2 = new Test(); object1.
+	</div>
+	<div class="list__footer clearfix">
+		<a class="list__footer-readmore btn" href="/posts/360115c1501009142173503519b64eb5/">Read more…</a>
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/f64855621d7e97a322d1ffe000bfc12c/" rel="bookmark">
+			一篇彻底解决:Fatal error compiling: 无效的目标发行版: 11 -＞ [Help 1]
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		先在这声明,如果我的方法没有解决你的问题,那你直接私信我,我第一时间帮你解决,送佛送到西!!!
+这个问题，主要原因就是JDK的版本问题，“无效的目标发行版：11”的意思是你在某个位置配置了JDK11，但是在其他位置配置的并不是11，也就是未将JDK全部配置为11，所以我们要做的就是将所有位置的JDK都配为统一的版本
+第一步：检查IDEA的settings，将其设置为8或者11 在这里我选择的是JDK8（也就是JDK1.8）
+第二步：设置项目结构 在settings中设置的哪个版本，项目结构就用哪个版本，后面的都一样
+进行到这问题差不多就可以解决了，如果你还没有解决，那么接着，往下看
+第三步：修改pom.xml文件 进行到这，几乎90％的问题将得到解决，如果还未解决，那接着往下看
+第四步：修改maven配置文件 这一步可以说是折磨了我很长时间，我搜了好多解决方案，都未解决我的问题，然后我看了很多网友说好像maven有自己的编译器版本还是怎么的，我就在搜索框输了maven项目修改java编译版本的方式,最终经过我的摸索，找到了maven的配置文件settings.xml，最终问题解决。我滴老天，那种感觉别提多带劲了，因为真的困扰了我很长时间。
+maven的配置文件如下图
+修改上图中settings.xml文件中的代码：
+打开此文件,拉到最下面找到profile标签,然后修改里面的内容:
+&lt;profile&gt; &lt;id&gt;jdk-8&lt;/id&gt; &lt;activation&gt; &lt;activeByDefault&gt;true&lt;/activeByDefault&gt; &lt;jdk&gt;8&lt;/jdk&gt; &lt;/activation&gt; &lt;properties&gt; &lt;project.build.sourceEncoding&gt;UTF-8&lt;/project.build.sourceEncoding&gt; &lt;maven.compiler.source&gt;8&lt;/maven.compiler.source&gt; &lt;maven.compiler.target&gt;8&lt;/maven.compiler.target&gt; &lt;/properties&gt; &lt;/profile&gt; 最终问题解决！！！特么的别提有多开心了，高兴地我一晚上没睡好
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/2a2dab79b854ea3fa6b90d806d442ca9/" rel="bookmark">
+			Makefile简单使用
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		Makefile模式规则 Makefile规则：当依赖比目标文件新时，重新生成目标文件
+target(目标):prerequiries（依赖）
+command（命令）
+简单例子，现在有三个文件a.c b.h b.c内容为：
+---------------------a.c-------------- #include &lt;stdio.h&gt; #include &lt;stdlib.h&gt; #include "b.h" int main(int argc,char **argv) { int c; c=add(1,2); printf("c = %d\n",c); return 0; } ---------------------b.c----------------- #include "b.h" int add(int a,int b) { return a+b; } ---------------------b.h------------------ #ifndef _B_H #define _B_H int add(int a,int b); #endif 下面了解几个变量的含义：
+符合|含义
+–|:–😐–:
+@ ∣ 规则中的目标集合，在模式规则中，如果有多个目标的话，“ @|规则中的目标集合，在模式规则中，如果有多个目标的话，“ @∣规则中的目标集合，在模式规则中，如果有多个目标的话，“@”表示匹配模式中定义的目标集合
+&lt; ∣ 依赖文件集合中的第一个文件，如果依赖文件是以模式 ( 即“ &lt;|依赖文件集合中的第一个文件，如果依赖文件是以模式(即“%” )定义的，那么“ &lt;∣依赖文件集合中的第一个文件，如果依赖文件是以模式(即“&lt;”就是符合模式的一系列的文件集合
+∣ 所有依赖文件的集合，使用空格分开，如果在依赖文件中有多个重复的文件，“ ^|所有依赖文件的集合，使用空格分开，如果在依赖文件中有多个重复的文件，“ ∣所有依赖文件的集合，使用空格分开，如果在依赖文件中有多个重复的文件，“^”会去除重复的依赖文件，值保留一份。
+	</div>
+	<div class="list__footer clearfix">
+		<a class="list__footer-readmore btn" href="/posts/2a2dab79b854ea3fa6b90d806d442ca9/">Read more…</a>
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/368f523267a25652c56ceb2820765fd7/" rel="bookmark">
+			操作系统——概念、功能、特征及发展分类
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		文章目录
+一、操作系统的概念
+二、操作系统的功能和目标
+1.资源的管理者
+2.用户和计算机硬件之间的接口
+3.最接近硬件的层次
+三、操作系统的特征 1、并发性（最基本的特征）
+2、共享性（最基本的特征）
+3、虚拟性
+4、异步性
+四、操作系统的发展和分类
+1、批处理阶段
+2、分时操作系统
+3、实时操作系统
+4、其他操作系统
+前言
+本文的主要内容是操作系统的一些基础内容，包括操作系统的概念、操作系统的功能和目标、操作系统的特征以及操作系统的发展和分类，文中分别对操作系统扮演不同角色时的功能和目标做了介绍，也对操作系统的四个特征做了说明和举例，还介绍了操作系统不同阶段的发展情况。
+本文转载至该博客，欢迎大家一起学习成长！操作系统——概念、功能、特征及发展分类_西岸贤的博客-CSDN博客_操作系统的概念特征及功能
+一、操作系统的概念 常见的操作系统(Operating System, OS)有 Windows、Android、IOS、MacOS 和 Linux 等。
+计算机系统的层次结构如下图所示，用户可以通过应用程序和操作系统交互，也可以直接和操作系统交互（比如设置系统时间等操作）。
+操作系统是指控制和管理整个计算机系统的硬件和软件资源，并合理地组织调度计算机的工作和资源的分配，以提供给用户和其他软件方便的接口和环境，它是计算机系统中最基本的系统软件。
+二、操作系统的功能和目标 1.资源的管理者 操作系统作为资源的管理者，其功能和目标如下图所示。
+操作系统作为资源的管理者，它包括的功能有：文件管理、存储器管理、处理机管理和设备管理，具体的例子使用见上图。
+2.用户和计算机硬件之间的接口 操作系统作为用户与计算机硬件之间的接口，其功能和目标如下所示
+用户接口分为命令接口和程序接口。
+命令接口允许用户直接使用，它又分为联机命令接口和脱机命令接口。
+联机命令接口是指用户输入一句，系统跟做一句，它是一种交互式的命令接口；
+脱机命令接口是指用户输入一堆，系统跟做一堆，它是一种批处理命令接口。
+程序接口允许用户通过程序间接使用(例如dll文件的调用)，它由一组系统调用组成，程序接口等价于系统调用，系统调用也称作广义指令。
+GUI(Graphics User Interface)，即图形用户界面，用户可以使用形象的图形界面进行操作，而无需记忆复杂的命令或参数。例如：Windows环境下删除一个文件只需要将文件拖拽到回收站即可，无需使用命令。
+3.最接近硬件的层次 操作系统作为最接近硬件的层次，其功能和目标如下图所示。
+操作系统作为最接近硬件的层次，主要的功能是完成对硬件机器的拓展，让上层用户更好地使用。
+将上面操作系统的概念、功能和目标总结一下，如下图所示。
+三、操作系统的特征 操作系统的特征有：并发性、共享性、虚拟性和异步性。并发性和共享性是两个最基本的特征，二者互为存在的条件。
+1、并发性（最基本的特征） 并发性指的是两个或多个事件在同一时间间隔内发生。这些事件从宏观上看是同时发生的，但在微观上是交替发生的。
+并行性指的是两个或多个事件在同一时刻同时发生。
+操作系统的并发性指的是计算机系统中同时存在着多个运行着的程序。
+一个单核处理机(CPU)同一时刻只能执行一个程序，操作系统的功能就是负责协调多个程序的交替执行。（多个程序从宏观上看是同时执行的，但从微观上看是交替执行的）
+4核的CPU意味着同一时刻可以并行执行4个程序，但是操作系统的并发性依然必不可少。
+2、共享性（最基本的特征） 共享性即资源的共享，指的是系统中的资源可供内存中多个并发执行的进程共同使用。
+共享的方式包括互斥共享和同时共享。
+互斥共享指的是系统中的某些资源虽然可以提供给多个进程使用，但在一个时间段内只允许一个进程访问该资源。
+举例：如果你正在微信上进行视频聊天，这时候在同一个设备上再用QQ视频聊天是行不通的，因为摄像头资源正在被微信程序使用，如果要使用QQ进行视频聊天，那么就得先关掉微信的视频聊天将摄像头资源腾出来给QQ使用。
+同时共享指的是系统中的某些资源在同一个时间段内允许多个进程同时对它们进行访问。
+这里的同时往往是宏观上的，在微观上很可能是交替对该资源进行访问的（即分时共享）。
+举例：使用QQ和微信同时分别发送电脑上的两个文件，宏观上看，两边都在读取并发送文件，说明这两个进程都在访问硬盘资源从中读取数据，但微观上看，两个进程在交替访问硬盘资源。
+通过上面QQ和微信同时发送文件的例子可知，两个进程在并发执行，同时在共享硬盘资源。如果失去并发性，那么系统中只有一个程序在运行，共享性就失去了存在的意义。如果失去共享性，那么两个程序不能同时访问硬盘资源，就无法同时发送文件，也就无法并发。因此，并发性和共享性互为存在的条件。
+3、虚拟性 虚拟性是指把一个物理上的实体变为若干个逻辑上的对应物，前者是实际存在的，后者是用户感受到的。虚拟性包括空分复用技术和时分复用技术。
+一个程序需要放入内存并给它分配CPU才能执行。
+举例：电脑只有4GB内存，一个游戏需要4GB的运行内存，但在玩游戏的同时，可以打开许多其他的软件，所有这些程序同时运行的内存远大于4GB，但是可以在电脑上同时运行，这就是虚拟存储器技术，电脑只有4GB内存，但在用户看来远大于4GB。这就是虚拟技术中的空分复用技术。
+举例：一个单核的CPU可以同时打开多个程序，在用户看来，有多个CPU在同时为自己服务，这是虚拟技术中的时分复用技术，从微观上看，处理器在各个微小的时间段内交替着为各个进程服务。
+	</div>
+	<div class="list__footer clearfix">
+		<a class="list__footer-readmore btn" href="/posts/368f523267a25652c56ceb2820765fd7/">Read more…</a>
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/ac1a1430d35be9a6eac35420db1a49a4/" rel="bookmark">
+			数据结构初阶 --- 双向链表的C语言实现
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		目录
+一.链表的分类：
+二.带头双向循环链表
+三. 双向链表的各函数接口的实现
+1.双向链表的结构体定义
+2.双向链表的初始化
+3.双向链表之创建新结点
+4.双向链表的打印
+5.双向链表的尾插
+6.双向链表的尾删
+7.双向链表的头插
+8.双向链表的头删
+9.双向链表的查找
+10.双向链表之在pos位置之前插入
+11.双向链表之删除pos位置
+12.双向链表的销毁
+一.链表的分类： 链表的8种结构： 单向带头循环双向带头循环单向带头不循环双向带头不循环单向不带头循环双向不带头循环单向不带头不循环双向不带头不循环 二.带头双向循环链表 带头双向循环链表：结构最复杂，一般用在单独存储数据。实际中使用的链表数据结构，都是带头双向 循环链表。另外这个结构虽然结构复杂，但是使用代码实现以后会发现结构会带来很多优势，实现反而 简单了。
+双向链表的结构：
+由1个数据域和2个指针域组成，其中这2个指针一个存储的是前一个结点的地址，一个存储的是后一个结点的地址。
+只有一个结点的（头结点）双向链表：
+有多个结点的双向链表：
+三. 双向链表的各函数接口的实现 1.双向链表的结构体定义 双向循环链表：要定义2个指针，(prev)一个指向当前结点的前一个结点，(next)一个指向当前结点的后一个结点。
+typedef int LTDateType; //带头+双向+循环链表(双向链表) typedef struct ListNode { LTDateType data; struct ListNode* next; struct ListNode* prev; }LTNode; 2.双向链表的初始化 我们这里要实现的是一个带头的链表，所以初始化的时候要创建一个头结点出来（哨兵位的头结点，不需要存储有效数据）。
+LTNode* ListInit()//初始化 { LTNode* phead = (LTNode*)malloc(sizeof(LTNode)); //带有头结点的链表，这里malloc出的是头结点的空间(带头) phead-&gt;next = phead; phead-&gt;prev = phead; return phead; } 3.双向链表之创建新结点 LTNode* BuyListNode(LTDateType x)//malloc一个新的newnode { LTNode* newnode = (LTNode*)malloc(sizeof(LTNode)); newnode-&gt;data = x; newnode-&gt;next = newnode-&gt;prev = NULL; return newnode; } 4.
+	</div>
+	<div class="list__footer clearfix">
+		<a class="list__footer-readmore btn" href="/posts/ac1a1430d35be9a6eac35420db1a49a4/">Read more…</a>
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/6a9bcb8bba80b169838c56c89cc7d9f6/" rel="bookmark">
+			shell脚本查看文件是否存在
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		 要在 shell 脚本中查看文件是否存在，你可以使用 test 命令来测试文件是否存在。例如，下面的脚本用来检查名为 /etc/passwd 的文件是否存在：
+#!/bin/bash if test -e /etc/passwd; then echo "文件存在" else echo "文件不存在" fi 
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/f814c08517b43fbe38a998205ad7ae2b/" rel="bookmark">
+			安装Hadoop集群（超详细！）
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		提示：安装前请准备好三台装有jdk的虚拟机 我这里名为hd01、hd02、hd03
+hd01最好有hadoop和zookeeper的压缩包
+文章目录 前言一、准备环境二、安装Hadoop总结 前言： 前面我写了一篇单机版的Hadoop安装，这里终于要装集群版，装集群版的步骤比较繁琐，需要同学们多加练习，因为我们不可能只装一次，经常出了问题就要重装，所以必须要练熟练。
+一、准备环境 先准备好三台虚拟机 都设置了各自的固态ip和hostname 并且下载了相应的工具包（wget、vim等）有需要一键安装脚本的可以先点个关注然后联系作者 然后就可以正式开始我们搭集群了！
+先把hadoop解压，然后把它移动到opt下的soft文件夹下 并重命名为hadoop260
+1. mv hadoop-2.6.0-cdh5.14.2 soft/hadoop260
+2.用xshell设置为一起输入（这样就可以同步输入三台虚拟机的命令并执行）
+具体在xshell上方 工具-&gt;发送输入到-&gt;所有会话 3.很重要的一步！需要将每一个的hosts设置成这样！！！ vim /etc/hosts
+4.然后三个一起设置无密登录： ssh-keygen -t rsa -P '' &lt;-- 这是两个单引号（不是双引号）
+出现如下三个这样子的矩形即可 5.然后每台都执行
+ssh-copy-id root@hd01
+然后都执行ssh-copy-id root@hd02
+然后都执行ssh-copy-id root@hd03
+途中我报错了 因为比如我的hd02一直找不到我的hd01？！就很奇怪，试了n多办法也没用
+就把etc/hosts中的内容调了个顺序 就可以互相通过主机名ping通了 真的amazing吧...希望读者没有
+可以互相ssh hd01 ssh hd02这样试试 exit退出
+6.每一个都执行： yum -y install chrony 下载这个让集群时间同步
+7.修改配置 vi /etc/chrony.conf
+把上面的注释掉 并用这个代替：
+server ntp1.aliyun.com
+server ntp2.aliyun.com
+server ntp3.aliyun.com
+然后 systemctl start chronyd
+	</div>
+	<div class="list__footer clearfix">
+		<a class="list__footer-readmore btn" href="/posts/f814c08517b43fbe38a998205ad7ae2b/">Read more…</a>
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/66b1d6d0a6d75027a95fd81e5297e783/" rel="bookmark">
+			Vue中的key
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		简版 概念：页面上的标签都对应具体的虚拟 dom 对象(虚拟 dom 就是 js 对象), 循环中 ,如果没有唯一 key , 页面上删除一条标签, 由于并不知道删除的是哪一条! 所以要把全部虚拟 dom 重新渲染, 如果知道 key 为对应标签被删除掉, 只需要把渲染的 dom 为对应标签去掉即可!
+作用：更准确、更快速、提高效率
+Key 是什么 key 的作用主要是为了高效的更新虚拟 DOM
+我们知道状态的变化会导致视图的更新，其中的更具体的过程是：
+状态1 —&gt; 虚拟dom1 ——&gt; 视图1, 状态2 —&gt; 虚拟dom2 ---&gt; ？ 比较虚拟dom1和虚拟dom2的区别，然后在 视图1的基础上小范围更新视图得到视图2 key 是给每一个 vnode 的唯一 id，也是 diff 的一种优化策略，可以根据 key，更准确， 更快的找到对应的 vnode 节点,这个 key 的作用是用来加速这个比较的过程的。
+开始之前，我们先还原两个实际工作场景
+当我们在使用v-for时，需要给单元加上key &lt;ul&gt; &lt;li v-for="item in items" :key="item.id"&gt;...&lt;/li&gt; &lt;/ul&gt; 用+new Date()生成的时间戳作为key，手动强制触发重新渲染 &lt;Comp :key="+new Date()" /&gt; 那么这背后的逻辑是什么，key的作用又是什么？
+	</div>
+	<div class="list__footer clearfix">
+		<a class="list__footer-readmore btn" href="/posts/66b1d6d0a6d75027a95fd81e5297e783/">Read more…</a>
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/6296eaf8526a5e1b61c655d060a0a4cf/" rel="bookmark">
+			java8的四大函数式接口
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		前言 JDK1.8版本的java内置四大核心函数式接口，在java.util.function，可以使用lambda表示式。
+函数式接口参数类型返回类型用途Comsumer
+消费型接口Tvoid对类型为T的对象应用操作，包含方法：
+void accept(T t)Function&lt;T, R&gt;
+函数型接口TR对类型为T的对象应用操作，并返回结果。结果位R类型的对象。包含方法：
+R apply(T t)Predicate
+断定型接口Tboolean确定类型为T的对象是否满足某约束，并返回boolean值。包含方法：
+boolean test(T t)Supplier
+供给型接口无T返回类型为T的对象，包含方法：
+T get() 2、Consumer 消费类型，即只有支出没有收入（有入参，没有返回值）
+源码 @FunctionalInterface public interface Consumer&lt;T&gt; { void accept(T t); default Consumer&lt;T&gt; andThen(Consumer&lt;? super T&gt; after) { Objects.requireNonNull(after); return (T t) -&gt; { accept(t); after.accept(t); }; } } 代码示例 1 public static void main(String[] args){ List&lt;String&gt; list = Lists.newArrayList(); Consumer&lt;String&gt; consumer = s-&gt; { if(StringUtils.isNotEmpty(s)){ list.add(s); } } consumer.aceept("test"); log.
+	</div>
+	<div class="list__footer clearfix">
+		<a class="list__footer-readmore btn" href="/posts/6296eaf8526a5e1b61c655d060a0a4cf/">Read more…</a>
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/3c494b5139763c0de499e21ad04cc0ed/" rel="bookmark">
+			hadoop集群部署手册
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		文章来源
+1、环境规划 节点Ip节点主机名服务..228.11hadoop1DataNode
+ResourceManager
+NodeManager..228.12hadoop2JobHistoryServer
+DataNode
+NodeManager
+NameNode..228.13hadoop3DataNode
+NodeManager
+SecondaryNameNode..228.14hadoop4NodeManager
+DataNode..228.15hadoop5NodeManager
+DataNode 2、安装准备 2.1、软件 hadoop-3.3.4.tar.gz、jdk-8u351-linux-x64.tar.gz
+2.2、配置主机名 **.**.228.11 hadoop1 **.**.228.12 hadoop2 **.**.228.13 hadoop3 **.**.228.14 hadoop4 **.**.228.15 hadoop5 2.3、配置免密 在每台主机上使用 ssh-keygen 命令生成公钥私钥对：
+ssh-keygen 将 hadoop1 的公钥写到本机和远程机器的 ~/ .ssh/authorized_key` 文件中：
+ssh-copy-id -i ~/.ssh/id_rsa.pub hadoop1 ssh-copy-id -i ~/.ssh/id_rsa.pub hadoop2 ssh-copy-id -i ~/.ssh/id_rsa.pub hadoop3 ssh-copy-id -i ~/.ssh/id_rsa.pub hadoop4 ssh-copy-id -i ~/.ssh/id_rsa.pub hadoop5 2.4、防火墙 关闭防火墙，或者放行以下端口：9000、50090、8022、50470、50070、49100、8030、8031、8032、8033、8088、8090
+3、安装部署 3.1、JDK安装 3.1.1、下载并解压jdk # hadoop1、hadoop2、hadoop3上安装jdk mkdir /usr/app cd /usr/app cp jdk-8u201-linux-x64.
+	</div>
+	<div class="list__footer clearfix">
+		<a class="list__footer-readmore btn" href="/posts/3c494b5139763c0de499e21ad04cc0ed/">Read more…</a>
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/c2d148e7e4b18bcab8e8a93df69165b5/" rel="bookmark">
+			Ubuntu磁盘挂载精简教程
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		一、磁盘挂载简易版 文章来源
+1、创建挂载目录
+sudo mkdir /data 2、查看系统硬盘
+sudo lsblk 3、格式化硬盘
+sudo mkfs -t ext4 /dev/sdb 4、挂载磁盘到目录
+sudo mount /dev/sdb /data 5、查看挂载情况
+df -h 6、配置挂载信息
+sudo vim /etc/fstab /dev/sdb /data auto defaults,nofail,comment=cloudconfig 0 2 7、检查配置是否正常
+sudo mount -a # 不报错就是正常的 二、LVM挂载多磁盘到同一文件目录 1、删除已划分的磁盘 如果有磁盘已经通过parted分区，首先要删除分区
+# 执行parted命令 parted /dev/sdb # 打印分区信息 print # 根据序号删除分区，n为分区序号 rm n 将已删除分区的磁盘恢复成生磁盘
+wipefs -a -f /dev/sdd 2、创建vg并挂载目录 创建物理卷（PV）
+pvcreate /dev/sdb /dev/sdc /dev/sdd /dev/sde /dev/sdf /dev/sdg /dev/sdh /dev/sdi /dev/sdj /dev/sdk 创建卷组（VG）
+	</div>
+	<div class="list__footer clearfix">
+		<a class="list__footer-readmore btn" href="/posts/c2d148e7e4b18bcab8e8a93df69165b5/">Read more…</a>
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/b5cbc0870cb17ff1be14ffbb8db51e40/" rel="bookmark">
+			计算两个日期相隔多少年，多少月，多少天
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		核心方法 /** * @name: 计算两个日期相隔多少年，多少月，多少天 * @param {date} $date1 [格式如：2011-11-5] * @param {date} $date2 [格式如：2012-12-01] * @author: Turbo * @Date: 2023-01-05 13:35:37 */ public function diffDate($date1, $date2) { if (strtotime($date1) &gt; strtotime($date2)) { $tmp = $date2; $date2 = $date1; $date1 = $tmp; } list($Y1, $m1, $d1) = explode('-', $date1); list($Y2, $m2, $d2) = explode('-', $date2); $Y = $Y2 - $Y1; $m = $m2 - $m1; $d = $d2 - $d1; if ($d &lt; 0) { $d += (int)date('t', strtotime("
+	</div>
+	<div class="list__footer clearfix">
+		<a class="list__footer-readmore btn" href="/posts/b5cbc0870cb17ff1be14ffbb8db51e40/">Read more…</a>
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/97dbffcc6253bbbec86a6970416944ac/" rel="bookmark">
+			实现无头单链表的基本操作
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		无头指针的单链表的结构 创建一个节点类，一个初始链表 static class Node { public int val;//存储的数据 public Node next;//存储下一个节点的地址 public Node (int val) { this.val = val; } } public Node head;// 代表当前链表的头节点的引用 //初始单链表 public void createLink() { Node node1 = new Node(12); Node node2 = new Node(45); Node node3 = new Node(23); Node node4 = new Node(90); node1.next = node2; node2.next = node3; node3.next = node4; /* */ head = node1; } 打印链表，遍历链表 Node cur = head; 的作用是为了实现“滴滴代跑”，防止遍历一遍以后head==null找不到头结点了。
+	</div>
+	<div class="list__footer clearfix">
+		<a class="list__footer-readmore btn" href="/posts/97dbffcc6253bbbec86a6970416944ac/">Read more…</a>
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/693e30e84e5eb2ae1001626d8bc92bb6/" rel="bookmark">
+			Linux基础命令--黑马程序员总结，在线Linux环境推荐
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		本文包含黑马程序员linux学习视频的命令总结和在线Linux环境网址链接。
+文章目录
+前言
+一、在线Linux环境网址
+二、基础Linux命令汇总
+前言
+liunx是许多种类工程师要学习的内容。比如：数通工程师，程序员。掌握基本的Linux命令对工作和学习有很大的帮助。
+一、在线Linux环境网址 JS/UIX - TerminalJS/UIX - virtual JavaScript-OS and UNIX-emulatorhttps://www.masswerk.at/jsuix/index.html
+二、基础Linux命令汇总 linux命令通用格式：command [-options] [parameter] #ls 在命令行中，以平铺的形式，展示当前工作目录下的内容 #ls -a 展示出以.开头的隐藏文件/文件夹 #ls -l 以列表的形式展示内容，并展示权限细节（文件/文件夹的权限控制信息，文件/文件夹所属用户，文件/文件夹所属用户组，r代表只读，w代表只写，x代表执行） #ls -h 需要和-l搭配适用，以更人性化的方式展示文件的大小单位。组合适用例如:ls -lah #cd [linux路径] 切换到哪个目录下，不写参数执行表示回到用户的home目录 #绝对路径：以根目录为起点，路径描述以/开头，例如cd /home/ithema/Desktop #相对路径：以当前目录为起点，路径描述无需/开头，例如cd Desktop #特殊路径符： . 表示当前目录； .. 表示上一级目录； ~ 表示home目录、 #pwd 查看当前所在的工作目录 #mkdir [-p] linux路径 创建新的目录/文件夹，[-p]可选，表示自动创建不存在的父目录 #touch linux路径 创建文件 #cat linux路径 一次性查看文件全部内容 #more linux路径 翻页查看文件内容 #cp [-r] linux路径1 linux路径2 复制文件/文件夹。[-r]可选，复制文件夹使用。路径1表示被复制的文件/文件夹。路径2表示要复制去的地方 #mv linux路径1 linux路径2 移动文件/文件夹。路径1表示被移动的文件/文件夹，路径2表示要移动去的地方，如果不存在就进行改名。 #rm [-r -f] 参数1 参数2 .
+	</div>
+	<div class="list__footer clearfix">
+		<a class="list__footer-readmore btn" href="/posts/693e30e84e5eb2ae1001626d8bc92bb6/">Read more…</a>
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/23a23c5837cf68fbfcc4fd9fa4c1b35f/" rel="bookmark">
+			成功解决Linux安装vim不成功（package ‘vim‘ has no installation candidate）
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		 问题： 环境：Linux Ubuntu 17.0.0
+出现的问题如下图所示，在安装vim时，错误信息：package is missing,has been obsoleted, or is only available from another source; package 'vim' has no installation candidate
+解决： 先更新apt源，再进行安装，更新完成后，再安装就可以成功啦！
+在普通模式下输入
+sudo apt-get update 再安装vim
+sudo apt-get install vim 
+	</div>
+</article>
+</main>
+
+<div class="pagination">
+	<a class="pagination__item pagination__item--prev btn" href="/page/59/">«</a>
+	<span class="pagination__item pagination__item--current">60/134</span>
+	<a class="pagination__item pagination__item--next btn" href="/page/61/">»</a>
+</div>
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

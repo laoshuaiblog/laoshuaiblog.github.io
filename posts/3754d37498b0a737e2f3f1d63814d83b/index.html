@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>clickhouse插入最佳实践 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/3754d37498b0a737e2f3f1d63814d83b/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="clickhouse插入最佳实践">
+  <meta property="og:description" content="背景： 对于使用clickhouse来说，和使用mysql等数据库相比，比较需要注意一点是它的数据插入，由于clickhouse后台使用合并各个part分区的方式进行数据合并，所以也就意味着对于ck来说分批插入才是更好的数据插入方式，本文就来对比下客户端分配和使用clickhouse字段的异步插入的优缺点,此处我们只讨论Replicate复制表.
+客户端分批 我们可以通过在客户端对数据进行预先分批，比如我们可以在客户端缓存1000条记录，然后再一次性的通过insert values(…)的方式批量插入到ck中
+1.这种方式的优点是ck的自动去重功能还在，也就是说如果客户端由于网络原因重试多次插入同一个statement语句的sql，那么ck会自动的去重.
+2.关于客户端分批的大小，clickhouse官网建议每批的最小大小至少为1000，比较合理的区间是1w-10w之间，并且每秒插入数不超过1次,也就是每秒最多执行一次insert操作
+ck自带的异步插入 使用类似如下的方式开启异步插入以及等待异步插入完成才返回：
+INSERT INTO YourTable SETTINGS async_insert=1, wait_for_async_insert=1 VALUES (... 首先async_insert=1表示开启异步插入的功能，也即是客户端insert的数据会被ck缓存，直到满足一下条件之一才会写入ck的part分区中，
+async_insert_max_data_size 缓存大小大于这个配置值async_insert_busy_timeout_ms超时时间到async_insert_max_query_number每个数据块已经达到配置的insert次数 其次，我们看一下wait_for_async_insert参数，
+a.如果这个参数值=1，那么表示客户端插入数据到ck的缓存后，ck服务器不会马上返回响应，服务器只有再缓存flush数据到part分区后才会返回响应，其实从这里可以看出如果要采用=1的参数值，那么应该是使用多线程插入的方式，因为如果单线程的话，明显每一次其实都是等待async_insert_busy_timeout_ms超时时间到才返回响应.
+b.如果这个参数=0，那么表示客户端插入数据到ck的缓存后，ck服务器马上返回响应，不会等待缓存的数据flush成part数据，这种方式的弊端是如果服务器在将缓存数据flush成part分区的时候发生错误，那么客户端完全感知不到，此外，如果客户端此时在服务器返回响应后又继续以高频率发送insert数据请求，会导致服务器端的负载压力过高.
+其实从这里可知，不论wait_for_async_insert的值是什么，客户端都要控制insert的速度,对于=1来说需要控制多线程insert的速度，对于=0来说，控制单线程insert的速度,不过对于=1来说，Ack确认返回后确切的知道数据已经插入成功了.
+最后，异步插入不支持数据去重，也就是当多次重试调用相同的insert语句时，数据会插入多次，而不会进行去重逻辑.
+参考文献：
+https://clickhouse.com/docs/en/optimize/asynchronous-inserts
+https://clickhouse.com/docs/en/optimize/bulk-inserts">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2023-06-06T02:01:48+08:00">
+    <meta property="article:modified_time" content="2023-06-06T02:01:48+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">clickhouse插入最佳实践</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-dark">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <h3><a id="_0"></a>背景：</h3> 
+<p>对于使用clickhouse来说，和使用mysql等数据库相比，比较需要注意一点是它的数据插入，由于clickhouse后台使用合并各个part分区的方式进行数据合并，所以也就意味着对于ck来说分批插入才是更好的数据插入方式，本文就来对比下客户端分配和使用clickhouse字段的异步插入的优缺点,此处我们只讨论Replicate复制表.</p> 
+<h3><a id="_4"></a>客户端分批</h3> 
+<p>我们可以通过在客户端对数据进行预先分批，比如我们可以在客户端缓存1000条记录，然后再一次性的通过insert values(…)的方式批量插入到ck中<br> 1.这种方式的优点是ck的自动去重功能还在，也就是说如果客户端由于网络原因重试多次插入同一个statement语句的sql，那么ck会自动的去重.<br> 2.关于客户端分批的大小，clickhouse官网建议每批的最小大小至少为1000，比较合理的区间是1w-10w之间，并且每秒插入数不超过1次,也就是每秒最多执行一次insert操作</p> 
+<h3><a id="ck_10"></a>ck自带的异步插入</h3> 
+<p>使用类似如下的方式开启异步插入以及等待异步插入完成才返回：</p> 
+<pre><code class="prism language-java">INSERT INTO <span class="token class-name">YourTable</span> <span class="token class-name">SETTINGS</span> async_insert<span class="token operator">=</span><span class="token number">1</span><span class="token punctuation">,</span> wait_for_async_insert<span class="token operator">=</span><span class="token number">1</span> VALUES <span class="token punctuation">(</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+</code></pre> 
+<p>首先async_insert=1表示开启异步插入的功能，也即是客户端insert的数据会被ck缓存，直到满足一下条件之一才会写入ck的part分区中，</p> 
+<ol><li>async_insert_max_data_size 缓存大小大于这个配置值</li><li>async_insert_busy_timeout_ms超时时间到</li><li>async_insert_max_query_number每个数据块已经达到配置的insert次数</li></ol> 
+<p>其次，我们看一下wait_for_async_insert参数，<br> a.如果这个参数值=1，那么表示客户端插入数据到ck的缓存后，ck服务器不会马上返回响应，服务器只有再缓存flush数据到part分区后才会返回响应，其实从这里可以看出如果要采用=1的参数值，那么应该是使用多线程插入的方式，因为如果单线程的话，明显每一次其实都是等待async_insert_busy_timeout_ms超时时间到才返回响应.<br> b.如果这个参数=0，那么表示客户端插入数据到ck的缓存后，ck服务器马上返回响应，不会等待缓存的数据flush成part数据，这种方式的弊端是如果服务器在将缓存数据flush成part分区的时候发生错误，那么客户端完全感知不到，此外，如果客户端此时在服务器返回响应后又继续以高频率发送insert数据请求，会导致服务器端的负载压力过高.<br> 其实从这里可知，不论wait_for_async_insert的值是什么，客户端都要控制insert的速度,对于=1来说需要控制多线程insert的速度，对于=0来说，控制单线程insert的速度,不过对于=1来说，Ack确认返回后确切的知道数据已经插入成功了.<br> 最后，异步插入不支持数据去重，也就是当多次重试调用相同的insert语句时，数据会插入多次，而不会进行去重逻辑.</p> 
+<p>参考文献：<br> https://clickhouse.com/docs/en/optimize/asynchronous-inserts<br> https://clickhouse.com/docs/en/optimize/bulk-inserts</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/2e31231aff6003a5e9efbf2f56f27750/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">使用PreparedStatement实现批量插入操作，三种方法(批量插入2000条数据为例)</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/70b57b3aed0b6b8a04f85098d52c57d3/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">ClickHouse数据查询处理高级技巧</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

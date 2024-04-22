@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>操作系统—— I/O 相关知识 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/590f622d737b3598bd76d9b91fa16525/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="操作系统—— I/O 相关知识">
+  <meta property="og:description" content="文章目录 前言一、I/O 设备的概念和分类二、I/O 控制器三、I/O 控制方式1、程序直接控制方式2、中断驱动方式3、DMA 方式4、通道控制方式 四、I/O 软件层次结构五、I/O 核心子系统1、假脱机技术2、设备的分配与回收⑴设备分配时应当考虑的因素⑵静态分配和动态分配⑶设备分配管理中的数据结构⑷设备分配的步骤 3、缓冲区管理⑴缓冲区的作用⑵单缓冲⑶双缓冲⑷循环缓冲区和缓冲池 总结 前言 本文的主要内容是操作系统中与 I/O 相关的一些基础知识，包括 I/O 设备的概念和分类、I/O 控制器、I/O 控制方式、I/O 软件层次结构以及 I/O 核心子系统，重点理解 I/O 控制方式和 I/O 核心子系统中完成工作。
+一、I/O 设备的概念和分类 I/O 就是 Input/Output 的缩写，即输入/输出。I/O 设备就是可以将数据输入到计算机，或者可以接收计算机输出数据的外部设备，I/O 设备属于计算机中的硬件部件。例如鼠标、键盘就是输入设备，显示器就是一个输出设备，而移动硬盘是既可输入又可输出设备。
+UNIX 系统中将外部设备抽象为一种特殊的文件，用户可以使用与文件操作相同的方式对外部设备进行操作。Read 操作就是从外部设备读入数据，Write 操作就是向外部设备写出数据。
+I/O 设备按照使用特性分类可以分为：人机交互类外部设备(键盘、鼠标、打印机等)、存储设备(移动硬盘、光盘等)和网络通信设备(调制解调器等)。其中，存储设备的数据传输速度在三者中最快，网络通信设备次之，人机交互类外部设备最慢。
+I/O 设备按照传输速率分类可以分为：低速设备、中速设备和高速设备。低速设备传输速率为每秒几个到几百个字节，例如鼠标、键盘等；中速设备传输速率为每秒数千至上万个字符，例如打印机等；高速设备传输速率为每秒数千字节至千兆字节，例如硬盘、磁盘等。
+I/O 设备按照信息交换的单位分类可以分为：块设备和字符设备。块设备例如移动硬盘、磁盘等，其数据的传输单位是块，传输速率较高，可寻址，也就是对它可以随机地读或写任意一块。字符设备例如鼠标、键盘等，其数据的传输单位是字符，传输速率较慢，不可寻址，在输入输出时常采用中断驱动方式。
+对 I/O 设备的概念和分类这部分的内容简单的总结一下，如下图所示。
+二、I/O 控制器 I/O 设备由机械部件和电子部件组成，电子部件就是 I/O 控制器，也称为设备控制器。
+I/O 设备的机械部件主要用来执行具体的 I/O 操作，比如鼠标和键盘的按钮，显示器的屏幕等。I/O 设备的电子部件通常是一块插入主板扩充槽的印刷电路板。
+由于 CPU 无法直接控制 I/O 设备的机械部件，因此 I/O 设备需要一个电子部件作为 CPU 和 I/O 设备机械部件之间的媒介，用于实现 CPU 对设备的控制。这个电子部件就是 I/O 控制器，CPU 可以控制 I/O 控制器， I/O 控制器来控制设备的机械部件。">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2022-09-01T13:06:07+08:00">
+    <meta property="article:modified_time" content="2022-09-01T13:06:07+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">操作系统—— I/O 相关知识</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-light">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <p></p> 
+<div class="toc"> 
+ <h4>文章目录</h4> 
+ <ul><li><a href="#_3" rel="nofollow">前言</a></li><li><a href="#IO__7" rel="nofollow">一、I/O 设备的概念和分类</a></li><li><a href="#IO__17" rel="nofollow">二、I/O 控制器</a></li><li><a href="#IO__36" rel="nofollow">三、I/O 控制方式</a></li><li><ul><li><a href="#1_38" rel="nofollow">1、程序直接控制方式</a></li><li><a href="#2_53" rel="nofollow">2、中断驱动方式</a></li><li><a href="#3DMA__63" rel="nofollow">3、DMA 方式</a></li><li><a href="#4_81" rel="nofollow">4、通道控制方式</a></li></ul> 
+  </li><li><a href="#IO__98" rel="nofollow">四、I/O 软件层次结构</a></li><li><a href="#IO__119" rel="nofollow">五、I/O 核心子系统</a></li><li><ul><li><a href="#1_125" rel="nofollow">1、假脱机技术</a></li><li><a href="#2_144" rel="nofollow">2、设备的分配与回收</a></li><li><ul><li><a href="#_145" rel="nofollow">⑴设备分配时应当考虑的因素</a></li><li><a href="#_153" rel="nofollow">⑵静态分配和动态分配</a></li><li><a href="#_156" rel="nofollow">⑶设备分配管理中的数据结构</a></li><li><a href="#_166" rel="nofollow">⑷设备分配的步骤</a></li></ul> 
+   </li><li><a href="#3_183" rel="nofollow">3、缓冲区管理</a></li><li><ul><li><a href="#_185" rel="nofollow">⑴缓冲区的作用</a></li><li><a href="#_193" rel="nofollow">⑵单缓冲</a></li><li><a href="#_201" rel="nofollow">⑶双缓冲</a></li><li><a href="#_216" rel="nofollow">⑷循环缓冲区和缓冲池</a></li></ul> 
+  </li></ul> 
+  </li><li><a href="#_232" rel="nofollow">总结</a></li></ul> 
+</div> 
+<p></p> 
+<hr color="#000000" size='1"'> 
+<h2><a id="_3"></a>前言</h2> 
+<p>本文的主要内容是操作系统中与 I/O 相关的一些基础知识，包括 I/O 设备的概念和分类、I/O 控制器、I/O 控制方式、I/O 软件层次结构以及 I/O 核心子系统，重点理解 I/O 控制方式和 I/O 核心子系统中完成工作。</p> 
+<hr color="#000000" size='1"'> 
+<h2><a id="IO__7"></a>一、I/O 设备的概念和分类</h2> 
+<p>I/O 就是 Input/Output 的缩写，即输入/输出。I/O 设备就是可以将数据输入到计算机，或者可以接收计算机输出数据的外部设备，I/O 设备属于计算机中的硬件部件。例如鼠标、键盘就是输入设备，显示器就是一个输出设备，而移动硬盘是既可输入又可输出设备。<br> UNIX 系统中将外部设备抽象为一种特殊的文件，用户可以使用与文件操作相同的方式对外部设备进行操作。Read 操作就是从外部设备读入数据，Write 操作就是向外部设备写出数据。<br> <strong>I/O 设备按照使用特性分类</strong>可以分为：人机交互类外部设备(键盘、鼠标、打印机等)、存储设备(移动硬盘、光盘等)和网络通信设备(调制解调器等)。其中，存储设备的数据传输速度在三者中最快，网络通信设备次之，人机交互类外部设备最慢。<br> <strong>I/O 设备按照传输速率分类</strong>可以分为：低速设备、中速设备和高速设备。低速设备传输速率为每秒几个到几百个字节，例如鼠标、键盘等；中速设备传输速率为每秒数千至上万个字符，例如打印机等；高速设备传输速率为每秒数千字节至千兆字节，例如硬盘、磁盘等。<br> <strong>I/O 设备按照信息交换的单位分类</strong>可以分为：块设备和字符设备。块设备例如移动硬盘、磁盘等，其数据的传输单位是块，传输速率较高，可寻址，也就是对它可以随机地读或写任意一块。字符设备例如鼠标、键盘等，其数据的传输单位是字符，传输速率较慢，不可寻址，在输入输出时常采用中断驱动方式。<br> 对 I/O 设备的概念和分类这部分的内容简单的总结一下，如下图所示。<br> <img src="https://images2.imgbox.com/67/47/mbq8P4Gp_o.png" alt="在这里插入图片描述"></p> 
+<hr color="#000000" size='1"'> 
+<h2><a id="IO__17"></a>二、I/O 控制器</h2> 
+<p>I/O 设备由<strong>机械部件</strong>和<strong>电子部件</strong>组成，电子部件就是 I/O 控制器，也称为设备控制器。<br> I/O 设备的机械部件主要用来执行具体的 I/O 操作，比如鼠标和键盘的按钮，显示器的屏幕等。I/O 设备的电子部件通常是一块插入主板扩充槽的印刷电路板。<br> 由于 CPU 无法直接控制 I/O 设备的机械部件，因此 I/O 设备需要一个电子部件作为 CPU 和 I/O 设备机械部件之间的媒介，用于实现 CPU 对设备的控制。这个电子部件就是 I/O 控制器，CPU 可以控制 I/O 控制器， I/O 控制器来控制设备的机械部件。<br> <strong>I/O 控制器的功能：</strong><br> ①接收和识别 CPU 发出的命令。如CPU发来的read/write命令，I/O控制器中会有相应的控制寄存器来存放命令和参数。<br> ②向 CPU 报告设备的状态。I/O控制器中会有相应的状态寄存器，用于记录I/O设备的当前状态。比如1表示空闲，0表示忙碌。<br> ③数据交换。I/O控制器中会设置相应的数据寄存器，输出时，数据寄存器用于暂存CPU发来的数据，之后再由控制器传送设备；输入时，数据寄存器用于暂存设备发来的数据，之后CPU从数据寄存器中取走数据。<br> ④地址识别。类似于内存的地址，为了区分设备控制器中的各个寄存器，也需要给各个寄存器设置一个特定的“地址”，I/O控制器通过CPU提供的“地址”来判断CPU要读或写的是哪个寄存器。<br> I/O 控制器由 CPU 与控制器接口、I/O 逻辑和控制器与设备的接口等部分组成，具体的介绍如下图所示。<br> <img src="https://images2.imgbox.com/81/46/8j6gvsJd_o.png" alt="请添加图片描述"><br> 需要注意的是，一个 I/O 控制器可能会对应多个设备，数据寄存器、控制寄存器、状态寄存器可能有多个，并且这些寄存器都要有相应的地址，这样才能方便 CPU 操作。其中，有些计算机会让这些寄存器占用内存地址的一部分，称为内存映像 I/O，另一些计算机则采用 I/O 专用地址，也就是寄存器独立编址。<br> 内存映像 I/O 和寄存器独立编址的区别如下图所示。<br> <img src="https://images2.imgbox.com/2d/00/t1omyIny_o.png" alt="在这里插入图片描述"><br> 两者主要的不同是：内存映像 I/O 方式下，控制器中的寄存器与内存地址是统一编址的，这样就简化了指令，而且可以采用对内存进行操作的指令来对控制器进行操作；寄存器独立编址方式下，控制器中的寄存器使用单独的地址，这样就需要设置专门的指令来实现对控制器的操作，不仅需要指明寄存器的地址，还要指明控制器的编号。<br> 对 I/O 控制器这部分的内容简单的总结一下，如下图所示。<br> <img src="https://images2.imgbox.com/7f/14/42YgPuaT_o.png" alt="在这里插入图片描述"></p> 
+<hr color="#000000" size='1"'> 
+<h2><a id="IO__36"></a>三、I/O 控制方式</h2> 
+<p>I/O 控制方式也就是用什么样的方式来控制 I/O 设备数据的读和写操作，I/O 控制方式有程序直接控制方式、中断驱动方式、DMA 方式和通道控制方式。在这些方式中需要注意完成依次读写操作的流程、CPU 干预的频率、数据传送的单位、数据的流向以及优缺点。</p> 
+<h3><a id="1_38"></a>1、程序直接控制方式</h3> 
+<p>程序直接控制方式的核心就是轮询，其流程图如下图所示。<br> <img src="https://images2.imgbox.com/18/a3/nTroD7Hg_o.jpg" alt="请添加图片描述"><br> 以读操作为例，程序直接控制方式的具体步骤如下：<br> ①CPU 向控制器发出读指令，然后设备启动，并且将状态寄存器设为1，也就是未就绪态；<br> ②轮询检查控制器的状态，如果状态寄存器的值一直为1，说明设备还没准备好要输入的数据，CPU 会不断的轮询直到状态寄存器的值为0；<br> ③输入设备准备好数据后将数据传给控制器，并报告自身的状态；<br> ④控制器将输入的数据放到数据寄存器中，并将状态改为0，也就是已就绪；<br> ⑤CPU 发现设备已就绪，就可以将数据寄存器中的内容读入 CPU 的寄存器中，再把 CPU 寄存器中的内容放入内存；<br> ⑥若要继续读取数据，则 CPU 继续发出读指令。<br> <strong>CPU 干预的频率</strong>：很频繁，I/O 操作开始之前、完成之后都需要 CPU 的介入，并且在等待 I/O 完成的过程中 CPU 需要不断地轮询检查。<br> <strong>数据传送的单位</strong>：每次读/写一个字。<br> <strong>数据的流向</strong>：数据输入/读操作下：I/O 设备—&gt;CPU—&gt;内存；数据输出/写操作下：内存—&gt;CPU—&gt;I/O 设备。<br> <strong>优点</strong>：实现简单，在读或者写指令之后，加上实现循环检查的一系列指令即可。<br> <strong>缺点</strong>：CPU 和 I/O 设备只能串行工作，CPU 需要一直轮询检查，长期处于忙等状态，因此 CPU 和 I/O 设备的利用率低。</p> 
+<h3><a id="2_53"></a>2、中断驱动方式</h3> 
+<p>中断驱动方式的核心就是中断，其流程图如下图所示。<br> <img src="https://images2.imgbox.com/91/44/s60bOsox_o.png" alt="请添加图片描述"><br> 中断驱动方式引入中断机制，由于 I/O 设备速度很慢，因此在 CPU 发出读或写指令后 ，可将等待 I/O 的进程阻塞，先切换到别的进程执行，当 I/O 完成后，控制器会向 CPU 发出一个中断信号，CPU 检测到中断信号后会保存当前进程的运行环境信息，转去执行中断处理程序处理该中断，处理中断的过程中，CPU 从 I/O 控制器读一个字的数据传送到 CPU 寄存器，再写入主存，然后，CPU 恢复等待 I/O 的进程的运行环境，继续执行。<br> 需要注意的是：①CPU 会在每个指令周期的末尾检查中断；②中断处理过程中需要保存、恢复进程的运行环境，这个过程需要一定的时间开销，因此，如果中断发生的频率太高，也会降低系统的性能。<br> <strong>CPU 干预的频率</strong>：每次 I/O 操作开始之前、完成之后都需要 CPU 的介入，而在等待 I/O 完成的过程中 CPU 可以切换到别的进程执行。<br> <strong>数据传送的单位</strong>：每次读/写一个字。<br> <strong>数据的流向</strong>：数据输入/读操作下：I/O 设备—&gt;CPU—&gt;内存；数据输出/写操作下：内存—&gt;CPU—&gt;I/O 设备。<br> <strong>优点</strong>：与程序直接控制方式相比，该方式下 I/O 控制器会通过中断信号主动报告 I/O 已完成，CPU 不再需要不停地轮询，此外 CPU 和 I/O 设备可并行工作，CPU 的利用率明显的提升。<br> <strong>缺点</strong>：每个字在 I/O 设备与内存之间的传输都需要经过 CPU，而频繁的中断处理会消耗较多的 CPU 时间。</p> 
+<h3><a id="3DMA__63"></a>3、DMA 方式</h3> 
+<p>DMA(Direct Memory Access)方式也称为直接存储器存取，主要用于块设备的 I/O 控制，相比于中断驱动方式的改进有以下几点：<br> ①数据的传送单位不再是一个字，而是块；<br> ②数据的流向是从设备直接放入内存，或者从内存直接到设备，不再需要 CPU 作为中间的桥梁；<br> ③只在传送一个或多个数据块的开始和结束时，才需要 CPU 的干预。<br> DMA 控制器的组成如下图所示。<br> <img src="https://images2.imgbox.com/de/34/pjdArJqD_o.png" alt="在这里插入图片描述"><br> 对上图中的一些内容解释如下：<br> DR(Data Register，数据寄存器)：暂存一些从设备到内存或者从内存到设备的数据。<br> MAR(Memory Address Register，内存地址寄存器)：输入时 MAR 表示数据应该放到内存中的什么位置；输出时 MAR 表示输出的数据放在内存中的什么位置。<br> DC(Data Counter，数据计数器)：表示剩余要读/写的字节数。<br> CR(Command Register，命令/状态寄存器)：存放 CPU 发来的 I/O 命令，或者设备的状态信息。<br> DMA 方式的简要流程如下图所示。<img src="https://images2.imgbox.com/e6/04/DOJnczfb_o.png" alt="在这里插入图片描述"><br> <strong>CPU 干预的频率</strong>：只在传送一个或多个数据块的开始和结束时才需要 CPU 的干预。<br> <strong>数据传送的单位</strong>：每次读/写一个块或多个块，如果是读多个块，这些块必须是连续的，且读入内存中也必须是连续的。<br> <strong>数据的流向</strong>：数据输入/读操作下：I/O 设备—&gt;内存；数据输出/写操作下：内存—&gt;I/O 设备。<br> <strong>优点</strong>：数据传输以块为单位， CPU 的介入频率进一步降低，数据传输不再需要先经过 CPU 再写入内存，数据传输效率进一步增加，CPU 和 I/O 设备的并行性得到提升。<br> <strong>缺点</strong>：CPU 每发出一条 I/O 指令，只能读或者写一个或多个连续的数据块。如果需要读或者写多个离散存储的数据块，或者要将数据分别写到不同的内存区域时，CPU 要分别发出多条 I/O 指令，进行多次中断处理才能完成。</p> 
+<h3><a id="4_81"></a>4、通道控制方式</h3> 
+<p>通道是一种硬件，可以将其理解为弱化版的 CPU，它可以识别并执行一系列的通道指令。与 CPU 相比，通道可以执行的指令很单一，并且通道程序是放在主机内存中的，也就是说通道和 CPU 共享内存。<br> 通道控制方式的执行步骤如下图所示。<br> <img src="https://images2.imgbox.com/f9/de/PTJZLZPY_o.png" alt="在这里插入图片描述"><br> 上面图中的通道程序可以理解为任务清单，里面存放着需要完成的具体任务。<br> <font color="#ff0000"><strong>一个通道可以控制多个 I/O 控制器，而一个 I/O 控制器又可以控制多个 I/O 设备。</strong></font><br> 通道控制方式的简要流程如下图所示。<br> <img src="https://images2.imgbox.com/34/d6/oirMQGyG_o.png" alt="在这里插入图片描述"><br> <strong>CPU 干预的频率</strong>：极低，通道会根据 CPU 的指示执行相应的通道程序，只有完成一组数据块的读或者写后才需要发出中断信号，请求 CPU 干预。<br> <strong>数据传送的单位</strong>：每次读/写一组数据块。<br> <strong>数据的流向</strong>：数据输入/读操作下：I/O 设备—&gt;内存；数据输出/写操作下：内存—&gt;I/O 设备。<br> <strong>优点</strong>：CPU、通道、I/O 设备可以并行工作，资源利用率很高。<br> <strong>缺点</strong>：实现复杂，需要专门的通道硬件支持。<br> 对 I/O 控制方式这部分的内容简单的总结一下，如下表所示。<br> <img src="https://images2.imgbox.com/95/ea/YjqhSWZk_o.png" alt="在这里插入图片描述"></p> 
+<hr color="#000000" size='1"'> 
+<h2><a id="IO__98"></a>四、I/O 软件层次结构</h2> 
+<p>I/O 软件层次包括用户层软件、设备独立性软件、设备驱动程序和中断处理程序，其示意图如下图所示。<br> <img src="https://images2.imgbox.com/a9/7f/mglOBlUO_o.jpg" alt="请添加图片描述"><br> <strong>用户层软件</strong>实现了与用户交互的接口，用户可直接使用该层提供的、与 I/O 操作相关的库函数对设备进行操作。用户层软件将用户请求翻译成格式化的 I/O 请求，并通过系统调用请求操作系统内核的服务。<br> <strong>设备独立性软件</strong>又称为设备无关性软件，与设备的硬件特性无关的功能几乎都在这一层实现。其实现的主要功能有：<br> ①向上层提供统一的调用接口，如 read/write 系统调用；<br> ②对设备的保护，设备可以看作特殊的文件，不同用户对各个文件的访问权限不一样，因此对设备的访问权限也不一样；<br> ③差错处理；<br> ④设备的分配与回收；<br> ⑤数据缓冲区管理；<br> ⑥建立逻辑设备名到物理设备名的映射关系，根据设备类型选择调用相应的驱动程序。<br> 设备驱动软件需要通过逻辑设备表(LUT，Logical Unit Table)来确定逻辑设备对应的物理设备，并找到该设备对应的设备驱动程序。<br> 操作系统可以采用两种方式管理逻辑设备表，第一种就是<strong>整个系统只设置一张 LUT</strong>，这种情况下所有用户不能使用相同的逻辑设备名，其只适用于单用户操作系统；第二种就是<strong>为每个用户设置一张 LUT</strong>，各个用户使用的逻辑设备名可以重复，适用于多用户操作系统，系统会在用户登录时为其建立一个用户管理进程，而 LUT 就存放在用户管理进程的 PCB 中。<br> <strong>设备驱动程序</strong>主要负责对硬件设备的具体控制，将上层发出的一系列命令转化成特定设备能够识别的一系列操作，包括设置设备寄存器、检查设备状态等。<br> 驱动程序一般会以一个独立的进程的方式存在。<br> 不同的设备需要不同的设备驱动程序，就像不同品牌的打印机，其驱动程序也各不相同。因为不同设备的内部硬件特性不同，而这些特性只有厂家才知道，因此厂家须提供与设备相对应的驱动程序，CPU 执行驱动程序的指令序列来完成各项设置。<br> <strong>中断处理程序</strong>：当 I/O 任务完成时，I/O 控制器会发送一个中断信号，系统会根据中断信号的类型找到相应的中断处理程序并执行，中断处理程序的处理流程如下图所示。<br> <img src="https://images2.imgbox.com/80/af/5Ylu5gAM_o.png" alt="在这里插入图片描述"><br> <strong>设备驱动程序和中断处理程序是直接和硬件打交道的。</strong></p> 
+<hr color="#000000" size='1"'> 
+<h2><a id="IO__119"></a>五、I/O 核心子系统</h2> 
+<p>设备独立性软件、设备驱动程序和中断处理程序属于操作系统内核部分，这三部分也称为 I/O 系统或 I/O 核心子系统。<br> 假脱机技术需要请求磁盘设备的设备独立性软件的服务，因此一般来说假脱机技术是在用户层软件实现的。<br> 设备独立性软件中包括 I/O 调度、设备保护、设备的分配与回收以及缓冲区管理等工作。<br> <strong>I/O 调度就是用某种算法确定一个好的顺序来处理各个 I/O 请求。</strong><br> 设备保护类似于文件保护，在 UNIX 系统中，设备被看做是一种特殊的文件，每个设备会有对应的 FCB，当用户请求访问某个设备时，系统会根据 FCB 中记录的信息来判断该用户是否有相应的访问权限，以此实现设备保护的功能。</p> 
+<h3><a id="1_125"></a>1、假脱机技术</h3> 
+<p>假脱机技术也叫 SPOOLing 技术，这里的脱机就是脱离主机的控制进行的输入和输出操作。<br> 在手工操作阶段，主机直接从 I/O 设备获得数据，由于设备速度慢，主机速度很快，人机速度矛盾明显，主机要浪费很多时间来等待设备。<br> 在批处理阶段引入了脱机输入/输出技术，这个过程是借助磁带完成的，如下图所示。<br> <img src="https://images2.imgbox.com/c0/8c/WLWRpT3y_o.png" alt="在这里插入图片描述"><br> 在外围控制机的控制下，慢速输入设备的数据先被输入到更快速的磁带上，之后主机可以从快速的磁带上读入数据，从而缓解了速度矛盾。<br> 引入脱机技术后缓解了 CPU 与慢速 I/O 设备的速度矛盾，即使 CPU 在忙碌，也可以提前将数据输入到磁带，即使慢速的输出设备正在忙碌，也可以提前将数据输出到磁带。<br> 假脱机技术是用软件的方式模拟脱机技术，假脱机技术的系统组成如下图所示。<br> <img src="https://images2.imgbox.com/d9/26/Hx6jA13g_o.png" alt="在这里插入图片描述"><br> 上面图中的输入/输出缓冲区分别用于暂存输入设备输入到输入井的数据和输出井输出到输出设备的数据。<br> SPOOLing 技术可以把一台物理设备虚拟成逻辑上的多台设备，可将独占式设备改造成共享设备。<br> 共享打印机原理的示意图如下图所示。<br> <img src="https://images2.imgbox.com/f8/b9/pZ2qTgNR_o.png" alt="在这里插入图片描述"><br> 打印机是独占式资源，那么怎么用 SPOOLing 技术将其改造成共享资源呢？<br> 当多个用户进程提出输出打印的请求时，系统会答应这些请求，但是并不是真正把打印机分配给它们，而是由假脱机管理进程为每个进程做以下两件事：①在磁盘输入井中为进程申请一个空闲缓冲区，这个缓冲区是在磁盘上的，并将要打印的数据送入其中；②为用户进程申请一张空白的打印请求表，并将用户的打印请求填入表中， 主要用来说明用户的打印数据存放位置等信息，再将该表挂到假脱机文件队列上。<br> 当打印机空闲时，输出进程会从文件队列的队头取出一张打印申请表，并根据表中的要求将要打印的数据从输出井传送到输出缓冲区，再输出到打印机进行打印，然后用这种方式依次处理完全部的打印任务。<br> 这样来看，虽然系统中只有一台打印机，但每个进程提出打印请求时，系统都会为进程在输出井中分配一个存储区，相当于分配了一个逻辑设备，使每个用户进程都觉得自己在独占一台打印机，从而实现了对打印机的共享。<br> 对假脱机技术这部分的内容简单的总结一下，如下图所示。<br> <img src="https://images2.imgbox.com/79/38/07smXdUV_o.png" alt="在这里插入图片描述"></p> 
+<h3><a id="2_144"></a>2、设备的分配与回收</h3> 
+<h4><a id="_145"></a>⑴设备分配时应当考虑的因素</h4> 
+<p>设备分配时应当考虑的因素有：设备的固有属性、设备分配算法和设备分配中的安全性。<br> <strong>设备的固有属性</strong>可分为三种：独占设备、共享设备和虚拟设备。<br> 独占设备在一个时段只能分配给一个进程；共享设备可同时分配给多个进程使用，各进程往往宏观上同时共享使用设备，而微观上在交替使用；虚拟设备是采用 SPOOLing 技术将独占设备改造成虚拟的共享设备，可同时分配给多个进程使用。<br> <strong>设备分配算法</strong>有先来先服务、优先级高者优先、短任务优先等算法。<br> <strong>设备分配中的安全性</strong>有两种设备分配方式：<br> 第一种：安全分配方式：为进程分配一个设备后就将进程阻塞，本次 I/O 完成后才将进程唤醒。这种方式下，一个时间段内每个进程只能使用一个设备，其优点是破坏了请求与保持条件，不会产生死锁，缺点是对于一个进程来说，CPU 和 I/O 设备只能串行的工作。<br> 第二种：不安全分配方式：进程发出 I/O 请求后，系统为其分配 I/O 设备，进程可以继续执行，之后还可以发出新的 I/O 请求，只有某个 I/O 请求得不到满足时才将进程阻塞。这种方式下，一个进程可以同时使用多个设备，其优点是进程的计算任务和 I/O 任务可以并行的处理，使进程迅速推进，缺点是有可能发生死锁。</p> 
+<h4><a id="_153"></a>⑵静态分配和动态分配</h4> 
+<p>静态分配：进程运行前为其分配全部所需的资源，运行结束后归还资源，其破坏了请求和保持条件，因此不会发生死锁。<br> 动态分配：进程运行过程中动态申请设备资源。</p> 
+<h4><a id="_156"></a>⑶设备分配管理中的数据结构</h4> 
+<p>设备、控制器和通道之间的关系：<strong>一个通道可控制多个设备控制器，每个设备控制器可控制多个设备。</strong><br> 系统会为每个设备配置一张<strong>设备控制表</strong>(DCT，Device Control Table) ，用于记录设备情况，设备控制表中的主要内容如下图所示。<br> <img src="https://images2.imgbox.com/2b/32/WrfqkGeN_o.png" alt="在这里插入图片描述"><br> 每个设备控制器都会对应一张<strong>控制器控制表</strong>(COCT，COntroller Control Table)，操作系统根据控制器控制表的信息对控制器进行操作和管理，控制器控制表中的主要内容如下图所示。<br> <img src="https://images2.imgbox.com/e1/6d/K2FFfI3i_o.png" alt="在这里插入图片描述"><br> 每个通道都会对应一张<strong>通道控制表</strong>(CHCT，CHannel Control Table)，操作系统会根据通道控制表的信息对通道进行操作和管理，通道控制表中的主要内容如下图所示。<br> <img src="https://images2.imgbox.com/18/34/uSElrBA2_o.png" alt="在这里插入图片描述"><br> 系统设备表(SDT，System Device Table)记录了系统中全部设备的情况，每个设备对应一个表目，系统设备表及表目示意图如下。<br> <img src="https://images2.imgbox.com/84/14/wl2Iytgd_o.png" alt="请添加图片描述"></p> 
+<h4><a id="_166"></a>⑷设备分配的步骤</h4> 
+<p>设备分配的步骤如下：<br> ①根据进程请求的物理设备名查找系统设备表，物理设备名是进程请求分配设备时提供的参数；<br> ②根据系统设备表找到设备控制表，若设备忙碌则将进程 PCB 挂到设备等待队列中，不忙碌则将设备分配给进程；<br> ③根据设备控制表找到控制器控制表，若控制器忙碌则将进程 PCB 挂到控制器等待队列中，不忙碌则将控制器分配给进程；<br> ④根据控制器控制表找到通道控制表，若通道忙碌则将进程 PCB 挂到通道等待队列中，不忙碌则将通道分配给进程；<br> 只有设备、控制器和通道三者都分配成功时，这次设备分配才算成功，之后便可以启动 I/O 设备进行数据传送。<br> 这种设备分配方式的<strong>缺点</strong>：用户编程时必须使用物理设备名，底层细节对用户不透明，不方便编程；若更换一个物理设备，则程序无法运行；若进程请求的物理设备正在忙碌，则即使系统中还有同类型的设备，进程也必须阻塞等待。<br> 针对上面缺点的<strong>改进</strong>：建立逻辑设备名与物理设备名的映射机制，用户编程时只需提供逻辑设备名。<br> 改进后设备分配的步骤如下：<br> ①根据进程请求的逻辑设备名查找系统设备表，用户编程时提供的逻辑设备名其实就是设备类型；<br> ②查找系统设备表，找到用户进程指定类型的并且空闲的设备，将其分配给该进程，操作系统在逻辑设备表(LUT，Logical Unit Table)中新增一个表项；<br> ③根据设备控制表找到控制器控制表，若控制器忙碌则将进程 PCB 挂到控制器等待队列中，不忙碌则将控制器分配给进程；<br> ④根据控制器控制表找到通道控制表，若通道忙碌则将进程 PCB 挂到通道等待队列中，不忙碌则将通道分配给进程；<br> 逻辑设备表建立了逻辑设备名与物理设备名之间的映射关系。在第一次设备分配完成后，如果之后用户进程再次通过相同的逻辑设备名请求使用设备，则操作系统通过逻辑设备表即可知道用户进程实际要使用的是哪个物理设备了，并且也能知道该设备的驱动程序入口地址。<br> 对设备的分配与回收这部分的内容简单的总结一下，如下图所示。<br> <img src="https://images2.imgbox.com/1c/bb/9wMDCAMv_o.png" alt="在这里插入图片描述"></p> 
+<h3><a id="3_183"></a>3、缓冲区管理</h3> 
+<p>缓冲区是一个存储区域，可以由专门的硬件寄存器组成，也可以利用内存作为缓冲区。使用硬件作为缓冲区的成本较高，容量也较小，一般只用在对速度要求非常高的场合。一般情况下，更多的是利用内存作为缓冲区，设备独立性软件的缓冲区管理就是要组织管理好这些缓冲区。</p> 
+<h4><a id="_185"></a>⑴缓冲区的作用</h4> 
+<p>缓冲区的作用主要有：<br> ①缓和 CPU 与 I/O 设备之间速度不匹配的矛盾；<br> ②减少对 CPU 的中断频率，放宽对 CPU 中断响应时间的限制；<br> ③解决数据粒度不匹配的问题；<br> ④提高 CPU 与 I/O 设备之间的并行性。<br> CPU、缓冲区和 I/O 设备之间的示意图如下图所示。<br> <img src="https://images2.imgbox.com/0b/95/kBfu01aF_o.png" alt="在这里插入图片描述"></p> 
+<h4><a id="_193"></a>⑵单缓冲</h4> 
+<p>假设某用户进程请求某种块设备读入若干块的数据，若采用单缓冲的策略，操作系统会在主存中为其分配一个缓冲区，一个缓冲区的大小一般为一个块。<br> <strong>需要注意的是，当缓冲区数据非空时，不能往缓冲区冲入数据，只能从缓冲区把数据传出；当缓冲区为空时，可以往缓冲区冲入数据，但必须把缓冲区充满以后，才能从缓冲区把数据传出。</strong><br> 从输入到 CPU 处理的这个过程中，输入时间大于处理时间的情况如下图所示。<br> <img src="https://images2.imgbox.com/53/30/SLL9W0yf_o.png" alt="在这里插入图片描述"><br> 输入时间小于处理时间的情况如下图所示。<br> <img src="https://images2.imgbox.com/30/18/g5OCJhYA_o.png" alt="在这里插入图片描述"><br> <strong>采用单缓冲策略，处理一个数据块的平均耗时为：Max(C，T) +M</strong></p> 
+<h4><a id="_201"></a>⑶双缓冲</h4> 
+<p>假设某用户进程请求某种块设备读入若干块的数据，若采用双缓冲的策略，操作系统会在主存中为其分配两个缓冲区，一个缓冲区的大小一般为一个块。<br> 假设双缓冲中的初始状态为：工作区空，两个缓冲区一个满，另一个空。<br> 输入时间大于处理时间和传送时间之和的情况如下图所示。<br> <img src="https://images2.imgbox.com/a1/02/dsNiVGUz_o.png" alt="在这里插入图片描述"><br> 输入时间小于处理时间和传送时间之和的情况如下图所示。<br> <img src="https://images2.imgbox.com/d4/11/Ya9heJEA_o.png" alt="在这里插入图片描述"><br> <strong>采用双缓冲策略，处理一个数据块的平均耗时为：Max(T，C+M)</strong><br> 两台机器之间通信时，可以配置缓冲区用于数据的发送和接收，两台机器配置单缓冲区的示意图如下图所示。<br> <img src="https://images2.imgbox.com/cd/3e/sU0QOmcd_o.png" alt="在这里插入图片描述"><br> 若两个相互通信的机器只设置单缓冲区，在任一时刻只能实现数据的单向传输。<br> 两台机器配置双缓冲区的示意图如下图所示。<br> <img src="https://images2.imgbox.com/e2/96/CV2AuvQN_o.png" alt="在这里插入图片描述"><br> 若两个相互通信的机器设置双缓冲区，在同一时刻可以实现双向的数据传输。<br> 管道通信与其类似，管道其实就是缓冲区，要实现数据的双向传输，必须设置两个管道。</p> 
+<h4><a id="_216"></a>⑷循环缓冲区和缓冲池</h4> 
+<p>将多个大小相等的缓冲区链接成一个循环队列就形成了循环缓冲区。<br> 下图中就是一个循环缓冲区的示意图，其中绿色的表示空缓冲区，橙色的表示已经充满数据的缓冲区。<br> <img src="https://images2.imgbox.com/6b/5b/JcepXzKx_o.png" alt="在这里插入图片描述"><br> 缓冲池由系统中共用的缓冲区组成，这些缓冲区按使用状况可以分为：空缓冲队列、装满输入数据的缓冲队列和装满输出数据的缓冲队列。此外，根据一个缓冲区在实际运算中扮演的功能不同，又设置了四种工作缓冲区：用于收容输入数据的工作缓冲区(hin)、用于提取输入数据的工作缓冲区(sin)、用于收容输出数据的工作缓冲区(hout)以及用于提取输出数据的工作缓冲区(sout)。<br> 缓冲池的示意图如下图所示。<br> <img src="https://images2.imgbox.com/d1/13/Q34SCr69_o.png" alt="在这里插入图片描述"><br> 结合上图，在缓冲池中可以进行以下操作：<br> ①在输入进程请求输入数据时，从空缓冲队列中取出一块作为收容输入数据的工作缓冲区(hin)，冲满数据后将缓冲区挂到输入队列队尾。<br> ②计算机进程相要取得一块输入数据时，从输入队列中取得一块冲满输入数据的缓冲区作为提取输入数据的工作缓冲区(sin)，缓冲区读空后挂到空缓冲区队列。<br> ③计算进程想要将准备好的数据冲入缓冲区时，从空缓冲队列中取出一块作为收容输出数据的工作缓冲区(hout)，数据冲满后将缓冲区挂到输出队列队尾。<br> ④输出进程请求输出数据时，从输出队列中取得一块冲满输出数据的缓冲区作为提取输出数据的工作缓冲区(sout)，缓冲区读空后挂到空缓冲队列队尾。<br> 对缓冲区管理这部分的内容简单的总结一下，如下图所示。<br> <img src="https://images2.imgbox.com/43/9a/iDguzzBz_o.png" alt="在这里插入图片描述"></p> 
+<hr color="#000000" size='1"'> 
+<h2><a id="_232"></a>总结</h2> 
+<p>以上就是操作系统—— I/O 相关知识的所有内容了，重点理解四种 I/O 控制方式，注意区分这些方式的不同之处以及每种方式针对前一种方式的改进，此外，I/O 核心子系统中的内容也要有一定的了解。<br> 参考视频：<br> <a href="https://www.bilibili.com/video/BV1YE411D7nH?p=62&amp;vd_source=83ff6bc8190dddb6fcfa4b537665a9b8" rel="nofollow">I/O 设备的概念和分类</a><br> <a href="https://www.bilibili.com/video/BV1YE411D7nH?p=63&amp;vd_source=83ff6bc8190dddb6fcfa4b537665a9b8" rel="nofollow">I/O 控制器</a><br> <a href="https://www.bilibili.com/video/BV1YE411D7nH?p=64&amp;vd_source=83ff6bc8190dddb6fcfa4b537665a9b8" rel="nofollow">I/O 控制方式</a><br> <a href="https://www.bilibili.com/video/BV1YE411D7nH?p=65&amp;vd_source=83ff6bc8190dddb6fcfa4b537665a9b8" rel="nofollow">I/O 软件层次结构</a><br> <a href="https://www.bilibili.com/video/BV1YE411D7nH?p=66&amp;vd_source=83ff6bc8190dddb6fcfa4b537665a9b8" rel="nofollow">I/O 核心子系统</a><br> <a href="https://www.bilibili.com/video/BV1YE411D7nH?p=67&amp;vd_source=83ff6bc8190dddb6fcfa4b537665a9b8" rel="nofollow">假脱机技术</a><br> <a href="https://www.bilibili.com/video/BV1YE411D7nH?p=68&amp;vd_source=83ff6bc8190dddb6fcfa4b537665a9b8" rel="nofollow">设备的分配与回收</a><br> <a href="https://www.bilibili.com/video/BV1YE411D7nH?p=69&amp;vd_source=83ff6bc8190dddb6fcfa4b537665a9b8" rel="nofollow">缓冲区管理</a></p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/c342d953d74aa34914e351d03b4aabf0/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">操作系统——进程的概念</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/502a538a4e10510f164a42199ad55fad/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">转：python之qrcode模块生成二维码</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>java读取rdb_剖析Redis RDB文件 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/e239706f1b52c80eb579d4cd3903c074/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="java读取rdb_剖析Redis RDB文件">
+  <meta property="og:description" content="通过redis-cli中执行save或者bgsave可以得到RDB文件(文件名由配置文件中dbfilename指定，例如dbfilename &#34;dump.rdb&#34;)，这个文件包含Redis实例中全量的数据，那么dump.rdb的文件格式大概是什么样的呢？
+RDB文件定义
+获取RDB文件
+我们首先通过redis-cli中执行save得到dump.rdb文件，然后用WinHex打开这个文件：
+dump.rdb.png
+说明：导出RDB文件时整个Redis实例中db=0里有个string类型的username，值为afei；db=6里有个string类型的uname，值为root，且设置了失效时间；
+剖析RDB文件
+根据WinHex达到的dump.rdb文件一个一个字节剖析文件真实的内容，以52这个16进制数为例，其十进制数值为82，通过ASCII码对照表可知，82对应的字符是R，相应的：45-&amp;gt;69-&amp;gt;E，44-&amp;gt;68-&amp;gt;D，49-&amp;gt;73-&amp;gt;I，53-&amp;gt;83-&amp;gt;S，最终该RDB文件内容如下：REDIS
+验证RDB文件定义
+前面5个16进制52 45 44 49 53已经被验证为REDIS
+30 30 30 36则表示RDB文件版本号
+FE表示db选择器编码，00则表示选择编号为0这个db
+00这个ASCII码对应的字符为NUT，即
+08这个ASCII码对应的字符为BS，即BackSpace退格按键；
+75 73 65 72 6E 61 6D 65 04 61 66 65 69 则表示:
+说明：04这个ASCII对应的字符是EOT，表示文尾，end of transmission；所以username的值afei是另起一行；
+FE表示db选择器编码，06则表示选择编号为6这个db
+FC表示设置了毫秒级失效，接下来的8个字节表示失效时间的Unix时间戳；
+4F D7 D3 E4 5D 01 00 00 00 表示失效时间Unix时间戳；
+05这一个字节表示value的类型：string，hash，list ，set，sorted set；
+75 6E 61 6D 65 04 72 6F 6F 74则表示：
+FF表示RDB文件结束；
+C7 41 31 D7 AA 1F 24 A2这8个字节表示整个RDB文件的rdbsum CRC 64；">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2021-03-02T04:33:02+08:00">
+    <meta property="article:modified_time" content="2021-03-02T04:33:02+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">java读取rdb_剖析Redis RDB文件</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <div style="font-size:16px;"> 
+ <p>通过redis-cli中执行save或者bgsave可以得到RDB文件(文件名由配置文件中dbfilename指定，例如dbfilename "dump.rdb")，这个文件包含Redis实例中全量的数据，那么dump.rdb的文件格式大概是什么样的呢？</p> 
+ <p>RDB文件定义</p> 
+ <p>获取RDB文件</p> 
+ <p>我们首先通过redis-cli中执行save得到dump.rdb文件，然后用WinHex打开这个文件：</p> 
+ <p align="center"><img src="https://images2.imgbox.com/78/f8/6HLZxAPM_o.png" alt="fabfd6e35102b8459d43dc92580ee38e.png"></p> 
+ <p>dump.rdb.png</p> 
+ <p>说明：导出RDB文件时整个Redis实例中db=0里有个string类型的username，值为afei；db=6里有个string类型的uname，值为root，且设置了失效时间；</p> 
+ <p>剖析RDB文件</p> 
+ <p>根据WinHex达到的dump.rdb文件一个一个字节剖析文件真实的内容，以52这个16进制数为例，其十进制数值为82，通过ASCII码对照表可知，82对应的字符是R，相应的：45-&gt;69-&gt;E，44-&gt;68-&gt;D，49-&gt;73-&gt;I，53-&gt;83-&gt;S，最终该RDB文件内容如下：REDIS</p> 
+ <p>验证RDB文件定义</p> 
+ <p>前面5个16进制52 45 44 49 53已经被验证为REDIS</p> 
+ <p>30 30 30 36则表示RDB文件版本号</p> 
+ <p>FE表示db选择器编码，00则表示选择编号为0这个db</p> 
+ <p>00这个ASCII码对应的字符为NUT，即</p> 
+ <p>08这个ASCII码对应的字符为BS，即BackSpace退格按键；</p> 
+ <p>75 73 65 72 6E 61 6D 65 04 61 66 65 69 则表示:</p> 
+ <p>说明：04这个ASCII对应的字符是EOT，表示文尾，end of transmission；所以username的值afei是另起一行；</p> 
+ <p>FE表示db选择器编码，06则表示选择编号为6这个db</p> 
+ <p>FC表示设置了毫秒级失效，接下来的8个字节表示失效时间的Unix时间戳；</p> 
+ <p>4F D7 D3 E4 5D 01 00 00 00 表示失效时间Unix时间戳；</p> 
+ <p>05这一个字节表示value的类型：string，hash，list ，set，sorted set；</p> 
+ <p>75 6E 61 6D 65 04 72 6F 6F 74则表示：</p> 
+ <p>FF表示RDB文件结束；</p> 
+ <p>C7 41 31 D7 AA 1F 24 A2这8个字节表示整个RDB文件的rdbsum CRC 64；</p> 
+ <p>作者：阿飞的博客</p> 
+ <p>来源：https://www.jianshu.com/p/c210851d3558</p> 
+ <p align="center"></p> 
+ <p>本文著作权归作者所有，如若转载，请注明出处</p> 
+ <p>转载请注明：文章转载自「 Java极客技术学习」https://www.javajike.com</p> 
+</div>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/cf2b3ad80b11dfde7c3709fd1335989a/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">java duplicate key_java.lang.IllegalStateException: Duplicate key 1</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/7f0f1739a92a6bde689b3713f9528cf8/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">Maven项目build中配置resources ， 来防止我们资源导出失败的问题</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

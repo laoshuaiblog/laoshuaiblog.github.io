@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>C&#43;&#43; List底层实现 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/e0041d846860bce2e8b048e931481ed5/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="C&#43;&#43; List底层实现">
+  <meta property="og:description" content="文章目录 前言成员变量成员函数迭代器self&amp;amp; operator&#43;&#43;()前置&#43;&#43;self operator&#43;&#43;(int)后置&#43;&#43;self operator--()前置--self operator--(int)后置--bool operator!=(const self &amp;amp; tmp)判断是否相等T* operator*() 解引用操作 list()初始化iterator begin()iterator end()const_iterator begin()constconst_iterator end()constiterator insert(iterator pos, const T&amp;amp; val)在pos位置插入valvoid push_back(const T&amp;amp; val)在尾部位置后插入void push_front(const T&amp;amp; val)在头部位置插入iterator erase(iterator pos)void pop_back()//删除最后一个元素void pop_front()删除第一个元素list(list&amp;lt;T&amp;gt;&amp;amp; tmp)拷贝构造void swap(list&amp;lt;int&amp;gt;&amp;amp;tmp)交换两个listlist&amp;lt; T&amp;gt;&amp;amp; operator=(list&amp;lt; T&amp;gt; it)赋值int size()判断有多少元素bool empty() 判断list是否为空T&amp;amp; front()取首元素T&amp;amp; back()取尾元素void clear()清空元素~list()析构再谈迭代器 完整代码总结 前言 我们都清楚c&#43;&#43;中的容器list，本质上就是一个带头双向循环链表，接下来我们实现一下list的底层，帮助我们更深层次的了解list的结构和使用
+成员变量 我们知道这个节点有三部分构成 _prev,_next,_val;每个节点看作list的一个元素，这又是一个双向带头循环链表，那么我们如果仅仅知道头节点，就可以访问遍历链表中的所有元素。
+//类模板
+template &amp;lt; class T&amp;gt;
+struct ListNode
+{
+ListNode(const T&amp;amp; val=T()) //初始化
+:_prev(nullptr)
+,_next(nullptr)
+,_data(val)
+{ }
+ListNode* _prev;//指向前一个元素">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2024-03-20T07:37:51+08:00">
+    <meta property="article:modified_time" content="2024-03-20T07:37:51+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">C&#43;&#43; List底层实现</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-github-gist">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <p></p> 
+<div class="toc"> 
+ <h4>文章目录</h4> 
+ <ul><li><a href="#_6" rel="nofollow">前言</a></li><li><a href="#_9" rel="nofollow">成员变量</a></li><li><a href="#_42" rel="nofollow">成员函数</a></li><li><ul><li><a href="#_43" rel="nofollow">迭代器</a></li><li><ul><li><a href="#self_operator_76" rel="nofollow">self&amp; operator++()前置++</a></li><li><a href="#self_operatorint_85" rel="nofollow">self operator++(int)后置++</a></li><li><a href="#self_operator_95" rel="nofollow">self operator--()前置--</a></li><li><a href="#self_operatorint_102" rel="nofollow">self operator--(int)后置--</a></li><li><a href="#bool_operatorconst_self__tmp_111" rel="nofollow">bool operator!=(const self &amp; tmp)判断是否相等</a></li><li><a href="#T_operator___118" rel="nofollow">T* operator*() 解引用操作</a></li></ul> 
+   </li><li><a href="#list_124" rel="nofollow">list()初始化</a></li><li><a href="#iterator_begin_138" rel="nofollow">iterator begin()</a></li><li><a href="#iterator_end_145" rel="nofollow">iterator end()</a></li><li><a href="#const_iterator_beginconst_152" rel="nofollow">const_iterator begin()const</a></li><li><a href="#const_iterator_endconst_159" rel="nofollow">const_iterator end()const</a></li><li><a href="#iterator_insertiterator_pos_const_T_valposval_166" rel="nofollow">iterator insert(iterator pos, const T&amp; val)在pos位置插入val</a></li><li><a href="#void_push_backconst_T_val_183" rel="nofollow">void push_back(const T&amp; val)在尾部位置后插入</a></li><li><a href="#void_push_frontconst_T_val_190" rel="nofollow">void push_front(const T&amp; val)在头部位置插入</a></li><li><a href="#iterator_eraseiterator_pos_197" rel="nofollow">iterator erase(iterator pos)</a></li><li><a href="#void_pop_back_213" rel="nofollow">void pop_back()//删除最后一个元素</a></li><li><a href="#void_pop_front_219" rel="nofollow">void pop_front()删除第一个元素</a></li><li><a href="#listlistT_tmp_226" rel="nofollow">list(list&lt;T&gt;&amp; tmp)拷贝构造</a></li><li><a href="#void_swaplistinttmplist_239" rel="nofollow">void swap(list&lt;int&gt;&amp;tmp)交换两个list</a></li><li><a href="#list_T__operatorlist_T_it_246" rel="nofollow">list&lt; T&gt;&amp; operator=(list&lt; T&gt; it)赋值</a></li><li><a href="#int_size_261" rel="nofollow">int size()判断有多少元素</a></li><li><a href="#bool_empty_list_273" rel="nofollow">bool empty() 判断list是否为空</a></li><li><a href="#T_front_281" rel="nofollow">T&amp; front()取首元素</a></li><li><a href="#T_back_288" rel="nofollow">T&amp; back()取尾元素</a></li><li><a href="#void_clear_295" rel="nofollow">void clear()清空元素</a></li><li><a href="#list_308" rel="nofollow">~list()析构</a></li><li><a href="#_316" rel="nofollow">再谈迭代器</a></li></ul> 
+  </li><li><a href="#_383" rel="nofollow">完整代码</a></li><li><a href="#_593" rel="nofollow">总结</a></li></ul> 
+</div> 
+<p></p> 
+<hr> 
+<h2><a id="_6"></a>前言</h2> 
+<p>我们都清楚c++中的容器list，本质上就是一个带头双向循环链表，接下来我们实现一下list的底层，帮助我们更深层次的了解list的结构和使用</p> 
+<h2><a id="_9"></a>成员变量</h2> 
+<p>我们知道这个节点有三部分构成 _prev,_next,_val;每个节点看作list的一个元素，这又是一个双向带头循环链表，那么我们如果仅仅知道头节点，就可以访问遍历链表中的所有元素。</p> 
+<blockquote> 
+ <p>//类模板<br> template &lt; class T&gt;<br> struct ListNode<br> {<!-- --><br> ListNode(const T&amp; val=T()) //初始化<br> :_prev(nullptr)<br> ,_next(nullptr)<br> ,_data(val)<br> { }<br> ListNode* _prev;//指向前一个元素<br> ListNode* _next;//指向后一个元素<br> T _data;//当前节点的值<br> };</p> 
+</blockquote> 
+<p>有了这个结点之后，我们在实现list是创建一个头节点就可以控制这个链表了</p> 
+<blockquote> 
+ <p>template<br> class list<br> {<!-- --><br>     //模板+类–》类型<br>     typedef ListNode Node;<br> private:<br>     Node* _head;<br> };</p> 
+</blockquote> 
+<p>在class类中，默认为私有的，在struct中默认为公有，只有将这个节点定义为公有，我们才可以访问。</p> 
+<p>那这里采用内部类的方法不行吗？？<br> 答案是不行的，如果我们吧struct定义在内部类中，外部list类就无法访问struct中的元素了。</p> 
+<h2><a id="_42"></a>成员函数</h2> 
+<h3><a id="_43"></a>迭代器</h3> 
+<p>我们在实现vector中，迭代器我们并没有实现，或者说我们不需要实现，因为vector容容器的结构很特殊，是一块连续的物理空间。加加，解引用等方式很容易实现。</p> 
+<p>我们看一下迭代器，是一个个地址不连续的指针<br> <img src="https://images2.imgbox.com/f3/22/cFZFrrjb_o.png" alt="在这里插入图片描述"></p> 
+<p>那我们怎末实现呢<br> 我们很清楚迭代器的实质就是一个指针，在这个list中就是哟个listNode的指针。<br> 我们要实现迭代器的操作，可以采用运算符重载的方式实现，但是这里又出现了新的问题，迭代器是一个内置类型，只有自定义类型才可以实现自定义类型重载，所以我们需要都这个指针进行封装，变成一个自定义类型</p> 
+<blockquote> 
+ <p>template&lt; class T &gt;<br> struct ___list_iterator<br> {<!-- --><br>   typedef ListNode&lt; T&gt; Node;//方便我们使用<br>   typedef ___list_iterator&lt; T&gt; self;//方便使用，我们会用到<br>   ___list_iterator(Node* x)//初始化<br>     :_node(x)<br>     {}<br>   Node* _node;//成员变量<br> };</p> 
+</blockquote> 
+<p>在这里面实现我们需要的功能，</p> 
+<blockquote> 
+ <p>list::const_iterator it = lt.begin();<br> while (it != lt.end())<br> {<!-- --><br> std::cout &lt;&lt; *it &lt;&lt; " ";<br> ++it;<br> }<br> std::cout &lt;&lt; std::endl;</p> 
+</blockquote> 
+<p>我们需要实现前置++,后置++,前置- -，后置- -，解引用，判断是否相等。我们依此来看一下</p> 
+<h4><a id="self_operator_76"></a>self&amp; operator++()前置++</h4> 
+<blockquote> 
+ <p>self&amp; operator++()//++返回的是一个<br> {<!-- --><br>    _node = _node-&gt;_next;//我们仅需要让指针往后移动一个节点就可以<br>   return *this;<br> }</p> 
+</blockquote> 
+<h4><a id="self_operatorint_85"></a>self operator++(int)后置++</h4> 
+<blockquote> 
+ <p>这里只能用self,不能用self&amp;，因为返回的是一个临时对象<br> self operator++(int)//后置++也是返回一个节点，<br> {<!-- --><br>   self tmp(*this);//首先拷贝一份<br>   _node = _node-&gt;next;//指针向后移动一个节点<br>   return tmp;//返回拷贝的值<br> }</p> 
+</blockquote> 
+<h4><a id="self_operator_95"></a>self operator–()前置–</h4> 
+<blockquote> 
+ <p>self&amp; operator–()<br> {<!-- --><br>    _node = _node-&gt;_prev;<br>    return *this;<br> }</p> 
+</blockquote> 
+<h4><a id="self_operatorint_102"></a>self operator–(int)后置–</h4> 
+<blockquote> 
+ <p>self operator–(int)<br> {<!-- --><br>   self tmp(*this);<br>    _node = _node-&gt;perv;<br>    return tmp;<br> }</p> 
+</blockquote> 
+<h4><a id="bool_operatorconst_self__tmp_111"></a>bool operator!=(const self &amp; tmp)判断是否相等</h4> 
+<blockquote> 
+ <p>bool operator!=(const self &amp; tmp)<br> {<!-- --><br>    return _node != tmp._node;//判断两个指针是否指向同一块空间就可以<br> }</p> 
+</blockquote> 
+<h4><a id="T_operator___118"></a>T* operator*() 解引用操作</h4> 
+<blockquote> 
+ <p>T* operator*()<br> {<!-- --><br>    return _node-&gt;_data;<br> }</p> 
+</blockquote> 
+<h3><a id="list_124"></a>list()初始化</h3> 
+<blockquote> 
+ <p>list()<br> {<!-- --><br>    我们初始化仅仅初始化头节点就可以<br>    empty_list();//我们可以通过调用这个函数创建头节点<br> }<br> void empty_list()<br> {<!-- --><br>    _head = new Node;<br>    _head-&gt;_next = _head;<br>    _head-&gt;_prev = _head;<br> }</p> 
+</blockquote> 
+<h3><a id="iterator_begin_138"></a>iterator begin()</h3> 
+<blockquote> 
+ <p>iterator begin()<br> {<!-- --><br>    return _head-&gt;_next;//第一个元素就是头节点后面的那个元素<br> }</p> 
+</blockquote> 
+<h3><a id="iterator_end_145"></a>iterator end()</h3> 
+<blockquote> 
+ <p>iterator end()<br> {<!-- --><br>    return _head;//最后一个元素的下一个就是head<br> }</p> 
+</blockquote> 
+<h3><a id="const_iterator_beginconst_152"></a>const_iterator begin()const</h3> 
+<blockquote> 
+ <p>const_iterator begin()const<br> {<!-- --><br>    return _head-&gt;_next;<br> }</p> 
+</blockquote> 
+<h3><a id="const_iterator_endconst_159"></a>const_iterator end()const</h3> 
+<blockquote> 
+ <p>const_iterator end()const<br> {<!-- --><br>    return _head;<br> }</p> 
+</blockquote> 
+<h3><a id="iterator_insertiterator_pos_const_T_valposval_166"></a>iterator insert(iterator pos, const T&amp; val)在pos位置插入val</h3> 
+<blockquote> 
+ <p>iterator insert(iterator pos, const T&amp; val)<br> {<!-- --><br>    Node* cur = pos._node;//我们首先需要取到迭代器中的元素<br>    Node* newnode = new Node(val);//创建新节点<br>    Node* prev = cur-&gt;_prev;//保留之前的节点<br>    prev-&gt;_next = newnode;//改变指向<br>    newnode-&gt;_prev = prev;<br>    newnode-&gt;_next = cur;<br>    cur-&gt;_prev = newnode;<br>    return newnode;//返回新节点<br> }</p> 
+</blockquote> 
+<p><img src="https://images2.imgbox.com/46/c4/EEgDHJyp_o.png" alt="在这里插入图片描述"><br> 我们来看一下这里的insert有没有迭代器失效的问题？？</p> 
+<h3><a id="void_push_backconst_T_val_183"></a>void push_back(const T&amp; val)在尾部位置后插入</h3> 
+<blockquote> 
+ <p>void push_back(const T&amp; val)<br> {<!-- --><br>    insert(end(), val);//我们可以直接进行复用<br> }</p> 
+</blockquote> 
+<h3><a id="void_push_frontconst_T_val_190"></a>void push_front(const T&amp; val)在头部位置插入</h3> 
+<blockquote> 
+ <p>void push_front(const T&amp; val)<br> {<!-- --><br>    insert(begin(), val);<br> }</p> 
+</blockquote> 
+<h3><a id="iterator_eraseiterator_pos_197"></a>iterator erase(iterator pos)</h3> 
+<blockquote> 
+ <p>iterator erase(iterator pos)<br> {<!-- --><br>    assert(pos != end());//断言一下，不是删除头节点<br>    Node* cur = pos._node;//取到迭代器中的元素<br>    Node* prev = cur-&gt;_prev;//记录前一个位置<br>    Node* next = cur-&gt;_next;//记录后一个位置<br>    delete cur;//释放当前元素<br>    prev-&gt;_next = next;//改变指向<br>    next-&gt;_prev = prev;<br>    return next;//返回删除元素的下一个位置<br> }</p> 
+</blockquote> 
+<p>我们来看一下这里会不会有迭代器失效的问题??<br> 我们发现这里存在迭代器失效的问题，并且很大，这个元素删除了之后，之后很可能还需要用到这个元素，继续删除，如果不及时更新，就会出现大问题。</p> 
+<h3><a id="void_pop_back_213"></a>void pop_back()//删除最后一个元素</h3> 
+<blockquote> 
+ <p>void pop_back()<br> {<!-- --><br>    erase(–end());//我们要注意end是哪个位置<br> }</p> 
+</blockquote> 
+<h3><a id="void_pop_front_219"></a>void pop_front()删除第一个元素</h3> 
+<blockquote> 
+ <p>void pop_front()<br> {<!-- --><br>    erase(begin());<br> }</p> 
+</blockquote> 
+<h3><a id="listlistT_tmp_226"></a>list(list&amp; tmp)拷贝构造</h3> 
+<blockquote> 
+ <p>在这里我们有很多方式实现，我们来看一种比较简单的<br> list(list&lt; T&gt;&amp; tmp)<br> {<!-- --><br>    empty_list();//首先创建一个头节点<br>    //遍历<br>    for (const auto&amp; e : tmp)<br>    {<!-- --><br>    push_back(e);//取数据依次插入这个新的头结点中<br>    }<br> }</p> 
+</blockquote> 
+<h3><a id="void_swaplistinttmplist_239"></a>void swap(list&amp;tmp)交换两个list</h3> 
+<blockquote> 
+ <p>void swap(list&lt; int&gt;&amp;tmp)<br> {<!-- --><br>    std::swap(_head, tmp._head);//我们仅仅改变两个list的指针就可以<br> }</p> 
+</blockquote> 
+<h3><a id="list_T__operatorlist_T_it_246"></a>list&lt; T&gt;&amp; operator=(list&lt; T&gt; it)赋值</h3> 
+<blockquote> 
+ <p>list&lt; T&gt;&amp; operator=(list&lt; T&gt; it)<br> {<!-- --><br>    swap(it);<br>    return *this;<br> }</p> 
+</blockquote> 
+<p>我们再来看一下这个过程，我们假设lt1=lt2;<br> 因为list&lt; T&gt; it这里，lt2会产生一份临时拷贝it<br> <img src="https://images2.imgbox.com/2e/9f/RQrlZJvT_o.png" alt="在这里插入图片描述"><br> 我们swap(it)，本质就是将it与lt1的内容进行交换<br> <img src="https://images2.imgbox.com/7b/f8/VDUdFBFZ_o.png" alt="在这里插入图片描述"><br> it是临时变量，出了作用域就销毁了，我们就完成了赋值任务</p> 
+<h3><a id="int_size_261"></a>int size()判断有多少元素</h3> 
+<blockquote> 
+ <p>int size()<br> {<!-- --><br>    int count = 0;//记录一个变量，一个个统计即可<br>    for (const auto&amp; e : *this)<br>    {<!-- --><br>    count++;<br>    }<br>    return count;<br> }</p> 
+</blockquote> 
+<h3><a id="bool_empty_list_273"></a>bool empty() 判断list是否为空</h3> 
+<blockquote> 
+ <p>bool empty()<br> {<!-- --><br>    return size() == 0;//我们只需要判断list是否有元素<br> }</p> 
+</blockquote> 
+<h3><a id="T_front_281"></a>T&amp; front()取首元素</h3> 
+<blockquote> 
+ <p>T&amp; front()<br> {<!-- --><br>    return _head-&gt;_next-&gt;_data;<br> }</p> 
+</blockquote> 
+<h3><a id="T_back_288"></a>T&amp; back()取尾元素</h3> 
+<blockquote> 
+ <p>T&amp; back()<br> {<!-- --><br>    return _head-&gt;_prev-&gt;_data;<br> }</p> 
+</blockquote> 
+<h3><a id="void_clear_295"></a>void clear()清空元素</h3> 
+<blockquote> 
+ <p>一个个删除元素即可<br> void clear()<br> {<!-- --><br>    iterator it = begin();<br>    while (it != end())<br>    {<!-- --><br>    it = erase(it);<br>    }<br> }</p> 
+</blockquote> 
+<h3><a id="list_308"></a>~list()析构</h3> 
+<blockquote> 
+ <p>~list()<br> {<!-- --><br>    clear();<br>    delete _head;<br>    _head = nullptr;<br> }</p> 
+</blockquote> 
+<h3><a id="_316"></a>再谈迭代器</h3> 
+<p>我们已经实现了普通迭代器，但是对于const都迭代器，我们还需要实现。<br> 我们再来看一下const迭代器，并不是这个迭代器指针不可以修改，而是迭代器指针所指向的内容不可以修改。<br> 那我们是不是可以在普通迭代器的基础上再新增一个const迭代器，我们仅需要修改解引用的那块操作就可以，其他实现的功能都是相同的。</p> 
+<pre><code class="prism language-cpp"><span class="token keyword">template</span><span class="token operator">&lt;</span><span class="token keyword">class</span> <span class="token class-name">T</span> <span class="token operator">&gt;</span>
+<span class="token keyword">struct</span> <span class="token class-name">___list_const_iterator</span>
+<span class="token punctuation">{<!-- --></span>
+	<span class="token keyword">typedef</span> ListNode<span class="token operator">&lt;</span>T<span class="token operator">&gt;</span>  Node<span class="token punctuation">;</span>
+	<span class="token keyword">typedef</span> ___list_const_iterator<span class="token operator">&lt;</span>T<span class="token operator">&gt;</span> self<span class="token punctuation">;</span>
+	<span class="token function">___list_const_iterator</span><span class="token punctuation">(</span>Node<span class="token operator">*</span> x<span class="token punctuation">)</span>
+		<span class="token operator">:</span><span class="token function">_node</span><span class="token punctuation">(</span>x<span class="token punctuation">)</span>
+	<span class="token punctuation">{<!-- --></span><span class="token punctuation">}</span>
+	<span class="token comment">//不等于</span>
+	<span class="token keyword">bool</span> <span class="token keyword">operator</span><span class="token operator">!=</span><span class="token punctuation">(</span><span class="token keyword">const</span> self<span class="token operator">&amp;</span> tmp<span class="token punctuation">)</span>
+	<span class="token punctuation">{<!-- --></span>
+		<span class="token keyword">return</span> _node <span class="token operator">!=</span> tmp<span class="token punctuation">.</span>_node<span class="token punctuation">;</span>
+	<span class="token punctuation">}</span>
+	<span class="token comment">//解引用</span>
+	<span class="token keyword">const</span> T<span class="token operator">&amp;</span> <span class="token keyword">operator</span><span class="token operator">*</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+	<span class="token punctuation">{<!-- --></span>
+		<span class="token keyword">return</span>  _node<span class="token operator">-&gt;</span>_data<span class="token punctuation">;</span>
+	<span class="token punctuation">}</span>
+	<span class="token comment">//前置后置++</span>
+	self<span class="token operator">&amp;</span> <span class="token keyword">operator</span><span class="token operator">++</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+	<span class="token punctuation">{<!-- --></span>
+		_node <span class="token operator">=</span> _node<span class="token operator">-&gt;</span>_next<span class="token punctuation">;</span>
+		<span class="token keyword">return</span> <span class="token operator">*</span><span class="token keyword">this</span><span class="token punctuation">;</span>
+	<span class="token punctuation">}</span>
+	self <span class="token keyword">operator</span><span class="token operator">++</span><span class="token punctuation">(</span><span class="token keyword">int</span><span class="token punctuation">)</span>
+	<span class="token punctuation">{<!-- --></span>
+		self <span class="token function">tmp</span><span class="token punctuation">(</span><span class="token operator">*</span><span class="token keyword">this</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+		_node <span class="token operator">=</span> _node<span class="token operator">-&gt;</span>next<span class="token punctuation">;</span>
+		<span class="token keyword">return</span> tmp<span class="token punctuation">;</span>
+	<span class="token punctuation">}</span>
+
+	self<span class="token operator">&amp;</span> <span class="token keyword">operator</span><span class="token operator">--</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+	<span class="token punctuation">{<!-- --></span>
+		_node <span class="token operator">=</span> _node<span class="token operator">-&gt;</span>_prev<span class="token punctuation">;</span>
+		<span class="token keyword">return</span> <span class="token operator">*</span><span class="token keyword">this</span><span class="token punctuation">;</span>
+	<span class="token punctuation">}</span>
+	self <span class="token keyword">operator</span><span class="token operator">--</span><span class="token punctuation">(</span><span class="token keyword">int</span><span class="token punctuation">)</span>
+	<span class="token punctuation">{<!-- --></span>
+		self <span class="token function">tmp</span><span class="token punctuation">(</span><span class="token operator">*</span><span class="token keyword">this</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+		_node <span class="token operator">=</span> _node<span class="token operator">-&gt;</span>perv<span class="token punctuation">;</span>
+		<span class="token keyword">return</span> tmp<span class="token punctuation">;</span>
+	<span class="token punctuation">}</span>
+	<span class="token comment">//需要返回一个地址</span>
+	T<span class="token operator">*</span> <span class="token keyword">operator</span><span class="token operator">-&gt;</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+	<span class="token punctuation">{<!-- --></span>
+		<span class="token keyword">return</span> <span class="token operator">&amp;</span>_node<span class="token operator">-&gt;</span>_data<span class="token punctuation">;</span>
+	<span class="token punctuation">}</span>
+
+	Node<span class="token operator">*</span> _node<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span>
+</code></pre> 
+<p>虽然这样可以完成我们的功能，但是总感觉代码有点冗余，const迭代器和普通迭代器有太多重复内容，那我们可不可以通过一种方法将这两种迭代器进行合并呢？？</p> 
+<p>我们来看一下！！！<br> 我们注意到，const T&amp; operator*()和T&amp; operator*()仅仅是返回值不同，我们又不能把两个方法放在同一个迭代器中，我们可以利用传参的方式进行解决，我们来看一下这种操作<br> <img src="https://images2.imgbox.com/60/84/YzC8TO3J_o.png" alt="在这里插入图片描述"><br> <img src="https://images2.imgbox.com/22/e2/efv36Xpv_o.png" alt="在这里插入图片描述"></p> 
+<p><img src="https://images2.imgbox.com/d9/b6/RewyiTrP_o.png" alt="在这里插入图片描述"></p> 
+<p>模板传递的是类型，根据传参的不同调用自己合适的模板参数，这两个是完全不同的类型，我们这样就可以轻松完成我们的工作，仅仅使用一个迭代器就完成了两个功能</p> 
+<h2><a id="_383"></a>完整代码</h2> 
+<pre><code class="prism language-cpp"><span class="token keyword">namespace</span> peng
+<span class="token punctuation">{<!-- --></span>
+	<span class="token keyword">template</span> <span class="token operator">&lt;</span><span class="token keyword">class</span> <span class="token class-name">T</span><span class="token operator">&gt;</span>
+	<span class="token keyword">struct</span> <span class="token class-name">ListNode</span>
+	<span class="token punctuation">{<!-- --></span>
+		<span class="token function">ListNode</span><span class="token punctuation">(</span><span class="token keyword">const</span> T<span class="token operator">&amp;</span> val<span class="token operator">=</span><span class="token function">T</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+			<span class="token operator">:</span><span class="token function">_prev</span><span class="token punctuation">(</span><span class="token keyword">nullptr</span><span class="token punctuation">)</span>
+			<span class="token punctuation">,</span><span class="token function">_next</span><span class="token punctuation">(</span><span class="token keyword">nullptr</span><span class="token punctuation">)</span>
+			<span class="token punctuation">,</span><span class="token function">_data</span><span class="token punctuation">(</span>val<span class="token punctuation">)</span>
+		<span class="token punctuation">{<!-- --></span>	<span class="token punctuation">}</span>
+		ListNode<span class="token operator">*</span> _prev<span class="token punctuation">;</span>
+		ListNode<span class="token operator">*</span> _next<span class="token punctuation">;</span>
+		T _data<span class="token punctuation">;</span>
+	<span class="token punctuation">}</span><span class="token punctuation">;</span>
+	<span class="token comment">//</span>
+	<span class="token comment">//迭代器</span>
+	<span class="token comment">//不连续,</span>
+	<span class="token keyword">template</span><span class="token operator">&lt;</span><span class="token keyword">class</span> <span class="token class-name">T</span><span class="token punctuation">,</span><span class="token keyword">class</span> <span class="token class-name">Ref</span>  <span class="token operator">&gt;</span>
+	<span class="token keyword">struct</span> <span class="token class-name">___list_iterator</span>
+	<span class="token punctuation">{<!-- --></span>
+		<span class="token keyword">typedef</span> ListNode<span class="token operator">&lt;</span>T<span class="token operator">&gt;</span>  Node<span class="token punctuation">;</span>
+		<span class="token keyword">typedef</span> ___list_iterator<span class="token operator">&lt;</span>T<span class="token punctuation">,</span>Ref<span class="token operator">&gt;</span> self<span class="token punctuation">;</span>
+		<span class="token function">___list_iterator</span><span class="token punctuation">(</span>Node<span class="token operator">*</span> x<span class="token punctuation">)</span>
+			<span class="token operator">:</span><span class="token function">_node</span><span class="token punctuation">(</span>x<span class="token punctuation">)</span>
+		<span class="token punctuation">{<!-- --></span><span class="token punctuation">}</span>
+			<span class="token comment">//不等于</span>
+			<span class="token keyword">bool</span> <span class="token keyword">operator</span><span class="token operator">!=</span><span class="token punctuation">(</span><span class="token keyword">const</span> self <span class="token operator">&amp;</span> tmp<span class="token punctuation">)</span>
+			<span class="token punctuation">{<!-- --></span>
+				<span class="token keyword">return</span> _node <span class="token operator">!=</span> tmp<span class="token punctuation">.</span>_node<span class="token punctuation">;</span>
+			<span class="token punctuation">}</span>
+			<span class="token comment">//解引用</span>
+			Ref <span class="token keyword">operator</span><span class="token operator">*</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+			<span class="token punctuation">{<!-- --></span>
+				<span class="token keyword">return</span>  _node<span class="token operator">-&gt;</span>_data<span class="token punctuation">;</span>
+			<span class="token punctuation">}</span>
+			<span class="token comment">//前置后置++</span>
+			self<span class="token operator">&amp;</span> <span class="token keyword">operator</span><span class="token operator">++</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+			<span class="token punctuation">{<!-- --></span>
+				_node <span class="token operator">=</span> _node<span class="token operator">-&gt;</span>_next<span class="token punctuation">;</span>
+				<span class="token keyword">return</span> <span class="token operator">*</span><span class="token keyword">this</span><span class="token punctuation">;</span>
+			<span class="token punctuation">}</span>
+			self <span class="token keyword">operator</span><span class="token operator">++</span><span class="token punctuation">(</span><span class="token keyword">int</span><span class="token punctuation">)</span>
+			<span class="token punctuation">{<!-- --></span>
+				self <span class="token function">tmp</span><span class="token punctuation">(</span><span class="token operator">*</span><span class="token keyword">this</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+				_node <span class="token operator">=</span> _node<span class="token operator">-&gt;</span>next<span class="token punctuation">;</span>
+				<span class="token keyword">return</span> tmp<span class="token punctuation">;</span>
+			<span class="token punctuation">}</span>
+
+			self<span class="token operator">&amp;</span> <span class="token keyword">operator</span><span class="token operator">--</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+			<span class="token punctuation">{<!-- --></span>
+				_node <span class="token operator">=</span> _node<span class="token operator">-&gt;</span>_prev<span class="token punctuation">;</span>
+				<span class="token keyword">return</span> <span class="token operator">*</span><span class="token keyword">this</span><span class="token punctuation">;</span>
+			<span class="token punctuation">}</span>
+			self <span class="token keyword">operator</span><span class="token operator">--</span><span class="token punctuation">(</span><span class="token keyword">int</span><span class="token punctuation">)</span>
+			<span class="token punctuation">{<!-- --></span>
+				self <span class="token function">tmp</span><span class="token punctuation">(</span><span class="token operator">*</span><span class="token keyword">this</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+				_node <span class="token operator">=</span> _node<span class="token operator">-&gt;</span>perv<span class="token punctuation">;</span>
+				<span class="token keyword">return</span> tmp<span class="token punctuation">;</span>
+			<span class="token punctuation">}</span>
+			<span class="token comment">//需要返回一个地址</span>
+			T<span class="token operator">*</span> <span class="token keyword">operator</span><span class="token operator">-&gt;</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+			 <span class="token punctuation">{<!-- --></span>
+				<span class="token keyword">return</span> <span class="token operator">&amp;</span>_node<span class="token operator">-&gt;</span>_data<span class="token punctuation">;</span>
+				
+			 <span class="token punctuation">}</span>
+		
+	    Node<span class="token operator">*</span> _node<span class="token punctuation">;</span>
+	<span class="token punctuation">}</span><span class="token punctuation">;</span>
+
+
+	<span class="token comment">//默认私有</span>
+	<span class="token keyword">template</span><span class="token operator">&lt;</span><span class="token keyword">class</span> <span class="token class-name">T</span><span class="token operator">&gt;</span>
+	<span class="token keyword">class</span> <span class="token class-name">list</span>
+	<span class="token punctuation">{<!-- --></span>
+		<span class="token comment">//模板+类--》类型</span>
+		<span class="token keyword">typedef</span> ListNode<span class="token operator">&lt;</span>T<span class="token operator">&gt;</span> Node<span class="token punctuation">;</span>
+	<span class="token keyword">public</span><span class="token operator">:</span>
+	<span class="token comment">//	typedef ___list_iterator&lt;T, T&amp;,T*&gt; iterator;</span>
+	<span class="token comment">//	typedef ___list_iterator&lt;T, const T&amp;,const T*&gt; const_iterator;</span>
+
+	 	<span class="token keyword">typedef</span> ___list_iterator<span class="token operator">&lt;</span>T<span class="token punctuation">,</span>T<span class="token operator">&amp;</span><span class="token operator">&gt;</span> iterator<span class="token punctuation">;</span>
+		<span class="token keyword">typedef</span> ___list_iterator<span class="token operator">&lt;</span>T<span class="token punctuation">,</span><span class="token keyword">const</span> T<span class="token operator">&amp;</span><span class="token operator">&gt;</span>  const_iterator<span class="token punctuation">;</span>
+
+		<span class="token function">list</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+		<span class="token punctuation">{<!-- --></span>			<span class="token function">empty_list</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token punctuation">}</span>
+		<span class="token keyword">void</span> <span class="token function">empty_list</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+		<span class="token punctuation">{<!-- --></span>
+			_head <span class="token operator">=</span> <span class="token keyword">new</span> Node<span class="token punctuation">;</span>
+			_head<span class="token operator">-&gt;</span>_next <span class="token operator">=</span> _head<span class="token punctuation">;</span>
+			_head<span class="token operator">-&gt;</span>_prev <span class="token operator">=</span> _head<span class="token punctuation">;</span>
+		<span class="token punctuation">}</span>
+		<span class="token comment">//l1(l2)</span>
+		<span class="token function">list</span><span class="token punctuation">(</span>list<span class="token operator">&lt;</span>T<span class="token operator">&gt;</span><span class="token operator">&amp;</span> tmp<span class="token punctuation">)</span>
+		<span class="token punctuation">{<!-- --></span>
+			<span class="token function">empty_list</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+			<span class="token comment">//遍历</span>
+			<span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token keyword">const</span> <span class="token keyword">auto</span><span class="token operator">&amp;</span> e <span class="token operator">:</span> tmp<span class="token punctuation">)</span>
+			<span class="token punctuation">{<!-- --></span>
+				<span class="token function">push_back</span><span class="token punctuation">(</span>e<span class="token punctuation">)</span><span class="token punctuation">;</span>
+			<span class="token punctuation">}</span>
+		<span class="token punctuation">}</span>
+		iterator <span class="token function">begin</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+		<span class="token punctuation">{<!-- --></span>
+			<span class="token keyword">return</span> _head<span class="token operator">-&gt;</span>_next<span class="token punctuation">;</span>
+		<span class="token punctuation">}</span>
+		iterator <span class="token function">end</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+		<span class="token punctuation">{<!-- --></span>
+			<span class="token keyword">return</span> _head<span class="token punctuation">;</span>
+		<span class="token punctuation">}</span>
+		const_iterator <span class="token function">begin</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token keyword">const</span>
+		<span class="token punctuation">{<!-- --></span>
+			<span class="token keyword">return</span> _head<span class="token operator">-&gt;</span>_next<span class="token punctuation">;</span>
+		<span class="token punctuation">}</span>
+		const_iterator <span class="token function">end</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token keyword">const</span>
+		<span class="token punctuation">{<!-- --></span>
+			<span class="token keyword">return</span> _head<span class="token punctuation">;</span>
+		<span class="token punctuation">}</span>
+		<span class="token keyword">void</span> <span class="token function">swap</span><span class="token punctuation">(</span>list<span class="token operator">&lt;</span><span class="token keyword">int</span><span class="token operator">&gt;</span><span class="token operator">&amp;</span>tmp<span class="token punctuation">)</span>
+		<span class="token punctuation">{<!-- --></span>
+			std<span class="token double-colon punctuation">::</span><span class="token function">swap</span><span class="token punctuation">(</span>_head<span class="token punctuation">,</span> tmp<span class="token punctuation">.</span>_head<span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token punctuation">}</span>
+		list<span class="token operator">&lt;</span>T<span class="token operator">&gt;</span><span class="token operator">&amp;</span>  <span class="token keyword">operator</span><span class="token operator">=</span><span class="token punctuation">(</span>list<span class="token operator">&lt;</span>T<span class="token operator">&gt;</span> it<span class="token punctuation">)</span>
+		<span class="token punctuation">{<!-- --></span>
+			<span class="token function">swap</span><span class="token punctuation">(</span>it<span class="token punctuation">)</span><span class="token punctuation">;</span>
+			<span class="token keyword">return</span> <span class="token operator">*</span><span class="token keyword">this</span><span class="token punctuation">;</span>
+		<span class="token punctuation">}</span>
+		<span class="token keyword">int</span> <span class="token function">size</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+		<span class="token punctuation">{<!-- --></span>
+			<span class="token keyword">int</span> count <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+			<span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token keyword">const</span> <span class="token keyword">auto</span><span class="token operator">&amp;</span> e <span class="token operator">:</span> <span class="token operator">*</span><span class="token keyword">this</span><span class="token punctuation">)</span>
+			<span class="token punctuation">{<!-- --></span>
+				count<span class="token operator">++</span><span class="token punctuation">;</span>
+			<span class="token punctuation">}</span>
+			<span class="token keyword">return</span> count<span class="token punctuation">;</span>
+		<span class="token punctuation">}</span>
+		<span class="token keyword">bool</span> <span class="token function">empty</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+		<span class="token punctuation">{<!-- --></span>
+			<span class="token keyword">return</span> <span class="token function">size</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">==</span> <span class="token number">0</span><span class="token punctuation">;</span>
+		<span class="token punctuation">}</span>
+		iterator <span class="token function">insert</span><span class="token punctuation">(</span>iterator pos<span class="token punctuation">,</span> <span class="token keyword">const</span> T<span class="token operator">&amp;</span> val<span class="token punctuation">)</span>
+		<span class="token punctuation">{<!-- --></span>
+			Node<span class="token operator">*</span> cur <span class="token operator">=</span> pos<span class="token punctuation">.</span>_node<span class="token punctuation">;</span>
+			Node<span class="token operator">*</span> newnode <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token function">Node</span><span class="token punctuation">(</span>val<span class="token punctuation">)</span><span class="token punctuation">;</span>
+			Node<span class="token operator">*</span> prev <span class="token operator">=</span> cur<span class="token operator">-&gt;</span>_prev<span class="token punctuation">;</span>
+			prev<span class="token operator">-&gt;</span>_next <span class="token operator">=</span> newnode<span class="token punctuation">;</span>
+			newnode<span class="token operator">-&gt;</span>_prev <span class="token operator">=</span> prev<span class="token punctuation">;</span>
+			newnode<span class="token operator">-&gt;</span>_next <span class="token operator">=</span> cur<span class="token punctuation">;</span>
+			cur<span class="token operator">-&gt;</span>_prev <span class="token operator">=</span> newnode<span class="token punctuation">;</span>
+			<span class="token keyword">return</span> newnode<span class="token punctuation">;</span>
+		<span class="token punctuation">}</span>
+		<span class="token keyword">void</span> <span class="token function">push_back</span><span class="token punctuation">(</span><span class="token keyword">const</span> T<span class="token operator">&amp;</span> val<span class="token punctuation">)</span>
+		<span class="token punctuation">{<!-- --></span>
+			<span class="token function">insert</span><span class="token punctuation">(</span><span class="token function">end</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> val<span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token punctuation">}</span>
+		<span class="token keyword">void</span> <span class="token function">push_front</span><span class="token punctuation">(</span><span class="token keyword">const</span> T<span class="token operator">&amp;</span> val<span class="token punctuation">)</span>
+		<span class="token punctuation">{<!-- --></span>
+			<span class="token function">insert</span><span class="token punctuation">(</span><span class="token function">begin</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> val<span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token punctuation">}</span>
+		iterator <span class="token function">erase</span><span class="token punctuation">(</span>iterator pos<span class="token punctuation">)</span>
+		<span class="token punctuation">{<!-- --></span>
+			<span class="token function">assert</span><span class="token punctuation">(</span>pos <span class="token operator">!=</span> <span class="token function">end</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+			Node<span class="token operator">*</span> cur <span class="token operator">=</span> pos<span class="token punctuation">.</span>_node<span class="token punctuation">;</span>
+			Node<span class="token operator">*</span> prev <span class="token operator">=</span> cur<span class="token operator">-&gt;</span>_prev<span class="token punctuation">;</span>
+			Node<span class="token operator">*</span> next <span class="token operator">=</span> cur<span class="token operator">-&gt;</span>_next<span class="token punctuation">;</span>
+			<span class="token keyword">delete</span> cur<span class="token punctuation">;</span>
+			prev<span class="token operator">-&gt;</span>_next <span class="token operator">=</span> next<span class="token punctuation">;</span>
+			next<span class="token operator">-&gt;</span>_prev <span class="token operator">=</span> prev<span class="token punctuation">;</span>
+			<span class="token keyword">return</span> next<span class="token punctuation">;</span>
+		<span class="token punctuation">}</span>
+		T<span class="token operator">&amp;</span> <span class="token function">front</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+		<span class="token punctuation">{<!-- --></span>
+			<span class="token keyword">return</span> _head<span class="token operator">-&gt;</span>_next<span class="token operator">-&gt;</span>_data<span class="token punctuation">;</span>
+		<span class="token punctuation">}</span>
+		T<span class="token operator">&amp;</span> <span class="token function">back</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+		<span class="token punctuation">{<!-- --></span>
+			<span class="token keyword">return</span> _head<span class="token operator">-&gt;</span>_prev<span class="token operator">-&gt;</span>_data<span class="token punctuation">;</span>
+		<span class="token punctuation">}</span>
+		<span class="token keyword">void</span> <span class="token function">pop_back</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+		<span class="token punctuation">{<!-- --></span>
+			<span class="token function">erase</span><span class="token punctuation">(</span><span class="token operator">--</span><span class="token function">end</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token punctuation">}</span>
+
+		<span class="token keyword">void</span> <span class="token function">pop_front</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+		<span class="token punctuation">{<!-- --></span>
+			<span class="token function">erase</span><span class="token punctuation">(</span><span class="token function">begin</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token punctuation">}</span>
+		<span class="token keyword">void</span> <span class="token function">clear</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+		<span class="token punctuation">{<!-- --></span>
+			iterator it <span class="token operator">=</span> <span class="token function">begin</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+			<span class="token keyword">while</span> <span class="token punctuation">(</span>it <span class="token operator">!=</span> <span class="token function">end</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+			<span class="token punctuation">{<!-- --></span>
+				it <span class="token operator">=</span> <span class="token function">erase</span><span class="token punctuation">(</span>it<span class="token punctuation">)</span><span class="token punctuation">;</span>
+			<span class="token punctuation">}</span>
+		<span class="token punctuation">}</span>
+		<span class="token operator">~</span><span class="token function">list</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+		<span class="token punctuation">{<!-- --></span>
+			<span class="token function">clear</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+			<span class="token keyword">delete</span> _head<span class="token punctuation">;</span>
+			_head <span class="token operator">=</span> <span class="token keyword">nullptr</span><span class="token punctuation">;</span>
+		<span class="token punctuation">}</span>
+	<span class="token keyword">private</span><span class="token operator">:</span>
+		Node<span class="token operator">*</span> _head<span class="token punctuation">;</span>
+	<span class="token punctuation">}</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<h2><a id="_593"></a>总结</h2> 
+<p>以上就是今天要讲的内容，本文仅仅详细介绍了C++list的模拟实现，希望对大家的学习有所帮助，仅供参考 如有错误请大佬指点我会尽快去改正 欢迎大家来评论~~ 😘 😘 😘</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/e0fe6b5738e24ebe1deff8de41173027/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">王道c语言-链表分为两半，逆置后一半，与前一半轮流合并</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/5d2af998047c0d6af4bc7ab647667f3a/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">探索未来教育：培训机构架构的创新之路</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

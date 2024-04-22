@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>长安链共识算法切换：动态调整，灵活可变 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/c0799010358d3bd09efa3f9dd4def20c/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="长安链共识算法切换：动态调整，灵活可变">
+  <meta property="og:description" content="#功能发布
+长安链3.0正式版发布了多个重点功能，包括共识算法切换、支持java智能合约引擎、支持后量子密码、web3生态兼容等。我们接下来为大家详细介绍新功能的设计、应用与规划。
+随着长安链应用愈加成熟与广泛，一些在生产中很实用的需求浮出水面。长安链3.0正式版围绕此类需求融合了多个功能特性，共识算法切换作为其中之一可以赋予联盟链更好的可扩展性，动态灵活的应对系统上线后业务发展、组织节点新增或变更等场景。
+共识算法的选择取决于链上节点互信程度、容错率需求等因素。随着业务的发展，已有业务链可能会面临共识性能逐渐不满足现有需求、链上新增组织时节点间互信程度发生了改变等情况，这时共识算法切换就成了非常迫切的需求。
+长安链原生支持RAFT、TBFT、ABFT、DPOS等多种共识算法，在首次配置启动后所使用的共识算法即落定不可改变。为了满足更多使用场景中改变共识的需求，长安链在3.0正式版开始支持切换已完成配置的链共识算法，目前TBFT和RAFT共识之间可切换，未来将会带来更多支持。在这里将为大家剖析下长安链是如何进行共识算法切换的。
+一、概述 长安链共识算法切换是通过发起共识算法切换交易请求，判定当前的运行环境是否允许新共识算法运行，并对这种判定达成共识后，如果允许切换，则终止原共识算法启用新的共识算法。共识类型在长安链中配置如下
+二、共识切换合约逻辑 图1
+1.合约执行时，通过虚拟机运行获取到本节点所知晓的当前的共识运行环境信息；
+2.获取切换的目标共识算法运行所依赖的环境条件；
+3.判定目前的运行环境信息是否满足目标共识依赖的环境条件；
+4.如果可切换，合约将更改链配置中共识的类型到目标共识类型，如果需要，则同时更改共识相关的额外配置信息。
+概念说明
+共识的运行环境：一般包括的信息有参与共识的节点、当前在线的共识节点、互相可正常连通的共识节点等。
+共识算法依赖的条件：不同类型的共识算法能够正常运行所依赖的条件不尽相同，如CFT类共识需要满足2f&#43;1&amp;lt;=n, BFT类满足3f&#43;1&amp;lt;=n
+三、整体流程 核心流程如下：
+图2
+1.在共识切换合约逻辑中有提到在执行合约时，需要通过合约运行时获取到共识的运行环境信息，在长安链中这个信息由当前运行的共识算法实例提供，因此在依据链配置中的共识类型初始化成功相应的共识算法实例后，将其注册到vm中（共识状态holder）；
+2.创建配置块订监听器，解析监听到配置块，比对配置块中的共识类型同当前运行的共识类型是否相同，不同意味着需要对共识算法进行切换。
+3.切换时，终止掉当前链的共识实例，并依据新的共识类型创建新的共识算法实例，而后将其注册到vm中以替换掉原有注册的共识实例。启动新的共识实例，完成切换。
+四、共识运行环境信息的采集 在这里我们以RAFT为例，选择RAFT是因为RAFT算法的实现中，从节点之间是不知道彼此的状态的，而共识算法切换对于所有共识节点来说都需要获取到一个相对完备的环境信息，只有这样才能保证对切换的结果达成确定的共识，切换完成后共识也能正常地进行作业。
+图3
+RAFT信息收集中，定义了两种消息类型
+lHeartBeat：心跳消息，各个节点在启动后，会定时地给其他节点发送心跳，以保证对方节点能够知晓自己的存活状态，如果超时未获取，则标记此节点为掉线状态
+lNodeLink：节点的连接信息，即节点还需要知晓其他节点所掌握的外部节点的状态信息。比如，node_1需要知道node_2所掌握的node_1、node_2、node_3的心跳状态。
+通过这两个消息类型，一个节点就能够知晓整个共识网络中节点的连通状况，在目前的长安链版本中，依据最小交集原则，从中计算出能够彼此都连通的节点的最小集合，在合约执行中，判定这个最小集合是否满足目标共识的需求，如在四节点RAFT-&amp;gt;TBFT切换时，判定最小集合的节点数是否满足2f&#43;1即3个节点。
+至此，我们从合约逻辑、整体流程及信息采集三个方面阐述了长安链共识算法切换的机制和流程。
+五、共识算法切换使用 sdk逻辑接口
+// ### 构造 raft切换到tbft payload
+// 参数说明：extConfig: 应用到tbft共识的配置信息 无更改则填nil
+CreateRaftToTbftPayload(extConfig []*common.KeyValuePair) (*common.Payload, error)
+// ### 构造 tbft切换到raft payload
+// 参数说明：extConfig: 应用到raft共识的配置信息 无更改则填nil
+CreateTbftToRaftPayload(extConfig []*common.KeyValuePair) (*common.Payload, error)
+目前版本仅支持TBFT和RAFT算法之间的相互切换，其中参数extConfig是为目标共识配置的扩展信息，对应链配置的consensus.ext_config，不需要此参数可选填nil。
+权限配置
+共识切换默认启用的权限为major，可通过更改资源策略来更改共识切换的权限合约名：CHAIN_CONFIG， 方法名：CONSENSUS_SWITCH，资源名：CHAIN_CONFIG-CONSENSUS_SWITCH， 描述：共识切换
+cmc命令
+./cmc client chainconfig consensus switch \">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2024-03-18T16:13:23+08:00">
+    <meta property="article:modified_time" content="2024-03-18T16:13:23+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">长安链共识算法切换：动态调整，灵活可变</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <p><strong>#功能发布</strong></p> 
+<p></p> 
+<p></p> 
+<p>长安链3.0正式版发布了多个重点功能，包括共识算法切换、支持java智能合约引擎、支持后量子密码、web3生态兼容等。我们接下来为大家详细介绍新功能的设计、应用与规划。</p> 
+<p></p> 
+<p></p> 
+<p>随着长安链应用愈加成熟与广泛，一些在生产中很实用的需求浮出水面。长安链3.0正式版围绕此类需求融合了多个功能特性，共识算法切换作为其中之一可以赋予联盟链更好的可扩展性，动态灵活的应对系统上线后业务发展、组织节点新增或变更等场景。</p> 
+<p>共识算法的选择取决于链上节点互信程度、容错率需求等因素。随着业务的发展，已有业务链可能会面临共识性能逐渐不满足现有需求、链上新增组织时节点间互信程度发生了改变等情况，这时共识算法切换就成了非常迫切的需求。</p> 
+<p>长安链原生支持RAFT、TBFT、ABFT、DPOS等多种共识算法，在首次配置启动后所使用的共识算法即落定不可改变。为了满足更多使用场景中改变共识的需求，长安链在3.0正式版开始支持切换已完成配置的链共识算法，目前TBFT和RAFT共识之间可切换，未来将会带来更多支持。在这里将为大家剖析下长安链是如何进行共识算法切换的。</p> 
+<p><strong> 一、概述 </strong></p> 
+<p>长安链共识算法切换是通过发起共识算法切换交易请求，判定当前的运行环境是否允许新共识算法运行，并对这种判定达成共识后，如果允许切换，则终止原共识算法启用新的共识算法。共识类型在长安链中配置如下</p> 
+<p></p> 
+<p class="img-center"><img alt="图片" height="183" src="https://images2.imgbox.com/ad/94/Y0x5uvsx_o.png" width="943"></p> 
+<p></p> 
+<p><strong> 二、共识切换合约逻辑 </strong></p> 
+<p></p> 
+<p class="img-center"><img alt="图片" height="288" src="https://images2.imgbox.com/4c/e7/GB6KMI7Y_o.png" width="831"></p> 
+<p>图1</p> 
+<p>1.合约执行时，通过虚拟机运行获取到本节点所知晓的当前的共识运行环境信息；</p> 
+<p>2.获取切换的目标共识算法运行所依赖的环境条件；</p> 
+<p>3.判定目前的运行环境信息是否满足目标共识依赖的环境条件；</p> 
+<p>4.如果可切换，合约将更改链配置中共识的类型到目标共识类型，如果需要，则同时更改共识相关的额外配置信息。</p> 
+<p><em>概念说明</em></p> 
+<p><em>共识的运行环境：一般包括的信息有参与共识的节点、当前在线的共识节点、互相可正常连通的共识节点等。</em></p> 
+<p><em>共识算法依赖的条件：不同类型的共识算法能够正常运行所依赖的条件不尽相同，如CFT类共识需要满足2f+1&lt;=n, BFT类满足3f+1&lt;=n</em></p> 
+<p><strong> 三、整体流程</strong><strong> </strong></p> 
+<p>核心流程如下：</p> 
+<p></p> 
+<p class="img-center"><img alt="图片" height="497" src="https://images2.imgbox.com/ea/00/RZBTvh2a_o.png" width="831"></p> 
+<p>图2</p> 
+<p>1.在共识切换合约逻辑中有提到在执行合约时，需要通过合约运行时获取到共识的运行环境信息，在长安链中这个信息由当前运行的共识算法实例提供，因此在依据链配置中的共识类型初始化成功相应的共识算法实例后，将其注册到vm中（共识状态holder）；</p> 
+<p>2.创建配置块订监听器，解析监听到配置块，比对配置块中的共识类型同当前运行的共识类型是否相同，不同意味着需要对共识算法进行切换。</p> 
+<p>3.切换时，终止掉当前链的共识实例，并依据新的共识类型创建新的共识算法实例，而后将其注册到vm中以替换掉原有注册的共识实例。启动新的共识实例，完成切换。</p> 
+<p><strong> 四、共识运行环境信息的采集 </strong></p> 
+<p>在这里我们以RAFT为例，选择RAFT是因为RAFT算法的实现中，从节点之间是不知道彼此的状态的，而共识算法切换对于所有共识节点来说都需要获取到一个相对完备的环境信息，只有这样才能保证对切换的结果达成确定的共识，切换完成后共识也能正常地进行作业。</p> 
+<p></p> 
+<p class="img-center"><img alt="图片" height="370" src="https://images2.imgbox.com/38/a9/8CiSxKAf_o.png" width="444"></p> 
+<p>图3</p> 
+<p>RAFT信息收集中，定义了两种消息类型</p> 
+<p>lHeartBeat：心跳消息，各个节点在启动后，会定时地给其他节点发送心跳，以保证对方节点能够知晓自己的存活状态，如果超时未获取，则标记此节点为掉线状态</p> 
+<p>lNodeLink：节点的连接信息，即节点还需要知晓其他节点所掌握的外部节点的状态信息。比如，node_1需要知道node_2所掌握的node_1、node_2、node_3的心跳状态。</p> 
+<p>通过这两个消息类型，一个节点就能够知晓整个共识网络中节点的连通状况，在目前的长安链版本中，依据最小交集原则，从中计算出能够彼此都连通的节点的最小集合，在合约执行中，判定这个最小集合是否满足目标共识的需求，如在四节点RAFT-&gt;TBFT切换时，判定最小集合的节点数是否满足2f+1即3个节点。</p> 
+<p>至此，我们从合约逻辑、整体流程及信息采集三个方面阐述了长安链共识算法切换的机制和流程。</p> 
+<h4><strong> 五、共识算法切换使用 </strong></h4> 
+<p></p> 
+<p><strong>sdk逻辑接口</strong></p> 
+<p>// ### 构造 raft切换到tbft payload<br> // 参数说明：extConfig: 应用到tbft共识的配置信息 无更改则填nil<br> CreateRaftToTbftPayload(extConfig []*common.KeyValuePair) (*common.Payload, error)<br> // ### 构造 tbft切换到raft payload<br> // 参数说明：extConfig: 应用到raft共识的配置信息 无更改则填nil<br> CreateTbftToRaftPayload(extConfig []*common.KeyValuePair) (*common.Payload, error)</p> 
+<p>目前版本仅支持TBFT和RAFT算法之间的相互切换，其中参数extConfig是为目标共识配置的扩展信息，对应链配置的consensus.ext_config，不需要此参数可选填nil。</p> 
+<p><strong>权限配置</strong></p> 
+<p>共识切换默认启用的权限为major，可通过更改资源策略来更改共识切换的权限合约名：CHAIN_CONFIG， 方法名：CONSENSUS_SWITCH，资源名：CHAIN_CONFIG-CONSENSUS_SWITCH， 描述：共识切换</p> 
+<p><strong>cmc命令</strong></p> 
+<p>./cmc client chainconfig consensus switch \<br> --sdk-conf-path=./testdata/sdk_config.yml \<br> --admin-crt-file-paths=./testdata/crypto-config/wx-org1.chainmaker.org/user/admin1/admin1.tls.crt,./testdata/crypto-config/wx-org2.chainmaker.org/user/admin1/admin1.tls.crt,./testdata/crypto-config/wx-org3.chainmaker.org/user/admin1/admin1.tls.crt,./testdata/crypto-config/wx-org4.chainmaker.org/user/admin1/admin1.tls.crt \</p> 
+<p>./cmc client chainconfig consensus switch \<br> --sdk-conf-path=./testdata/sdk_config.yml \<br> --admin-key-file-paths=./testdata/crypto-config/wx-org1.chainmaker.org/user/admin1/admin1.tls.key,./testdata/crypto-config/wx-org2.chainmaker.org/user/admin1/admin1.tls.key,./testdata/crypto-config/wx-org3.chainmaker.org/user/admin1/admin1.tls.key,./testdata/crypto-config/wx-org4.chainmaker.org/user/admin1/admin1.tls.key \<br><br> --src-consensus=tbft \<br><br> --dst-consensus=raft \<br><br> --sync-result=true</p> 
+<p>其中：--src-consensus为源共识类型，需和链上的当前使用的共识类型相对应 --dst-consensus为目标共识类型</p> 
+<p>至此，我们从合约逻辑、整体流程、信息采集和使用四个方面阐述了长安链共识算法切换的机制和流程。长安链3.0正式版本支持的共识算法可切换能力将使区块链系统更加灵活，可以动态适应复杂多变的业务场景。</p> 
+<p></p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/8b51b267725683b176a2ce024ba25b74/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">获取年月日时分秒的npm插件</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/01533e177114a1223b26997816597a4f/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">直播预告 | 长安链2024年技术路线规划</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>基于LSTM递归神经网络的多特征电能负荷预测（Python代码实现） - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/c805089991e2884e39c102066c753cc9/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="基于LSTM递归神经网络的多特征电能负荷预测（Python代码实现）">
+  <meta property="og:description" content="👨‍🎓个人主页：研学社的博客 💥💥💞💞欢迎来到本博客❤️❤️💥💥
+🏆博主优势：🌞🌞🌞博客内容尽量做到思维缜密，逻辑清晰，为了方便读者。
+⛳️座右铭：行百里者，半于九十。
+📋📋📋本文目录如下：🎁🎁🎁
+目录
+💥1 概述
+📚2 运行结果
+🌈3 Python代码实现
+🎉4 参考文献
+💥1 概述 电能负荷预测按细粒度划分可分为粗度预测和细度预测。其中粗度预测则是将整个时间段的电能负荷数据进行训练，进而进行预测。而细度预测这是要考虑电能负荷季节，时间周期影响因子。
+在进行城市居民电能负荷粗度预测时需要考虑比较如下三种情况的准确率：
+利用上一时刻的电能负荷（power），温度（temperature），湿度（humidity），风速（speed）预测此刻的电能负荷，power_load_forecasting_V1利用上一时刻的电能负荷（power）和此刻的温度（temperature），湿度（humidity），风速（speed）预测此刻的电能负荷，利用上一若干时刻的电能负荷（power），温度（temperature），湿度（humidity），风速（speed）预测此刻的电能负荷，
+在进行城市居民电能负荷细度预测时，除了要考虑如上问题时，还需要考虑季节，时间周期等影响因子：电力负荷往往具有周期性，夏季，冬季，过渡季（春季和秋季）用户用电量往往差距很大，因此在预测是可以考虑分开预测，在各个季节进行预测是，我们还可以按天，周，月进行划分， 📚2 运行结果 122/122 - 0s - loss: 0.0303 - val_loss: 0.0392 - 167ms/epoch - 1ms/step Epoch 41/50 122/122 - 0s - loss: 0.0303 - val_loss: 0.0391 - 170ms/epoch - 1ms/step Epoch 42/50 122/122 - 0s - loss: 0.0303 - val_loss: 0.0393 - 170ms/epoch - 1ms/step Epoch 43/50 122/122 - 0s - loss: 0.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2022-12-09T11:24:41+08:00">
+    <meta property="article:modified_time" content="2022-12-09T11:24:41+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">基于LSTM递归神经网络的多特征电能负荷预测（Python代码实现）</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <blockquote> 
+ <p> 👨‍🎓<strong>个人主页：<strong><a href="https://blog.csdn.net/weixin_46039719?type=blog" title="研学社的博客">研学社的博客</a></strong> </strong></p> 
+</blockquote> 
+<blockquote> 
+ <p>💥💥💞💞<strong>欢迎来到本博客</strong>❤️❤️💥💥</p> 
+ <p></p> 
+ <p></p> 
+ <p><strong><strong>🏆博主优势：</strong>🌞🌞🌞</strong><span style="color:#ff9900;">博客内容尽量做到思维缜密，逻辑清晰，为了方便读者。</span></p> 
+ <p></p> 
+ <p></p> 
+ <p>⛳️<strong>座右铭：</strong><span style="color:#a2e043;">行百里者，半于九十。</span></p> 
+ <p></p> 
+ <p>📋📋📋<u><strong>本文目录如下：</strong></u>🎁🎁🎁</p> 
+ <p id="main-toc"><strong>目录</strong></p> 
+ <p id="%F0%9F%92%A51%20%E6%A6%82%E8%BF%B0-toc" style="margin-left:40px;"><a href="#%F0%9F%92%A51%20%E6%A6%82%E8%BF%B0" rel="nofollow">💥1 概述</a></p> 
+ <p id="%F0%9F%93%9A2%20%E8%BF%90%E8%A1%8C%E7%BB%93%E6%9E%9C-toc" style="margin-left:40px;"><a href="#%F0%9F%93%9A2%20%E8%BF%90%E8%A1%8C%E7%BB%93%E6%9E%9C" rel="nofollow">📚2 运行结果</a></p> 
+ <p id="%F0%9F%8C%883%20Python%E4%BB%A3%E7%A0%81%E5%AE%9E%E7%8E%B0-toc" style="margin-left:40px;"><a href="#%F0%9F%8C%883%20Python%E4%BB%A3%E7%A0%81%E5%AE%9E%E7%8E%B0" rel="nofollow">🌈3 Python代码实现</a></p> 
+ <p id="%F0%9F%8E%894%C2%A0%E5%8F%82%E8%80%83%E6%96%87%E7%8C%AE-toc" style="margin-left:40px;"><a href="#%F0%9F%8E%894%C2%A0%E5%8F%82%E8%80%83%E6%96%87%E7%8C%AE" rel="nofollow">🎉4 参考文献</a></p> 
+ <hr id="hr-toc"> 
+ <p></p> 
+ <p><img alt="" src="https://images2.imgbox.com/c8/db/CLABdwVO_o.gif"></p> 
+</blockquote> 
+<h3 id="%F0%9F%92%A51%20%E6%A6%82%E8%BF%B0"><strong>💥1 概述</strong></h3> 
+<p>电能负荷预测按细粒度划分可分为粗度预测和细度预测。其中粗度预测则是将整个时间段的电能负荷数据进行训练，进而进行预测。而细度预测这是要考虑电能负荷季节，时间周期影响因子。</p> 
+<blockquote> 
+ <p>在进行城市居民电能负荷粗度预测时需要考虑比较如下三种情况的准确率：</p> 
+ <blockquote> 
+  <ol><li>利用上一时刻的电能负荷（power），温度（temperature），湿度（humidity），风速（speed）预测此刻的电能负荷，power_load_forecasting_V1</li><li>利用上一时刻的电能负荷（power）和此刻的温度（temperature），湿度（humidity），风速（speed）预测此刻的电能负荷，</li><li>利用上一若干时刻的电能负荷（power），温度（temperature），湿度（humidity），风速（speed）预测此刻的电能负荷，<br> 在进行城市居民电能负荷细度预测时，除了要考虑如上问题时，还需要考虑季节，时间周期等影响因子：</li><li>电力负荷往往具有周期性，夏季，冬季，过渡季（春季和秋季）用户用电量往往差距很大，因此在预测是可以考虑分开预测，</li><li>在各个季节进行预测是，我们还可以按天，周，月进行划分，</li></ol> 
+ </blockquote> 
+</blockquote> 
+<p></p> 
+<h3 id="%F0%9F%93%9A2%20%E8%BF%90%E8%A1%8C%E7%BB%93%E6%9E%9C"><strong>📚</strong><strong>2 运行结果</strong></h3> 
+<p><img alt="" height="1084" src="https://images2.imgbox.com/a2/39/knH0JsxT_o.png" width="1200"></p> 
+<pre><code>122/122 - 0s - loss: 0.0303 - val_loss: 0.0392 - 167ms/epoch - 1ms/step
+Epoch 41/50
+122/122 - 0s - loss: 0.0303 - val_loss: 0.0391 - 170ms/epoch - 1ms/step
+Epoch 42/50
+122/122 - 0s - loss: 0.0303 - val_loss: 0.0393 - 170ms/epoch - 1ms/step
+Epoch 43/50
+122/122 - 0s - loss: 0.0303 - val_loss: 0.0397 - 172ms/epoch - 1ms/step
+Epoch 44/50
+122/122 - 0s - loss: 0.0304 - val_loss: 0.0391 - 170ms/epoch - 1ms/step
+Epoch 45/50
+122/122 - 0s - loss: 0.0304 - val_loss: 0.0394 - 176ms/epoch - 1ms/step
+Epoch 46/50
+122/122 - 0s - loss: 0.0304 - val_loss: 0.0396 - 172ms/epoch - 1ms/step
+Epoch 47/50
+122/122 - 0s - loss: 0.0304 - val_loss: 0.0396 - 203ms/epoch - 2ms/step
+Epoch 48/50
+122/122 - 0s - loss: 0.0303 - val_loss: 0.0396 - 196ms/epoch - 2ms/step
+Epoch 49/50
+122/122 - 0s - loss: 0.0303 - val_loss: 0.0396 - 182ms/epoch - 1ms/step
+Epoch 50/50
+122/122 - 0s - loss: 0.0303 - val_loss: 0.0396 - 166ms/epoch - 1ms/step
+Test RMSE: 110.218
+Test mape: 0.117
+
+Process finished with exit code 0
+</code></pre> 
+<p> 部分代码：</p> 
+<pre>model.compile(loss='mae', optimizer='adam')
+# fit network
+history = model.fit(train_X, train_y, epochs=50, batch_size=72, validation_data=(test_X, test_y), verbose=2,
+                    shuffle=False)
+# plot history
+pyplot.plot(history.history['loss'], label='train')
+pyplot.plot(history.history['val_loss'], label='test')
+pyplot.legend()
+pyplot.show()
+
+# make a prediction
+yhat = model.predict(test_X)
+test_X = test_X.reshape((test_X.shape[0], test_X.shape[2]))
+
+# invert scaling for forecast
+inv_yhat = concatenate((yhat, test_X[:, 1:]), axis=1)
+inv_yhat = scaler.inverse_transform(inv_yhat)
+inv_yhat = inv_yhat[:, 0]
+# invert scaling for actual
+test_y = test_y.reshape((len(test_y), 1))
+inv_y = concatenate((test_y, test_X[:, 1:]), axis=1)
+inv_y = scaler.inverse_transform(inv_y)
+inv_y = inv_y[:, 0]
+# calculate RMSE
+rmse = sqrt(mean_squared_error(inv_y, inv_yhat))
+print('Test RMSE: %.3f' % rmse)
+
+# calculate MAPE
+mape = mean_absolute_percentage_error(inv_y, inv_yhat)
+print('Test mape: %.3f' % mape)</pre> 
+<h3 id="%F0%9F%8C%883%20Python%E4%BB%A3%E7%A0%81%E5%AE%9E%E7%8E%B0"><a href="https://mp.weixin.qq.com/mp/appmsgalbum?__biz=Mzk0MDMzNzYwOA==&amp;action=getalbum&amp;album_id=2591810113208958977#wechat_redirect" rel="nofollow" title="🌈">🌈</a><strong><strong>3 Python代码实现</strong></strong></h3> 
+<blockquote> 
+ <p></p> 
+</blockquote> 
+<h3 id="%F0%9F%8E%894%C2%A0%E5%8F%82%E8%80%83%E6%96%87%E7%8C%AE"><strong><strong>🎉4</strong></strong><strong><strong> 参考文献</strong></strong></h3> 
+<blockquote> 
+ <p>部分理论来源于网络，如有侵权请联系删除。</p> 
+</blockquote> 
+<p></p> 
+<p></p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/6ccd6db00d64565fda550318d0b31a30/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">成功解决-\venv\Scripts\activate.ps1，因为在此系统上禁止运行脚本。有关详细信息，请参阅 ht</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/f946b03a74e9bfdcc1189f3bbcec6a36/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">浮点数的运算方法</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

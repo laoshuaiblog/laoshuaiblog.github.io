@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>JDBCTemplate中queryForObject方法查询为空抛异常的问题（.IncorrectResultSizeDataAccessException: Incorrect resu）【解决】 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/e0d11f4a30312d8278481720274b1042/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="JDBCTemplate中queryForObject方法查询为空抛异常的问题（.IncorrectResultSizeDataAccessException: Incorrect resu）【解决】">
+  <meta property="og:description" content="文章目录 前言问题重现源码： 解决方案查询结果为空抛出异常解决方法查询数量大于1解决方法 前言 虽然目前我们大多使用Mybatis、JPA进行数据操作，但是在特殊情况下，我们还是可能通过JDBCTemplate继续对数据库进行操作的。前天在项目开发中，使用JDBCTemplate进行开发时发现一个异常。
+问题重现 就是如果使用JDBCTemplate.queryForObject进行查询数据，如果查询数据为空（null）时会抛出异常。
+org.springframework.dao.IncorrectResultSizeDataAccessException: Incorrect result size: expected 1, actual 2 问题分析：
+通过追查源码发现是因为，在源码中方法返回结果判断时如果为空就抛出throw new EmptyResultDataAccessException(1);异常；
+如果返回值的数量大于1 的时候也会抛出：throw new IncorrectResultSizeDataAccessException(1, results.size());的异常。
+但是我想要的功能就是如果数据库为空那就返回空，而不是抛出异常。
+源码： @Nullable public &amp;lt;T&amp;gt; T queryForObject(String sql, @Nullable Object[] args, RowMapper&amp;lt;T&amp;gt; rowMapper) throws DataAccessException { List&amp;lt;T&amp;gt; results = (List)this.query((String)sql, (Object[])args, (ResultSetExtractor)(new RowMapperResultSetExtractor(rowMapper, 1))); return DataAccessUtils.nullableSingleResult(results); } @Nullable public static &amp;lt;T&amp;gt; T nullableSingleResult(@Nullable Collection&amp;lt;T&amp;gt; results) throws IncorrectResultSizeDataAccessException { if (CollectionUtils.isEmpty(results)) { throw new EmptyResultDataAccessException(1); } else if (results.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2021-12-27T23:42:22+08:00">
+    <meta property="article:modified_time" content="2021-12-27T23:42:22+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">JDBCTemplate中queryForObject方法查询为空抛异常的问题（.IncorrectResultSizeDataAccessException: Incorrect resu）【解决】</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-dark">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <p></p> 
+<div class="toc"> 
+ <h4>文章目录</h4> 
+ <ul><li><a href="#_1" rel="nofollow">前言</a></li><li><a href="#_4" rel="nofollow">问题重现</a></li><li><ul><li><a href="#_18" rel="nofollow">源码：</a></li></ul> 
+  </li><li><a href="#_38" rel="nofollow">解决方案</a></li><li><ul><li><a href="#_39" rel="nofollow">查询结果为空抛出异常解决方法</a></li><li><a href="#1_95" rel="nofollow">查询数量大于1解决方法</a></li></ul> 
+ </li></ul> 
+</div> 
+<p></p> 
+<h2><a id="_1"></a>前言</h2> 
+<p>虽然目前我们大多使用Mybatis、JPA进行数据操作，但是在特殊情况下，我们还是可能通过JDBCTemplate继续对数据库进行操作的。前天在项目开发中，使用JDBCTemplate进行开发时发现一个异常。</p> 
+<h2><a id="_4"></a>问题重现</h2> 
+<p>就是如果使用JDBCTemplate.queryForObject进行查询数据，如果查询数据为空（null）时会抛出异常。</p> 
+<pre><code>org.springframework.dao.IncorrectResultSizeDataAccessException: Incorrect result size: expected 1, actual 2 
+</code></pre> 
+<p><strong>问题分析：</strong><br> 通过追查源码发现是因为，在源码中方法返回结果判断时如果为空就抛出<code>throw new EmptyResultDataAccessException(1);</code>异常；</p> 
+<p>如果返回值的数量大于1 的时候也会抛出：<code>throw new IncorrectResultSizeDataAccessException(1, results.size());</code>的异常。</p> 
+<p>但是我想要的功能就是如果数据库为空那就返回空，而不是抛出异常。</p> 
+<h3><a id="_18"></a>源码：</h3> 
+<pre><code class="prism language-java"><span class="token annotation punctuation">@Nullable</span>
+    <span class="token keyword">public</span> <span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">T</span><span class="token punctuation">&gt;</span></span> <span class="token class-name">T</span> <span class="token function">queryForObject</span><span class="token punctuation">(</span><span class="token class-name">String</span> sql<span class="token punctuation">,</span> <span class="token annotation punctuation">@Nullable</span> <span class="token class-name">Object</span><span class="token punctuation">[</span><span class="token punctuation">]</span> args<span class="token punctuation">,</span> <span class="token class-name">RowMapper</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">T</span><span class="token punctuation">&gt;</span></span> rowMapper<span class="token punctuation">)</span> <span class="token keyword">throws</span> <span class="token class-name">DataAccessException</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token class-name">List</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">T</span><span class="token punctuation">&gt;</span></span> results <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token class-name">List</span><span class="token punctuation">)</span><span class="token keyword">this</span><span class="token punctuation">.</span><span class="token function">query</span><span class="token punctuation">(</span><span class="token punctuation">(</span><span class="token class-name">String</span><span class="token punctuation">)</span>sql<span class="token punctuation">,</span> <span class="token punctuation">(</span><span class="token class-name">Object</span><span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token punctuation">)</span>args<span class="token punctuation">,</span> <span class="token punctuation">(</span><span class="token class-name">ResultSetExtractor</span><span class="token punctuation">)</span><span class="token punctuation">(</span><span class="token keyword">new</span> <span class="token class-name">RowMapperResultSetExtractor</span><span class="token punctuation">(</span>rowMapper<span class="token punctuation">,</span> <span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">return</span> <span class="token class-name">DataAccessUtils</span><span class="token punctuation">.</span><span class="token function">nullableSingleResult</span><span class="token punctuation">(</span>results<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token annotation punctuation">@Nullable</span>
+    <span class="token keyword">public</span> <span class="token keyword">static</span> <span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">T</span><span class="token punctuation">&gt;</span></span> <span class="token class-name">T</span> <span class="token function">nullableSingleResult</span><span class="token punctuation">(</span><span class="token annotation punctuation">@Nullable</span> <span class="token class-name">Collection</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">T</span><span class="token punctuation">&gt;</span></span> results<span class="token punctuation">)</span> <span class="token keyword">throws</span> <span class="token class-name">IncorrectResultSizeDataAccessException</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token class-name">CollectionUtils</span><span class="token punctuation">.</span><span class="token function">isEmpty</span><span class="token punctuation">(</span>results<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token keyword">throw</span> <span class="token keyword">new</span> <span class="token class-name">EmptyResultDataAccessException</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token keyword">if</span> <span class="token punctuation">(</span>results<span class="token punctuation">.</span><span class="token function">size</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">&gt;</span> <span class="token number">1</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token keyword">throw</span> <span class="token keyword">new</span> <span class="token class-name">IncorrectResultSizeDataAccessException</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">,</span> results<span class="token punctuation">.</span><span class="token function">size</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token keyword">return</span> results<span class="token punctuation">.</span><span class="token function">iterator</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">next</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+</code></pre> 
+<h2><a id="_38"></a>解决方案</h2> 
+<h3><a id="_39"></a>查询结果为空抛出异常解决方法</h3> 
+<p>如果是因为查询结果为空的情况报错：解决方案如下<br> 其实解决方法有两种，分别为：</p> 
+<ol><li>通过<code>try catch</code>的方式如果抛出这个异常就，设定返回值为空（不推荐，因为不经不准确，而且影响效率）</li><li><strong>重写这个判断方法</strong></li></ol> 
+<p>首相我们写一个增强类继承 JDBCTemplate.<br> 然后将对应的<code>queryForObject</code>方法进行重写。<br> 修改其判断方法。然后在创建JDBCTemplate的时候，创建我们自己定义的这个就可以了。<br> 注意：自己定义的类的构造器要调用父类的（JDBCTemplate）具体实现看下方代码。<br> <img src="https://images2.imgbox.com/c3/4f/1F55hI3E_o.png" alt="在这里插入图片描述"></p> 
+<pre><code class="prism language-java"><span class="token keyword">package</span> <span class="token namespace">cn<span class="token punctuation">.</span>hncht<span class="token punctuation">.</span>plug<span class="token punctuation">.</span>qywx<span class="token punctuation">.</span>util</span><span class="token punctuation">;</span>
+
+<span class="token keyword">import</span> <span class="token namespace">org<span class="token punctuation">.</span>springframework<span class="token punctuation">.</span>dao<span class="token punctuation">.</span></span><span class="token class-name">DataAccessException</span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token namespace">org<span class="token punctuation">.</span>springframework<span class="token punctuation">.</span>dao<span class="token punctuation">.</span></span><span class="token class-name">IncorrectResultSizeDataAccessException</span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token namespace">org<span class="token punctuation">.</span>springframework<span class="token punctuation">.</span>jdbc<span class="token punctuation">.</span>core<span class="token punctuation">.</span></span><span class="token class-name">JdbcTemplate</span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token namespace">org<span class="token punctuation">.</span>springframework<span class="token punctuation">.</span>jdbc<span class="token punctuation">.</span>core<span class="token punctuation">.</span></span><span class="token class-name">RowMapper</span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token namespace">org<span class="token punctuation">.</span>springframework<span class="token punctuation">.</span>jdbc<span class="token punctuation">.</span>core<span class="token punctuation">.</span></span><span class="token class-name">RowMapperResultSetExtractor</span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token namespace">org<span class="token punctuation">.</span>springframework<span class="token punctuation">.</span>lang<span class="token punctuation">.</span></span><span class="token class-name">Nullable</span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token namespace">org<span class="token punctuation">.</span>springframework<span class="token punctuation">.</span>util<span class="token punctuation">.</span></span><span class="token class-name">CollectionUtils</span><span class="token punctuation">;</span>
+
+<span class="token keyword">import</span> <span class="token namespace">javax<span class="token punctuation">.</span>sql<span class="token punctuation">.</span></span><span class="token class-name">DataSource</span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token namespace">java<span class="token punctuation">.</span>util<span class="token punctuation">.</span></span><span class="token class-name">Collection</span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token namespace">java<span class="token punctuation">.</span>util<span class="token punctuation">.</span></span><span class="token class-name">List</span><span class="token punctuation">;</span>
+
+<span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">JdbcTemplateEnhance</span> <span class="token keyword">extends</span> <span class="token class-name">JdbcTemplate</span> <span class="token punctuation">{<!-- --></span>
+
+    <span class="token keyword">public</span> <span class="token class-name">JdbcTemplateEnhance</span> <span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token punctuation">}</span>
+
+    <span class="token keyword">public</span> <span class="token class-name">JdbcTemplateEnhance</span> <span class="token punctuation">(</span><span class="token class-name">DataSource</span> dataSource<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">super</span><span class="token punctuation">(</span>dataSource<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token annotation punctuation">@Override</span>
+    <span class="token keyword">public</span> <span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">T</span><span class="token punctuation">&gt;</span></span> <span class="token class-name">T</span> <span class="token function">queryForObject</span><span class="token punctuation">(</span><span class="token class-name">String</span> sql<span class="token punctuation">,</span> <span class="token class-name">RowMapper</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">T</span><span class="token punctuation">&gt;</span></span> rowMapper<span class="token punctuation">,</span> <span class="token class-name">Object</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span> args<span class="token punctuation">)</span> <span class="token keyword">throws</span> <span class="token class-name">DataAccessException</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token class-name">List</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">T</span><span class="token punctuation">&gt;</span></span> query <span class="token operator">=</span> <span class="token keyword">super</span><span class="token punctuation">.</span><span class="token function">query</span><span class="token punctuation">(</span>sql<span class="token punctuation">,</span> args<span class="token punctuation">,</span> <span class="token keyword">new</span> <span class="token class-name">RowMapperResultSetExtractor</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token punctuation">&gt;</span></span><span class="token punctuation">(</span>rowMapper<span class="token punctuation">,</span> <span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">return</span> <span class="token function">canReturnEmptyResultSet</span><span class="token punctuation">(</span>query<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+
+    <span class="token keyword">private</span> <span class="token keyword">static</span> <span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">T</span><span class="token punctuation">&gt;</span></span> <span class="token class-name">T</span> <span class="token function">canReturnEmptyResultSet</span><span class="token punctuation">(</span><span class="token annotation punctuation">@Nullable</span> <span class="token class-name">Collection</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">T</span><span class="token punctuation">&gt;</span></span> results<span class="token punctuation">)</span> <span class="token keyword">throws</span> <span class="token class-name">IncorrectResultSizeDataAccessException</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token class-name">CollectionUtils</span><span class="token punctuation">.</span><span class="token function">isEmpty</span><span class="token punctuation">(</span>results<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token keyword">return</span> <span class="token keyword">null</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token keyword">if</span> <span class="token punctuation">(</span>results<span class="token punctuation">.</span><span class="token function">size</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">&gt;</span> <span class="token number">1</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token keyword">throw</span> <span class="token keyword">new</span> <span class="token class-name">IncorrectResultSizeDataAccessException</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">,</span> results<span class="token punctuation">.</span><span class="token function">size</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token keyword">return</span> results<span class="token punctuation">.</span><span class="token function">iterator</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">next</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+
+<span class="token punctuation">}</span>
+
+</code></pre> 
+<h3><a id="1_95"></a>查询数量大于1解决方法</h3> 
+<p>因为查询数量大于一报错，可以通过修数据库中的重复数据。进行解决（不推荐直接修改数据库）</p> 
+<p>或者使用<code>queryForList()</code>方法进行查询</p> 
+<table><tbody><tr><td bgcolor="#ffff"> 🤞🤞🤞🤞🤞<font size="4px" color="ff222f" face="STCAIYUN">！！！END！！！</font>🤞🤞🤞🤞🤞 </td></tr></tbody></table>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/5547dc70f65a4f505c33341a42ada851/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">编译原理基本定义（文法、算符文法、算符优先文法、算符优先关系表、算符优先分析过程）</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/d6894364a84860a7a87cfd73e276f127/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">所谓的水仙花数是指一个三位数，其各位数字的立方和等于该数本身。举例：153就是一个水仙花数。 153 = 1*1*1 &#43; 5*5*5 &#43; 3*3*3 = 1 &#43; 125 &#43; 27 =</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

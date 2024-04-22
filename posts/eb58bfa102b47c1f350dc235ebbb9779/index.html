@@ -1,0 +1,1135 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>【C&#43;&#43;】手撕哈希表的闭散列和开散列 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/eb58bfa102b47c1f350dc235ebbb9779/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="【C&#43;&#43;】手撕哈希表的闭散列和开散列">
+  <meta property="og:description" content="&amp;gt; 作者：დ旧言~
+&amp;gt; 座右铭：松树千年终是朽，槿花一日自为荣。
+&amp;gt; 目标：手撕哈希表的闭散列和开散列
+&amp;gt; 毒鸡汤：谁不是一边受伤，一边学会坚强。
+&amp;gt; 专栏选自：C嘎嘎进阶
+&amp;gt; 望小伙伴们点赞👍收藏✨加关注哟💕💕
+🌟前言 谈到哈希表，大家都做过这样的题目，统计字符串的字母个数，像这样的题目可以创建一个数组，每个字母采用 a[&#39;ch&#39;]&#43;&#43; 计入数组中，这样的数组我们称之为哈希表，这种哈希表也是最简单的，如果说为了方便直接调用哈希表，那这个哈希表该如何模拟呢？这个问题也是今天我们所探讨的，手撕哈希表。
+⭐主体 学习手撕哈希表的闭散列和开散列咱们按照下面的图解：
+🌙哈希概念 知识回顾
+在顺序结构以及平衡树中，由于元素关键码与其存储位置之间没有对应的关系，因此在查找一个元素时，必须要经过关键码的多次比较；比如顺序表中需要从表头开始依次往后比对寻找，查找时间复杂度为 O(N)，平衡树中需要从第一层开始逐层往下比对寻找，查找时间复杂度为 O(logN)；即搜索的效率取决于搜索过程中元素的比较次数。
+分析探讨
+如果构造一种存储结构，可以通过某种函数 (hashFunc) 使元素的存储位置与它的关键码之间能够建立一对一的映射关系，那么在查找时通过该函数就可以很快找到该元素；当向该结构中：
+插入元素时：根据待插入元素的关键码，以此函数计算出该元素的存储位置并按此位置进行存放；搜索元素时：对元素的关键码进行同样的计算，把求得的函数值当做元素的存储位置，在结构中按此位置取元素比较，若关键码相等，则搜索成功。 总结归纳
+该方法即为 哈希 (散列) 方法，哈希方法中使用的转换函数称为哈希 (散列) 函数，构造出来的结构称为哈希表 (Hash Table) (或者称散列表)。
+注意事项
+我们上面提到的不管是顺序搜索、平衡树搜索还是哈希搜索，其 key 值都是唯一的，也就是说，搜索树中不允许出现相同 key 值的节点，哈希表中也不允许出现相同 key 值的元素，我们下文所进行的所有操作也都是在这前提之上进行的。
+🌙哈希冲突 不同关键字通过相同哈希哈数计算出相同的哈希地址，该种现象称为哈希冲突或哈希碰撞。
+哈希冲突有两种常见的解决办法：
+闭散列 (开放定址法)：当发生哈希冲突时，如果哈希表未被装满，说明在哈希表中必然还有空位置，那么可以把 key 存放到冲突位置中的 “下一个” 空位置中去；开散列 (链地址法)：首先对关键码集合用散列函数计算散列地址，具有相同地址的关键码 (哈希冲突) 归于同一子集合，每一个子集合称为一个桶，各个桶中的元素通过一个单链表链接起来，各链表的头结点存储在哈希表中；也就是说，当发生哈希冲突时，把 key 直接链接在该位置的下面。 🌙哈希函数 哈希函数有如下设计原则：
+哈希函数的定义域必须包括需要存储的全部关键码，而如果哈希表允许有m个地址时，其值域必须在0到m-1之间；哈希函数计算出来的地址要尽量能均匀分布在整个空间中；哈希函数应该比较简单。 💫直接定址法 什么是直接定址法：
+直接定址就是根据 key 值直接得到存储位置，最多再进行一个简单的常数之间的转换。
+分析：">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2024-03-24T20:30:20+08:00">
+    <meta property="article:modified_time" content="2024-03-24T20:30:20+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">【C&#43;&#43;】手撕哈希表的闭散列和开散列</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <blockquote> 
+ <p>&gt; 作者：დ旧言~<br> &gt; 座右铭：松树千年终是朽，槿花一日自为荣。</p> 
+ <p>&gt; 目标：手撕哈希表的闭散列和开散列</p> 
+ <p>&gt; 毒鸡汤：谁不是一边受伤，一边学会坚强。</p> 
+ <p>&gt; 专栏选自：<a href="https://blog.csdn.net/aalykk/category_12617655.html" title="C嘎嘎进阶">C嘎嘎进阶</a></p> 
+ <p>&gt; 望小伙伴们点赞👍收藏✨加关注哟💕💕</p> 
+</blockquote> 
+<p><img alt="" src="https://images2.imgbox.com/59/1c/xpPmn5Hw_o.jpg"></p> 
+<h2>🌟前言</h2> 
+<p>谈到哈希表，大家都做过这样的题目，统计字符串的字母个数，像这样的题目可以创建一个数组，每个字母采用 a['ch']++ 计入数组中，这样的数组我们称之为哈希表，这种哈希表也是最简单的，如果说为了方便直接调用哈希表，那这个哈希表该如何模拟呢？这个问题也是今天我们所探讨的，手撕哈希表。</p> 
+<h2><strong>⭐主体</strong></h2> 
+<p>学习手撕哈希表的闭散列和开散列咱们按照下面的图解：</p> 
+<p><img alt="" height="617" src="https://images2.imgbox.com/55/a0/XutxgFoW_o.png" width="1076"></p> 
+<p></p> 
+<h3>🌙哈希概念</h3> 
+<p><span style="color:#4da8ee;"><strong>知识回顾</strong></span></p> 
+<p>在顺序结构以及平衡树中，由于元素关键码与其存储位置之间没有对应的关系，因此在查找一个元素时，必须要经过关键码的多次比较；比如顺序表中需要从表头开始依次往后比对寻找，查找时间复杂度为 O(N)，平衡树中需要从第一层开始逐层往下比对寻找，查找时间复杂度为 O(logN)；即搜索的效率取决于搜索过程中元素的比较次数。</p> 
+<p><span style="color:#4da8ee;"><strong>分析探讨</strong></span></p> 
+<p>如果构造一种存储结构，可以通过某种函数 (hashFunc) 使元素的存储位置与它的关键码之间能够建立一对一的映射关系，那么在查找时通过该函数就可以很快找到该元素；当向该结构中：</p> 
+<ul><li>插入元素时：根据待插入元素的关键码，以此函数计算出该元素的存储位置并按此位置进行存放；</li><li>搜索元素时：对元素的关键码进行同样的计算，把求得的函数值当做元素的存储位置，在结构中按此位置取元素比较，若关键码相等，则搜索成功。</li></ul> 
+<p><span style="color:#4da8ee;"><strong>总结归纳</strong></span></p> 
+<p>该方法即为 哈希 (散列) 方法，哈希方法中使用的转换函数称为哈希 (散列) 函数，构造出来的结构称为哈希表 (Hash Table) (或者称散列表)。</p> 
+<p><span style="color:#4da8ee;"><strong>注意事项</strong></span></p> 
+<p>我们上面提到的不管是顺序搜索、平衡树搜索还是哈希搜索，其 key 值都是唯一的，也就是说，搜索树中不允许出现相同 key 值的节点，哈希表中也不允许出现相同 key 值的元素，我们下文所进行的所有操作也都是在这前提之上进行的。</p> 
+<h3>🌙哈希冲突</h3> 
+<p><strong>不同关键字通过相同哈希哈数计算出相同的哈希地址，该种现象称为哈希冲突或哈希碰撞。</strong></p> 
+<blockquote> 
+ <p>哈希冲突有两种常见的解决办法：</p> 
+ <ol><li>闭散列 (开放定址法)：当发生哈希冲突时，如果哈希表未被装满，说明在哈希表中必然还有空位置，那么可以把 key 存放到冲突位置中的 “下一个” 空位置中去；</li><li>开散列 (链地址法)：首先对关键码集合用散列函数计算散列地址，具有相同地址的关键码 (哈希冲突) 归于同一子集合，每一个子集合称为一个桶，各个桶中的元素通过一个单链表链接起来，各链表的头结点存储在哈希表中；也就是说，当发生哈希冲突时，把 key 直接链接在该位置的下面。</li></ol> 
+</blockquote> 
+<h3>🌙哈希函数</h3> 
+<p><strong>哈希函数有如下设计原则</strong>：</p> 
+<ol><li>哈希函数的定义域必须包括需要存储的全部关键码，而如果哈希表允许有m个地址时，其值域必须在0到m-1之间；</li><li>哈希函数计算出来的地址要尽量能均匀分布在整个空间中；</li><li>哈希函数应该比较简单。</li></ol> 
+<h4><strong> 💫</strong><strong>直接定址法</strong></h4> 
+<p><span style="color:#4da8ee;"><strong>什么是直接定址法：</strong></span></p> 
+<p>直接定址就是根据 key 值直接得到存储位置，最多再进行一个简单的常数之间的转换。</p> 
+<p><span style="color:#4da8ee;"><strong>分析：</strong></span></p> 
+<ul><li><strong>直接定址法的优点是简单，且不会引起哈希冲突</strong> ，由于直接定址法的 key 值经过哈希函数转换后得到的值一定是唯一的，所以不存在哈希冲突。</li><li><strong>直接定址法适用于数据范围集中的情况</strong>，这样 key 值映射到哈希表后，哈希表的空间利用率高，浪费的空间较少</li></ul> 
+<p><span style="color:#4da8ee;"><strong>图解：</strong></span></p> 
+<p><img alt="" height="349" src="https://images2.imgbox.com/0f/9a/o0BEzSGc_o.png" width="951"></p> 
+<h4><strong> 💫除留余数法</strong></h4> 
+<p><span style="color:#4da8ee;"><strong>什么是除留余数法：</strong></span></p> 
+<p>简单来说就是用 key 值除以哈希表的大小得到的余数作为哈希映射的地址，将 key 保存到该地址中</p> 
+<p><span style="color:#4da8ee;"><strong>分析：</strong></span></p> 
+<ul><li>除留余数的优点是可以处理数据范围分散的数据</li><li>缺点是会引发哈希冲突</li></ul> 
+<p><span style="color:#4da8ee;"><strong>图解：</strong></span></p> 
+<p><img alt="" height="379" src="https://images2.imgbox.com/01/91/HhYup99R_o.png" width="1050"></p> 
+<h4><strong> 💫方法总结</strong></h4> 
+<p>直接定制法–(常用)</p> 
+<ul><li>取关键字的某个线性函数为散列地址：Hash（Key）= A*Key + B 优点：简单、均匀 缺点：需要事先知道关键字的分布情况使用场景：适合查找比较小且连续的情况</li></ul> 
+<p>除留余数法–(常用)</p> 
+<ul><li>设散列表中允许的地址数为m，取一个不大于m，但最接近或者等于m的质数p作为除数，按照哈希函数：**Hash(key) = key% p(p&lt;=m),**将关键码转换成哈希地址</li></ul> 
+<p>平方取中法–(了解)</p> 
+<ul><li>假设关键字为1234，对它平方就是1522756，抽取中间的3位227作为哈希地址； 再比如关键字为4321，对它平方就是18671041，抽取中间的3位671(或710)作为哈希地址 平方取中法比较适合：不知道关键字的分布，而位数又不是很大的情况</li></ul> 
+<p>折叠法–(了解)</p> 
+<ul><li>折叠法是将关键字从左到右分割成位数相等的几部分(最后一部分位数可以短些)，然后将这几部分叠加求和，并按散列表表长，取后几位作为散列地址。折叠法适合事先不需要知道关键字的分布，适合关键字位数比较多的情况</li></ul> 
+<p>随机数法–(了解)</p> 
+<ul><li>选择一个随机函数，取关键字的随机函数值为它的哈希地址，即H(key) = random(key),其中random为随机数函数。通常应用于关键字长度不等时采用此法</li></ul> 
+<p>数学分析法–(了解)</p> 
+<ul><li>设有n个d位数，每一位可能有r种不同的符号，这r种不同的符号在各位上出现的频率不一定相同，可能在某些位上分布比较均匀，每种符号出现的机会均等，在某些位上分布不均匀只有某几种符号经常出现。可根据散列表的大小，选择其中各种符号分布均匀的若干位作为散列地址。</li></ul> 
+<h3>🌙闭散列哈希</h3> 
+<p>闭散列也叫开放定址法，当发生哈希冲突时，如果哈希表未被装满，说明在哈希表中必然还有空位置，那么可以把 key 存放到冲突位置中的 “下一个” 空位置中去；那如何寻找下一个空位置呢？有两种方法 <strong>– 线性探测法和二次探测法。</strong></p> 
+<h4><strong> 💫</strong>线性探测法</h4> 
+<p><span style="color:#4da8ee;"><strong>什么是线性探测：</strong></span></p> 
+<p>线性探测法是指从发生冲突的位置开始，依次向后探测，直到寻找到下一个空位置为止</p> 
+<p><span style="color:#4da8ee;"><strong>图解：</strong></span></p> 
+<p><img alt="" height="380" src="https://images2.imgbox.com/11/f2/FNEn6sEX_o.png" width="1048"></p> 
+<h4><strong>💫</strong>哈希表的基本框架</h4> 
+<p><span style="color:#4da8ee;"><strong>框架搭建步骤：</strong></span></p> 
+<ul><li>在哈希表中我们使用了 vector 来存储数据，并增加了一个变量 n 来记录表中有效数据的个数；同时，哈希表的每个下标位置存储的数据都是一个 KV 模型的键值对</li><li>当key映射的下标位置被占用时，key会向后寻找下一个空位置进行插入，但如果key走到数组尾都还没找到空位置，那么key就会从数组起始位置重新往后寻找</li><li>在哈希表的每个位置的数据中还增加了一个 state 变量来记录该位置的状态 (存在、删除、空) </li></ul> 
+<p><span style="color:#4da8ee;"><strong>代码如下：</strong></span></p> 
+<pre><code class="language-cpp">//标识每个存储位置的状态--空、存在与删除
+enum State {
+	EMPTY,
+	EXIST,
+	DELETE
+};
+
+//哈希表每个下标位置存储的数据的结构
+template&lt;class K, class V&gt;
+struct HashData {
+	pair&lt;K, V&gt; _kv;
+	State _state = EMPTY;  //默认为空
+};
+
+template&lt;class K, class V&gt;
+class HashTable {
+	typedef HashData&lt;K, V&gt; Data;
+private:
+	vector&lt;Data&gt; _tables;
+	size_t _n;  //记录表中有效数据的个数
+};
+</code></pre> 
+<h4><strong>💫</strong>哈希表的插入删除与查找</h4> 
+<p><span style="color:#4da8ee;"><strong>插入：</strong></span></p> 
+<p>通过哈希函数得到余数即数组下标，如果该下标的状态为删除或为空则插入，如果为存在则向后寻找下一个状态为删除/空的位置进行插入。</p> 
+<p><span style="color:#4da8ee;"><strong>查找：</strong></span></p> 
+<p>通过哈希函数得到余数即数组下标，取出小标位置的key与目标key进行比较，相等就返回该位置的地址，不相等就继续往后查找，如果查找到状态为空的下标位置就返回 nullptr。</p> 
+<p><span style="color:#4da8ee;"><strong>删除：</strong></span></p> 
+<p>复用查找函数，查找到就通过查找函数的返回值将小标位置数据的状态置为 删除，找不到就返回 false。</p> 
+<p><span style="color:#4da8ee;"><strong>代码实现：</strong></span></p> 
+<pre><code class="language-cpp">#pragma once
+
+#include &lt;vector&gt;
+#include &lt;utility&gt;
+using std::pair;
+using std::vector;
+
+//标识每个存储位置的状态--空、存在与删除
+enum State {
+	EMPTY,
+	EXIST,
+	DELETE
+};
+
+//哈希表每个下标位置存储的数据的结构
+template&lt;class K, class V&gt;
+struct HashData {
+	pair&lt;K, V&gt; _kv;
+	State _state = EMPTY;  //默认为空
+};
+
+//哈希表
+template&lt;class K, class V&gt;
+class HashTable {
+	typedef HashData&lt;K, V&gt; Data;
+
+public:
+	HashTable()
+		: _n(0)
+	{
+		//将哈希表的大小默认给为10
+		_tables.resize(10);
+	}
+
+	bool insert(const pair&lt;K, V&gt;&amp; kv) {
+		if (find(kv.first))
+			return false;
+
+		//除留余数法 &amp;&amp; 线性探测法
+		//将数据映射到 数据的key值除以哈希表的大小得到的余数 的位置，如果该位置被占用往后放
+		size_t hashi = kv.first % _tables.size();
+		//不能放在EXIST的位置，DELETE和EMPTY都能放
+		while (_tables[hashi]._state == EXIST) {
+			++hashi;
+			if (hashi == _tables.size()) hashi = 0;  //如果探测到末尾则从头开始重新探测
+		}
+
+		_tables[hashi]._kv = kv;
+		_tables[hashi]._state = EXIST;
+		++_n;
+
+		return true;
+	}
+
+		//将find的返回值定义为Data的地址，可以方便我们进行删除以及修改V
+		Data* find(const K&amp; key) {
+			Hash hash;  //仿函数对象
+			size_t hashi = hash(key) % _tables.size();
+			//记录hashi的起始位置，避免哈希表中元素全为EXIST和DELETE时导致死循环
+			size_t starti = hashi;
+			//最多找到空
+			while (_tables[hashi]._state != EMPTY) {
+				//key相等并且state为EXIST才表示找到
+				if (_tables[hashi]._kv.first == key &amp;&amp; _tables[hashi]._state == EXIST)
+					return &amp;_tables[hashi];
+				++hashi;
+				//如果找到尾还没找到，就从0重新找
+				if (hashi == _tables.size()) hashi = 0;
+				//如果找一圈还没找到，就跳出循环
+				if (hashi == starti) break;
+			}
+
+			return nullptr;
+		}
+
+	bool erase(const K&amp; key) {
+		//找不到就不删，找到就把状态置为DELETE即可
+		Data* ret = find(key);
+		if (ret) {
+			ret-&gt;_state = DELETE;
+			return true;
+		}
+
+		return false;
+	}
+
+private:
+	vector&lt;Data&gt; _tables;
+	size_t _n;  //记录表中有效数据的个数
+};
+</code></pre> 
+<h4><strong>💫</strong>哈希表的扩容</h4> 
+<p>哈希表的扩容和普通顺序表容器的扩容不同，它不是容器满了才扩容，而是会有一个负载因子，也叫载荷因子，当载荷因子超过一定大小时就立即扩容。</p> 
+<p><span style="color:#4da8ee;"><strong>代码如下：</strong></span></p> 
+<pre><code class="language-cpp">bool insert(const pair&lt;K, V&gt;&amp; kv) {
+    if (find(kv.first))
+        return false;
+
+    //如果大于标定的载荷因子就扩容，这里我们将载荷因子标定为0.7
+    //扩容现代写法--复用insert接口
+    if ((1.0 * _n / _tables.size()) &gt;= 0.7) {
+        HashTable&lt;K, V&gt; newHT;
+        newHT._tables.resize(_tables.size() * 2);
+
+        for (auto&amp; e : _tables)
+            newHT.insert(e._kv);
+
+        _tables.swap(newHT._tables);
+    }
+
+    //除留余数法 &amp;&amp; 线性探测法
+    //将数据映射到 数据的key值除以哈希表的大小得到的余数 的位置，如果该位置被占用往后放
+    size_t hashi = kv.first % _tables.size();
+    //不能放在EXIST的位置，DELETE和EMPTY都能放
+    while (_tables[hashi]._state == EXIST) {
+        ++hashi;
+        if (hashi == _tables.size()) hashi = 0;  //如果探测到末尾则从头开始重新探测
+    }
+
+    _tables[hashi]._kv = kv;
+    _tables[hashi]._state = EXIST;
+    ++_n;
+
+    return true;
+}
+</code></pre> 
+<h4><strong>💫</strong>哈希表的仿函数</h4> 
+<p>模板参数是一个仿函数，仿函数分为设计者提供的默认仿函数和用户提供的仿函数，系统默认的仿函数可以将一些常见的 key 的类型全部转化为整形，比如字符串、指针、整数；而用户提供的仿函数则可以根据用户自己的 key 类型将其转化为整形，比如 People 类 (身份证号)、Date 类 等等</p> 
+<p><span style="color:#4da8ee;"><strong>代码如下：</strong></span></p> 
+<pre><code class="language-cpp">template&lt;&gt;
+struct HashFunc&lt;string&gt; {
+	size_t operator()(const string&amp; key) {
+		size_t sum = 0;
+		for (auto ch : key)
+			sum += ch;
+
+		return sum;
+	}
+};
+</code></pre> 
+<p><span style="color:#4da8ee;"><strong>细节分析：</strong></span></p> 
+<p>有了仿函数，解决了传字符串的问题</p> 
+<h4><strong>💫闭散列</strong>整体代码实现</h4> 
+<pre><code class="language-cpp">#include &lt;iostream&gt;
+#include &lt;string&gt;
+#include &lt;vector&gt;
+#include &lt;map&gt;
+#include &lt;set&gt;
+#include &lt;unordered_set&gt;
+using namespace std;
+
+// 哈希表的仿函数 ，通过上层容器提供的仿函数获取到元素的键值
+template&lt;class K&gt;
+struct HashFunc
+{
+	size_t operator()(const K&amp; key)
+	{
+		return (size_t)key;
+	}
+};
+
+// 类模板特化
+template&lt;&gt;
+struct HashFunc&lt;string&gt;
+{
+	size_t operator()(const string&amp; key)
+	{
+		size_t hash = 0;
+		for (auto e : key)
+		{
+			hash += e;
+			hash *= 131;
+		}
+
+		return hash;
+	}
+};
+
+// 闭散列哈希表
+namespace open_address
+{
+	enum State
+	{
+		EMPTY,  // 空
+		EXIST,  // 存在
+		DELETE  // 删除
+	};
+
+	// 哈希表每个下标的位置存储的数据的结构
+	template&lt;class K, class V&gt;
+	struct HashData
+	{
+		pair&lt;K, V&gt; _kv;
+		State _state = EMPTY; // 默认为空
+	};
+
+	// 哈希表
+	template&lt;class K, class V, class Hash = HashFunc&lt;K&gt;&gt;
+	class HashTable
+	{
+	public:
+
+		// 默认开辟 10 个空间
+		HashTable(size_t size = 10)
+		{
+			_tables.resize(size);
+		}
+
+		// 查找
+		HashData&lt;K, V&gt;* Find(const K&amp; key)
+		{
+			// 仿函数对象
+			Hash hs;
+			// 线性探测
+			size_t hashi = hs(key) % _tables.size();
+			while (_tables[hashi]._state != EMPTY)
+			{
+				// key相等并且state为EXIST（存在）才能表示找到
+				if (key == _tables[hashi]._kv.first
+					&amp;&amp; _tables[hashi]._state == EXIST)
+				{
+					return &amp;_tables[hashi];
+				}
+
+				++hashi;
+				hashi %= _tables.size();
+			}
+
+			return nullptr;
+		}
+
+		// 插入
+		bool Insert(const pair&lt;K, V&gt;&amp; kv)
+		{
+			// 为空就返回
+			if (Find(kv.first))
+				return false;
+
+			// 扩容
+			if (_n * 10 / _tables.size() &gt;= 7)
+			{
+				// 扩容
+				HashTable&lt;K, V, Hash&gt; newHT(_tables.size() * 2);
+				// 遍历旧表，插入到新表
+				for (auto&amp; e : _tables)
+				{
+					if (e._state == EXIST)
+					{
+						newHT.Insert(e._kv);
+					}
+				}
+				// 交换
+				_tables.swap(newHT._tables);
+			}
+
+			// 仿函数对象
+			Hash hs;
+			// 线性探测，找需要插入的地方
+			size_t hashi = hs(kv.first) % _tables.size();
+			while (_tables[hashi]._state == EXIST)
+			{
+				++hashi;
+				hashi %= _tables.size();
+			}
+
+			_tables[hashi]._kv = kv;
+			_tables[hashi]._state = EXIST;
+			++_n;
+
+			return true;
+		}
+
+		// 删除
+		bool Erase(const K&amp; key)
+		{
+			// 查找
+			HashData&lt;K, V&gt;* ret = Find(key);
+			if (ret)
+			{
+				_n--; // 元素减一
+				ret-&gt;_state = DELETE;// 状态改为删除
+				return true;
+			}
+			else
+			{
+				return false;
+			}
+		}
+
+	private:
+		vector&lt;HashData&lt;K, V&gt;&gt; _tables;
+		size_t _n = 0;  // 实际存储的数据个数
+	};
+
+	// 测试一
+	void TestHT1()
+	{
+		int a[] = { 1,4,24,34,7,44,17,37 };
+		
+		// 创建哈希表
+		HashTable&lt;int, int&gt; ht;
+		for (auto e : a)
+		{
+			ht.Insert(make_pair(e, e)); // 插入元素
+		}
+
+		for (auto e : a)
+		{
+			auto ret = ht.Find(e);
+			if (ret)
+			{
+				cout &lt;&lt; ret-&gt;_kv.first &lt;&lt; ":E" &lt;&lt; endl;
+			}
+			else
+			{
+				cout &lt;&lt; ret-&gt;_kv.first &lt;&lt; ":D" &lt;&lt; endl;
+			}
+		}
+		cout &lt;&lt; endl;
+
+		ht.Erase(34);
+		ht.Erase(4);
+
+		for (auto e : a)
+		{
+			auto ret = ht.Find(e);
+			if (ret)
+			{
+				cout &lt;&lt; ret-&gt;_kv.first &lt;&lt; ":E" &lt;&lt; endl;
+			}
+			else
+			{
+				cout &lt;&lt; e &lt;&lt; ":D" &lt;&lt; endl;
+			}
+		}
+		cout &lt;&lt; endl;
+	}
+
+	// 测试二
+	struct Date
+	{
+		int _year;
+		int _month;
+		int _day;
+	};
+	struct HashFuncDate
+	{
+		// 2024/6/3
+		// 2024/3/6
+		size_t operator()(const Date&amp; d)
+		{
+			size_t hash = 0;
+			hash += d._year;
+			hash *= 131;
+
+			hash += d._month;
+			hash *= 131;
+
+			hash += d._day;
+			hash *= 131;
+
+			return hash;
+		}
+	};
+	void TestHT2()
+	{
+		HashTable&lt;string, string&gt; dict;
+		dict.Insert(make_pair("sort", "排序"));
+		dict.Insert(make_pair("string", "字符串"));
+		HashTable&lt;Date, string, HashFuncDate&gt; DateHash;
+	}
+
+}</code></pre> 
+<h3>🌙开散列哈希</h3> 
+<p><span style="color:#4da8ee;"><strong>什么是开散列哈希：</strong></span></p> 
+<p>开散列法又叫 链地址法 (开链法)，首先对关键码集合用散列函数计算散列地址，即 key 映射的下标位置，具有相同地址的关键码 (哈希冲突) 归于同一子集合，每一个子集合称为一个桶 (哈希桶)，各个桶中的元素通过一个单链表链接起来，各链表的头结点存储在哈希表中；也就是说，当发生哈希冲突时，把 key 作为一个节点直接链接到下标位置的哈希桶中。</p> 
+<p><span style="color:#4da8ee;"><strong>图解：</strong></span></p> 
+<p><img alt="" height="503" src="https://images2.imgbox.com/d3/c3/Sqjxld15_o.png" width="1088"></p> 
+<h4><strong> 💫</strong>开散列的节点结构</h4> 
+<p>由于开散列的不同冲突之间不会互相影响，所以开散列不再需要 state 变量来记录每个下表位置的状态；同时，因为开散列每个下标位置链接的都是一个哈希桶，所以 vector 中的每个元素都是一个节点的指针，指向单链表的第一个元素，所以 _tables 是一个指针数组；最后，为了是不同类型的 key 都能够计算出映射的下标位置，所以我们这里也需要传递仿函数。</p> 
+<p><span style="color:#4da8ee;"><strong>代码如下：</strong></span></p> 
+<pre><code class="language-cpp">//开散列
+namespace hash_bucket {
+	//哈希表的节点结构--单链表
+	template&lt;class K, class V&gt;
+	struct HashNode {
+		pair&lt;K, V&gt; _kv;
+		HashNode&lt;K, V&gt;* next;
+
+		HashNode(const pair&lt;K, V&gt;&amp; kv)
+			: _kv(kv)
+			, next(nullptr)
+		{}
+	};
+
+	//哈希表的仿函数
+	template&lt;class K&gt;
+	struct HashFunc {
+		size_t operator()(const K&amp; key) {
+			return key;
+		}
+	};
+
+	//类模板特化
+	template&lt;&gt;
+	struct HashFunc&lt;string&gt; {
+		size_t operator()(const string&amp; key) {
+			//BKDR字符串哈希算法
+			size_t sum = 0;
+			for (auto ch : key)
+				sum = sum * 131 + ch;
+
+			return sum;
+		}
+	};
+
+	//哈希表
+	template&lt;class K, class V, class Hash = HashFunc&lt;K&gt;&gt;
+	class HashTable {
+		typedef HashNode&lt;K, V&gt; Node;
+        	private:
+		vector&lt;Node*&gt; _tables;  //指针数组
+		size_t _n;  //表中有效数据的个数
+	};
+}
+</code></pre> 
+<h4><strong> 💫</strong>开散列的插入删除与查找</h4> 
+<p><span style="color:#4da8ee;"><strong>开散列的插入</strong></span></p> 
+<p>开散列插入的前部分和闭散列一样，根据 key 与哈希表大小得到映射的下标位置，与闭散列不同的是，由于哈希表中每个下标位置都是一个哈希桶，即一个单链表，那么对于发现哈希冲突的元素我们只需要将其链接到哈希桶中即可，这里显然是选择将冲突元素进行头插，因为尾插还需要找尾，会导致效率降低：</p> 
+<pre><code class="language-cpp">// 插入函数
+bool Insert(const pair&lt;K, V&gt;&amp; kv)
+{
+	// 查看元素是否存在
+	if (Find(kv.first))
+		return false;
+
+	// 仿函数对象
+	Hash hs;
+
+	// 负载因子到1就扩容
+	if (_n == _tables.size())
+	{
+		// 扩容
+		vector&lt;Node*&gt; newTables(_tables.size() * 2, nullptr);
+		for (size_t i = 0; i &lt; _tables.size(); i++)
+		{
+			// 取出旧表中节点，重新计算挂到新表桶中
+			Node* cur = _tables[i];
+			while (cur)
+			{
+				Node* next = cur-&gt;_next;
+
+				// 头插到新表
+				size_t hashi = hs(cur-&gt;_kv.first) % newTables.size();
+				cur-&gt;_next = newTables[hashi];
+				newTables[hashi] = cur;
+
+				cur = next;
+			}
+
+			_tables[i] = nullptr;
+		}
+
+		_tables.swap(newTables);
+	}
+			
+	// 调用仿函数的匿名对象来将key转换为整数
+	size_t hashi = hs(kv.first) % _tables.size();
+			
+	// 头插
+	Node* newnode = new Node(kv);
+	newnode-&gt;_next = _tables[hashi];
+	_tables[hashi] = newnode;
+
+	++_n;
+	return true;
+}</code></pre> 
+<p><span style="color:#4da8ee;"><strong>开散列的查找</strong></span></p> 
+<p>开散列的查找也很简单，根据余数找到下标，由于下标位置存储的是链表首元素地址，所以我们只需要取出首元素地址，然后顺序遍历单链表即可：</p> 
+<pre><code class="language-cpp">// 查找
+Node* Find(const K&amp; key)
+{
+	// 仿函数对象
+	Hash hs;
+	size_t hashi = hs(key) % _tables.size();
+	Node* cur = _tables[hashi];
+	while (cur)
+	{
+		if (cur-&gt;_kv.first == key)
+		{
+			return cur;
+		}
+
+		cur = cur-&gt;_next;
+	}
+
+	return nullptr;
+}</code></pre> 
+<p><span style="color:#4da8ee;"><strong>开散列的删除</strong></span></p> 
+<p>和闭散列不同的是，开散列的删除不能直接通过查找函数的返回值来进行删除，因为单链表在删除节点时还需要改变父节点的指向，让其指向目标节点的下一个节点，所以我们需要通过遍历单链表来进行删除：</p> 
+<pre><code class="language-cpp">// 删除
+bool Erase(const K&amp; key)
+{
+	// 仿函数对象
+	Hash hs;
+	size_t hashi = hs(key) % _tables.size();
+	Node* prev = nullptr;
+	Node* cur = _tables[hashi];
+	while (cur)
+	{
+		// 删除还要分是否为头节点
+		if (cur-&gt;_kv.first == key)
+		{
+			// 删除
+			if (prev)
+			{
+				prev-&gt;_next = cur-&gt;_next;
+			}
+			else
+			{
+				_tables[hashi] = cur-&gt;_next;
+			}
+
+			delete cur;
+
+			--_n;
+			return true;
+		}
+
+		// 下一个结点
+		prev = cur;
+		cur = cur-&gt;_next;
+	}
+
+	return false;
+}</code></pre> 
+<h4><strong>💫</strong>开散列整体代码实现</h4> 
+<pre><code class="language-cpp">#include &lt;iostream&gt;
+#include &lt;string&gt;
+#include &lt;vector&gt;
+#include &lt;map&gt;
+#include &lt;set&gt;
+#include &lt;unordered_set&gt;
+using namespace std;
+
+// 哈希表的仿函数 ，通过上层容器提供的仿函数获取到元素的键值
+template&lt;class K&gt;
+struct HashFunc
+{
+	size_t operator()(const K&amp; key)
+	{
+		return (size_t)key;
+	}
+};
+
+// 类模板特化
+template&lt;&gt;
+struct HashFunc&lt;string&gt;
+{
+	size_t operator()(const string&amp; key)
+	{
+		size_t hash = 0;
+		for (auto e : key)
+		{
+			hash += e;
+			hash *= 131;
+		}
+
+		return hash;
+	}
+};
+
+// 开散列哈希表
+namespace hash_bucket
+{
+	// 哈希表的节点结构 -- 单链表
+	template&lt;class K, class V&gt;
+	struct HashNode
+	{
+		HashNode&lt;K, V&gt;* _next;
+		pair&lt;K, V&gt; _kv;
+
+		// 初始化列表
+		HashNode(const pair&lt;K, V&gt;&amp; kv)
+			:_next(nullptr)
+			, _kv(kv)
+		{}
+	};
+
+	// 哈希表
+	template&lt;class K, class V, class Hash = HashFunc&lt;K&gt;&gt;
+	class HashTable
+	{
+		typedef HashNode&lt;K, V&gt; Node;
+	public:
+
+		// 构造函数
+		HashTable()
+		{
+			_tables.resize(10, nullptr); // 开空间
+			_n = 0;
+		}
+
+		// 析构函数
+		~HashTable()
+		{
+			for (size_t i = 0; i &lt; _tables.size(); i++)
+			{
+				Node* cur = _tables[i];
+				while (cur)
+				{
+					Node* next = cur-&gt;_next;
+					delete cur;
+
+					cur = next;
+				}
+				_tables[i] = nullptr;
+			}
+		}
+
+		// 插入函数
+		bool Insert(const pair&lt;K, V&gt;&amp; kv)
+		{
+			// 查看元素是否存在
+			if (Find(kv.first))
+				return false;
+
+			// 仿函数对象
+			Hash hs;
+
+			// 负载因子到1就扩容
+			if (_n == _tables.size())
+			{
+				// 扩容
+				vector&lt;Node*&gt; newTables(_tables.size() * 2, nullptr);
+				for (size_t i = 0; i &lt; _tables.size(); i++)
+				{
+					// 取出旧表中节点，重新计算挂到新表桶中
+					Node* cur = _tables[i];
+					while (cur)
+					{
+						Node* next = cur-&gt;_next;
+
+						// 头插到新表
+						size_t hashi = hs(cur-&gt;_kv.first) % newTables.size();
+						cur-&gt;_next = newTables[hashi];
+						newTables[hashi] = cur;
+
+						cur = next;
+					}
+
+					_tables[i] = nullptr;
+				}
+
+				_tables.swap(newTables);
+			}
+
+			// 调用仿函数的匿名对象来将key转换为整数
+			size_t hashi = hs(kv.first) % _tables.size();
+
+			// 头插
+			Node* newnode = new Node(kv);
+			newnode-&gt;_next = _tables[hashi];
+			_tables[hashi] = newnode;
+
+			++_n;
+			return true;
+		}
+
+		// 查找
+		Node* Find(const K&amp; key)
+		{
+			// 仿函数对象
+			Hash hs;
+			size_t hashi = hs(key) % _tables.size();
+			Node* cur = _tables[hashi];
+			while (cur)
+			{
+				if (cur-&gt;_kv.first == key)
+				{
+					return cur;
+				}
+
+				cur = cur-&gt;_next;
+			}
+
+			return nullptr;
+		}
+
+		// 删除
+		bool Erase(const K&amp; key)
+		{
+			// 仿函数对象
+			Hash hs;
+			size_t hashi = hs(key) % _tables.size();
+			Node* prev = nullptr;
+			Node* cur = _tables[hashi];
+			while (cur)
+			{
+				// 删除还要分是否为头节点
+				if (cur-&gt;_kv.first == key)
+				{
+					// 删除
+					if (prev)
+					{
+						prev-&gt;_next = cur-&gt;_next;
+					}
+					else
+					{
+						_tables[hashi] = cur-&gt;_next;
+					}
+
+					delete cur;
+
+					--_n;
+					return true;
+				}
+
+				// 下一个结点
+				prev = cur;
+				cur = cur-&gt;_next;
+			}
+
+			return false;
+		}
+
+		// 测试
+		void Some()
+		{
+			size_t bucketSize = 0;
+			size_t maxBucketLen = 0;
+			size_t sum = 0;
+			double averageBucketLen = 0;
+
+			for (size_t i = 0; i &lt; _tables.size(); i++)
+			{
+				Node* cur = _tables[i];
+				if (cur)
+				{
+					++bucketSize;
+				}
+
+				size_t bucketLen = 0;
+				while (cur)
+				{
+					++bucketLen;
+					cur = cur-&gt;_next;
+				}
+
+				sum += bucketLen;
+
+				if (bucketLen &gt; maxBucketLen)
+				{
+					maxBucketLen = bucketLen;
+				}
+			}
+
+			averageBucketLen = (double)sum / (double)bucketSize;
+
+			printf("load factor:%lf\n", (double)_n / _tables.size());
+			printf("all bucketSize:%d\n", _tables.size());
+			printf("bucketSize:%d\n", bucketSize);
+			printf("maxBucketLen:%d\n", maxBucketLen);
+			printf("averageBucketLen:%lf\n\n", averageBucketLen);
+		}
+
+	private:
+		vector&lt;Node*&gt; _tables; // 指针数组
+		size_t _n; // 元素个数
+	};
+
+	// 测试一
+	void TestHT1()
+	{
+		HashTable&lt;int, int&gt; ht;
+		int a[] = { 1,4,24,34,7,44,17,37 };
+		for (auto e : a)
+		{
+			ht.Insert(make_pair(e, e));
+		}
+
+		ht.Insert(make_pair(5, 5));
+		ht.Insert(make_pair(15, 15));
+		ht.Insert(make_pair(25, 25));
+
+		ht.Erase(5);
+		ht.Erase(15);
+		ht.Erase(25);
+		ht.Erase(35);
+
+		for (auto e : a)
+		{
+			auto ret = ht.Find(e);
+			if (ret)
+			{
+				cout &lt;&lt; ret-&gt;_kv.first &lt;&lt; ":E" &lt;&lt; endl;
+			}
+			else
+			{
+				cout &lt;&lt; ret-&gt;_kv.first &lt;&lt; ":D" &lt;&lt; endl;
+			}
+		}
+		cout &lt;&lt; endl;
+
+		HashTable&lt;string, string&gt; dict;
+		dict.Insert(make_pair("sort", "排序"));
+		dict.Insert(make_pair("string", "字符串"));
+	}
+
+	// 测试二
+	void TestHT2()
+	{
+		const size_t N = 30000;
+
+		unordered_set&lt;int&gt; us;
+		set&lt;int&gt; s;
+		HashTable&lt;int, int&gt; ht;
+
+		vector&lt;int&gt; v;
+		v.reserve(N);
+		srand(time(0));
+		for (size_t i = 0; i &lt; N; ++i)
+		{
+			//v.push_back(rand()); // N比较大时，重复值比较多
+			v.push_back(rand() + i); // 重复值相对少
+			//v.push_back(i); // 没有重复，有序
+		}
+
+		size_t begin1 = clock();
+		for (auto e : v)
+		{
+			s.insert(e);
+		}
+		size_t end1 = clock();
+		cout &lt;&lt; "set insert:" &lt;&lt; end1 - begin1 &lt;&lt; endl;
+
+		size_t begin2 = clock();
+		for (auto e : v)
+		{
+			us.insert(e);
+		}
+		size_t end2 = clock();
+		cout &lt;&lt; "unordered_set insert:" &lt;&lt; end2 - begin2 &lt;&lt; endl;
+
+		size_t begin10 = clock();
+		for (auto e : v)
+		{
+			ht.Insert(make_pair(e, e));
+		}
+		size_t end10 = clock();
+		cout &lt;&lt; "HashTbale insert:" &lt;&lt; end10 - begin10 &lt;&lt; endl &lt;&lt; endl;
+
+		size_t begin3 = clock();
+		for (auto e : v)
+		{
+			s.find(e);
+		}
+		size_t end3 = clock();
+		cout &lt;&lt; "set find:" &lt;&lt; end3 - begin3 &lt;&lt; endl;
+
+		size_t begin4 = clock();
+		for (auto e : v)
+		{
+			us.find(e);
+		}
+		size_t end4 = clock();
+		cout &lt;&lt; "unordered_set find:" &lt;&lt; end4 - begin4 &lt;&lt; endl;
+
+		size_t begin11 = clock();
+		for (auto e : v)
+		{
+			ht.Find(e);
+		}
+		size_t end11 = clock();
+		cout &lt;&lt; "HashTable find:" &lt;&lt; end11 - begin11 &lt;&lt; endl &lt;&lt; endl;
+
+		cout &lt;&lt; "插入数据个数：" &lt;&lt; us.size() &lt;&lt; endl &lt;&lt; endl;
+		ht.Some();
+
+		size_t begin5 = clock();
+		for (auto e : v)
+		{
+			s.erase(e);
+		}
+		size_t end5 = clock();
+		cout &lt;&lt; "set erase:" &lt;&lt; end5 - begin5 &lt;&lt; endl;
+
+		size_t begin6 = clock();
+		for (auto e : v)
+		{
+			us.erase(e);
+		}
+		size_t end6 = clock();
+		cout &lt;&lt; "unordered_set erase:" &lt;&lt; end6 - begin6 &lt;&lt; endl;
+
+		size_t begin12 = clock();
+		for (auto e : v)
+		{
+			ht.Erase(e);
+		}
+		size_t end12 = clock();
+		cout &lt;&lt; "HashTable Erase:" &lt;&lt; end12 - begin12 &lt;&lt; endl &lt;&lt; endl;
+	}
+}
+</code></pre> 
+<h2 style="background-color:transparent;">🌟结束语</h2> 
+<p>       今天内容就到这里啦，时间过得很快，大家沉下心来好好学习，会有一定的收获的，大家多多坚持，嘻嘻，成功路上注定孤独，因为坚持的人不多。那请大家举起自己的小手给博主一键三连，有你们的支持是我最大的动力💞💞💞，回见。</p> 
+<p><img alt="" height="190" src="https://images2.imgbox.com/2d/c1/evBvfcK8_o.jpg" width="200"></p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/7edbb08136dff19f61357326c8d4c653/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">qinakun实现全局状态管理</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/0f3d6fc2d0e1f320b5afa90339f8122f/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">tewa-707e光猫超级密码获取方法</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Android MVVM框架 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/eea3c4c9b7cabb629dcde57e4a56b7dc/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="Android MVVM框架">
+  <meta property="og:description" content="一首凉凉送给自己，心累。 首先借鉴一下别人写的关于MVP的优缺点。。。
+一、MVP模式优缺点
+在说MVVM之前，简单回顾一下MVP分层，MVP总共分成三层：
+a 、View: 视图层，对应xml文件与Activity/Fragment； b 、Presenter: 逻辑控制层，同时持有View和Model对象； c 、Model: 实体层，负责获取实体数据。
+MVP模式有其很大的优点
+1.解耦合，业务逻辑和视图分离； 2.项目代码结构（文件夹）清晰，一看就知道什么类干什么事情； 3.便于单元测试（其实还是第一点）； 4.协同工作（例如在设计师没出图之前可以先写一些业务逻辑代码或者其他人接手代码改起来比较容易）；
+但是也有美中不足的部分，MVP模式的缺点如下：
+1.Presente层与View层是通过接口进行交互的，接口粒度不好控制。粒度太小，就会存在大量接口的情况，使代码太过碎版化;粒度太大，解耦效果不好。因为View定义的方法并不一定全部要用到，可能只是后面要用到先定义出来（后面要不要删也未知），而且如果后面有些方法要删改，Presenter和Activity都要删改，比较麻烦；
+2.V层与P层还是有一定的耦合度。一旦V层某个UI元素更改，那么对应的接口就必须得改，数据如何映射到UI上、事件监听接口这些都需要转变，牵一发而动全身。如果这一层也能解耦就更好了。
+3.复杂的业务同时也可能会导致P层太大，代码臃肿的问题依然不能解决，这已经不是接口粒度把控的问题了，一旦业务逻辑越来越多，View定义的方法越来越多，会造成Activity和Fragment实现的方法越来越多，依然臃肿。
+目前MVP模式已经用的很多了，大部分接触到的项目都是MVP，自己也写了很多MVP模式下的项目。一直都知道有MVVM这个框架，只是一直没有机会用，所以就自己学习一下。网上看了很多，都是简单的例子，所以在github上找了一个项目直接拿来练手了。
+二、MVVM模式
+OK，现在开始介绍MVVM，MVVM模式不是四层，同MVP一样也是三层，但是我不同意MVVM是MVP的升级版，二者有相同的地方，但是MVP的一些优点，MVVM也无法取代，MVVM的三层模型如下：
+View View层做的就是和UI相关的工作，我们只在XML和Activity或Fragment写View层的代码，View层不做和业务相关的事，也就是我们的Activity 不写和业务逻辑相关代码，也不写需要根据业务逻辑来更新UI的代码，因为更新UI通过Binding实现，更新UI在ViewModel里面做（更新绑定的数据源即可），Activity 要做的事就是初始化一些控件（如控件的颜色，添加 RecyclerView 的分割线），Activity可以更新UI，但是更新的UI必须和业务逻辑和数据是没有关系的，只是单纯的根据点击或者滑动等事件更新UI(如 根据滑动颜色渐变、根据点击隐藏等单纯UI逻辑)，Activity（View层）是可以处理UI事件，但是处理的只是处理UI自己的事情，View层只处理View层的事。简单的说：View层不做任何业务逻辑、不涉及操作数据、不处理数据、UI和数据严格的分开。
+ViewModel ViewModel层做的事情刚好和View层相反，ViewModel 只做和业务逻辑和业务数据相关的事，不做任何和UI、控件相关的事，ViewModel 层不会持有任何控件的引用，更不会在ViewModel中通过UI控件的引用去做更新UI的事情。ViewModel就是专注于业务的逻辑处理，操作的也都是对数据进行操作，这些个数据源绑定在相应的控件上会自动去更改UI，开发者不需要关心更新UI的事情。DataBinding 框架已经支持双向绑定，这使得我们在可以通过双向绑定获取View层反馈给ViewModel层的数据，并进行操作。关于对UI控件事件的处理，我们也希望能把这些事件处理绑定到控件上，并把这些事件统一化，方便ViewModel对事件的处理和代码的美观。为此我们通过BindingAdapter 对一些常用的事件做了封装，把一个个事件封装成一个个Command，对于每个事件我们用一个ReplyCommand去处理就行了,ReplyCommand会把可能你需要的数据带给你，这使得我们处理事件的时候也只关心处理数据就行了，具体见MVVM Light Toolkit 使用指南的 Command 部分。再强调一遍ViewModel 不做和UI相关的事。
+Model Model 的职责很简单，基本就是实体模型（Bean）同时包括Retrofit 的Service ，ViewModel 可以根据Model 获取一个Bean的Observable( RxJava ),然后做一些数据转换操作和映射到ViewModel 中的一些字段，最后把这些字段绑定到View层上。
+可以看到，MVVM模式的最大亮点是双向绑定
+单向绑定上，数据的流向是单方面的，只能从代码流向UI；双向绑定的数据流向是双向的，当业务代码中的数据改变时，UI上的数据能够得到刷新；当用户通过UI交互编辑了数据时，数据的变化也能自动的更新到业务代码中的数据上。对于双向绑定，刚好可以使用DataBinding，DataBinding是一个实现数据和UI绑定的框架，是构建MVVM模式的一个关键的工具。所以Android中实现MVVM就方便多了，IOS中还要使用block回调，或者使用reactiveCocoa库。
+三：MVVM体验：
+1.配置： 在项目app中的build.gradle的android{}中加入：
+dataBinding { enabled = true } 2.创建Model实体类: 实体类的创建和平时的没什么区别，这里取了个用户类做例子：
+public class User implements Parcelable { public long id; public String name; public String url; public String email; public String login; public String location; @SerializedName(&#34;">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2018-01-16T11:31:12+08:00">
+    <meta property="article:modified_time" content="2018-01-16T11:31:12+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">Android MVVM框架</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-dark">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <p>一首凉凉送给自己，心累。 <br> 首先借鉴一下别人写的关于MVP的优缺点。。。</p> 
+<p><strong>一、MVP模式优缺点</strong></p> 
+<p>在说MVVM之前，简单回顾一下MVP分层，MVP总共分成三层：</p> 
+<p>a 、View: 视图层，对应xml文件与Activity/Fragment； <br> b 、Presenter: 逻辑控制层，同时持有View和Model对象； <br> c 、Model: 实体层，负责获取实体数据。</p> 
+<p>MVP模式有其很大的<strong>优点</strong></p> 
+<p>1.解耦合，业务逻辑和视图分离； <br> 2.项目代码结构（文件夹）清晰，一看就知道什么类干什么事情； <br> 3.便于单元测试（其实还是第一点）； <br> 4.协同工作（例如在设计师没出图之前可以先写一些业务逻辑代码或者其他人接手代码改起来比较容易）；</p> 
+<p>但是也有美中不足的部分，MVP模式的<strong>缺点</strong>如下：</p> 
+<p>1.Presente层与View层是通过接口进行交互的，接口粒度不好控制。粒度太小，就会存在大量接口的情况，使代码太过碎版化;粒度太大，解耦效果不好。因为View定义的方法并不一定全部要用到，可能只是后面要用到先定义出来（后面要不要删也未知），而且如果后面有些方法要删改，Presenter和Activity都要删改，比较麻烦；</p> 
+<p>2.V层与P层还是有一定的耦合度。一旦V层某个UI元素更改，那么对应的接口就必须得改，数据如何映射到UI上、事件监听接口这些都需要转变，牵一发而动全身。如果这一层也能解耦就更好了。</p> 
+<p>3.复杂的业务同时也可能会导致P层太大，代码臃肿的问题依然不能解决，这已经不是接口粒度把控的问题了，一旦业务逻辑越来越多，View定义的方法越来越多，会造成Activity和Fragment实现的方法越来越多，依然臃肿。</p> 
+<p>目前MVP模式已经用的很多了，大部分接触到的项目都是MVP，自己也写了很多MVP模式下的项目。一直都知道有MVVM这个框架，只是一直没有机会用，所以就自己学习一下。网上看了很多，都是简单的例子，所以在github上找了一个项目直接拿来练手了。</p> 
+<p><strong>二、MVVM模式</strong></p> 
+<p>OK，现在开始介绍MVVM，MVVM模式不是四层，同MVP一样也是三层，但是我不同意MVVM是MVP的升级版，二者有相同的地方，但是MVP的一些优点，MVVM也无法取代，MVVM的三层模型如下：</p> 
+<p><strong>View</strong> <br> View层做的就是和UI相关的工作，我们只在XML和Activity或Fragment写View层的代码，View层不做和业务相关的事，也就是我们的Activity 不写和业务逻辑相关代码，也不写需要根据业务逻辑来更新UI的代码，因为更新UI通过Binding实现，更新UI在ViewModel里面做（更新绑定的数据源即可），Activity 要做的事就是初始化一些控件（如控件的颜色，添加 RecyclerView 的分割线），Activity可以更新UI，但是更新的UI必须和业务逻辑和数据是没有关系的，只是单纯的根据点击或者滑动等事件更新UI(如 根据滑动颜色渐变、根据点击隐藏等单纯UI逻辑)，Activity（View层）是可以处理UI事件，但是处理的只是处理UI自己的事情，View层只处理View层的事。简单的说：View层不做任何业务逻辑、不涉及操作数据、不处理数据、UI和数据严格的分开。</p> 
+<p><strong>ViewModel</strong> <br> ViewModel层做的事情刚好和View层相反，ViewModel 只做和业务逻辑和业务数据相关的事，不做任何和UI、控件相关的事，ViewModel 层不会持有任何控件的引用，更不会在ViewModel中通过UI控件的引用去做更新UI的事情。ViewModel就是专注于业务的逻辑处理，操作的也都是对数据进行操作，这些个数据源绑定在相应的控件上会自动去更改UI，开发者不需要关心更新UI的事情。DataBinding 框架已经支持双向绑定，这使得我们在可以通过双向绑定获取View层反馈给ViewModel层的数据，并进行操作。关于对UI控件事件的处理，我们也希望能把这些事件处理绑定到控件上，并把这些事件统一化，方便ViewModel对事件的处理和代码的美观。为此我们通过BindingAdapter 对一些常用的事件做了封装，把一个个事件封装成一个个Command，对于每个事件我们用一个ReplyCommand去处理就行了,ReplyCommand会把可能你需要的数据带给你，这使得我们处理事件的时候也只关心处理数据就行了，具体见MVVM Light Toolkit 使用指南的 Command 部分。再强调一遍ViewModel 不做和UI相关的事。</p> 
+<p><strong>Model </strong> <br> Model 的职责很简单，基本就是实体模型（Bean）同时包括Retrofit 的Service ，ViewModel 可以根据Model 获取一个Bean的Observable( RxJava ),然后做一些数据转换操作和映射到ViewModel 中的一些字段，最后把这些字段绑定到View层上。</p> 
+<p>可以看到，MVVM模式的最大亮点是双向绑定</p> 
+<p>单向绑定上，数据的流向是单方面的，只能从代码流向UI；双向绑定的数据流向是双向的，当业务代码中的数据改变时，UI上的数据能够得到刷新；当用户通过UI交互编辑了数据时，数据的变化也能自动的更新到业务代码中的数据上。对于双向绑定，刚好可以使用DataBinding，DataBinding是一个实现数据和UI绑定的框架，是构建MVVM模式的一个关键的工具。所以Android中实现MVVM就方便多了，IOS中还要使用block回调，或者使用reactiveCocoa库。</p> 
+<p><strong>三：MVVM体验：</strong></p> 
+<p>1.配置： <br> 在项目app中的build.gradle的android{}中加入：</p> 
+<pre class="prettyprint"><code class=" hljs bash">dataBinding {
+        enabled = <span class="hljs-literal">true</span>
+}</code></pre> 
+<p>2.创建Model实体类: <br> 实体类的创建和平时的没什么区别，这里取了个用户类做例子：</p> 
+<pre class="prettyprint"><code class=" hljs java"><span class="hljs-keyword">public</span> <span class="hljs-class"><span class="hljs-keyword">class</span> <span class="hljs-title">User</span> <span class="hljs-keyword">implements</span> <span class="hljs-title">Parcelable</span> {<!-- --></span>
+    <span class="hljs-keyword">public</span> <span class="hljs-keyword">long</span> id;
+    <span class="hljs-keyword">public</span> String name;
+    <span class="hljs-keyword">public</span> String url;
+    <span class="hljs-keyword">public</span> String email;
+    <span class="hljs-keyword">public</span> String login;
+    <span class="hljs-keyword">public</span> String location;
+    <span class="hljs-annotation">@SerializedName</span>(<span class="hljs-string">"avatar_url"</span>)
+    <span class="hljs-keyword">public</span> String avatarUrl;
+
+    <span class="hljs-keyword">public</span> <span class="hljs-title">User</span>() {
+    }
+
+    <span class="hljs-keyword">public</span> <span class="hljs-keyword">boolean</span> <span class="hljs-title">hasEmail</span>() {
+        <span class="hljs-keyword">return</span> email != <span class="hljs-keyword">null</span> &amp;&amp; !email.isEmpty();
+    }
+
+    <span class="hljs-keyword">public</span> <span class="hljs-keyword">boolean</span> <span class="hljs-title">hasLocation</span>() {
+        <span class="hljs-keyword">return</span> location != <span class="hljs-keyword">null</span> &amp;&amp; !location.isEmpty();
+    }
+
+    <span class="hljs-annotation">@Override</span>
+    <span class="hljs-keyword">public</span> <span class="hljs-keyword">int</span> <span class="hljs-title">describeContents</span>() {
+        <span class="hljs-keyword">return</span> <span class="hljs-number">0</span>;
+    }
+
+    <span class="hljs-annotation">@Override</span>
+    <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title">writeToParcel</span>(Parcel dest, <span class="hljs-keyword">int</span> flags) {
+        dest.writeLong(<span class="hljs-keyword">this</span>.id);
+        dest.writeString(<span class="hljs-keyword">this</span>.name);
+        dest.writeString(<span class="hljs-keyword">this</span>.url);
+        dest.writeString(<span class="hljs-keyword">this</span>.email);
+        dest.writeString(<span class="hljs-keyword">this</span>.login);
+        dest.writeString(<span class="hljs-keyword">this</span>.location);
+        dest.writeString(<span class="hljs-keyword">this</span>.avatarUrl);
+    }
+
+    <span class="hljs-keyword">protected</span> <span class="hljs-title">User</span>(Parcel in) {
+        <span class="hljs-keyword">this</span>.id = in.readLong();
+        <span class="hljs-keyword">this</span>.name = in.readString();
+        <span class="hljs-keyword">this</span>.url = in.readString();
+        <span class="hljs-keyword">this</span>.email = in.readString();
+        <span class="hljs-keyword">this</span>.login = in.readString();
+        <span class="hljs-keyword">this</span>.location = in.readString();
+        <span class="hljs-keyword">this</span>.avatarUrl = in.readString();
+    }
+
+    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">final</span> Creator&lt;User&gt; CREATOR = <span class="hljs-keyword">new</span> Creator&lt;User&gt;() {
+        <span class="hljs-keyword">public</span> User <span class="hljs-title">createFromParcel</span>(Parcel source) {
+            <span class="hljs-keyword">return</span> <span class="hljs-keyword">new</span> User(source);
+        }
+
+        <span class="hljs-keyword">public</span> User[] <span class="hljs-title">newArray</span>(<span class="hljs-keyword">int</span> size) {
+            <span class="hljs-keyword">return</span> <span class="hljs-keyword">new</span> User[size];
+        }
+    };
+
+    <span class="hljs-annotation">@Override</span>
+    <span class="hljs-keyword">public</span> <span class="hljs-keyword">boolean</span> <span class="hljs-title">equals</span>(Object o) {
+        <span class="hljs-keyword">if</span> (<span class="hljs-keyword">this</span> == o) <span class="hljs-keyword">return</span> <span class="hljs-keyword">true</span>;
+        <span class="hljs-keyword">if</span> (o == <span class="hljs-keyword">null</span> || getClass() != o.getClass()) <span class="hljs-keyword">return</span> <span class="hljs-keyword">false</span>;
+
+        User user = (User) o;
+
+        <span class="hljs-keyword">if</span> (id != user.id) <span class="hljs-keyword">return</span> <span class="hljs-keyword">false</span>;
+        <span class="hljs-keyword">if</span> (name != <span class="hljs-keyword">null</span> ? !name.equals(user.name) : user.name != <span class="hljs-keyword">null</span>) <span class="hljs-keyword">return</span> <span class="hljs-keyword">false</span>;
+        <span class="hljs-keyword">if</span> (url != <span class="hljs-keyword">null</span> ? !url.equals(user.url) : user.url != <span class="hljs-keyword">null</span>) <span class="hljs-keyword">return</span> <span class="hljs-keyword">false</span>;
+        <span class="hljs-keyword">if</span> (email != <span class="hljs-keyword">null</span> ? !email.equals(user.email) : user.email != <span class="hljs-keyword">null</span>) <span class="hljs-keyword">return</span> <span class="hljs-keyword">false</span>;
+        <span class="hljs-keyword">if</span> (login != <span class="hljs-keyword">null</span> ? !login.equals(user.login) : user.login != <span class="hljs-keyword">null</span>) <span class="hljs-keyword">return</span> <span class="hljs-keyword">false</span>;
+        <span class="hljs-keyword">if</span> (location != <span class="hljs-keyword">null</span> ? !location.equals(user.location) : user.location != <span class="hljs-keyword">null</span>)
+            <span class="hljs-keyword">return</span> <span class="hljs-keyword">false</span>;
+        <span class="hljs-keyword">return</span> !(avatarUrl != <span class="hljs-keyword">null</span> ? !avatarUrl.equals(user.avatarUrl) : user.avatarUrl != <span class="hljs-keyword">null</span>);
+
+    }
+
+    <span class="hljs-annotation">@Override</span>
+    <span class="hljs-keyword">public</span> <span class="hljs-keyword">int</span> <span class="hljs-title">hashCode</span>() {
+        <span class="hljs-keyword">int</span> result = (<span class="hljs-keyword">int</span>) (id ^ (id &gt;&gt;&gt; <span class="hljs-number">32</span>));
+        result = <span class="hljs-number">31</span> * result + (name != <span class="hljs-keyword">null</span> ? name.hashCode() : <span class="hljs-number">0</span>);
+        result = <span class="hljs-number">31</span> * result + (url != <span class="hljs-keyword">null</span> ? url.hashCode() : <span class="hljs-number">0</span>);
+        result = <span class="hljs-number">31</span> * result + (email != <span class="hljs-keyword">null</span> ? email.hashCode() : <span class="hljs-number">0</span>);
+        result = <span class="hljs-number">31</span> * result + (login != <span class="hljs-keyword">null</span> ? login.hashCode() : <span class="hljs-number">0</span>);
+        result = <span class="hljs-number">31</span> * result + (location != <span class="hljs-keyword">null</span> ? location.hashCode() : <span class="hljs-number">0</span>);
+        result = <span class="hljs-number">31</span> * result + (avatarUrl != <span class="hljs-keyword">null</span> ? avatarUrl.hashCode() : <span class="hljs-number">0</span>);
+        <span class="hljs-keyword">return</span> result;
+    }</code></pre> 
+<p>3.创建布局： <br> 和传统布局不同的是，这里的根布局是用layout来包裹：</p> 
+<pre class="prettyprint"><code class=" hljs xml"><span class="hljs-tag">&lt;<span class="hljs-title">layout</span> <span class="hljs-attribute">xmlns:android</span>=<span class="hljs-value">"http://schemas.android.com/apk/res/android"</span>
+    <span class="hljs-attribute">xmlns:app</span>=<span class="hljs-value">"http://schemas.android.com/apk/res-auto"</span>
+    <span class="hljs-attribute">xmlns:tools</span>=<span class="hljs-value">"http://schemas.android.com/tools"</span>&gt;</span>
+
+    //布局
+
+<span class="hljs-tag">&lt;/<span class="hljs-title">layout</span>&gt;</span></code></pre> 
+<p>如果需要数据绑定，头部是这样的：</p> 
+<pre class="prettyprint"><code class=" hljs haskell">&lt;<span class="hljs-typedef"><span class="hljs-keyword">data</span>&gt;</span>
+
+        &lt;variable
+            name=<span class="hljs-string">"viewModel"</span>
+            <span class="hljs-typedef"><span class="hljs-keyword">type</span>="com.ckw.zfsoft.mvvmdemo.viewmodel.<span class="hljs-type">MainViewModel</span>"/&gt;</span>
+
+    &lt;/<span class="hljs-typedef"><span class="hljs-keyword">data</span>&gt;</span></code></pre> 
+<p>name可以随便取，type是你要用到的viewModel</p> 
+<p>使用DataBinding后，布局都是以标签作为根节点，这个布局 最终会生成一个Binding类,命名规则是：单词首字母大写，移除下划线，并在最后添加上Binding。我这里是activity_main.xml,所以生成的是ActivityMainBinding。</p> 
+<p>4.viewModel: <br> 例如在xml中有一个控件是这样的：</p> 
+<pre class="prettyprint"><code class=" hljs perl">&lt;ProgressBar
+            android:id=<span class="hljs-string">"<span class="hljs-variable">@+</span>id/progress"</span>
+            android:layout_width=<span class="hljs-string">"wrap_content"</span>
+            android:layout_height=<span class="hljs-string">"wrap_content"</span>
+            android:layout_below=<span class="hljs-string">"<span class="hljs-variable">@id</span>/layout_search"</span>
+            android:layout_centerHorizontal=<span class="hljs-string">"true"</span>
+            android:layout_marginTop=<span class="hljs-string">"20dp"</span>
+            app:visibility=<span class="hljs-string">"<span class="hljs-subst">@{viewModel.progressVisibility}</span>"</span>
+            /&gt;</code></pre> 
+<p>关键代码在这一行：</p> 
+<pre class="prettyprint"><code class=" hljs perl">app:visibility=<span class="hljs-string">"<span class="hljs-subst">@{viewModel.progressVisibility}</span>"</span></code></pre> 
+<p>我们的viewModel中就可以定义一个参数，用于控制progress的可见性：</p> 
+<pre class="prettyprint"><code class=" hljs cs"> <span class="hljs-keyword">private</span> ObservableInt progressVisibility;</code></pre> 
+<p>初始设置为不可见：</p> 
+<pre class="prettyprint"><code class=" hljs fix"><span class="hljs-attribute">progressVisibility </span>=<span class="hljs-string"> new ObservableInt(View.INVISIBLE);</span></code></pre> 
+<p>设置可见：</p> 
+<pre class="prettyprint"><code class=" hljs sql"> progressVisibility.<span class="hljs-operator"><span class="hljs-keyword">set</span>(<span class="hljs-keyword">View</span>.VISIBLE);</span></code></pre> 
+<p>又比如，有个EditTextView：</p> 
+<pre class="prettyprint"><code class=" hljs perl"> &lt;EditText
+                android:id=<span class="hljs-string">"<span class="hljs-variable">@+</span>id/edit_text_username"</span>
+                android:layout_width=<span class="hljs-string">"match_parent"</span>
+                android:layout_height=<span class="hljs-string">"wrap_content"</span>
+                android:layout_toLeftOf=<span class="hljs-string">"<span class="hljs-variable">@id</span>/button_search"</span>
+                android:hint=<span class="hljs-string">"<span class="hljs-variable">@string</span>/hit_username"</span>
+                android:imeOptions=<span class="hljs-string">"actionSearch"</span>
+                android:inputType=<span class="hljs-string">"text"</span>
+                android:textColor=<span class="hljs-string">"<span class="hljs-variable">@color</span>/white"</span>
+                android:theme=<span class="hljs-string">"<span class="hljs-variable">@style</span>/LightEditText"</span>
+                android:onEditorAction=<span class="hljs-string">"<span class="hljs-subst">@{viewModel.onSearchAction}</span>"</span>
+                app:addTextChangedListener=<span class="hljs-string">"<span class="hljs-subst">@{viewModel.usernameEditTextWatcher}</span>"</span>
+               /&gt;</code></pre> 
+<p>设置监听：</p> 
+<pre class="prettyprint"><code class=" hljs perl">android:onEditorAction=<span class="hljs-string">"<span class="hljs-subst">@{viewModel.onSearchAction}</span>"</span></code></pre> 
+<p>同样的，viewModel中需要写一个public方法：</p> 
+<pre class="prettyprint"><code class=" hljs cs"><span class="hljs-keyword">public</span> boolean <span class="hljs-title">onSearchAction</span>(TextView view, <span class="hljs-keyword">int</span> actionId, KeyEvent <span class="hljs-keyword">event</span>) {
+        <span class="hljs-keyword">if</span> (actionId == EditorInfo.IME_ACTION_SEARCH) {
+            String username = view.getText().toString();
+            <span class="hljs-keyword">if</span> (username.length() &gt; <span class="hljs-number">0</span>) loadGithubRepos(username);
+            <span class="hljs-keyword">return</span> <span class="hljs-keyword">true</span>;
+        }
+        <span class="hljs-keyword">return</span> <span class="hljs-keyword">false</span>;
+    }</code></pre> 
+<p>这里的参数为什么要这么写呢？ <br> 对比一下我们正常的监听写法就知道啦：</p> 
+<pre class="prettyprint"><code class=" hljs java">EditText editText = <span class="hljs-keyword">new</span> EditText(getApplicationContext());
+editText.setOnEditorActionListener(<span class="hljs-keyword">new</span> TextView.OnEditorActionListener() {
+    <span class="hljs-annotation">@Override</span>
+    <span class="hljs-keyword">public</span> <span class="hljs-keyword">boolean</span> <span class="hljs-title">onEditorAction</span>(TextView v, <span class="hljs-keyword">int</span> actionId, KeyEvent event) {
+        <span class="hljs-keyword">return</span> <span class="hljs-keyword">false</span>;
+    }
+});</code></pre> 
+<p>5.绑定： <br> 最后我们还需要在Activity中对其进行绑定：</p> 
+<pre class="prettyprint"><code class=" hljs cs"><span class="hljs-keyword">private</span> ActivityMainBinding binding;
+<span class="hljs-keyword">private</span> MainViewModel mainViewModel;</code></pre> 
+<p>在oncreate方法中：</p> 
+<pre class="prettyprint"><code class=" hljs cs">binding = DataBindingUtil.setContentView(<span class="hljs-keyword">this</span>, R.layout.activity_main);
+mainViewModel = <span class="hljs-keyword">new</span> MainViewModel(<span class="hljs-keyword">this</span>, <span class="hljs-keyword">this</span>);
+binding.setViewModel(mainViewModel);</code></pre> 
+<p>大体上就是这么使用的，科科</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/096f4c58659580f3f3706147fcc6414d/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">python -- 模块 struct</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/c9df3b19d8f3b06569ce98fcf9ae31ae/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">Kotlin关键字与操作符</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

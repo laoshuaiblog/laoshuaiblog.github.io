@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>时间序列模型之Arima Model - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/37d756cff4b31b5bac667b617c8bfa11/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="时间序列模型之Arima Model">
+  <meta property="og:description" content="Arima model应该是时间序列数据处理中最有名的方法之一了把，之前花了几周看了《Time Series Analysis with Application in R》的前12章，基本上是把基础的Arima模型都学完了，今天就按照R in Action中的代码依样画葫芦实际操作了一遍。
+Arima Model思路 先写一下看完此书的一些感想把，具体的理论公式今天就先不写了，之后来补充把！
+首先是MA model，也就是Yt可以完全由{ e t e_t et​}序列线性回归得到,{ e t e_t et​}是一个white noise。
+然后是AR Model，也就是{ Y t Y_t Yt​}序列的自回归模型，AR Model可以看成是一个无穷阶的MA Model。
+然后将这两个合起来也就是ARMA(p,q) Model了。
+由于前面的推导都要求序列是平稳的（否则会出现参数估计不准的问题），但是实际数据往往是不平稳的，因此就需要差分，一阶差分可以消去线性趋势，二阶差分可以消去二次项趋势，三阶差分可以消去三次项趋势。当然还有log等等很多其他的平稳数据的方法了。
+这就引出了Arima(p,d,q) Model了，也就是AR§,d阶差分平稳数据,MA(q)。
+但是这只是普通的Arima Model模型，还有复杂带有季节性趋势的数据，这时就需要Arima(p,d,q)*(P,D,Q) Model了，也就是乘积季节Arima模型，这也就是上一篇博文里说的乘积模型(时间序列处理之Holt-Winters Model)，当然可以想到也有相加的Arima Model，只需要季节项中的P,Q均为0也就是相加模型了。所以说可以认为乘积Arima Model是更一般的Model。
+季节Arima Model的公式如下所示：
+Φ ( B S ) = 1 － Φ 1 B S － Φ 2 B 2 S － … － Φ P B P S Φ( B^S)= 1 － Φ_1B^S － Φ_2B^{2S} － … － Φ_PB^{PS} Φ(BS)=1－Φ1​BS－Φ2​B2S－…－ΦP​BPS， Θ ( B S ) = 1 － Θ 1 B S － Θ 2 B 2 S － … － Θ Q B Q S Θ( B_S) = 1 － Θ_1B^S－ Θ_2B^{2S} － … － Θ_QB^{QS} Θ(BS​)=1－Θ1​BS－Θ2​B2S－…－ΘQ​BQS">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2019-11-08T23:48:28+08:00">
+    <meta property="article:modified_time" content="2019-11-08T23:48:28+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">时间序列模型之Arima Model</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-tomorrow-night-eighties">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <p>Arima model应该是时间序列数据处理中最有名的方法之一了把，之前花了几周看了《Time Series Analysis with Application in R》的前12章，基本上是把基础的Arima模型都学完了，今天就按照R in Action中的代码依样画葫芦实际操作了一遍。</p> 
+<h2><a id="Arima_Model_1"></a>Arima Model思路</h2> 
+<p>先写一下看完此书的一些感想把，具体的理论公式今天就先不写了，之后来补充把！<br> 首先是MA model，也就是Yt可以完全由{<!-- --><span class="katex--inline"><span class="katex"><span class="katex-mathml"> 
+     
+      
+       
+        
+        
+          e 
+         
+        
+          t 
+         
+        
+       
+      
+        e_t 
+       
+      
+    </span><span class="katex-html"><span class="base"><span class="strut" style="height: 0.58056em; vertical-align: -0.15em;"></span><span class="mord"><span class="mord mathdefault">e</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height: 0.280556em;"><span class="" style="top: -2.55em; margin-left: 0em; margin-right: 0.05em;"><span class="pstrut" style="height: 2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathdefault mtight">t</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height: 0.15em;"><span class=""></span></span></span></span></span></span></span></span></span></span>}序列线性回归得到,{<!-- --><span class="katex--inline"><span class="katex"><span class="katex-mathml"> 
+     
+      
+       
+        
+        
+          e 
+         
+        
+          t 
+         
+        
+       
+      
+        e_t 
+       
+      
+    </span><span class="katex-html"><span class="base"><span class="strut" style="height: 0.58056em; vertical-align: -0.15em;"></span><span class="mord"><span class="mord mathdefault">e</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height: 0.280556em;"><span class="" style="top: -2.55em; margin-left: 0em; margin-right: 0.05em;"><span class="pstrut" style="height: 2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathdefault mtight">t</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height: 0.15em;"><span class=""></span></span></span></span></span></span></span></span></span></span>}是一个white noise。<br> 然后是AR Model，也就是{<!-- --><span class="katex--inline"><span class="katex"><span class="katex-mathml"> 
+     
+      
+       
+        
+        
+          Y 
+         
+        
+          t 
+         
+        
+       
+      
+        Y_t 
+       
+      
+    </span><span class="katex-html"><span class="base"><span class="strut" style="height: 0.83333em; vertical-align: -0.15em;"></span><span class="mord"><span class="mord mathdefault" style="margin-right: 0.22222em;">Y</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height: 0.280556em;"><span class="" style="top: -2.55em; margin-left: -0.22222em; margin-right: 0.05em;"><span class="pstrut" style="height: 2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathdefault mtight">t</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height: 0.15em;"><span class=""></span></span></span></span></span></span></span></span></span></span>}序列的自回归模型，AR Model可以看成是一个无穷阶的MA Model。<br> 然后将这两个合起来也就是ARMA(p,q) Model了。<br> 由于前面的推导都要求序列是平稳的（否则会出现参数估计不准的问题），但是实际数据往往是不平稳的，因此就需要差分，一阶差分可以消去线性趋势，二阶差分可以消去二次项趋势，三阶差分可以消去三次项趋势。当然还有log等等很多其他的平稳数据的方法了。<br> 这就引出了Arima(p,d,q) Model了，也就是AR§,d阶差分平稳数据,MA(q)。<br> 但是这只是普通的Arima Model模型，还有复杂带有季节性趋势的数据，这时就需要Arima(p,d,q)*(P,D,Q) Model了，也就是乘积季节Arima模型，这也就是上一篇博文里说的乘积模型<a href="https://blog.csdn.net/qq_39805362/article/details/102978705">(时间序列处理之Holt-Winters Model)</a>，当然可以想到也有相加的Arima Model，只需要季节项中的P,Q均为0也就是相加模型了。所以说可以认为乘积Arima Model是更一般的Model。<br> 季节Arima Model的公式如下所示：<br> <span class="katex--inline"><span class="katex"><span class="katex-mathml"> 
+     
+      
+       
+       
+         Φ 
+        
+       
+         ( 
+        
+        
+        
+          B 
+         
+        
+          S 
+         
+        
+       
+         ) 
+        
+       
+         = 
+        
+       
+         1 
+        
+       
+         － 
+        
+        
+        
+          Φ 
+         
+        
+          1 
+         
+        
+        
+        
+          B 
+         
+        
+          S 
+         
+        
+       
+         － 
+        
+        
+        
+          Φ 
+         
+        
+          2 
+         
+        
+        
+        
+          B 
+         
+         
+         
+           2 
+          
+         
+           S 
+          
+         
+        
+       
+         － 
+        
+       
+         … 
+        
+       
+         － 
+        
+        
+        
+          Φ 
+         
+        
+          P 
+         
+        
+        
+        
+          B 
+         
+         
+         
+           P 
+          
+         
+           S 
+          
+         
+        
+       
+      
+        Φ( B^S)= 1 － Φ_1B^S － Φ_2B^{2S} － … － Φ_PB^{PS} 
+       
+      
+    </span><span class="katex-html"><span class="base"><span class="strut" style="height: 1.09133em; vertical-align: -0.25em;"></span><span class="mord">Φ</span><span class="mopen">(</span><span class="mord"><span class="mord mathdefault" style="margin-right: 0.05017em;">B</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height: 0.841331em;"><span class="" style="top: -3.063em; margin-right: 0.05em;"><span class="pstrut" style="height: 2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathdefault mtight" style="margin-right: 0.05764em;">S</span></span></span></span></span></span></span></span><span class="mclose">)</span><span class="mspace" style="margin-right: 0.277778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right: 0.277778em;"></span></span><span class="base"><span class="strut" style="height: 0.991331em; vertical-align: -0.15em;"></span><span class="mord">1</span><span class="mord cjk_fallback">－</span><span class="mord"><span class="mord">Φ</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height: 0.301108em;"><span class="" style="top: -2.55em; margin-left: 0em; margin-right: 0.05em;"><span class="pstrut" style="height: 2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight">1</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height: 0.15em;"><span class=""></span></span></span></span></span></span><span class="mord"><span class="mord mathdefault" style="margin-right: 0.05017em;">B</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height: 0.841331em;"><span class="" style="top: -3.063em; margin-right: 0.05em;"><span class="pstrut" style="height: 2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathdefault mtight" style="margin-right: 0.05764em;">S</span></span></span></span></span></span></span></span><span class="mord cjk_fallback">－</span><span class="mord"><span class="mord">Φ</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height: 0.301108em;"><span class="" style="top: -2.55em; margin-left: 0em; margin-right: 0.05em;"><span class="pstrut" style="height: 2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight">2</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height: 0.15em;"><span class=""></span></span></span></span></span></span><span class="mord"><span class="mord mathdefault" style="margin-right: 0.05017em;">B</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height: 0.841331em;"><span class="" style="top: -3.063em; margin-right: 0.05em;"><span class="pstrut" style="height: 2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight">2</span><span class="mord mathdefault mtight" style="margin-right: 0.05764em;">S</span></span></span></span></span></span></span></span></span><span class="mord cjk_fallback">－</span><span class="mspace" style="margin-right: 0.166667em;"></span><span class="minner">…</span><span class="mspace" style="margin-right: 0.166667em;"></span><span class="mord cjk_fallback">－</span><span class="mord"><span class="mord">Φ</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height: 0.328331em;"><span class="" style="top: -2.55em; margin-left: 0em; margin-right: 0.05em;"><span class="pstrut" style="height: 2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathdefault mtight" style="margin-right: 0.13889em;">P</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height: 0.15em;"><span class=""></span></span></span></span></span></span><span class="mord"><span class="mord mathdefault" style="margin-right: 0.05017em;">B</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height: 0.841331em;"><span class="" style="top: -3.063em; margin-right: 0.05em;"><span class="pstrut" style="height: 2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathdefault mtight" style="margin-right: 0.13889em;">P</span><span class="mord mathdefault mtight" style="margin-right: 0.05764em;">S</span></span></span></span></span></span></span></span></span></span></span></span></span>，<span class="katex--inline"><span class="katex"><span class="katex-mathml"> 
+     
+      
+       
+       
+         Θ 
+        
+       
+         ( 
+        
+        
+        
+          B 
+         
+        
+          S 
+         
+        
+       
+         ) 
+        
+       
+         = 
+        
+       
+         1 
+        
+       
+         － 
+        
+        
+        
+          Θ 
+         
+        
+          1 
+         
+        
+        
+        
+          B 
+         
+        
+          S 
+         
+        
+       
+         － 
+        
+        
+        
+          Θ 
+         
+        
+          2 
+         
+        
+        
+        
+          B 
+         
+         
+         
+           2 
+          
+         
+           S 
+          
+         
+        
+       
+         － 
+        
+       
+         … 
+        
+       
+         － 
+        
+        
+        
+          Θ 
+         
+        
+          Q 
+         
+        
+        
+        
+          B 
+         
+         
+         
+           Q 
+          
+         
+           S 
+          
+         
+        
+       
+      
+        Θ( B_S) = 1 － Θ_1B^S－ Θ_2B^{2S} － … － Θ_QB^{QS} 
+       
+      
+    </span><span class="katex-html"><span class="base"><span class="strut" style="height: 1em; vertical-align: -0.25em;"></span><span class="mord">Θ</span><span class="mopen">(</span><span class="mord"><span class="mord mathdefault" style="margin-right: 0.05017em;">B</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height: 0.328331em;"><span class="" style="top: -2.55em; margin-left: -0.05017em; margin-right: 0.05em;"><span class="pstrut" style="height: 2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathdefault mtight" style="margin-right: 0.05764em;">S</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height: 0.15em;"><span class=""></span></span></span></span></span></span><span class="mclose">)</span><span class="mspace" style="margin-right: 0.277778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right: 0.277778em;"></span></span><span class="base"><span class="strut" style="height: 1.12744em; vertical-align: -0.286108em;"></span><span class="mord">1</span><span class="mord cjk_fallback">－</span><span class="mord"><span class="mord">Θ</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height: 0.301108em;"><span class="" style="top: -2.55em; margin-left: 0em; margin-right: 0.05em;"><span class="pstrut" style="height: 2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight">1</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height: 0.15em;"><span class=""></span></span></span></span></span></span><span class="mord"><span class="mord mathdefault" style="margin-right: 0.05017em;">B</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height: 0.841331em;"><span class="" style="top: -3.063em; margin-right: 0.05em;"><span class="pstrut" style="height: 2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathdefault mtight" style="margin-right: 0.05764em;">S</span></span></span></span></span></span></span></span><span class="mord cjk_fallback">－</span><span class="mord"><span class="mord">Θ</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height: 0.301108em;"><span class="" style="top: -2.55em; margin-left: 0em; margin-right: 0.05em;"><span class="pstrut" style="height: 2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight">2</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height: 0.15em;"><span class=""></span></span></span></span></span></span><span class="mord"><span class="mord mathdefault" style="margin-right: 0.05017em;">B</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height: 0.841331em;"><span class="" style="top: -3.063em; margin-right: 0.05em;"><span class="pstrut" style="height: 2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight">2</span><span class="mord mathdefault mtight" style="margin-right: 0.05764em;">S</span></span></span></span></span></span></span></span></span><span class="mord cjk_fallback">－</span><span class="mspace" style="margin-right: 0.166667em;"></span><span class="minner">…</span><span class="mspace" style="margin-right: 0.166667em;"></span><span class="mord cjk_fallback">－</span><span class="mord"><span class="mord">Θ</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height: 0.328331em;"><span class="" style="top: -2.55em; margin-left: 0em; margin-right: 0.05em;"><span class="pstrut" style="height: 2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathdefault mtight">Q</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height: 0.286108em;"><span class=""></span></span></span></span></span></span><span class="mord"><span class="mord mathdefault" style="margin-right: 0.05017em;">B</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height: 0.841331em;"><span class="" style="top: -3.063em; margin-right: 0.05em;"><span class="pstrut" style="height: 2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathdefault mtight">Q</span><span class="mord mathdefault mtight" style="margin-right: 0.05764em;">S</span></span></span></span></span></span></span></span></span></span></span></span></span><br> <img src="https://images2.imgbox.com/45/07/hG0nDwry_o.png" alt="在这里插入图片描述"><br> <img src="https://images2.imgbox.com/f2/4c/WSVzl1l2_o.png" alt="在这里插入图片描述"><br> ——————————————————————————————————<br> 对于Arima模型残差的理解：首先，有一点是毫无疑问的，也就是Arima模型得到的残差必须是白噪声，因为Arima Model对数据预测相对于直接用趋势来预测的优势就在于运用了数据中的自相关关系，因此只有最后残差是白噪声，也就是说完全提取完了自相关关系并用于预测，才能说此时的Arima Model是最好的Arima Model，此时已经将数据的信息榨干了。但是我在几本书上看到一般会对拟合模型的 <em>残差</em> 进行 <em>正态性检验</em>，我们都知道白噪声不一定是满足正态分布的，那为什么会进行正态性检验呢？难道只是说一般而言白噪声可以认为就是正态分布了？这一点我还存有些疑问，欢迎大佬指教。当然还有很多教材说是进行ACF检验 or box test，这是显然没有问题的，因为这些检验都是检验自相关性，没有自相关性了说明Arima Model确实将新息提取完了。</p> 
+<h2><a id="_15"></a>实战</h2> 
+<p>R in action上的实战Arima代码，可以详见下面的链接。<a href="https://github.com/RobinYaoWenbin/R-CommonCode/tree/master/RinAction-ArimaModel">Arima Model</a></p> 
+<p><a href="https://robjhyndman.com/hyndsight/tscvexample/" rel="nofollow">time series cross validation</a></p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/69f46e64b377e0c0cb4b725e4d78ebcc/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">MySQL约束类型</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/f511f05171d2c27a938e9205aab5a16d/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">matplotlib和imagemagick  用于GIF动画保存</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

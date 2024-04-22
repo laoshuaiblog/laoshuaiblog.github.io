@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>LVS&#43;Keepalived负载均衡高可用群集 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/46482eccfc6a17eb54f5bd1ad07ee9a2/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="LVS&#43;Keepalived负载均衡高可用群集">
+  <meta property="og:description" content="目录
+一、Keepalived高可用详解
+1.应用场景
+2.介绍和原理简介
+3.主要模块和作用
+二、LVS&#43;keepalived配置实例（抢占模式）
+1.配置NFS共享存储器
+2.配置节点web服务（两台的配置相同）
+3.配置主备LVS&#43;keepalived负载调度器
+三、非抢占模式
+四、脑裂现象的解释和解决办法
+1.解释
+2.解决方法
+一、Keepalived高可用详解 1.应用场景 在企业应用中，单台服务器承担应用存在单点故障的危险。单点故障一旦发生，企业服务将发生中断，造成极大的危害。所以需要群集实现高可用性，保证服务稳定。
+2.介绍和原理简介 Keepalived是一个基于VRRP协议来实现的LVS服务高可用方案，可以解决静态路由出现的单点故障问题。
+可参考 VRRP详解与配置实例_Evens7xxX的博客-CSDN博客
+支持故障自动切换（Failover）和 节点健康状态检查（Health Checking）—— 判断LVS负载调度器、节点服务器的可用性，当master主机出现故障及时切换到backup节点保证业务正常，当master故障主机恢复后将其重新加入群集并且业务。
+在一个LVS服务集群中通常有主服务器(NASIER）和备份服务器（EcCXOp)两种角色的服务器，但是对外表现为一个虚拟re，主服务器会发送vRt通告信息给备份服务器，当备份服务器收不到wa&amp;amp;消息的时候，即主服务器异常的时候，备份服务器就会接管虚拟IP，继续提供服务，从而保证了高可用性。W AEF AWF EAFAF FAEDAWAWEDF 4TWAWDFA
+3.主要模块和作用 core模块：为keepalived的核心，负责主进程的启动、维护及全局配置文件的加载和解析
+vrrp模块：是来实现VRRP协议的，用于主备调度器的检查和切换。
+check模块：负责健康检查节点服务器，常见的方式有端口检查及URL检查。
+二、LVS&#43;keepalived配置实例（抢占模式） LVS-NAT 参考 LVS-DR负载群集的优势和部署实例_Evens7xxX的博客-CSDN博客​​​​​​
+LVS-DR 参考 LVS-DR负载群集的优势和部署实例_Evens7xxX的博客-CSDN博客
+以下实验使用LVS-DR&#43;keepalived的抢占模式实现高可用负载群集
+Web 服务器1：192.168.116.10（VIP 192.168.116.100）
+Web 服务器2：192.168.116.20（VIP 192.168.116.100）
+NFS 共享存储器：192.168.116.30
+LVS&#43;keepalived 主负载调度器：192.168.116.40（VIP 192.168.116.100）
+LVS&#43;keepalived 备负载调度器：192.168.116.30（VIP 192.168.116.100）
+网关/路由器：192.168.116.2
+客户端：192.168.116.50
+1.配置NFS共享存储器 systemctl stop firewalld.service setenforce 0 yum -y install nfs-utils rpcbind mkdir /opt/nfs/server1 /opt/nfs/server2 chmod -R 777 /opt/nfs vim /etc/exports /opt/nfs 192.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2022-10-17T22:20:53+08:00">
+    <meta property="article:modified_time" content="2022-10-17T22:20:53+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">LVS&#43;Keepalived负载均衡高可用群集</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <p id="main-toc"><strong>目录</strong></p> 
+<p id="%E4%B8%80%E3%80%81Keepalived%E9%AB%98%E5%8F%AF%E7%94%A8%E8%AF%A6%E8%A7%A3-toc" style="margin-left:0px;"><a href="#%E4%B8%80%E3%80%81Keepalived%E9%AB%98%E5%8F%AF%E7%94%A8%E8%AF%A6%E8%A7%A3" rel="nofollow">一、Keepalived高可用详解</a></p> 
+<p id="1.%E5%BA%94%E7%94%A8%E5%9C%BA%E6%99%AF-toc" style="margin-left:40px;"><a href="#1.%E5%BA%94%E7%94%A8%E5%9C%BA%E6%99%AF" rel="nofollow">1.应用场景</a></p> 
+<p id="2.%E4%BB%8B%E7%BB%8D%E5%92%8C%E5%8E%9F%E7%90%86%E7%AE%80%E4%BB%8B-toc" style="margin-left:40px;"><a href="#2.%E4%BB%8B%E7%BB%8D%E5%92%8C%E5%8E%9F%E7%90%86%E7%AE%80%E4%BB%8B" rel="nofollow">2.介绍和原理简介</a></p> 
+<p id="3.%E4%B8%BB%E8%A6%81%E6%A8%A1%E5%9D%97%E5%92%8C%E4%BD%9C%E7%94%A8-toc" style="margin-left:40px;"><a href="#3.%E4%B8%BB%E8%A6%81%E6%A8%A1%E5%9D%97%E5%92%8C%E4%BD%9C%E7%94%A8" rel="nofollow">3.主要模块和作用</a></p> 
+<p id="%E4%BA%8C%E3%80%81LVS%2Bkeepalived%E9%85%8D%E7%BD%AE%E5%AE%9E%E4%BE%8B%EF%BC%88%E6%8A%A2%E5%8D%A0%E6%A8%A1%E5%BC%8F%EF%BC%89-toc" style="margin-left:0px;"><a href="#%E4%BA%8C%E3%80%81LVS%2Bkeepalived%E9%85%8D%E7%BD%AE%E5%AE%9E%E4%BE%8B%EF%BC%88%E6%8A%A2%E5%8D%A0%E6%A8%A1%E5%BC%8F%EF%BC%89" rel="nofollow">二、LVS+keepalived配置实例（抢占模式）</a></p> 
+<p id="1.%E9%85%8D%E7%BD%AENFS%E5%85%B1%E4%BA%AB%E5%AD%98%E5%82%A8%E5%99%A8-toc" style="margin-left:40px;"><a href="#1.%E9%85%8D%E7%BD%AENFS%E5%85%B1%E4%BA%AB%E5%AD%98%E5%82%A8%E5%99%A8" rel="nofollow">1.配置NFS共享存储器</a></p> 
+<p id="2.%E9%85%8D%E7%BD%AE%E8%8A%82%E7%82%B9web%E6%9C%8D%E5%8A%A1%EF%BC%88%E4%B8%A4%E5%8F%B0%E7%9A%84%E9%85%8D%E7%BD%AE%E7%9B%B8%E5%90%8C%EF%BC%89-toc" style="margin-left:40px;"><a href="#2.%E9%85%8D%E7%BD%AE%E8%8A%82%E7%82%B9web%E6%9C%8D%E5%8A%A1%EF%BC%88%E4%B8%A4%E5%8F%B0%E7%9A%84%E9%85%8D%E7%BD%AE%E7%9B%B8%E5%90%8C%EF%BC%89" rel="nofollow">2.配置节点web服务（两台的配置相同）</a></p> 
+<p id="3.%E9%85%8D%E7%BD%AELVS%E8%B4%9F%E8%BD%BD%E8%B0%83%E5%BA%A6%E5%99%A8-toc" style="margin-left:40px;"><a href="#3.%E9%85%8D%E7%BD%AELVS%E8%B4%9F%E8%BD%BD%E8%B0%83%E5%BA%A6%E5%99%A8" rel="nofollow">3.配置主备LVS+keepalived负载调度器</a></p> 
+<p id="%E4%B8%89%E3%80%81%E9%9D%9E%E6%8A%A2%E5%8D%A0%E6%A8%A1%E5%BC%8F-toc" style="margin-left:0px;"><a href="#%E4%B8%89%E3%80%81%E9%9D%9E%E6%8A%A2%E5%8D%A0%E6%A8%A1%E5%BC%8F" rel="nofollow">三、非抢占模式</a></p> 
+<p id="%E5%9B%9B%E3%80%81%E8%84%91%E8%A3%82%E7%8E%B0%E8%B1%A1%E7%9A%84%E8%A7%A3%E9%87%8A%E5%92%8C%E8%A7%A3%E5%86%B3%E5%8A%9E%E6%B3%95-toc" style="margin-left:0px;"><a href="#%E5%9B%9B%E3%80%81%E8%84%91%E8%A3%82%E7%8E%B0%E8%B1%A1%E7%9A%84%E8%A7%A3%E9%87%8A%E5%92%8C%E8%A7%A3%E5%86%B3%E5%8A%9E%E6%B3%95" rel="nofollow">四、脑裂现象的解释和解决办法</a></p> 
+<p id="1.%E8%A7%A3%E9%87%8A-toc" style="margin-left:40px;"><a href="#1.%E8%A7%A3%E9%87%8A" rel="nofollow">1.解释</a></p> 
+<p id="2.%E8%A7%A3%E5%86%B3%E6%96%B9%E6%B3%95-toc" style="margin-left:40px;"><a href="#2.%E8%A7%A3%E5%86%B3%E6%96%B9%E6%B3%95" rel="nofollow">2.解决方法</a></p> 
+<hr id="hr-toc"> 
+<p></p> 
+<h2 id="%E4%B8%80%E3%80%81Keepalived%E9%AB%98%E5%8F%AF%E7%94%A8%E8%AF%A6%E8%A7%A3">一、Keepalived高可用详解</h2> 
+<h3 id="1.%E5%BA%94%E7%94%A8%E5%9C%BA%E6%99%AF">1.应用场景</h3> 
+<p>        在企业应用中，单台服务器承担应用存在单点故障的危险。单点故障一旦发生，企业服务将发生中断，造成极大的危害。所以需要群集实现高可用性，保证服务稳定。</p> 
+<h3 id="2.%E4%BB%8B%E7%BB%8D%E5%92%8C%E5%8E%9F%E7%90%86%E7%AE%80%E4%BB%8B">2.介绍和原理简介</h3> 
+<p>        Keepalived是一个基于VRRP协议来实现的LVS服务高可用方案，可以解决静态路由出现的单点故障问题。</p> 
+<blockquote> 
+ <p>可参考        <a href="https://blog.csdn.net/weixin_58544496/article/details/125847473?spm=1001.2014.3001.5502" title="VRRP详解与配置实例_Evens7xxX的博客-CSDN博客">VRRP详解与配置实例_Evens7xxX的博客-CSDN博客</a></p> 
+</blockquote> 
+<p>        支持故障自动切换（Failover）和 节点健康状态检查（Health Checking）—— 判断LVS负载调度器、节点服务器的可用性，当master主机出现故障及时切换到backup节点保证业务正常，当master故障主机恢复后将其重新加入群集并且业务。</p> 
+<p>        在一个LVS服务集群中通常有主服务器(NASIER）和备份服务器（EcCXOp)两种角色的服务器，但是对外表<strong>现为一个虚拟re，主服务器会发送vRt通告信息给备份服务器，当备份服务器收不到wa&amp;消息的时候，即主服务器异常的时候，备份服务器就会接管虚拟IP，继续提供服务，从而保证了高可用性。W AEF AWF EAFAF</strong> FAEDAWAWEDF 4TWAWDFA</p> 
+<h3 id="3.%E4%B8%BB%E8%A6%81%E6%A8%A1%E5%9D%97%E5%92%8C%E4%BD%9C%E7%94%A8">3.主要模块和作用</h3> 
+<p><strong>        core模块</strong>：为keepalived的核心，负责主进程的启动、维护及全局配置文件的加载和解析</p> 
+<p><strong>        vrrp模块</strong>：是来实现VRRP协议的，用于主备调度器的检查和切换。</p> 
+<p><strong>        check模块</strong>：负责健康检查节点服务器，常见的方式有端口检查及URL检查。</p> 
+<h2 id="%E4%BA%8C%E3%80%81LVS%2Bkeepalived%E9%85%8D%E7%BD%AE%E5%AE%9E%E4%BE%8B%EF%BC%88%E6%8A%A2%E5%8D%A0%E6%A8%A1%E5%BC%8F%EF%BC%89">二、LVS+keepalived配置实例（抢占模式）</h2> 
+<blockquote> 
+ <p>LVS-NAT 参考<a href="https://blog.csdn.net/weixin_58544496/article/details/127347556?spm=1001.2014.3001.5502" title=" LVS-DR负载群集的优势和部署实例_Evens7xxX的博客-CSDN博客​​​​​​"> LVS-DR负载群集的优势和部署实例_Evens7xxX的博客-CSDN博客​​​​​​</a></p> 
+ <p>LVS-DR  参考<a href="https://blog.csdn.net/weixin_58544496/article/details/127347556?spm=1001.2014.3001.5502" title=" LVS-DR负载群集的优势和部署实例_Evens7xxX的博客-CSDN博客"> LVS-DR负载群集的优势和部署实例_Evens7xxX的博客-CSDN博客</a></p> 
+</blockquote> 
+<blockquote> 
+ <p>以下实验使用<strong>LVS-DR+keepalived</strong>的<strong>抢占模式</strong>实现高可用负载群集</p> 
+ <p>Web 服务器1：192.168.116.10（VIP 192.168.116.100）<br> Web 服务器2：192.168.116.20（VIP 192.168.116.100）</p> 
+ <p>NFS 共享存储器：192.168.116.30</p> 
+ <p>LVS+keepalived 主负载调度器：192.168.116.40（VIP 192.168.116.100）</p> 
+ <p>LVS+keepalived 备负载调度器：192.168.116.30（VIP 192.168.116.100）</p> 
+ <p>网关/路由器：192.168.116.2<br> 客户端：192.168.116.50</p> 
+</blockquote> 
+<h3 id="1.%E9%85%8D%E7%BD%AENFS%E5%85%B1%E4%BA%AB%E5%AD%98%E5%82%A8%E5%99%A8">1.配置NFS共享存储器</h3> 
+<pre><code class="language-bash">systemctl stop firewalld.service
+setenforce 0
+ 
+yum -y install nfs-utils rpcbind
+mkdir /opt/nfs/server1 /opt/nfs/server2
+chmod -R 777 /opt/nfs
+ 
+vim /etc/exports
+/opt/nfs 192.168.116.0/24(rw,sync)
+/opt/nfs/server1 192.168.116.0/24(rw,sync)
+/opt/nfs/server2 192.168.116.0/24(rw,sync)
+ 
+systemctl restart rpcbind.service
+systemctl restart nfs.service</code></pre> 
+<p><strong>检查发布的共享策略</strong></p> 
+<p><img alt="" src="https://images2.imgbox.com/c8/00/1OkpQMqR_o.png"></p> 
+<p><strong>分别在共享目录中添加web测试页面（两个可以有所区别）</strong></p> 
+<p><img alt="" src="https://images2.imgbox.com/84/f9/dtdBLPrd_o.png"></p> 
+<h3 id="2.%E9%85%8D%E7%BD%AE%E8%8A%82%E7%82%B9web%E6%9C%8D%E5%8A%A1%EF%BC%88%E4%B8%A4%E5%8F%B0%E7%9A%84%E9%85%8D%E7%BD%AE%E7%9B%B8%E5%90%8C%EF%BC%89">2.配置节点web服务（两台的配置相同）</h3> 
+<p><strong>配置好ip地址，并将网关指定为网关/路由器的ip地址</strong></p> 
+<p><strong>安装nginx提供web服务（apache、nginx等均可，仅用于实验）</strong></p> 
+<p><img alt="" src="https://images2.imgbox.com/bd/2b/xE4vYhu5_o.png"></p> 
+<p><strong>将网站根目录挂载到各自的共享目录</strong></p> 
+<p><img alt="" src="https://images2.imgbox.com/9d/63/bQNNgxNw_o.png"></p> 
+<p><img alt="" src="https://images2.imgbox.com/96/2d/M23z9BDc_o.png"></p> 
+<p><strong>查看是否共享成功</strong></p> 
+<p><img alt="" src="https://images2.imgbox.com/25/4d/nG8h26tN_o.png"></p> 
+<p><img alt="" src="https://images2.imgbox.com/4f/6d/FlXUrYSD_o.png"></p> 
+<p><strong>添加回环网卡虚拟ip</strong></p> 
+<pre><code class="language-bash">cp /etc/sysconfig/network-scripts/ifcfg-lo /etc/sysconfig/network-scripts/ifcfg-lo:0
+ 
+vim /etc/sysconfig/network-scripts/ifcfg-lo:0
+DEVICE=lo:0
+IPADDR=192.168.116.100
+NETMASK=255.255.255.255
+ONBOOT=yes
+ 
+ifup lo:0</code></pre> 
+<p><img alt="" src="https://images2.imgbox.com/86/7c/3jBXt93n_o.png"></p> 
+<p><strong>添加静态路由（将数据包封锁在回环网卡中）</strong></p> 
+<pre><code class="language-bash">#临时配置
+route add -host 192.168.116.100 dev lo:0
+ 
+#永久配置
+vim /etc/rc.local
+/sbin/route add -host 192.168.116.100 dev lo:0
+chmod +x /etc/rc.d/rc.local</code></pre> 
+<p><strong>调整内核的ARP响应参数（阻止更新VIP的MAC地址，避免发生冲突）</strong></p> 
+<pre><code class="language-bash">vim /etc/sysctl.conf
+#添加
+net.ipv4.conf.lo.arp_ignore = 1        
+net.ipv4.conf.lo.arp_announce = 2    
+net.ipv4.conf.all.arp_ignore = 1
+net.ipv4.conf.all.arp_announce = 2
+ 
+#加载配置
+sysctl -p</code></pre> 
+<h3 id="3.%E9%85%8D%E7%BD%AELVS%E8%B4%9F%E8%BD%BD%E8%B0%83%E5%BA%A6%E5%99%A8">3.配置主备LVS+keepalived负载调度器</h3> 
+<p><strong>两台都关闭防火墙下载keepalived和ipvsadm，修改内核参数</strong></p> 
+<pre><code class="language-bash">systemctl stop firewalld.service
+setenforce 0
+
+modprobe ip_vs
+yum -y install ipvsadm keepalived
+
+vim /etc/sysctl.conf
+net.ipv4.ip_forward = 0
+net.ipv4.conf.all.send_redirects = 0
+net.ipv4.conf.default.send_redirects = 0
+net.ipv4.conf.ens33.send_redirects = 0
+
+sysctl -p</code></pre> 
+<p><strong>修改主负载器配置文件</strong></p> 
+<p><img alt="" height="1200" src="https://images2.imgbox.com/ea/e7/U3bZC11r_o.png" width="1200"></p> 
+<p><img alt="" height="1200" src="https://images2.imgbox.com/0e/4f/FwCSYNgK_o.png" width="1200"></p> 
+<p><strong>修改备负载器配置文件（与主配置一致，只需修改以下部分） </strong></p> 
+<p><img alt="" height="784" src="https://images2.imgbox.com/5c/55/YQeuCCUj_o.png" width="852"></p> 
+<p><strong>之后启动keepalived再启动ipvsadm（ipvsadm会自动加载keepslived中的配置）</strong></p> 
+<pre><code class="language-bash">#启动keepalived
+systemctl restart keepalived.service
+ipvsadm-save &gt; /etc/sysconfig/ipvsadm
+
+#启动ipvsadm
+systemctl restart ipvsadm.service
+</code></pre> 
+<p><strong>查看主服务器</strong></p> 
+<p><img alt="" height="729" src="https://images2.imgbox.com/26/48/kTNqrJ8w_o.png" width="1075"></p> 
+<p><strong>查看备服务器</strong></p> 
+<p><img alt="" height="675" src="https://images2.imgbox.com/e3/cf/AMayOJ4G_o.png" width="1073"></p> 
+<p><strong>访问测试（此时应该是主负载器提供服务）</strong></p> 
+<p><img alt="" height="298" src="https://images2.imgbox.com/dc/12/Ws2ZUlqr_o.png" width="628"></p> 
+<p><img alt="" height="346" src="https://images2.imgbox.com/d8/0a/qCMtJWFc_o.png" width="677"></p> 
+<p><strong>现在将主负载器服务停止或关机（模拟宕机），继续访问</strong></p> 
+<p><img alt="" height="482" src="https://images2.imgbox.com/a3/e1/otIrEUpa_o.png" width="1200"></p> 
+<p><img alt="" height="286" src="https://images2.imgbox.com/87/c8/98LMeVYq_o.png" width="622"></p> 
+<p><img alt="" height="254" src="https://images2.imgbox.com/7f/d9/Zry55tM8_o.png" width="597"></p> 
+<p><strong>访问成功，这次显然是由备负载器进行转发的 </strong></p> 
+<h2 id="%E4%B8%89%E3%80%81%E9%9D%9E%E6%8A%A2%E5%8D%A0%E6%A8%A1%E5%BC%8F">三、非抢占模式</h2> 
+<blockquote> 
+ <p><strong>keepalived的抢占与非抢占模式</strong><br><strong>        抢占模式</strong>即MASTER从故障中恢复后，会将VIP从BACKUP节点中抢占过来。</p> 
+ <p><strong>        非抢占模式</strong>即MASTER恢复后不抢占BACKUP升级为MASTER后的VIP。非抢占式的两个节点state必须为BACKUP，且必须在优先级前添加<strong>nopreempt</strong>。<br><strong>注意：</strong>这样配置后，我们要注意启动服务的顺序，优先启动的获取master权限，与优先级没有关系了。</p> 
+</blockquote> 
+<p><img alt="" height="463" src="https://images2.imgbox.com/25/68/gdA1RoAa_o.png" width="571"></p> 
+<h2 id="%E5%9B%9B%E3%80%81%E8%84%91%E8%A3%82%E7%8E%B0%E8%B1%A1%E7%9A%84%E8%A7%A3%E9%87%8A%E5%92%8C%E8%A7%A3%E5%86%B3%E5%8A%9E%E6%B3%95">四、脑裂现象的解释和解决办法</h2> 
+<h3 id="1.%E8%A7%A3%E9%87%8A">1.解释</h3> 
+<p>        在抢占模式中，MASTER需要定时发送报文通告BACKUP自己仍在运作，但是当MASTER还在运作，但其中的线路或交换机等出现故障导致BACKUP不能收到通告时，会认为MASTER已经失效，此时BACKUP抢占VIP会导致VIP同时存在，这就是<strong>脑裂现象</strong>。</p> 
+<h3 id="2.%E8%A7%A3%E5%86%B3%E6%96%B9%E6%B3%95">2.解决方法</h3> 
+<p>        主备服务器之间使用双链路通信；</p> 
+<p>        通过脚本来实时监控主备的网络状态，然后再根据脚本逻辑采取措施（关掉主服务器的keepalived服务器）；</p> 
+<p>        通过第三方监控系统来实时监控主备服务器及网络状态，然后再根据情况采取措施（关掉主服务器的keepalived服务器）。</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/9378ce2a4563ecdb4fdf122ae6d52af7/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">为什么小数java会不精确呢？？？</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/8a6e7797b77a85cfd9d5f064d83cc366/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">在线程中弹出自定义对话框</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>嵌入式 Linux 下的 LVGL 移植 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/3b2a243f939d496f4ec57a2b231e4d27/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="嵌入式 Linux 下的 LVGL 移植">
+  <meta property="og:description" content="目录 准备创建工程修改配置修改 lv_drv_conf.h修改 lv_conf.h修改 main.c修改 Makefile 编译运行更多内容 LVGL（Light and Versatile Graphics Library）是一个轻量化的、开源的、在嵌入式系统中广泛使用的图形库，它提供了一套丰富的控件和组件，只需要少量的内存和计算资源，使得在资源受限的设备上创建高端的图形界面成为可能。本文记录如何将 LVGL 移植到嵌入式 Linux 系统中。
+编程环境：Windows11 VS Code编译环境：Ubuntu18.04 交叉编译测试平台：正点原子 i.MX6ULL显示屏：5inch RGB 800×480 准备 打开 LVGL 的 Github 主页，分别下载 lvgl、lv_drivers、lv_port_linux_frame_buffer 仓库源码，lvgl 和 lv_drivers 我这里选择了当前最新的已发布版本：
+创建工程 创建 lvgl_demo 文件夹；将 lvgl、lv_drivers 复制到 lvgl_demo 中；将 lv_port_linux_frame_buffer 仓库中的 main.c 文件和 makefile 文件复制到 lvgl_demo 中；将 lvgl 中的 lv_conf_template.h 文件复制到 lvgl_demo 中并且改名为 lv_conf.h；将 lv_drivers 中的 lv_drv_conf_template.h 文件复制到 lvgl_demo 中并且改名为 lv_drv_conf.h；创建好的工程目录如图所示：
+修改配置 修改 lv_drv_conf.h 将 #if 0 改成 #if 1： 将 USE_FBDEV 的值改为 1，使能 frame buffer 设备： 将 USE_EVDEV 的值改为 1，配置触控输入设备的文件路径： 修改 lv_conf.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2024-03-05T20:23:40+08:00">
+    <meta property="article:modified_time" content="2024-03-05T20:23:40+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">嵌入式 Linux 下的 LVGL 移植</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-light">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <p></p> 
+<div class="toc"> 
+ <h4>目录</h4> 
+ <ul><li><ul><li><a href="#_9" rel="nofollow">准备</a></li><li><a href="#_15" rel="nofollow">创建工程</a></li><li><a href="#_26" rel="nofollow">修改配置</a></li><li><ul><li><a href="#_lv_drv_confh_28" rel="nofollow">修改 lv_drv_conf.h</a></li><li><a href="#_lv_confh_42" rel="nofollow">修改 lv_conf.h</a></li><li><a href="#_mainc_64" rel="nofollow">修改 main.c</a></li><li><a href="#_Makefile_145" rel="nofollow">修改 Makefile</a></li></ul> 
+   </li><li><a href="#_163" rel="nofollow">编译运行</a></li><li><a href="#_186" rel="nofollow">更多内容</a></li></ul> 
+ </li></ul> 
+</div> 
+<p></p> 
+<p><a href="https://lvgl.io/" rel="nofollow">LVGL</a>（Light and Versatile Graphics Library）是一个轻量化的、开源的、在嵌入式系统中广泛使用的图形库，它提供了一套丰富的控件和组件，只需要少量的内存和计算资源，使得在资源受限的设备上创建高端的图形界面成为可能。本文记录如何将 LVGL 移植到嵌入式 Linux 系统中。</p> 
+<ul><li>编程环境：Windows11 VS Code</li><li>编译环境：Ubuntu18.04 交叉编译</li><li>测试平台：正点原子 i.MX6ULL</li><li>显示屏：5inch RGB 800×480</li></ul> 
+<h3><a id="_9"></a>准备</h3> 
+<p>打开 <a href="https://github.com/lvgl">LVGL 的 Github 主页</a>，分别下载 <a href="https://github.com/lvgl/lvgl">lvgl</a>、<a href="https://github.com/lvgl/lv_drivers">lv_drivers</a>、<a href="https://github.com/lvgl/lv_port_linux_frame_buffer">lv_port_linux_frame_buffer</a> 仓库源码，lvgl 和 lv_drivers 我这里选择了当前最新的已发布版本：</p> 
+<p><img src="https://images2.imgbox.com/6c/1e/6jS163yH_o.png" alt=""></p> 
+<h3><a id="_15"></a>创建工程</h3> 
+<ol><li>创建 lvgl_demo 文件夹；</li><li>将 lvgl、lv_drivers 复制到 lvgl_demo 中；</li><li>将 lv_port_linux_frame_buffer 仓库中的 main.c 文件和 makefile 文件复制到 lvgl_demo 中；</li><li>将 lvgl 中的 lv_conf_template.h 文件复制到 lvgl_demo 中并且改名为 lv_conf.h；</li><li>将 lv_drivers 中的 lv_drv_conf_template.h 文件复制到 lvgl_demo 中并且改名为 lv_drv_conf.h；</li><li>创建好的工程目录如图所示：<br> <img src="https://images2.imgbox.com/ac/2f/X31aO288_o.png" alt=""></li></ol> 
+<h3><a id="_26"></a>修改配置</h3> 
+<h4><a id="_lv_drv_confh_28"></a>修改 lv_drv_conf.h</h4> 
+<ul><li>将 <code>#if 0</code> 改成 <code>#if 1</code>：</li></ul> 
+<p><img src="https://images2.imgbox.com/0b/24/t5Qx3WB3_o.png" alt=""></p> 
+<ul><li>将 <code>USE_FBDEV</code> 的值改为 <code>1</code>，使能 frame buffer 设备：</li></ul> 
+<p><img src="https://images2.imgbox.com/a3/10/RUtOsdfa_o.png" alt=""></p> 
+<ul><li>将 <code>USE_EVDEV</code> 的值改为 <code>1</code>，配置触控输入设备的文件路径：</li></ul> 
+<p><img src="https://images2.imgbox.com/df/3d/uC7c84Up_o.png" alt=""></p> 
+<h4><a id="_lv_confh_42"></a>修改 lv_conf.h</h4> 
+<ul><li>将 <code>#if 0</code> 改成 <code>#if 1</code>：</li></ul> 
+<p><img src="https://images2.imgbox.com/b2/15/1a9hi6qA_o.png" alt=""></p> 
+<ul><li>根据实际情况适当扩大内存：</li></ul> 
+<p><img src="https://images2.imgbox.com/21/7b/GZfySp8G_o.png" alt=""></p> 
+<ul><li>这里可以修改刷新频率，默认为 30ms：</li></ul> 
+<p><img src="https://images2.imgbox.com/96/c4/NelpCdN6_o.png" alt=""></p> 
+<ul><li>配置 Tick：</li></ul> 
+<p><img src="https://images2.imgbox.com/89/93/oakeUa9R_o.png" alt=""></p> 
+<ul><li>使能 widgets demo：</li></ul> 
+<p><img src="https://images2.imgbox.com/99/16/vVSHLGpa_o.png" alt=""></p> 
+<h4><a id="_mainc_64"></a>修改 main.c</h4> 
+<ul><li>修改后的 main.c 文件如下所示：</li></ul> 
+<pre><code class="prism language-c"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">"lvgl/lvgl.h"</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">"lvgl/demos/lv_demos.h"</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">"lv_drivers/display/fbdev.h"</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">"lv_drivers/indev/evdev.h"</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;unistd.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;time.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;sys/time.h&gt;</span></span>
+
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token macro-name">DISP_BUF_SIZE</span> <span class="token expression"><span class="token punctuation">(</span><span class="token number">800</span> <span class="token operator">*</span> <span class="token number">480</span><span class="token punctuation">)</span></span></span>
+
+<span class="token keyword">int</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token keyword">void</span><span class="token punctuation">)</span>
+<span class="token punctuation">{<!-- --></span>
+    <span class="token function">lv_init</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token comment">/*Linux frame buffer device init*/</span>
+    <span class="token function">fbdev_init</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token comment">/*A small buffer for LittlevGL to draw the screen's content*/</span>
+    <span class="token keyword">static</span> <span class="token class-name">lv_color_t</span> buf<span class="token punctuation">[</span>DISP_BUF_SIZE<span class="token punctuation">]</span><span class="token punctuation">;</span>
+
+    <span class="token comment">/*Initialize a descriptor for the buffer*/</span>
+    <span class="token keyword">static</span> <span class="token class-name">lv_disp_draw_buf_t</span> disp_buf<span class="token punctuation">;</span>
+    <span class="token function">lv_disp_draw_buf_init</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>disp_buf<span class="token punctuation">,</span> buf<span class="token punctuation">,</span> <span class="token constant">NULL</span><span class="token punctuation">,</span> DISP_BUF_SIZE<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token comment">/*Initialize and register a display driver*/</span>
+    <span class="token keyword">static</span> <span class="token class-name">lv_disp_drv_t</span> disp_drv<span class="token punctuation">;</span>
+    <span class="token function">lv_disp_drv_init</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>disp_drv<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    disp_drv<span class="token punctuation">.</span>draw_buf   <span class="token operator">=</span> <span class="token operator">&amp;</span>disp_buf<span class="token punctuation">;</span>
+    disp_drv<span class="token punctuation">.</span>flush_cb   <span class="token operator">=</span> fbdev_flush<span class="token punctuation">;</span>
+    disp_drv<span class="token punctuation">.</span>hor_res    <span class="token operator">=</span> <span class="token number">800</span><span class="token punctuation">;</span>
+    disp_drv<span class="token punctuation">.</span>ver_res    <span class="token operator">=</span> <span class="token number">480</span><span class="token punctuation">;</span>
+    <span class="token function">lv_disp_drv_register</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>disp_drv<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token comment">/* Linux input device init */</span>
+    <span class="token function">evdev_init</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token comment">/* Initialize and register a display input driver */</span>
+    <span class="token class-name">lv_indev_drv_t</span> indev_drv<span class="token punctuation">;</span>
+    <span class="token function">lv_indev_drv_init</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>indev_drv<span class="token punctuation">)</span><span class="token punctuation">;</span>      <span class="token comment">/*Basic initialization*/</span>
+
+    indev_drv<span class="token punctuation">.</span>type <span class="token operator">=</span> LV_INDEV_TYPE_POINTER<span class="token punctuation">;</span>
+    indev_drv<span class="token punctuation">.</span>read_cb <span class="token operator">=</span> evdev_read<span class="token punctuation">;</span>
+    <span class="token class-name">lv_indev_t</span> <span class="token operator">*</span> my_indev <span class="token operator">=</span> <span class="token function">lv_indev_drv_register</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>indev_drv<span class="token punctuation">)</span><span class="token punctuation">;</span> 
+
+    <span class="token comment">/*Create a Demo*/</span>
+    <span class="token function">lv_demo_widgets</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token comment">/*Handle LVGL tasks*/</span>
+    <span class="token keyword">while</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token function">lv_timer_handler</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">usleep</span><span class="token punctuation">(</span><span class="token number">5000</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token comment">/*Set in lv_conf.h as `LV_TICK_CUSTOM_SYS_TIME_EXPR`*/</span>
+<span class="token class-name">uint32_t</span> <span class="token function">custom_tick_get</span><span class="token punctuation">(</span><span class="token keyword">void</span><span class="token punctuation">)</span>
+<span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">static</span> <span class="token class-name">uint64_t</span> start_ms <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span><span class="token punctuation">(</span>start_ms <span class="token operator">==</span> <span class="token number">0</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">struct</span> <span class="token class-name">timeval</span> tv_start<span class="token punctuation">;</span>
+        <span class="token function">gettimeofday</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>tv_start<span class="token punctuation">,</span> <span class="token constant">NULL</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        start_ms <span class="token operator">=</span> <span class="token punctuation">(</span>tv_start<span class="token punctuation">.</span>tv_sec <span class="token operator">*</span> <span class="token number">1000000</span> <span class="token operator">+</span> tv_start<span class="token punctuation">.</span>tv_usec<span class="token punctuation">)</span> <span class="token operator">/</span> <span class="token number">1000</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token keyword">struct</span> <span class="token class-name">timeval</span> tv_now<span class="token punctuation">;</span>
+    <span class="token function">gettimeofday</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>tv_now<span class="token punctuation">,</span> <span class="token constant">NULL</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token class-name">uint64_t</span> now_ms<span class="token punctuation">;</span>
+    now_ms <span class="token operator">=</span> <span class="token punctuation">(</span>tv_now<span class="token punctuation">.</span>tv_sec <span class="token operator">*</span> <span class="token number">1000000</span> <span class="token operator">+</span> tv_now<span class="token punctuation">.</span>tv_usec<span class="token punctuation">)</span> <span class="token operator">/</span> <span class="token number">1000</span><span class="token punctuation">;</span>
+
+    <span class="token class-name">uint32_t</span> time_ms <span class="token operator">=</span> now_ms <span class="token operator">-</span> start_ms<span class="token punctuation">;</span>
+    <span class="token keyword">return</span> time_ms<span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<h4><a id="_Makefile_145"></a>修改 Makefile</h4> 
+<ul><li>指定编译器，因为我在编译前会设置编译器环境变量，为避免错误，此处注释掉该配置，使用环境下默认编译器：</li></ul> 
+<p><img src="https://images2.imgbox.com/db/bb/GaB7HlEj_o.png" alt=""></p> 
+<ul><li>添加 lv_drivers.mk，注释掉鼠标样式源文件：</li></ul> 
+<p><img src="https://images2.imgbox.com/bd/a2/WmPuviDw_o.png" alt=""></p> 
+<ul><li>修改了下构建目标名称：</li></ul> 
+<p><img src="https://images2.imgbox.com/b0/83/GMruCpKr_o.png" alt=""></p> 
+<ul><li>若编译过程中出现未识别的编译选项，如报 <code>error: unrecognized command line option '-Wshift-negative-value'</code> 类似错误，可删除 <code>-Wshift-negative-value</code> 选项，该选项的作用是检查左移操作（&lt;&lt;）中可能出现的负数：</li></ul> 
+<p><img src="https://images2.imgbox.com/89/34/T9FepjV6_o.png" alt=""></p> 
+<h3><a id="_163"></a>编译运行</h3> 
+<ul><li>首先设置交叉编译链的环境变量，执行 make 命令：</li></ul> 
+<p><img src="https://images2.imgbox.com/9d/da/sRiuP7kV_o.png" alt=""></p> 
+<ul><li>编译成功后在工程目录生成一个可执行文件 <code>lvgl_demo</code>，将其复制到 IMX6U 开发板上；</li><li>我这里使用 NFS 挂载的方式，将 <code>lvgl_demo</code> 复制到 NFS 工作目录：</li></ul> 
+<p><img src="https://images2.imgbox.com/92/45/64JkvpVc_o.png" alt=""></p> 
+<ul><li>启动 IMX6U，查看 IP，挂载 NFS：</li></ul> 
+<p><img src="https://images2.imgbox.com/7c/04/NIrnOkvL_o.png" alt=""></p> 
+<ul><li>切换到 <code>/mnt/</code> 目录下，运行 <code>lvgl_demo</code>：</li></ul> 
+<p><img src="https://images2.imgbox.com/b9/92/L0EHxIyC_o.png" alt=""></p> 
+<ul><li>运行成功：</li></ul> 
+<p><img src="https://images2.imgbox.com/c9/ea/f7iZUBUY_o.png" alt=""></p> 
+<h3><a id="_186"></a>更多内容</h3> 
+<ul><li>CSDN博客：<a href="https://blog.csdn.net/weixin_44550536">@Hello阿尔法</a></li><li>哔哩哔哩：<a href="https://space.bilibili.com/506995858" rel="nofollow">@Hello阿尔法</a></li><li>知乎：<a href="https://www.zhihu.com/people/alpha-42-40-51" rel="nofollow">@Hello阿尔法</a></li></ul>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/eb863a81ca82fc7eef9265373146efae/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">中国气象站点数据</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/c9c70e0beb2333fc9d28e5576000a04d/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">Polars ，最强Pandas平替？</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

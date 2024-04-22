@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>【存储数据恢复】esx vmfs的互斥导致存储数据丢失的数据恢复案例 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/cab90bc96f7de7d5a5590b946b2731d7/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="【存储数据恢复】esx vmfs的互斥导致存储数据丢失的数据恢复案例">
+  <meta property="og:description" content="存储数据恢复环境：
+某公司的一个信息管理平台，3台ESX SERVER的虚拟机共享一台存储设备，供企业内部使用，存储了公司大量的重要数据文件。
+存储故障：
+管理员为该存储通过网络连接了一台Windows2003服务器后，这台存储就无法使用了。管理员对存储进行故障检查时发现存储的虚拟磁盘和分区表丢失，重启该存储后故障依旧。由于存储中的数据十分重要且没有备份，管理员不敢擅自进行尝试修复，于是联系我们数据恢复中心进行数据恢复。
+存储数据恢复分析：
+1、数据恢复工程师对该故障存储中的硬盘进行检测，发现所有硬盘状态正常，没有任何物理故障。
+2、经过详细检测以及和管理员的沟通，数据恢复工程师最终确定：导致存储崩溃的原因是通过网络连接的那台Windows2003服务器对storage的独享操作导致存储的VMFS卷损坏。
+3、数据恢复工程师分析存储的底层数据发现分区表被清零，有55AA的有效结束标志，有硬盘ID标志。
+4、继续分析发现存储中有一个没有数据的N TFS卷，数据恢复工程师分析该卷的BITMAP，发现内容的大小与整个存储占用空间的大小相差无几，在几个不同位置都占有一部分空间，但总占用空间不超过100M。
+5、经过仔细分析后，数据恢复工程师发现存储里原来有两个分区：其中第一个分区占80%，第二个分区是第一个分区的扩展分区。在ntfs分区对存储中的数据进行破坏时并没有影响到第二个分区。所以需要数据恢复的主要是第一个分区。
+存储数据恢复过程：
+1、对存储所有硬盘进行镜像备份；
+2、直接连接存储的两个VMFS分区，按照分区的组织方式可以直接提取出vmdk文件和配置文件；
+3、提取出文件后通过nfs回迁数据即可进行数据恢复结果自检；
+4、自检确认数据没有问题后让管理员来现场亲自进行数据恢复结果验证；
+5、管理员验证数据后确认恢复出来的数据没有问题，移交数据。
+数据恢复总结：
+本案例存储数据丢失原因就是因为光纤环境互斥不当导致了卷在Windows系统下重新做了分区，并且格式化了NTFS和进行了删除分区的操作。由于esx vmfs的互斥是独立于硬件而只依赖于操作系统的，在这里提醒大家：将存储网络接入其他服务器时要注意存储分配权限，以免造成数据丢失。">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2022-05-19T11:59:49+08:00">
+    <meta property="article:modified_time" content="2022-05-19T11:59:49+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">【存储数据恢复】esx vmfs的互斥导致存储数据丢失的数据恢复案例</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <p><strong>存储数据恢复环境：</strong><br> 某公司的一个信息管理平台，3台ESX SERVER的虚拟机共享一台存储设备，供企业内部使用，存储了公司大量的重要数据文件。</p> 
+<p style="text-align:center;"><img alt="" src="https://images2.imgbox.com/91/09/Mvyim8ll_o.png"></p> 
+<p></p> 
+<p><strong>存储故障：</strong><br> 管理员为该存储通过网络连接了一台Windows2003服务器后，这台存储就无法使用了。管理员对存储进行故障检查时发现存储的虚拟磁盘和分区表丢失，重启该存储后故障依旧。由于存储中的数据十分重要且没有备份，管理员不敢擅自进行尝试修复，于是联系我们数据恢复中心进行数据恢复。</p> 
+<p><strong>存储数据恢复分析：</strong><br> 1、数据恢复工程师对该故障存储中的硬盘进行检测，发现所有硬盘状态正常，没有任何物理故障。<br> 2、经过详细检测以及和管理员的沟通，数据恢复工程师最终确定：导致存储崩溃的原因是通过网络连接的那台Windows2003服务器对storage的独享操作导致存储的VMFS卷损坏。<br> 3、数据恢复工程师分析存储的底层数据发现分区表被清零，有55AA的有效结束标志，有硬盘ID标志。<br> 4、继续分析发现存储中有一个没有数据的N TFS卷，数据恢复工程师分析该卷的BITMAP，发现内容的大小与整个存储占用空间的大小相差无几，在几个不同位置都占有一部分空间，但总占用空间不超过100M。<br> 5、经过仔细分析后，数据恢复工程师发现存储里原来有两个分区：其中第一个分区占80%，第二个分区是第一个分区的扩展分区。在ntfs分区对存储中的数据进行破坏时并没有影响到第二个分区。所以需要数据恢复的主要是第一个分区。</p> 
+<p style="text-align:center;"><img alt="" src="https://images2.imgbox.com/1b/e1/T3NHQcZs_o.png"></p> 
+<p></p> 
+<p><strong>存储数据恢复过程：</strong><br> 1、对存储所有硬盘进行镜像备份；<br> 2、直接连接存储的两个VMFS分区，按照分区的组织方式可以直接提取出vmdk文件和配置文件；<br> 3、提取出文件后通过nfs回迁数据即可进行数据恢复结果自检；<br> 4、自检确认数据没有问题后让管理员来现场亲自进行数据恢复结果验证；<br> 5、管理员验证数据后确认恢复出来的数据没有问题，移交数据。</p> 
+<p><strong>数据恢复总结：</strong><br> 本案例存储数据丢失原因就是因为光纤环境互斥不当导致了卷在Windows系统下重新做了分区，并且格式化了NTFS和进行了删除分区的操作。由于esx vmfs的互斥是独立于硬件而只依赖于操作系统的，在这里提醒大家：将存储网络接入其他服务器时要注意存储分配权限，以免造成数据丢失。</p> 
+<p style="text-align:center;"><img alt="" src="https://images2.imgbox.com/12/82/DWwWiLND_o.jpg"></p> 
+<p></p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/6ad59db57979e9c37d5fd07deec09d71/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">Dubbo学习之SPI机制</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/3b5d317fc6c8642015b494d6db2ec566/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">当zerotier遇到ipv6</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Clickhouse集群的搭建方法及搭建过程中报错的解决方法 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/8a90ed42a54cffdcc6f6e01133871c3c/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="Clickhouse集群的搭建方法及搭建过程中报错的解决方法">
+  <meta property="og:description" content="官方文档
+https://clickhouse.com/docs/zh/getting-started/tutorial#cluster-deployment
+https://clickhouse.com/docs/en/engines/table-engines/special/distributed
+https://zookeeper.apache.org/
+Clickhouse的优点
+列式存储数据库，数据压缩；
+关系型、支持SQL；
+分布式并行计算，把单机性能压榨到极限；
+高可用；数据量级在PB级别。
+集群的分片和副本和节点数量的选择，CK officially supports only one shard/replica per node
+分片数*副本数=节点数
+最佳实践就是3分片2副本6节点
+3节点3分片2副本，无法配置起来，会报错DB::Exception: There are two exactly the same ClickHouse instances DAILACHDBUD001:9000 in cluster cluster_3shared2replicas
+ClickHouse集群集群部署设置步骤:
+在群集的所有机器上安装ClickHouse服务端
+在配置文件中设置集群配置
+在每个实例上创建本地表
+创建一个分布式表，分布式表实际上是一种view，映射到ClickHouse集群的本地表。 从分布式表中执行SELECT查询会使用集群所有分片的资源。 您可以为多个集群指定configs，并创建多个分布式表，为不同的集群提供视图。
+备注：也就是说集群的最终目标就是为了能创建分布式表，通过分布式表可以实现读取量发布到各个节点，也是为了能给大表做横向扩展。
+集群&amp;lt;cluster_2shared2replicas&amp;gt;配置项对ENGINE = Distributed表和ENGINE = ReplicatedMergeTree表和MergeTree表有效，集群配置项中只对ENGINE = ReplicatedMergeTree表有效。单独的ENGINE = MergeTree仅仅是对表的数据做分片，这样的话Clickhouse缺少了两个功能————数据高可用(HA)和横向扩展。HA的目的是为了如果有一个数据副本丢失或者损坏不至于完全丢失数据，至于横向扩展自然是为了提高数据存储能力了。数据高可用(HA)的实现需要使用ReplicatedMergeTree表引擎，横向扩展的实现需要使用Distributed表引擎，MergeTree表引擎&#43;Distributed表引擎同时使用，只能做分片并把分片分发到不同节点，但是Distributed表查询的总量还是异常
+Clickhouse除了提供TCP 9000端口的连接，还提供了HTTP 8123端口的连接http://ip:8123/play
+Clickhouse本身没有类似Mongodb一样的Mongos Route Server前端路由实例让整个集群看上去像单一连接点以便前端应用可以透明连接该路由实例，但是可以通过F5或A10提供的负载均衡功能来实现Clickhouse的路由接入，通过负载均衡设置提供的单一地址实现客户端连接到多个不同clickhouse节点
+ClickHouse集群环境下，DDL语句的同步使用ZooKeeper来同步，所以在一个节点上create\alter本地表时加上on cluster clustername的话，这张表的表结构就会同时在其他节点上被create\alter
+clickhouse集群是非主从结构，各个节点是相互独立的，这点和mongodb不一样。分片（Shard）就是将一份数据分片段存储到多台服务器上，每台服务器只存储这份数据的一部分，在这种架构下，每台服务器被称为一个分片（Shard）。副本（Replica）就是将一份数据冗余存储到多台服务器上。假如4台服务器的集群环境下，2分片2副本的集群策略的话，就是把一份数据分成2个片段来存储，这2个片段都有2份，也就是这一份数据在物理上变成了4个单元，其中4个单元分成2个片段，每个片段的2份的数据是一模一样。
+本地表（Local Table）
+数据只会存储在当前写入的节点上，不会被分散到多台服务器上。本地表的写入和查询，受限于单台服务器的存储、计算资源，不具备横向拓展能力。
+分布式表（Distributed Table）
+本地表的集合，它将多个本地表抽象为一张统一的表，对外提供写入、查询功能。当写入分布式表时，数据会被自动分发到集合中的各个本地表中；当查询分布式表时，集合中的各个本地表都会被分别查询，并且把最终结果汇总后返回。分布式表的写入和查询，可以利用多台服务器的存储、计算资源，具有较好的横向拓展能力。ClickHouse集群就是因为分布式表(Distributed Table)而产生的。
+Clickhouse集群环境：4节点搭建2分片2副本的实验
+1、操作系统的配置
+1.1、四节点的IP、服务器名称、OS信息如下">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2023-12-01T18:13:32+08:00">
+    <meta property="article:modified_time" content="2023-12-01T18:13:32+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">Clickhouse集群的搭建方法及搭建过程中报错的解决方法</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-dark">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <p>官方文档<br> https://clickhouse.com/docs/zh/getting-started/tutorial#cluster-deployment<br> https://clickhouse.com/docs/en/engines/table-engines/special/distributed<br> https://zookeeper.apache.org/</p> 
+<p>Clickhouse的优点<br> 列式存储数据库，数据压缩；<br> 关系型、支持SQL；<br> 分布式并行计算，把单机性能压榨到极限；<br> 高可用；数据量级在PB级别。</p> 
+<p>集群的分片和副本和节点数量的选择，CK officially supports only one shard/replica per node<br> 分片数*副本数=节点数<br> 最佳实践就是3分片2副本6节点</p> 
+<p>3节点3分片2副本，无法配置起来，会报错DB::Exception: There are two exactly the same ClickHouse instances DAILACHDBUD001:9000 in cluster cluster_3shared2replicas</p> 
+<p>ClickHouse集群集群部署设置步骤:<br> 在群集的所有机器上安装ClickHouse服务端<br> 在配置文件中设置集群配置<br> 在每个实例上创建本地表<br> 创建一个分布式表，分布式表实际上是一种view，映射到ClickHouse集群的本地表。 从分布式表中执行SELECT查询会使用集群所有分片的资源。 您可以为多个集群指定configs，并创建多个分布式表，为不同的集群提供视图。<br> 备注：也就是说集群的最终目标就是为了能创建分布式表，通过分布式表可以实现读取量发布到各个节点，也是为了能给大表做横向扩展。</p> 
+<p>集群&lt;cluster_2shared2replicas&gt;配置项对ENGINE = Distributed表和ENGINE = ReplicatedMergeTree表和MergeTree表有效，集群配置项中只对ENGINE = ReplicatedMergeTree表有效。单独的ENGINE = MergeTree仅仅是对表的数据做分片，这样的话Clickhouse缺少了两个功能————数据高可用(HA)和横向扩展。HA的目的是为了如果有一个数据副本丢失或者损坏不至于完全丢失数据，至于横向扩展自然是为了提高数据存储能力了。数据高可用(HA)的实现需要使用ReplicatedMergeTree表引擎，横向扩展的实现需要使用Distributed表引擎，MergeTree表引擎+Distributed表引擎同时使用，只能做分片并把分片分发到不同节点，但是Distributed表查询的总量还是异常</p> 
+<p>Clickhouse除了提供TCP 9000端口的连接，还提供了HTTP 8123端口的连接http://ip:8123/play</p> 
+<p>Clickhouse本身没有类似Mongodb一样的Mongos Route Server前端路由实例让整个集群看上去像单一连接点以便前端应用可以透明连接该路由实例，但是可以通过F5或A10提供的负载均衡功能来实现Clickhouse的路由接入，通过负载均衡设置提供的单一地址实现客户端连接到多个不同clickhouse节点</p> 
+<p>ClickHouse集群环境下，DDL语句的同步使用ZooKeeper来同步，所以在一个节点上create\alter本地表时加上on cluster clustername的话，这张表的表结构就会同时在其他节点上被create\alter</p> 
+<p>clickhouse集群是非主从结构，各个节点是相互独立的，这点和mongodb不一样。分片（Shard）就是将一份数据分片段存储到多台服务器上，每台服务器只存储这份数据的一部分，在这种架构下，每台服务器被称为一个分片（Shard）。副本（Replica）就是将一份数据冗余存储到多台服务器上。假如4台服务器的集群环境下，2分片2副本的集群策略的话，就是把一份数据分成2个片段来存储，这2个片段都有2份，也就是这一份数据在物理上变成了4个单元，其中4个单元分成2个片段，每个片段的2份的数据是一模一样。</p> 
+<p>本地表（Local Table）<br> 数据只会存储在当前写入的节点上，不会被分散到多台服务器上。本地表的写入和查询，受限于单台服务器的存储、计算资源，不具备横向拓展能力。</p> 
+<p>分布式表（Distributed Table）<br> 本地表的集合，它将多个本地表抽象为一张统一的表，对外提供写入、查询功能。当写入分布式表时，数据会被自动分发到集合中的各个本地表中；当查询分布式表时，集合中的各个本地表都会被分别查询，并且把最终结果汇总后返回。分布式表的写入和查询，可以利用多台服务器的存储、计算资源，具有较好的横向拓展能力。ClickHouse集群就是因为分布式表(Distributed Table)而产生的。</p> 
+<p><strong>Clickhouse集群环境：4节点搭建2分片2副本的实验</strong></p> 
+<p><strong>1、操作系统的配置</strong><br> 1.1、四节点的IP、服务器名称、OS信息如下</p> 
+<pre><code class="prism language-bash"><span class="token number">172.22</span>.137.132 DAILACHDBUD001 Ubuntu <span class="token number">22.04</span>
+<span class="token number">172.22</span>.137.133 DAILACHDBUD002 Ubuntu <span class="token number">22.04</span>
+<span class="token number">172.22</span>.137.134 DAILACHDBUD003 Ubuntu <span class="token number">22.04</span>
+<span class="token number">172.22</span>.137.136 DAILACHDBUD004 Ubuntu <span class="token number">22.04</span>
+</code></pre> 
+<p>1.2、四节点都配置/etc/hosts文件</p> 
+<pre><code class="prism language-bash"><span class="token number">172.22</span>.137.134 DAILACHDBUD003
+<span class="token number">172.22</span>.137.133 DAILACHDBUD002
+<span class="token number">172.22</span>.137.132 DAILACHDBUD001
+<span class="token number">172.22</span>.137.136 DAILACHDBUD004
+</code></pre> 
+<p>1.3、四节点都关闭防火墙</p> 
+<pre><code class="prism language-bash">ufw disable
+</code></pre> 
+<p><strong>2、zookeeper 集群配置</strong><br> 2.1、下载zookeeper，进入zookeeper页面https://zookeeper.apache.org/releases.html可以看到各个版本，下载最新的稳定版</p> 
+<pre><code class="prism language-bash"><span class="token function">wget</span> https://dlcdn.apache.org/zookeeper/zookeeper-3.7.1/apache-zookeeper-3.7.1-bin.tar.gz
+</code></pre> 
+<p>2.2、四台服务器都把zookeeper安装包放到/chdata/zookeeper目录后并解压，拷贝zoo_sample.cfg成zoo.cfg，并修改或新增zoo.cfg，/chdata/zookeeper/apache-zookeeper-3.7.1-bin/conf/zoo.cfg内容如下</p> 
+<pre><code class="prism language-bash"><span class="token assign-left variable">dataDir</span><span class="token operator">=</span>/chdata/zookeeper/data
+<span class="token assign-left variable">server.1</span><span class="token operator">=</span>DAILACHDBUD001:2888:3888
+<span class="token assign-left variable">server.2</span><span class="token operator">=</span>DAILACHDBUD002:2888:3888
+<span class="token assign-left variable">server.3</span><span class="token operator">=</span>DAILACHDBUD003:2888:3888
+<span class="token assign-left variable">server.4</span><span class="token operator">=</span>DAILACHDBUD004:2888:3888
+</code></pre> 
+<p>–备注：server.每个节点服务编号=服务器ip地址：集群通信端口：选举端口</p> 
+<p>2.3、四台服务器分别配置/chdata/zookeeper/data/myid，使/chdata/zookeeper/data/myid内容和上面步骤3中的server.1=DAILACHDBUD001对应，也就是1对应服务器DAILACHDBUD001</p> 
+<pre><code class="prism language-bash">DAILACHDBUD001上执行：echo <span class="token number">1</span> <span class="token operator">&gt;&gt;</span> /chdata/zookeeper/data/myid
+DAILACHDBUD002上执行：echo <span class="token number">2</span> <span class="token operator">&gt;&gt;</span> /chdata/zookeeper/data/myid
+DAILACHDBUD003上执行：echo <span class="token number">3</span> <span class="token operator">&gt;&gt;</span> /chdata/zookeeper/data/myid
+DAILACHDBUD004上执行：echo <span class="token number">4</span> <span class="token operator">&gt;&gt;</span> /chdata/zookeeper/data/myid
+</code></pre> 
+<p>2.4、四台服务器安装jdk(不安装的话，启动zookeeper的时候会报错)并启动四台服务器的zookeeper，并查看四台服务器的角色</p> 
+<pre><code class="prism language-bash"><span class="token function">apt-cache</span> search openjdk
+<span class="token function">apt</span> <span class="token function">install</span> openjdk-18-jdk
+/chdata/zookeeper/apache-zookeeper-3.7.1-bin/bin/zkServer.sh start /chdata/zookeeper/apache-zookeeper-3.7.1-bin/conf/zoo.cfg
+/chdata/zookeeper/apache-zookeeper-3.7.1-bin/bin/zkServer.sh status /chdata/zookeeper/apache-zookeeper-3.7.1-bin/conf/zoo.cfg
+</code></pre> 
+<p>2.5、连接四台服务器的zookeeper，检查是否可以正常连接</p> 
+<pre><code class="prism language-bash">/chdata/zookeeper/apache-zookeeper-3.7.1-bin/bin/zkCli.sh <span class="token parameter variable">-server</span> DAILACHDBUD001:2181
+/chdata/zookeeper/apache-zookeeper-3.7.1-bin/bin/zkCli.sh <span class="token parameter variable">-server</span> DAILACHDBUD002:2181
+/chdata/zookeeper/apache-zookeeper-3.7.1-bin/bin/zkCli.sh <span class="token parameter variable">-server</span> DAILACHDBUD003:2181
+/chdata/zookeeper/apache-zookeeper-3.7.1-bin/bin/zkCli.sh <span class="token parameter variable">-server</span> DAILACHDBUD004:2181
+</code></pre> 
+<p><strong>3、clickhouse集群配置</strong><br> 3.1、在四个节点上安装clickhouse，创建路径/chdata/clickhouse/data/和/chdata/clickhouse/user_files/用来分别存放数据文件和用户文件，由于操作系统是ubuntu，所以用ubuntu的官方预编译deb软件包</p> 
+<pre><code class="prism language-bash"><span class="token function">sudo</span> <span class="token function">apt-get</span> <span class="token function">install</span> <span class="token parameter variable">-y</span> apt-transport-https ca-certificates dirmngr
+<span class="token function">sudo</span> apt-key adv <span class="token parameter variable">--keyserver</span> hkp://keyserver.ubuntu.com:80 <span class="token parameter variable">--recv</span> 8919F6BD2B48D754
+<span class="token builtin class-name">echo</span> <span class="token string">"deb https://packages.clickhouse.com/deb stable main"</span> <span class="token operator">&gt;</span> /etc/apt/sources.list.d/clickhouse.list
+<span class="token function">sudo</span> <span class="token function">apt-get</span> update
+<span class="token function">sudo</span> <span class="token function">apt-get</span> <span class="token function">install</span> <span class="token parameter variable">-y</span> clickhouse-server clickhouse-client
+<span class="token function">sudo</span> <span class="token function">service</span> clickhouse-server start
+</code></pre> 
+<p>3.2、在四个节点上配置2分片，每个分片3副本的集群策略,zookeeper默认端口是2181，参见/chdata/zookeeper/apache-zookeeper-3.7.1-bin/conf/zoo.cfg配置文件中clientPort配置项，clickhouse端口默认是9000，参见/etc/clickhouse-server/config.xml配置文件中tcp_port配置项。配置数据文件存放路径 
+ <path>
+   /chdata/clickhouse/data/ 
+ </path>和用户文件存放路径&lt;user_files_path&gt;/chdata/clickhouse/user_files/&lt;/user_files_path&gt;，本机绑定地址让集群内的各个节点互通，配置宏来识别每个用于创建表的分片和副本(1-2节点配置01，3-4节点配置02，的话每个节点配置为自己的服务器名即可比如DAILACHDBUD001配置为DAILACHDBUD001)。</p> 
+<p> 
+ <path>
+   /chdata/clickhouse/data/ 
+ </path></p> 
+<p>&lt;user_files_path&gt;/chdata/clickhouse/user_files/&lt;/user_files_path&gt;</p> 
+<p>&lt;listen_host&gt;::&lt;/listen_host&gt;</p> 
+<p>&lt;/remote_servers&gt;<br> &lt;cluster_2shared2replicas&gt;<br> <br> &lt;internal_replication&gt;true&lt;/internal_replication&gt;<br> <br> DAILACHDBUD001<br> 9000<br> default<br> Won123_De1<br> &lt;password_sha256_hex&gt;9174c7d10af863c34f4fc684413740431cda606273ea1cea905d3f08cb84c820&lt;/password_sha256_hex&gt;<br> <br> <br> DAILACHDBUD002<br> 9000<br> default<br> Won123_De1<br> &lt;password_sha256_hex&gt;9174c7d10af863c34f4fc684413740431cda606273ea1cea905d3f08cb84c820&lt;/password_sha256_hex&gt;<br> <br> <br> <br> &lt;internal_replication&gt;true&lt;/internal_replication&gt;<br> <br> DAILACHDBUD003<br> 9000<br> default<br> Won123_De1<br> &lt;password_sha256_hex&gt;9174c7d10af863c34f4fc684413740431cda606273ea1cea905d3f08cb84c820&lt;/password_sha256_hex&gt;<br> <br> <br> DAILACHDBUD004<br> 9000<br> default<br> Won123_De1<br> &lt;password_sha256_hex&gt;9174c7d10af863c34f4fc684413740431cda606273ea1cea905d3f08cb84c820&lt;/password_sha256_hex&gt;<br> <br> <br> &lt;/cluster_2shared2replicas&gt;<br> &lt;/remote_servers&gt;</p> 
+<pre><code>&lt;zookeeper&gt;
+        &lt;node&gt;
+                &lt;host&gt;DAILACHDBUD001&lt;/host&gt;
+                &lt;port&gt;2181&lt;/port&gt;
+        &lt;/node&gt;
+        &lt;node&gt;
+                &lt;host&gt;DAILACHDBUD002&lt;/host&gt;
+                &lt;port&gt;2181&lt;/port&gt;
+        &lt;/node&gt;
+        &lt;node&gt;
+                &lt;host&gt;DAILACHDBUD003&lt;/host&gt;
+                &lt;port&gt;2181&lt;/port&gt;
+        &lt;/node&gt;
+        &lt;node&gt;
+                &lt;host&gt;DAILACHDBUD004&lt;/host&gt;
+                &lt;port&gt;2181&lt;/port&gt;
+        &lt;/node&gt;
+&lt;/zookeeper&gt;
+
+
+&lt;macros&gt;
+        &lt;shard&gt;01&lt;/shard&gt;
+        &lt;replica&gt;DAILACHDBUD001&lt;/replica&gt;
+&lt;/macros&gt;
+
+ &lt;networks&gt;
+        &lt;ip&gt;::/0&lt;/ip&gt;
+ &lt;/networks&gt;
+</code></pre> 
+<p>备注1：如果新增配置文件，这配置文件中最上和最下的&lt;&gt;&lt;/&gt;里面内容试了只能是yandex或clickhouse，否则启动不了会报错Failed to merge config with /etc/clickhouse-server/config.d/clusterpolicy.xml，并且&lt;&gt;&lt;/&gt;里面的内容必须严格按照xml格式，否则启动不了会报错code=exited, status=232/ADDRESS_FAMILIES且通过journalctl -xe也看不到任何有效信息</p> 
+<p>备注2：首先查看config.xml是否已经有remote_servers配置项，有的话，在里面加就行了。个人遇到的问题：在config.xml里面添加了remote_servers配置项并自定义的集群名称后，重启发现clickhouse后没有看到自定义的集群名称，show clusters时一直显示系统默认的8个集群名称，后来才发现config.xml里面已经有了remote_servers配置项并且配置了默认的8个集群名称</p> 
+<p>备注3：参数internal_replication 是否启用内部复制，即写入数据时只写入到一个副本，其他副本的同步工作靠复制表和ZooKeeper异步进行。Whether to write data to just one of the replicas. Default: false (write data to all replicas).</p> 
+<p>备注4：项中指定shard\replica值后，以后创建复制表时可以直接使用ENGINE = ReplicatedMergeTree()不用带参数，参数会自动使用项中指定的shard\replica值代入到ReplicatedMergeTree(‘/clickhouse/tables/{shard}/{database}/table_name’, ‘{replica}’),参考https://clickhouse.com/docs/zh/engines/table-engines/mergetree-family/replication</p> 
+<p>备注5： 项中指定::/0，表示要为任何网络的用户打开访问权限</p> 
+<p>备注6：不启动clickhouse的情况下， 各个节点执行/chdata/zookeeper/apache-zookeeper-3.7.1-bin/bin/zkServer.sh status可以看到谁是主谁是从，但是各个节点执行netstat -pan |grep 2181发现没有连接</p> 
+<p>备注7：10 
+ ，如果分片权重越大，那么其被写入的数据也会越多。</p> 
+<p><strong>4、验证</strong><br> 4.1、4节点配置密码文件/etc/clickhouse-server/users.d/default-password.xml，如下两种形式都行</p> 
+<pre><code class="prism language-bash">形式1
+<span class="token operator">&lt;</span>yandex<span class="token operator">&gt;</span>
+    <span class="token operator">&lt;</span>users<span class="token operator">&gt;</span>
+        <span class="token operator">&lt;</span>default<span class="token operator">&gt;</span>
+            <span class="token operator">&lt;</span>password<span class="token operator">&gt;</span>Won123_De<span class="token operator"><span class="token file-descriptor important">1</span>&lt;</span>/password<span class="token operator">&gt;</span>
+        <span class="token operator">&lt;</span>/default<span class="token operator">&gt;</span>
+    <span class="token operator">&lt;</span>/users<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>/yandex<span class="token operator">&gt;</span>
+
+形式2
+<span class="token operator">&lt;</span>yandex<span class="token operator">&gt;</span>
+    <span class="token operator">&lt;</span>users<span class="token operator">&gt;</span>
+        <span class="token operator">&lt;</span>default<span class="token operator">&gt;</span>
+            <span class="token operator">&lt;</span>password <span class="token assign-left variable">remove</span><span class="token operator">=</span><span class="token string">'1'</span> /<span class="token operator">&gt;</span>
+            <span class="token operator">&lt;</span>password_sha256_hex<span class="token operator">&gt;</span>9174c7d10af863c34f4fc684413740431cda606273ea1cea905d3f08cb84c82<span class="token operator"><span class="token file-descriptor important">0</span>&lt;</span>/password_sha256_hex<span class="token operator">&gt;</span>
+        <span class="token operator">&lt;</span>/default<span class="token operator">&gt;</span>
+    <span class="token operator">&lt;</span>/users<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>/yandex<span class="token operator">&gt;</span>
+</code></pre> 
+<p>4.2、4节点都启动或重启clickhouse服务</p> 
+<pre><code class="prism language-bash">root@DAILACHDBUD001:~<span class="token comment"># systemctl start clickhouse-server</span>
+</code></pre> 
+<p>4.3、clickhouse-client命令行连接到clickhouse集群各个节点执行</p> 
+<pre><code class="prism language-bash">root@DAILACHDBUD001:~<span class="token comment"># clickhouse-client -h DAILACHDBUD001 --port 9000 --password Won123_De1</span>
+root@DAILACHDBUD001:~<span class="token comment"># clickhouse-client -h DAILACHDBUD002 --port 9000 --password Won123_De1</span>
+root@DAILACHDBUD001:~<span class="token comment"># clickhouse-client -h DAILACHDBUD003 --port 9000 --password Won123_De1</span>
+root@DAILACHDBUD001:~<span class="token comment"># clickhouse-client -h DAILACHDBUD004 --port 9000 --password Won123_De1</span>
+
+DAILACHDBUD001 <span class="token builtin class-name">:</span><span class="token punctuation">)</span> show clusters<span class="token punctuation">;</span>
+┌─cluster─────────────────────────────────────────┐
+│ cluster_2shared2replicas                        │
+│ parallel_replicas                               │
+│ test_cluster_one_shard_three_replicas_localhost │
+│ test_cluster_two_shards                         │
+│ test_cluster_two_shards_internal_replication    │
+│ test_cluster_two_shards_localhost               │
+│ test_shard_localhost                            │
+│ test_shard_localhost_secure                     │
+│ test_unavailable_shard                          │
+└─────────────────────────────────────────────────┘
+</code></pre> 
+<p>备注：4个节点执行show clusters;都显示了cluster_2shared2replicas</p> 
+<pre><code class="prism language-bash">DAILACHDBUD001 <span class="token builtin class-name">:</span><span class="token punctuation">)</span> <span class="token keyword">select</span> cluster,shard_num,shard_weight,replica_num,host_name,host_address,port,user from system.clusters where <span class="token assign-left variable">cluster</span><span class="token operator">=</span><span class="token string">'cluster_2shared2replicas'</span><span class="token punctuation">;</span>
+┌─cluster──────────────────┬─shard_num─┬─shard_weight─┬─replica_num─┬─host_name──────┬─host_address───┬─port─┬─user────┐
+│ cluster_2shared2replicas │         <span class="token number">1</span> │            <span class="token number">1</span> │           <span class="token number">1</span> │ DAILACHDBUD001 │ <span class="token number">172.22</span>.137.132 │ <span class="token number">9000</span> │ default │
+│ cluster_2shared2replicas │         <span class="token number">1</span> │            <span class="token number">1</span> │           <span class="token number">2</span> │ DAILACHDBUD002 │ <span class="token number">172.22</span>.137.133 │ <span class="token number">9000</span> │ default │
+│ cluster_2shared2replicas │         <span class="token number">2</span> │            <span class="token number">1</span> │           <span class="token number">1</span> │ DAILACHDBUD003 │ <span class="token number">172.22</span>.137.134 │ <span class="token number">9000</span> │ default │
+│ cluster_2shared2replicas │         <span class="token number">2</span> │            <span class="token number">1</span> │           <span class="token number">2</span> │ DAILACHDBUD004 │ <span class="token number">172.22</span>.137.136 │ <span class="token number">9000</span> │ default │
+└──────────────────────────┴───────────┴──────────────┴─────────────┴────────────────┴────────────────┴──────┴─────────┘
+</code></pre> 
+<p>备注：4个节点查询system.clusters系统表，都显示正都有cluster_2shared2replicas，且每个分片对应4台机器</p> 
+<p>5、设置开机启动,使用deb包安装的clickhouse已经自动配置了开机启动，剩下就是设置zookeeper的开机启动<br> 5.1、编辑文件/root/script/startupzookeeper.sh内容如下</p> 
+<pre><code class="prism language-bash"><span class="token shebang important">#!/bin/bash</span>
+/chdata/zookeeper/apache-zookeeper-3.7.1-bin/bin/zkServer.sh start /chdata/zookeeper/apache-zookeeper-3.7.1-bin/conf/zoo.cfg
+</code></pre> 
+<p>5.2、编辑文件/usr/lib/systemd/system/zookeeper.service内容如下</p> 
+<pre><code class="prism language-bash"><span class="token punctuation">[</span>Unit<span class="token punctuation">]</span>
+<span class="token assign-left variable">Description</span><span class="token operator">=</span>zookeeper
+<span class="token assign-left variable">After</span><span class="token operator">=</span>network.target
+
+<span class="token punctuation">[</span>Service<span class="token punctuation">]</span>
+<span class="token assign-left variable">User</span><span class="token operator">=</span>root
+<span class="token assign-left variable">Group</span><span class="token operator">=</span>root
+<span class="token assign-left variable">Type</span><span class="token operator">=</span>forking
+<span class="token assign-left variable">ExecStart</span><span class="token operator">=</span>/bin/bash /root/script/startupzookeeper.sh
+<span class="token assign-left variable">Restart</span><span class="token operator">=</span>on-failure
+
+<span class="token punctuation">[</span>Install<span class="token punctuation">]</span>
+<span class="token assign-left variable">WantedBy</span><span class="token operator">=</span>multi-user.target
+</code></pre> 
+<p>5.3、执行systemctl enable zookeeper命令，设置开机启动</p> 
+<pre><code class="prism language-bash">root@ODSLACHDBUP001:~<span class="token comment"># systemctl enable zookeeper</span>
+Created symlink /etc/systemd/system/multi-user.target.wants/zookeeper.service → /lib/systemd/system/zookeeper.service
+</code></pre> 
+<p>clickhouse错误日志存放在/var/log/clickhouse-server/目录</p> 
+<p>3节点，3shard，3replicats配置如下，遇到很多问题<br> create database testlukes20230526 on cluster cluster_3shared3replicas;<br> 报错</p> 
+<pre><code class="prism language-bash">DAILACHDBUD001 <span class="token builtin class-name">.</span> DB::Exception: There are two exactly the same ClickHouse instances DAILACHDBUD001:9000 <span class="token keyword">in</span> cluster cluster_3shared3replicas
+DAILACHDBUD002 <span class="token builtin class-name">.</span> DB::Exception: There are two exactly the same ClickHouse instances DAILACHDBUD002:9000 <span class="token keyword">in</span> cluster cluster_3shared3replicas
+DAILACHDBUD003 <span class="token builtin class-name">.</span> DB::Exception: There are two exactly the same ClickHouse instances DAILACHDBUD003:9000 <span class="token keyword">in</span> cluster cluster_3shared3replicas
+</code></pre> 
+<p>报错解读：clickhouse不允许有相同host，因为不允许互相存有分片副本。每个分片每个副本需要配置在单独的节点上。（CK officially supports only one shard/replica per node. ）<br> 解决方法：在节点1 DAILACHDBUD001上重新配置3个分片的副本，只保留DAILACHDBUD002和DAILACHDBUD003，在节点2 DAILACHDBUD002上重新配置3个分片的副本，只保留DAILACHDBUD001和DAILACHDBUD003，在节点3 DAILACHDBUD003上重新配置3个分片的副本，只保留DAILACHDBUD001和DAILACHDBUD002</p> 
+<pre><code class="prism language-bash">create database testlukes20230526 on cluster cluster_3shared3replicas<span class="token punctuation">;</span>
+</code></pre> 
+<p>继续报错</p> 
+<pre><code class="prism language-bash">DAILACHDBUD001 <span class="token builtin class-name">.</span> DB::Exception: Not found <span class="token function">host</span> DAILACHDBUD001:9000 <span class="token keyword">in</span> definition of cluster cluster_3shared3replicas.
+DAILACHDBUD002 <span class="token builtin class-name">.</span> DB::Exception: Not found <span class="token function">host</span> DAILACHDBUD002:9000 <span class="token keyword">in</span> definition of cluster cluster_3shared3replicas.
+DAILACHDBUD003 <span class="token builtin class-name">.</span> DB::Exception: Not found <span class="token function">host</span> DAILACHDBUD003:9000 <span class="token keyword">in</span> definition of cluster cluster_3shared3replicas.
+</code></pre> 
+<pre><code class="prism language-bash"><span class="token operator">&lt;</span>cluster_3shared3replicas<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>shard<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>internal_replication<span class="token operator">&gt;</span>true<span class="token operator">&lt;</span>/internal_replication<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>replica<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>host<span class="token operator">&gt;</span>DAILACHDBUD00<span class="token operator"><span class="token file-descriptor important">1</span>&lt;</span>/host<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>port<span class="token operator">&gt;</span><span class="token number">900</span><span class="token operator"><span class="token file-descriptor important">0</span>&lt;</span>/port<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>/replica<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>replica<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>host<span class="token operator">&gt;</span>DAILACHDBUD00<span class="token operator"><span class="token file-descriptor important">2</span>&lt;</span>/host<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>port<span class="token operator">&gt;</span><span class="token number">900</span><span class="token operator"><span class="token file-descriptor important">0</span>&lt;</span>/port<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>/replica<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>replica<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>host<span class="token operator">&gt;</span>DAILACHDBUD00<span class="token operator"><span class="token file-descriptor important">3</span>&lt;</span>/host<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>port<span class="token operator">&gt;</span><span class="token number">900</span><span class="token operator"><span class="token file-descriptor important">0</span>&lt;</span>/port<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>/replica<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>/shard<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>shard<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>internal_replication<span class="token operator">&gt;</span>true<span class="token operator">&lt;</span>/internal_replication<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>replica<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>host<span class="token operator">&gt;</span>DAILACHDBUD00<span class="token operator"><span class="token file-descriptor important">1</span>&lt;</span>/host<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>port<span class="token operator">&gt;</span><span class="token number">900</span><span class="token operator"><span class="token file-descriptor important">0</span>&lt;</span>/port<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>/replica<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>replica<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>host<span class="token operator">&gt;</span>DAILACHDBUD00<span class="token operator"><span class="token file-descriptor important">2</span>&lt;</span>/host<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>port<span class="token operator">&gt;</span><span class="token number">900</span><span class="token operator"><span class="token file-descriptor important">0</span>&lt;</span>/port<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>/replica<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>replica<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>host<span class="token operator">&gt;</span>DAILACHDBUD00<span class="token operator"><span class="token file-descriptor important">3</span>&lt;</span>/host<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>port<span class="token operator">&gt;</span><span class="token number">900</span><span class="token operator"><span class="token file-descriptor important">0</span>&lt;</span>/port<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>/replica<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>/shard<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>shard<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>internal_replication<span class="token operator">&gt;</span>true<span class="token operator">&lt;</span>/internal_replication<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>replica<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>host<span class="token operator">&gt;</span>DAILACHDBUD00<span class="token operator"><span class="token file-descriptor important">1</span>&lt;</span>/host<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>port<span class="token operator">&gt;</span><span class="token number">900</span><span class="token operator"><span class="token file-descriptor important">0</span>&lt;</span>/port<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>/replica<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>replica<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>host<span class="token operator">&gt;</span>DAILACHDBUD00<span class="token operator"><span class="token file-descriptor important">2</span>&lt;</span>/host<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>port<span class="token operator">&gt;</span><span class="token number">900</span><span class="token operator"><span class="token file-descriptor important">0</span>&lt;</span>/port<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>/replica<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>replica<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>host<span class="token operator">&gt;</span>DAILACHDBUD00<span class="token operator"><span class="token file-descriptor important">3</span>&lt;</span>/host<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>port<span class="token operator">&gt;</span><span class="token number">900</span><span class="token operator"><span class="token file-descriptor important">0</span>&lt;</span>/port<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>/replica<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>/shard<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>/cluster_3shared2replicas<span class="token operator">&gt;</span>
+</code></pre> 
+<p>3节点，3shard，2 replicats配置如下，创建engine=MergeTree()的表时会报错<code>DB::Exception: There are two exactly the same ClickHouse instances DAILACHDBUD001:9000 in cluster cluster_3shared2replicas</code></p> 
+<pre><code class="prism language-bash"><span class="token operator">&lt;</span>cluster_3shared2replicas<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>shard<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>internal_replication<span class="token operator">&gt;</span>true<span class="token operator">&lt;</span>/internal_replication<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>replica<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>host<span class="token operator">&gt;</span>DAILACHDBUD00<span class="token operator"><span class="token file-descriptor important">1</span>&lt;</span>/host<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>port<span class="token operator">&gt;</span><span class="token number">900</span><span class="token operator"><span class="token file-descriptor important">0</span>&lt;</span>/port<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>/replica<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>replica<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>host<span class="token operator">&gt;</span>DAILACHDBUD00<span class="token operator"><span class="token file-descriptor important">2</span>&lt;</span>/host<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>port<span class="token operator">&gt;</span><span class="token number">900</span><span class="token operator"><span class="token file-descriptor important">0</span>&lt;</span>/port<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>/replica<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>/shard<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>shard<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>internal_replication<span class="token operator">&gt;</span>true<span class="token operator">&lt;</span>/internal_replication<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>replica<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>host<span class="token operator">&gt;</span>DAILACHDBUD00<span class="token operator"><span class="token file-descriptor important">2</span>&lt;</span>/host<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>port<span class="token operator">&gt;</span><span class="token number">900</span><span class="token operator"><span class="token file-descriptor important">0</span>&lt;</span>/port<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>/replica<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>replica<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>host<span class="token operator">&gt;</span>DAILACHDBUD00<span class="token operator"><span class="token file-descriptor important">3</span>&lt;</span>/host<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>port<span class="token operator">&gt;</span><span class="token number">900</span><span class="token operator"><span class="token file-descriptor important">0</span>&lt;</span>/port<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>/replica<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>/shard<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>shard<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>internal_replication<span class="token operator">&gt;</span>true<span class="token operator">&lt;</span>/internal_replication<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>replica<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>host<span class="token operator">&gt;</span>DAILACHDBUD00<span class="token operator"><span class="token file-descriptor important">3</span>&lt;</span>/host<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>port<span class="token operator">&gt;</span><span class="token number">900</span><span class="token operator"><span class="token file-descriptor important">0</span>&lt;</span>/port<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>/replica<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>replica<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>host<span class="token operator">&gt;</span>DAILACHDBUD00<span class="token operator"><span class="token file-descriptor important">1</span>&lt;</span>/host<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>port<span class="token operator">&gt;</span><span class="token number">900</span><span class="token operator"><span class="token file-descriptor important">0</span>&lt;</span>/port<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>/replica<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>/shard<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>/cluster_3shared2replicas<span class="token operator">&gt;</span>
+</code></pre>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/fff629af4e099a655be534c850c13323/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">小白都能看懂的手把手详细Git安装教程</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/7aca282a678092f514aed8b9f69e2738/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">Clickhouse遇到密码错误如何修改密码</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

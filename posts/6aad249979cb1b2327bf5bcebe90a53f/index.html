@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Redis学习之Redisson布隆过滤器 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/6aad249979cb1b2327bf5bcebe90a53f/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="Redis学习之Redisson布隆过滤器">
+  <meta property="og:description" content="相关阅读 Redis学习之基础知识Redis学习之事件驱动模型Redis学习之Redisson分布式锁看门狗 简介 本文基于Spring Boot 2.6.6、redisson 3.16.0简单分析Redisson布隆过滤器的使用。
+布隆过滤器是一个非常长的二进制向量和一系列随机哈希函数的组合，可用于检索一个元素是否存在；
+使用场景如下：
+解决Redis缓存穿透问题；邮件过滤； 使用 建立一个二进制向量，所有位设置0；选择K个散列函数，用于对元素进行K次散列，计算向量的位下标；添加元素：将K个散列函数作用于该元素，生成K个值作为位下标，将向量的对应位设置为1；检索元素：将K个散列函数作用于该元素，生成K个值作为位下标，若向量的对应位都是1，则说明该元素可能存在；否则，该元素肯定不存在； Demo Demo 依赖 &amp;lt;dependency&amp;gt; &amp;lt;groupId&amp;gt;org.springframework.boot&amp;lt;/groupId&amp;gt; &amp;lt;artifactId&amp;gt;spring-boot-starter-data-redis&amp;lt;/artifactId&amp;gt; &amp;lt;exclusions&amp;gt; &amp;lt;exclusion&amp;gt; &amp;lt;groupId&amp;gt;io.lettuce&amp;lt;/groupId&amp;gt; &amp;lt;artifactId&amp;gt;lettuce-core&amp;lt;/artifactId&amp;gt; &amp;lt;/exclusion&amp;gt; &amp;lt;/exclusions&amp;gt; &amp;lt;/dependency&amp;gt; &amp;lt;dependency&amp;gt; &amp;lt;groupId&amp;gt;redis.clients&amp;lt;/groupId&amp;gt; &amp;lt;artifactId&amp;gt;jedis&amp;lt;/artifactId&amp;gt; &amp;lt;/dependency&amp;gt; &amp;lt;dependency&amp;gt; &amp;lt;groupId&amp;gt;org.redisson&amp;lt;/groupId&amp;gt; &amp;lt;artifactId&amp;gt;redisson&amp;lt;/artifactId&amp;gt; &amp;lt;version&amp;gt;3.16.0&amp;lt;/version&amp;gt; &amp;lt;/dependency&amp;gt; 测试代码 public class BloomFilterDemo { public static void main(String[] args) { Config config = new Config(); config.useSingleServer().setAddress(&#34;redis://127.0.0.1:6379&#34;); RedissonClient redissonClient = Redisson.create(config); RBloomFilter&amp;lt;String&amp;gt; bloomFilter = redissonClient.getBloomFilter(&#34;bloom-filter&#34;); // 初始化布隆过滤器 bloomFilter.tryInit(200, 0.01); List&amp;lt;String&amp;gt; elements = new ArrayList&amp;lt;&amp;gt;(); for (int i = 0; i &amp;lt; 200; i&#43;&#43;) { elements.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2022-05-14T22:09:02+08:00">
+    <meta property="article:modified_time" content="2022-05-14T22:09:02+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">Redis学习之Redisson布隆过滤器</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-dark">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <h2><a id="_0"></a>相关阅读</h2> 
+<ul><li><a href="https://blog.csdn.net/xing_hung/article/details/123783438">Redis学习之基础知识</a></li><li><a href="https://blog.csdn.net/xing_hung/article/details/123805728">Redis学习之事件驱动模型</a></li><li><a href="https://blog.csdn.net/xing_hung/article/details/124768656">Redis学习之Redisson分布式锁看门狗</a></li></ul> 
+<h2><a id="_5"></a>简介</h2> 
+<p>本文基于<strong>Spring Boot 2.6.6</strong>、<strong>redisson 3.16.0</strong>简单分析Redisson布隆过滤器的使用。</p> 
+<p>布隆过滤器是一个非常长的二进制向量和一系列随机哈希函数的组合，可用于检索一个元素是否存在；<br> 使用场景如下：</p> 
+<ol><li>解决Redis缓存穿透问题；</li><li>邮件过滤；</li></ol> 
+<h2><a id="_13"></a>使用</h2> 
+<ol><li>建立一个二进制向量，所有位设置<code>0</code>；</li><li>选择<code>K</code>个散列函数，用于对元素进行<code>K</code>次散列，计算向量的位下标；</li><li>添加元素：将<code>K</code>个散列函数作用于该元素，生成<code>K</code>个值作为位下标，将向量的对应位设置为<code>1</code>；</li><li>检索元素：将<code>K</code>个散列函数作用于该元素，生成<code>K</code>个值作为位下标，若向量的对应位都是<code>1</code>，则说明该元素可能存在；否则，该元素肯定不存在；</li></ol> 
+<h2><a id="Demo_19"></a>Demo</h2> 
+<h2><a id="Demo_20"></a>Demo</h2> 
+<h3><a id="_21"></a>依赖</h3> 
+<pre><code class="prism language-xml"><span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>dependency</span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>groupId</span><span class="token punctuation">&gt;</span></span>org.springframework.boot<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>groupId</span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>artifactId</span><span class="token punctuation">&gt;</span></span>spring-boot-starter-data-redis<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>artifactId</span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>exclusions</span><span class="token punctuation">&gt;</span></span>
+        <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>exclusion</span><span class="token punctuation">&gt;</span></span>
+            <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>groupId</span><span class="token punctuation">&gt;</span></span>io.lettuce<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>groupId</span><span class="token punctuation">&gt;</span></span>
+            <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>artifactId</span><span class="token punctuation">&gt;</span></span>lettuce-core<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>artifactId</span><span class="token punctuation">&gt;</span></span>
+        <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>exclusion</span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>exclusions</span><span class="token punctuation">&gt;</span></span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>dependency</span><span class="token punctuation">&gt;</span></span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>dependency</span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>groupId</span><span class="token punctuation">&gt;</span></span>redis.clients<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>groupId</span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>artifactId</span><span class="token punctuation">&gt;</span></span>jedis<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>artifactId</span><span class="token punctuation">&gt;</span></span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>dependency</span><span class="token punctuation">&gt;</span></span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>dependency</span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>groupId</span><span class="token punctuation">&gt;</span></span>org.redisson<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>groupId</span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>artifactId</span><span class="token punctuation">&gt;</span></span>redisson<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>artifactId</span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>version</span><span class="token punctuation">&gt;</span></span>3.16.0<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>version</span><span class="token punctuation">&gt;</span></span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>dependency</span><span class="token punctuation">&gt;</span></span>
+</code></pre> 
+<h3><a id="_44"></a>测试代码</h3> 
+<pre><code class="prism language-java"><span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">BloomFilterDemo</span> <span class="token punctuation">{<!-- --></span>
+
+    <span class="token keyword">public</span> <span class="token keyword">static</span> <span class="token keyword">void</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token class-name">String</span><span class="token punctuation">[</span><span class="token punctuation">]</span> args<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token class-name">Config</span> config <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">Config</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        config<span class="token punctuation">.</span><span class="token function">useSingleServer</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">setAddress</span><span class="token punctuation">(</span><span class="token string">"redis://127.0.0.1:6379"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token class-name">RedissonClient</span> redissonClient <span class="token operator">=</span> <span class="token class-name">Redisson</span><span class="token punctuation">.</span><span class="token function">create</span><span class="token punctuation">(</span>config<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token class-name">RBloomFilter</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">String</span><span class="token punctuation">&gt;</span></span> bloomFilter <span class="token operator">=</span> redissonClient<span class="token punctuation">.</span><span class="token function">getBloomFilter</span><span class="token punctuation">(</span><span class="token string">"bloom-filter"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token comment">// 初始化布隆过滤器</span>
+        bloomFilter<span class="token punctuation">.</span><span class="token function">tryInit</span><span class="token punctuation">(</span><span class="token number">200</span><span class="token punctuation">,</span> <span class="token number">0.01</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        <span class="token class-name">List</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">String</span><span class="token punctuation">&gt;</span></span> elements <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">ArrayList</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token punctuation">&gt;</span></span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token keyword">int</span> i <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span> i <span class="token operator">&lt;</span> <span class="token number">200</span><span class="token punctuation">;</span> i<span class="token operator">++</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            elements<span class="token punctuation">.</span><span class="token function">add</span><span class="token punctuation">(</span>UUID<span class="token punctuation">.</span><span class="token function">randomUUID</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">toString</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+
+        <span class="token comment">// 向布隆过滤器中添加内容</span>
+        <span class="token function">init</span><span class="token punctuation">(</span>bloomFilter<span class="token punctuation">,</span> elements<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token comment">// 测试检索效果</span>
+        <span class="token function">test</span><span class="token punctuation">(</span>bloomFilter<span class="token punctuation">,</span> elements<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        redissonClient<span class="token punctuation">.</span><span class="token function">shutdown</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token keyword">public</span> <span class="token keyword">static</span> <span class="token keyword">void</span> <span class="token function">init</span><span class="token punctuation">(</span><span class="token class-name">RBloomFilter</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">String</span><span class="token punctuation">&gt;</span></span> bloomFilter<span class="token punctuation">,</span> <span class="token class-name">List</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">String</span><span class="token punctuation">&gt;</span></span> elements<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token keyword">int</span> i <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span> i <span class="token operator">&lt;</span> elements<span class="token punctuation">.</span><span class="token function">size</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span> i<span class="token operator">++</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span>i <span class="token operator">%</span> <span class="token number">2</span> <span class="token operator">==</span> <span class="token number">0</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                bloomFilter<span class="token punctuation">.</span><span class="token function">add</span><span class="token punctuation">(</span>elements<span class="token punctuation">.</span><span class="token function">get</span><span class="token punctuation">(</span>i<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token keyword">public</span> <span class="token keyword">static</span> <span class="token keyword">void</span> <span class="token function">test</span><span class="token punctuation">(</span><span class="token class-name">RBloomFilter</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">String</span><span class="token punctuation">&gt;</span></span> bloomFilter<span class="token punctuation">,</span> <span class="token class-name">List</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">String</span><span class="token punctuation">&gt;</span></span> elements<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">int</span> counter <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+        <span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token class-name">String</span> element <span class="token operator">:</span> elements<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span>bloomFilter<span class="token punctuation">.</span><span class="token function">contains</span><span class="token punctuation">(</span>element<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                counter<span class="token operator">++</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+        <span class="token punctuation">}</span>
+        <span class="token class-name">System</span><span class="token punctuation">.</span>out<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span>counter<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<h2><a id="_89"></a>简析</h2> 
+<h3><a id="_90"></a>初始化</h3> 
+<p>布隆过滤器的初始化方法<code>tryInit</code>有两个参数：</p> 
+<ol><li><code>expectedInsertions</code>：预期的插入元素数量；</li><li><code>falseProbability</code>：预期的错误率；</li></ol> 
+<p>布隆过滤器可以明确元素不存在，但对于元素存在的判断是存在错误率的；所以初始化时指定的这两个参数会决定布隆过滤器的向量长度和散列函数的个数；<br> <code>RedissonBloomFilter.tryInit</code>方法代码如下：</p> 
+<pre><code class="prism language-java"><span class="token keyword">public</span> <span class="token keyword">boolean</span> <span class="token function">tryInit</span><span class="token punctuation">(</span><span class="token keyword">long</span> expectedInsertions<span class="token punctuation">,</span> <span class="token keyword">double</span> falseProbability<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>falseProbability <span class="token operator">&gt;</span> <span class="token number">1</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">throw</span> <span class="token keyword">new</span> <span class="token class-name">IllegalArgumentException</span><span class="token punctuation">(</span><span class="token string">"Bloom filter false probability can't be greater than 1"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>falseProbability <span class="token operator">&lt;</span> <span class="token number">0</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">throw</span> <span class="token keyword">new</span> <span class="token class-name">IllegalArgumentException</span><span class="token punctuation">(</span><span class="token string">"Bloom filter false probability can't be negative"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token comment">// 根据元素个数和错误率计算得到向量长度</span>
+    size <span class="token operator">=</span> <span class="token function">optimalNumOfBits</span><span class="token punctuation">(</span>expectedInsertions<span class="token punctuation">,</span> falseProbability<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>size <span class="token operator">==</span> <span class="token number">0</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">throw</span> <span class="token keyword">new</span> <span class="token class-name">IllegalArgumentException</span><span class="token punctuation">(</span><span class="token string">"Bloom filter calculated size is "</span> <span class="token operator">+</span> size<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>size <span class="token operator">&gt;</span> <span class="token function">getMaxSize</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">throw</span> <span class="token keyword">new</span> <span class="token class-name">IllegalArgumentException</span><span class="token punctuation">(</span><span class="token string">"Bloom filter size can't be greater than "</span> <span class="token operator">+</span> <span class="token function">getMaxSize</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">+</span> <span class="token string">". But calculated size is "</span> <span class="token operator">+</span> size<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token comment">// 根据元素个数和向量长度计算得到散列函数的个数</span>
+    hashIterations <span class="token operator">=</span> <span class="token function">optimalNumOfHashFunctions</span><span class="token punctuation">(</span>expectedInsertions<span class="token punctuation">,</span> size<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token class-name">CommandBatchService</span> executorService <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">CommandBatchService</span><span class="token punctuation">(</span>commandExecutor<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    executorService<span class="token punctuation">.</span><span class="token function">evalReadAsync</span><span class="token punctuation">(</span>configName<span class="token punctuation">,</span> codec<span class="token punctuation">,</span> <span class="token class-name">RedisCommands</span><span class="token punctuation">.</span>EVAL_VOID<span class="token punctuation">,</span>
+            <span class="token string">"local size = redis.call('hget', KEYS[1], 'size');"</span> <span class="token operator">+</span>
+                    <span class="token string">"local hashIterations = redis.call('hget', KEYS[1], 'hashIterations');"</span> <span class="token operator">+</span>
+                    <span class="token string">"assert(size == false and hashIterations == false, 'Bloom filter config has been changed')"</span><span class="token punctuation">,</span>
+                    <span class="token class-name">Arrays</span><span class="token punctuation">.</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Object</span><span class="token punctuation">&gt;</span></span><span class="token function">asList</span><span class="token punctuation">(</span>configName<span class="token punctuation">)</span><span class="token punctuation">,</span> size<span class="token punctuation">,</span> hashIterations<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    executorService<span class="token punctuation">.</span><span class="token function">writeAsync</span><span class="token punctuation">(</span>configName<span class="token punctuation">,</span> <span class="token class-name">StringCodec</span><span class="token punctuation">.</span>INSTANCE<span class="token punctuation">,</span>
+                                            <span class="token keyword">new</span> <span class="token class-name">RedisCommand</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Void</span><span class="token punctuation">&gt;</span></span><span class="token punctuation">(</span><span class="token string">"HMSET"</span><span class="token punctuation">,</span> <span class="token keyword">new</span> <span class="token class-name">VoidReplayConvertor</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">,</span> configName<span class="token punctuation">,</span>
+            <span class="token string">"size"</span><span class="token punctuation">,</span> size<span class="token punctuation">,</span> <span class="token string">"hashIterations"</span><span class="token punctuation">,</span> hashIterations<span class="token punctuation">,</span>
+            <span class="token string">"expectedInsertions"</span><span class="token punctuation">,</span> expectedInsertions<span class="token punctuation">,</span> <span class="token string">"falseProbability"</span><span class="token punctuation">,</span> <span class="token class-name">BigDecimal</span><span class="token punctuation">.</span><span class="token function">valueOf</span><span class="token punctuation">(</span>falseProbability<span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">toPlainString</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">try</span> <span class="token punctuation">{<!-- --></span>
+        executorService<span class="token punctuation">.</span><span class="token function">execute</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span> <span class="token keyword">catch</span> <span class="token punctuation">(</span><span class="token class-name">RedisException</span> e<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>e<span class="token punctuation">.</span><span class="token function">getMessage</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">==</span> <span class="token keyword">null</span> <span class="token operator">||</span> <span class="token operator">!</span>e<span class="token punctuation">.</span><span class="token function">getMessage</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">contains</span><span class="token punctuation">(</span><span class="token string">"Bloom filter config has been changed"</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token keyword">throw</span> e<span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        <span class="token function">readConfig</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">return</span> <span class="token boolean">false</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token keyword">return</span> <span class="token boolean">true</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">private</span> <span class="token keyword">long</span> <span class="token function">optimalNumOfBits</span><span class="token punctuation">(</span><span class="token keyword">long</span> n<span class="token punctuation">,</span> <span class="token keyword">double</span> p<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>p <span class="token operator">==</span> <span class="token number">0</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        p <span class="token operator">=</span> <span class="token class-name">Double</span><span class="token punctuation">.</span>MIN_VALUE<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token keyword">return</span> <span class="token punctuation">(</span><span class="token keyword">long</span><span class="token punctuation">)</span> <span class="token punctuation">(</span><span class="token operator">-</span>n <span class="token operator">*</span> <span class="token class-name">Math</span><span class="token punctuation">.</span><span class="token function">log</span><span class="token punctuation">(</span>p<span class="token punctuation">)</span> <span class="token operator">/</span> <span class="token punctuation">(</span><span class="token class-name">Math</span><span class="token punctuation">.</span><span class="token function">log</span><span class="token punctuation">(</span><span class="token number">2</span><span class="token punctuation">)</span> <span class="token operator">*</span> <span class="token class-name">Math</span><span class="token punctuation">.</span><span class="token function">log</span><span class="token punctuation">(</span><span class="token number">2</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">private</span> <span class="token keyword">int</span> <span class="token function">optimalNumOfHashFunctions</span><span class="token punctuation">(</span><span class="token keyword">long</span> n<span class="token punctuation">,</span> <span class="token keyword">long</span> m<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">return</span> <span class="token class-name">Math</span><span class="token punctuation">.</span><span class="token function">max</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">,</span> <span class="token punctuation">(</span><span class="token keyword">int</span><span class="token punctuation">)</span> <span class="token class-name">Math</span><span class="token punctuation">.</span><span class="token function">round</span><span class="token punctuation">(</span><span class="token punctuation">(</span><span class="token keyword">double</span><span class="token punctuation">)</span> m <span class="token operator">/</span> n <span class="token operator">*</span> <span class="token class-name">Math</span><span class="token punctuation">.</span><span class="token function">log</span><span class="token punctuation">(</span><span class="token number">2</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<h3><a id="_152"></a>添加元素</h3> 
+<p>向布隆过滤器中添加元素时，先使用一系列散列函数根据元素得到<code>K</code>个位下标，然后将向量中位下标对应的位设置为<code>1</code>；<br> <code>RedissonBloomFilter.add</code>方法代码如下：</p> 
+<pre><code class="prism language-java"><span class="token keyword">public</span> <span class="token keyword">boolean</span> <span class="token function">add</span><span class="token punctuation">(</span><span class="token class-name">T</span> object<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token comment">// 根据带插入元素得到两个long类型散列值</span>
+    <span class="token keyword">long</span><span class="token punctuation">[</span><span class="token punctuation">]</span> hashes <span class="token operator">=</span> <span class="token function">hash</span><span class="token punctuation">(</span>object<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">while</span> <span class="token punctuation">(</span><span class="token boolean">true</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>size <span class="token operator">==</span> <span class="token number">0</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token function">readConfig</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+
+        <span class="token keyword">int</span> hashIterations <span class="token operator">=</span> <span class="token keyword">this</span><span class="token punctuation">.</span>hashIterations<span class="token punctuation">;</span>
+        <span class="token keyword">long</span> size <span class="token operator">=</span> <span class="token keyword">this</span><span class="token punctuation">.</span>size<span class="token punctuation">;</span>
+
+        <span class="token comment">// 得到位下标数组</span>
+        <span class="token comment">// 以两个散列值根据指定策略生成hashIterations个散列值，从而得到位下标</span>
+        <span class="token keyword">long</span><span class="token punctuation">[</span><span class="token punctuation">]</span> indexes <span class="token operator">=</span> <span class="token function">hash</span><span class="token punctuation">(</span>hashes<span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span><span class="token punctuation">,</span> hashes<span class="token punctuation">[</span><span class="token number">1</span><span class="token punctuation">]</span><span class="token punctuation">,</span> hashIterations<span class="token punctuation">,</span> size<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        <span class="token class-name">CommandBatchService</span> executorService <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">CommandBatchService</span><span class="token punctuation">(</span>commandExecutor<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">addConfigCheck</span><span class="token punctuation">(</span>hashIterations<span class="token punctuation">,</span> size<span class="token punctuation">,</span> executorService<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token class-name">RBitSetAsync</span> bs <span class="token operator">=</span> <span class="token function">createBitSet</span><span class="token punctuation">(</span>executorService<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token keyword">int</span> i <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span> i <span class="token operator">&lt;</span> indexes<span class="token punctuation">.</span>length<span class="token punctuation">;</span> i<span class="token operator">++</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token comment">// 将位下标对应位设置1</span>
+            bs<span class="token punctuation">.</span><span class="token function">setAsync</span><span class="token punctuation">(</span>indexes<span class="token punctuation">[</span>i<span class="token punctuation">]</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        <span class="token keyword">try</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token class-name">List</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Boolean</span><span class="token punctuation">&gt;</span></span> result <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token class-name">List</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Boolean</span><span class="token punctuation">&gt;</span></span><span class="token punctuation">)</span> executorService<span class="token punctuation">.</span><span class="token function">execute</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">getResponses</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+            <span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token class-name">Boolean</span> val <span class="token operator">:</span> result<span class="token punctuation">.</span><span class="token function">subList</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">,</span> result<span class="token punctuation">.</span><span class="token function">size</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>val<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                    <span class="token comment">// 元素添加成功</span>
+                    <span class="token keyword">return</span> <span class="token boolean">true</span><span class="token punctuation">;</span>
+                <span class="token punctuation">}</span>
+            <span class="token punctuation">}</span>
+            <span class="token comment">// 元素已存在</span>
+            <span class="token keyword">return</span> <span class="token boolean">false</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span> <span class="token keyword">catch</span> <span class="token punctuation">(</span><span class="token class-name">RedisException</span> e<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span>e<span class="token punctuation">.</span><span class="token function">getMessage</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">==</span> <span class="token keyword">null</span> <span class="token operator">||</span> <span class="token operator">!</span>e<span class="token punctuation">.</span><span class="token function">getMessage</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">contains</span><span class="token punctuation">(</span><span class="token string">"Bloom filter config has been changed"</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                <span class="token keyword">throw</span> e<span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">private</span> <span class="token keyword">long</span><span class="token punctuation">[</span><span class="token punctuation">]</span> <span class="token function">hash</span><span class="token punctuation">(</span><span class="token class-name">Object</span> object<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token class-name">ByteBuf</span> state <span class="token operator">=</span> <span class="token function">encode</span><span class="token punctuation">(</span>object<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">try</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">return</span> <span class="token class-name">Hash</span><span class="token punctuation">.</span><span class="token function">hash128</span><span class="token punctuation">(</span>state<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span> <span class="token keyword">finally</span> <span class="token punctuation">{<!-- --></span>
+        state<span class="token punctuation">.</span><span class="token function">release</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">private</span> <span class="token keyword">long</span><span class="token punctuation">[</span><span class="token punctuation">]</span> <span class="token function">hash</span><span class="token punctuation">(</span><span class="token keyword">long</span> hash1<span class="token punctuation">,</span> <span class="token keyword">long</span> hash2<span class="token punctuation">,</span> <span class="token keyword">int</span> iterations<span class="token punctuation">,</span> <span class="token keyword">long</span> size<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">long</span><span class="token punctuation">[</span><span class="token punctuation">]</span> indexes <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token keyword">long</span><span class="token punctuation">[</span>iterations<span class="token punctuation">]</span><span class="token punctuation">;</span>
+    <span class="token keyword">long</span> hash <span class="token operator">=</span> hash1<span class="token punctuation">;</span>
+    <span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token keyword">int</span> i <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span> i <span class="token operator">&lt;</span> iterations<span class="token punctuation">;</span> i<span class="token operator">++</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        indexes<span class="token punctuation">[</span>i<span class="token punctuation">]</span> <span class="token operator">=</span> <span class="token punctuation">(</span>hash <span class="token operator">&amp;</span> <span class="token class-name">Long</span><span class="token punctuation">.</span>MAX_VALUE<span class="token punctuation">)</span> <span class="token operator">%</span> size<span class="token punctuation">;</span>
+        <span class="token comment">// 散列函数的实现方式</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>i <span class="token operator">%</span> <span class="token number">2</span> <span class="token operator">==</span> <span class="token number">0</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token comment">// 新散列值</span>
+            hash <span class="token operator">+=</span> hash2<span class="token punctuation">;</span>
+        <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token comment">// 新散列值</span>
+            hash <span class="token operator">+=</span> hash1<span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+    <span class="token keyword">return</span> indexes<span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p><code>hash(long hash1, long hash2, int iterations, long size)</code>方法中，利用根据元素得到的两个散列值，生成一系列散列函数，然后得到位下标数组；</p> 
+<h3><a id="_227"></a>检索元素</h3> 
+<p>检索布隆过滤器中是否存在指定元素时，先使用一系列散列函数根据元素得到<code>K</code>个位下标，然后判断向量中位下标对应的位是否为<code>1</code>，若存在一个不为<code>1</code>，则该元素不存在；否则认为存在；<br> <code>RedissonBloomFilter.contains</code>方法代码如下：</p> 
+<pre><code class="prism language-java"><span class="token keyword">public</span> <span class="token keyword">boolean</span> <span class="token function">contains</span><span class="token punctuation">(</span><span class="token class-name">T</span> object<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token comment">// 根据带插入元素得到两个long类型散列值</span>
+    <span class="token keyword">long</span><span class="token punctuation">[</span><span class="token punctuation">]</span> hashes <span class="token operator">=</span> <span class="token function">hash</span><span class="token punctuation">(</span>object<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">while</span> <span class="token punctuation">(</span><span class="token boolean">true</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>size <span class="token operator">==</span> <span class="token number">0</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token function">readConfig</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+
+        <span class="token keyword">int</span> hashIterations <span class="token operator">=</span> <span class="token keyword">this</span><span class="token punctuation">.</span>hashIterations<span class="token punctuation">;</span>
+        <span class="token keyword">long</span> size <span class="token operator">=</span> <span class="token keyword">this</span><span class="token punctuation">.</span>size<span class="token punctuation">;</span>
+
+        <span class="token comment">// 得到位下标数组</span>
+        <span class="token comment">// 以两个散列值根据指定策略生成hashIterations个散列值，从而得到位下标</span>
+        <span class="token keyword">long</span><span class="token punctuation">[</span><span class="token punctuation">]</span> indexes <span class="token operator">=</span> <span class="token function">hash</span><span class="token punctuation">(</span>hashes<span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span><span class="token punctuation">,</span> hashes<span class="token punctuation">[</span><span class="token number">1</span><span class="token punctuation">]</span><span class="token punctuation">,</span> hashIterations<span class="token punctuation">,</span> size<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        <span class="token class-name">CommandBatchService</span> executorService <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">CommandBatchService</span><span class="token punctuation">(</span>commandExecutor<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">addConfigCheck</span><span class="token punctuation">(</span>hashIterations<span class="token punctuation">,</span> size<span class="token punctuation">,</span> executorService<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token class-name">RBitSetAsync</span> bs <span class="token operator">=</span> <span class="token function">createBitSet</span><span class="token punctuation">(</span>executorService<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token keyword">int</span> i <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span> i <span class="token operator">&lt;</span> indexes<span class="token punctuation">.</span>length<span class="token punctuation">;</span> i<span class="token operator">++</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token comment">// 获取位下标对应位的值</span>
+            bs<span class="token punctuation">.</span><span class="token function">getAsync</span><span class="token punctuation">(</span>indexes<span class="token punctuation">[</span>i<span class="token punctuation">]</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        <span class="token keyword">try</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token class-name">List</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Boolean</span><span class="token punctuation">&gt;</span></span> result <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token class-name">List</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Boolean</span><span class="token punctuation">&gt;</span></span><span class="token punctuation">)</span> executorService<span class="token punctuation">.</span><span class="token function">execute</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">getResponses</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+            <span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token class-name">Boolean</span> val <span class="token operator">:</span> result<span class="token punctuation">.</span><span class="token function">subList</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">,</span> result<span class="token punctuation">.</span><span class="token function">size</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>val<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                    <span class="token comment">// 若存在不为1的位，则认为元素不存在</span>
+                    <span class="token keyword">return</span> <span class="token boolean">false</span><span class="token punctuation">;</span>
+                <span class="token punctuation">}</span>
+            <span class="token punctuation">}</span>
+            <span class="token comment">// 都为1，则认为元素存在</span>
+            <span class="token keyword">return</span> <span class="token boolean">true</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span> <span class="token keyword">catch</span> <span class="token punctuation">(</span><span class="token class-name">RedisException</span> e<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span>e<span class="token punctuation">.</span><span class="token function">getMessage</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">==</span> <span class="token keyword">null</span> <span class="token operator">||</span> <span class="token operator">!</span>e<span class="token punctuation">.</span><span class="token function">getMessage</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">contains</span><span class="token punctuation">(</span><span class="token string">"Bloom filter config has been changed"</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                <span class="token keyword">throw</span> e<span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/1ffa2fa4f88aa4c49dfc8439f547a97a/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">scala安装与配置</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/ff598607a44e9adb133112e3a39b8299/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">pytorch中torchvision.transforms.functional模块中pad函数的使用</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

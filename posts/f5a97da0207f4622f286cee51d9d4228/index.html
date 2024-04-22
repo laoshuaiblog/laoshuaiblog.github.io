@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>springboot实现密码过期，以及存储5次密码，第六次密码不能与前五次相同 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/f5a97da0207f4622f286cee51d9d4228/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="springboot实现密码过期，以及存储5次密码，第六次密码不能与前五次相同">
+  <meta property="og:description" content="增加是否启用密码过期配置 application.yml
+#密码有效期开关
+passwordExpire: true
+#密码剩余天数提醒修改密码
+passwordExpireTip: &#39;#{3*24*60*60}&#39;
+1.已存在用户，第一次登录时判断是否存在redis密码过期设置和存储密码list，不存在，则生成redis信息，不存在，跳过。
+代码示例：
+@Value(value = &#34;${hhxxweb.passwordExpire}&#34;) private boolean passwordExpire; @PostMapping(&#34;/login&#34;) @ResponseBody public AjaxResult ajaxLogin(HttpServletRequest request,String username, String password, Boolean rememberMe) { try { String id = request.getSession().getId(); byte[] aesKey = StringUtils.hexToByteArray(RedisTool.get(String.format(Constants.LOGIN_AES_KEY, id), String.class)); if (ArrayUtil.isEmpty(aesKey)){ return error(&#34;登录超时，请刷新页面重试&#34;); } username = Md5Utils.decryptAESCtr(StringUtils.hexToByteArray(username), aesKey); password = Md5Utils.decryptAESCtr(StringUtils.hexToByteArray(password), aesKey); if(passwordExpire) { if(!&#34;zlxt_admin&#34;.equals(username)) { passwordExpire(username, password); String redisPassword = redisCache.getCacheObject(&#34;password:expire:&#34; &#43; username); if(StringUtils.isEmpty(redisPassword)) { String msg = &#34;">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2024-03-18T09:24:52+08:00">
+    <meta property="article:modified_time" content="2024-03-18T09:24:52+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">springboot实现密码过期，以及存储5次密码，第六次密码不能与前五次相同</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <p>增加是否启用密码过期配置 application.yml</p> 
+<p>#密码有效期开关<br> passwordExpire: true<br> #密码剩余天数提醒修改密码</p> 
+<p>passwordExpireTip: '#{3*24*60*60}'</p> 
+<p>1.已存在用户，第一次登录时判断是否存在redis密码过期设置和存储密码list，不存在，则生成redis信息，不存在，跳过。</p> 
+<p>代码示例：</p> 
+<pre><code class="language-java">@Value(value = "${hhxxweb.passwordExpire}")
+private boolean passwordExpire;
+
+@PostMapping("/login")
+@ResponseBody
+public AjaxResult ajaxLogin(HttpServletRequest request,String username, String password, Boolean rememberMe)
+{
+	try {
+		String id = request.getSession().getId();
+		byte[] aesKey = StringUtils.hexToByteArray(RedisTool.get(String.format(Constants.LOGIN_AES_KEY, id), String.class));
+		if (ArrayUtil.isEmpty(aesKey)){
+			return error("登录超时，请刷新页面重试");
+		}
+		username = Md5Utils.decryptAESCtr(StringUtils.hexToByteArray(username), aesKey);
+		password = Md5Utils.decryptAESCtr(StringUtils.hexToByteArray(password), aesKey);
+		if(passwordExpire) {
+			if(!"zlxt_admin".equals(username)) {
+				passwordExpire(username, password);
+				String redisPassword = redisCache.getCacheObject("password:expire:" + username);
+				if(StringUtils.isEmpty(redisPassword)) {
+					String msg = "密码已过期，请联系管理员修改！";
+					return error(msg);
+				}
+			}
+		}
+		passwordService.validateByUsername(username, password);
+	} catch (Exception ex) {
+		String msg = "用户或密码错误";
+		if (StringUtils.isNotEmpty(ex.getMessage()))
+		{
+			msg = ex.getMessage();
+		}
+		return error(msg);
+	}
+	UsernamePasswordToken token = new UsernamePasswordToken(username, password, rememberMe);
+	Subject subject = SecurityUtils.getSubject();
+	try
+	{
+		subject.login(token);
+		Long deptId = ShiroUtils.getSysUser().getDeptId();
+		return success(String.valueOf(deptId));
+	}
+	catch (AuthenticationException e)
+	{
+		String msg = "用户或密码错误";
+		if (StringUtils.isNotEmpty(e.getMessage()))
+		{
+			msg = e.getMessage();
+		}
+		return error(msg);
+	}
+}
+
+private void passwordExpire(String username, String password) {
+	List&lt;Object&gt; cacheList = redisCache.getCacheList("password:list:" + username);
+	if(StringUtils.isEmpty(cacheList)) {
+		redisCache.setCacheObject("password:expire:" + username, password, 180, TimeUnit.DAYS);
+		List&lt;String&gt; list = new LinkedList&lt;String&gt;();
+		list.add(password);
+		redisCache.setCacheList("password:list:" + username, list);
+	}
+}</code></pre> 
+<p>2.新增用户时，redis密码过期设置和存储密码list增加</p> 
+<pre><code class="language-java">@Value(value = "${hhxxweb.passwordExpire}")
+private boolean passwordExpire;
+
+/**
+ * 新增保存用户信息
+ * 
+ * @param user 用户信息
+ * @return 结果
+ */
+@Override
+@Transactional
+public int insertUser(User user)
+{
+	if(passwordExpire) {
+		redisCache.setCacheObject("password:expire:" + user.getLoginName(), user.getPassword(), 180, TimeUnit.DAYS);
+		List&lt;String&gt; list = new LinkedList&lt;String&gt;();
+		list.add(user.getPassword());
+		redisCache.setCacheList("password:list:" + user.getLoginName(), list);
+	}
+	user.randomSalt();
+	user.setPassword(passwordService.encryptPassword(user.getLoginName(), user.getPassword(), user.getSalt()));
+	user.setCreateBy(ShiroUtils.getLoginName());
+	// 新增用户信息
+	int rows = userMapper.insertUser(user);
+	// 新增用户岗位关联
+	insertUserPost(user);
+	// 新增用户与角色管理
+	insertUserRole(user.getUserId(), user.getRoleIds());
+	return rows;
+}</code></pre> 
+<p>3，重置用户密码时，刷新密码过期机制，重新恢复180天，并且判断密码list存储是否等于5个，如果等于，判断是否和前5次存在相同，存在相同，则抛出异常，不存在时，在重置密码实现类中删除最早的密码，保存新密码，重新生成redis的密码list。</p> 
+<pre><code class="language-java">@RequiresPermissions("system:user:resetPwd")
+@Log(title = "重置密码", businessType = BusinessType.UPDATE)
+@PostMapping("/resetPwd")
+@ResponseBody
+public AjaxResult resetPwdSave(User user)
+{
+	userService.checkUserAllowed(user);
+	if(passwordExpire) {
+		List&lt;String&gt; cacheList = redisCache.getCacheList("password:list:" + user.getLoginName());
+		if(cacheList.size() == 5) {
+			boolean anyMatch = cacheList.stream().anyMatch(e -&gt; user.getPassword().equals(e));
+			if(anyMatch) {
+				return error("新密码与前五次密码出现相同，请重新设置密码！");
+			}
+		}
+	}
+	if(user.getPassword().contains(user.getLoginName())){
+		return error("密码不能包含登录名称！");
+	}
+	if(!userService.checkPassword(user.getPassword())){
+		if (strength){
+			return error("密码需包含数字、大写字母、小写字母、特殊字符！");
+		}else {
+			return error("密码需包含数字和字母");
+		}
+	}
+	if (userService.resetUserPwd(user) &gt; 0)
+	{
+		if (ShiroUtils.getUserId().longValue() == user.getUserId().longValue())
+		{
+			setSysUser(userService.selectUserById(user.getUserId()));
+		}
+		return success();
+	}
+	return error();
+}</code></pre> 
+<p>接口实现类：</p> 
+<pre><code class="language-java">/**
+ * 修改用户密码
+ * 
+ * @param user 用户信息
+ * @return 结果
+ */
+@Override
+public int resetUserPwd(User user)
+{
+	String username = user.getLoginName();
+	redisCache.setCacheObject("password:expire:" + username, user.getPassword(), 180, TimeUnit.DAYS);
+	List&lt;String&gt; cacheList = redisCache.getCacheList("password:list:" + username);
+	if(cacheList.size() == 5) {
+		cacheList = cacheList.stream().skip(1).collect(Collectors.toList());
+	}
+	cacheList.add(user.getPassword());
+	redisCache.deleteObject("password:list:" + username);
+	redisCache.setCacheList("password:list:" + username, cacheList);
+	user.randomSalt();
+	user.setPassword(passwordService.encryptPassword(username, user.getPassword(), user.getSalt()));
+	return updateUserInfo(user);
+}</code></pre> 
+<p>4.删除用户时，清除缓存</p> 
+<pre><code class="language-java">/**
+ * 通过用户ID删除用户
+ * 
+ * @param userId 用户ID
+ * @return 结果
+ */
+@Override
+@Transactional
+public int deleteUserById(Long userId)
+{
+	User selectUserById = userMapper.selectUserById(userId);
+	redisCache.deleteObject("password:list:" + selectUserById.getLoginName());
+	redisCache.deleteObject("password:expire:" + selectUserById.getLoginName());
+	// 删除用户与角色关联
+	userRoleMapper.deleteUserRoleByUserId(userId);
+	// 删除用户与岗位表
+	userPostMapper.deleteUserPostByUserId(userId);
+	return userMapper.deleteUserById(userId);
+}</code></pre> 
+<p>5.登录成功进入首页时判断密码过期时间是否小于三天，小于三天提示修改密码。</p> 
+<pre><code class="language-java">@Value(value = "${hhxxweb.passwordExpire}")
+private boolean passwordExpire;
+
+@Value(value = "${hhxxweb.passwordExpireTip}")
+private String passwordExpireTip;
+
+
+boolean isRestPwd = false;
+if(passwordExpire) {
+	if(!"zlxt_admin".equals(user.getLoginName())) {
+		Long expire = redisTemplate.getExpire("password:expire:" + user.getLoginName());
+		if(expire &lt; Long.valueOf(passwordExpireTip)) {
+			long days = TimeUnit.SECONDS.toDays(expire);
+			long hours = TimeUnit.SECONDS.toHours(expire) - TimeUnit.DAYS.toHours(days);
+			isRestPwd = true;
+			mmap.put("timeTip", "密码还有" + days + "天" + hours + "小时到期，点击确定修改密码！");
+		}
+	}
+}
+mmap.put("isRestPwd", isRestPwd);</code></pre> 
+<p>6.前端部分代码</p> 
+<pre><code class="language-html">var isRestPwd = [[${isRestPwd}]] || false;
+if(isRestPwd) {
+  $.modal.confirm(timeTip, function() {
+  	resetPwd();
+  });
+}
+/* 用户管理-重置密码 */
+function resetPwd() {
+    var url = ctx + 'system/user/profile/resetPwd';
+    $.modal.open("重置密码", url, '770', '380');
+}</code></pre> 
+<p></p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/60d17096ce382ff549cdb96e98fb387a/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">基于自然语言处理的情感分析系统</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/4aead61b44876e49399e68a4e837a209/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">c#编写控制LED灯的代码</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

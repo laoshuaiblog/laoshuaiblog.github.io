@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Spring事务传播机制、实现方式、失效场景及原理 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/0bac2892de9f87a2ad5b796642d58728/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="Spring事务传播机制、实现方式、失效场景及原理">
+  <meta property="og:description" content="贴一篇源码分析的好文章：https://blog.csdn.net/qq_30905661/article/details/114400417
+本质： 一个事务对应一个数据库连接。
+通过 this 来调用某个带有 @Transactional 注解的方法时，这个注解是失效的
+Spring的事务是如何实现的？ spring事务底层是通过数据库事务和AOP实现的首先对于使用@Transactional的注解的bean，spring会创建一个代理对象作为bean当调用代理对象的方法时，spring会判断该方法上是否加了@Transactional注解如果加了，就会利用事务管理器创建一个数据库连接，并修改数据库连接的 autocommit 为 false，禁止自动提交然后执行该方法，若方法没有抛异常则会提交事务，反之亦然spring事物的隔离级别就是对应数据库的隔离级别spring事务的传播机制是spring自己实现的，是spring事务中最复杂的spring事物的传播机制是基于数据库连接来做的，一个连接一个事务，传播事务实际上是开了一个新的数据库连接，在此基础上执行sql Spring事物的传播机制？ spring事务默认是注解是 REQUIRED，支持事务的传播，使用同一个数据库连接。
+REQUIRED：spring默认的事务传播机制，A存在事务，则B加入A的事务；A没有事务则会新建一个数据库事务；
+SUPPORTS：支持当前事务，如果当前存在事务，就加入该事务；如果当前不存在事务，就以非事务执行
+MANDATORY：（强制性使用第一个事务）A存在事务，则B加入A的事务；A没有事务，则抛异常
+REQUIRES_NEW：创建一个新事务，B在这个新事务中执行；A如果有事务将会被挂起，等待B事务方法执行结束（commit or rollback），当B事务执行结束后，A事务被唤醒继续执行，若B抛出了异常给A 或 A 方法执行出了异常，那么在 A 事务中执行的 sql 将会被回滚，B 事务中的sql 由B的事务管理器控制，A、B中的sql不在同一数据库连接中执行，即内层事务B已经 commit 或 rollback， 外层事务干扰不了。
+NOT_SUPPORTED：（不支持事务），若A存在事务，则挂起A的事务，以非事务方式运行
+NEVER：（不支持事务），若A存在事务抛异常
+NESTED：A存在事务，则在嵌套事务中执行；不存在则和 REQUIRED 一样开启一个新事务
+那些情况会导致Spring事务的失效？失效的原因是？ 数据库不支持事务
+类没有被spring管理（ioc），没有加注解。
+未启用Spring事务管理功能（@EnableTransactionManagement）
+数据源没有配置事务管理器
+@Bean public PlatformTransactionManager transactionManager(DataSource dataSource){ return new DataSourceTransactionManager(dataSource); } 没有加@Configuration注解：springboot基本没有这个问题；Spring可能会出现这个问题，原因是由于mybatis或JdbcTemplate会从ThreadLocal中获取数据库连接，但是ThreadLocal底层引用的是ThreadLocalMap，Map的key是一个DataSource对象，value是数据库连接。如果没有加@Configuration注解的话，会导致Map中的DataSource对象和mybatis、jdbcTenplate中的DataSource对象不相等，所有就拿不到数据库连接，以至于自己去创建连接了。
+异常被吃掉：默认情况下Spring会捕获 error 和 RunTimeException ，spring捕获不到异常也就不会回滚了，例如 try-catch
+方法是private的：spring事务基于CGLIB来进行AOP，CGLIB是基于父子类来实现，子类是代理类，子类无法重写父类的private方法，也就没有办法增加spring事务逻辑。
+方法是 final 修饰的，和private原因一致，子类不能重写增强。
+调用A方法和B方法不是同一个线程，不同的线程拿到的数据库连接不一样。TransactionSynchronizationManager.bindResource 会将线程与数据库连接绑定。
+rollbackFor = RuntimeException.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2023-09-25T11:52:02+08:00">
+    <meta property="article:modified_time" content="2023-09-25T11:52:02+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">Spring事务传播机制、实现方式、失效场景及原理</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-light">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <p>贴一篇源码分析的好文章：<a href="https://blog.csdn.net/qq_30905661/article/details/114400417">https://blog.csdn.net/qq_30905661/article/details/114400417</a></p> 
+<h2><a id="_1"></a>本质：</h2> 
+<p><code>一个事务对应一个数据库连接。</code><br> <strong>通过 this 来调用某个带有 @Transactional 注解的方法时，这个注解是失效的</strong></p> 
+<h2><a id="Spring_4"></a>Spring的事务是如何实现的？</h2> 
+<ol><li>spring事务底层是通过数据库事务和AOP实现的</li><li>首先对于使用@Transactional的注解的bean，spring会创建一个代理对象作为bean</li><li>当调用代理对象的方法时，spring会判断该方法上是否加了@Transactional注解</li><li>如果加了，就会利用事务管理器创建一个数据库连接，并修改数据库连接的 <strong>autocommit</strong> 为 false，禁止自动提交</li><li>然后执行该方法，若方法没有抛异常则会提交事务，反之亦然</li><li>spring事物的隔离级别就是对应数据库的隔离级别</li><li>spring事务的传播机制是spring自己实现的，是spring事务中最复杂的</li><li>spring事物的传播机制是基于数据库连接来做的，一个连接一个事务，传播事务实际上是开了一个新的数据库连接，在此基础上执行sql</li></ol> 
+<h2><a id="Spring_16"></a>Spring事物的传播机制？</h2> 
+<p>spring事务默认是注解是 REQUIRED，支持事务的传播，使用同一个数据库连接。<br> <img src="https://images2.imgbox.com/06/a7/Q37UZXmW_o.png" alt="在这里插入图片描述"></p> 
+<p><strong>REQUIRED：spring</strong>默认的事务传播机制，A存在事务，则B加入A的事务；A没有事务则会新建一个数据库事务；</p> 
+<p><strong>SUPPORTS</strong>：支持当前事务，如果当前存在事务，就加入该事务；如果当前不存在事务，就以非事务执行</p> 
+<p><strong>MANDATORY</strong>：（强制性使用第一个事务）A存在事务，则B加入A的事务；A没有事务，则抛异常</p> 
+<p><strong>REQUIRES_NEW</strong>：创建一个新事务，B在这个新事务中执行；A如果有事务将会被挂起，等待B事务方法执行结束（commit or rollback），当B事务执行结束后，A事务被唤醒继续执行，若B抛出了异常给A 或 A 方法执行出了异常，那么在 A 事务中执行的 sql 将会被回滚，B 事务中的sql 由B的事务管理器控制，A、B中的sql不在同一数据库连接中执行，即内层事务B已经 commit 或 rollback， 外层事务干扰不了。</p> 
+<p><strong>NOT_SUPPORTED</strong>：（不支持事务），若A存在事务，则挂起A的事务，以非事务方式运行</p> 
+<p><strong>NEVER</strong>：（不支持事务），若A存在事务抛异常</p> 
+<p><strong>NESTED</strong>：A存在事务，则在嵌套事务中执行；不存在则和 REQUIRED 一样开启一个新事务<br> <img src="https://images2.imgbox.com/92/c0/X8iF9Mjh_o.png" alt="在这里插入图片描述"></p> 
+<h2><a id="Spring_37"></a>那些情况会导致Spring事务的失效？失效的原因是？</h2> 
+<ol><li> <p>数据库不支持事务</p> </li><li> <p>类没有被spring管理（ioc），没有加注解。</p> </li><li> <p>未启用Spring事务管理功能（@EnableTransactionManagement）</p> </li><li> <p>数据源没有配置事务管理器</p> <pre><code class="prism language-java"><span class="token annotation punctuation">@Bean</span>
+<span class="token keyword">public</span> <span class="token class-name">PlatformTransactionManager</span> <span class="token function">transactionManager</span><span class="token punctuation">(</span><span class="token class-name">DataSource</span> dataSource<span class="token punctuation">)</span><span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">return</span> <span class="token keyword">new</span> <span class="token class-name">DataSourceTransactionManager</span><span class="token punctuation">(</span>dataSource<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> </li><li> <p>没有加@Configuration注解：springboot基本没有这个问题；Spring可能会出现这个问题，原因是由于mybatis或JdbcTemplate会从ThreadLocal中获取数据库连接，但是ThreadLocal底层引用的是ThreadLocalMap，Map的key是一个DataSource对象，value是数据库连接。如果没有加@Configuration注解的话，会导致Map中的DataSource对象和mybatis、jdbcTenplate中的DataSource对象不相等，所有就拿不到数据库连接，以至于自己去创建连接了。</p> </li><li> <p>异常被吃掉：默认情况下Spring会捕获 error 和 RunTimeException ，spring捕获不到异常也就不会回滚了，例如 try-catch</p> </li><li> <p>方法是private的：spring事务基于CGLIB来进行AOP，CGLIB是基于父子类来实现，子类是代理类，子类无法重写父类的private方法，也就没有办法增加spring事务逻辑。</p> </li><li> <p>方法是 final 修饰的，和private原因一致，子类不能重写增强。</p> </li><li> <p>调用A方法和B方法不是同一个线程，不同的线程拿到的数据库连接不一样。TransactionSynchronizationManager.bindResource 会将线程与数据库连接绑定。</p> </li><li> <p>rollbackFor = RuntimeException.class（默认），当抛出的异常大于定义的异常，则会导致事务失效</p> </li><li> <p>方法内自调用时对象不是同一个：Spring事务是基于Aop，只有使用代理对象调用 A 方法时，注解才能生效，而在A方法中调用 B 方法时（ this.B() ），并不是使用的代理对象，所以导致B的注解失效。</p> </li></ol> 
+<h2><a id="_72"></a>自身调用失效问题：</h2> 
+<p>方法A 通过 this.B() 调用方法B。<br> <img src="https://images2.imgbox.com/eb/3e/nOlx1dbp_o.png" alt="在这里插入图片描述"></p> 
+<p><strong>通过 this 来调用某个带有 @Transactional 注解的方法时，这个注解是失效的</strong>，可以看做这个方法（如上图B）上没有这个注解，当然书写的传播机制限制也是无效的，例如：propagation = Propagation.MANDATORY、propagation = Propagation.NEVER。<br> 但是若调用A的是CGLIB生成的代理对象，并且A上有 @Transactional 注解，那么方法A是具有事务的，方法B中的sql 就在方法A的事务中执行，所以整体A，B是有事务的。</p> 
+<p>调用使用@Transactional注解的方法时，使用的是 Spring CGLIB 创建的代理对象<br> <img src="https://images2.imgbox.com/4b/97/FjWnJsVo_o.png" alt="在这里插入图片描述"></p> 
+<p>调用B方法的是存储在 Spring ioc容器的bean，两个不同的对象<br> <img src="https://images2.imgbox.com/4c/73/xvJSyPou_o.png" alt="在这里插入图片描述"></p> 
+<p>A调用B的结论：</p> 
+<ul><li>只要A加@Transactional注解，A和B在不在同一个类中，B加不加@Transactional注解，事务都是有效的，则AB在同一事务中。</li><li>A 不加 B加，A和B同一个类中：调用A方法的是CGLIB生成的代理对象，但是A方法没有注解，所以A方法不会被拦截；this调用B，注解失效（下图）。</li><li>A 不加 B加，A和B不在同一个类中：不在同一个类，那么调用B的就是的就是CGLIB生成的代理对象，B的事务有效，A在外围没有事务（B已经commit或rollback了，事务管理器已经把设置auto commit = false的数据库连接释放了）。</li></ul> 
+<p><img src="https://images2.imgbox.com/3e/1d/x8FkGhCc_o.png" alt="图3"></p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/1a9c3971133f740a0259e10d5f27a00f/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">基于ssm框架的高校选课系统设计与实现</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/2a8adbfa5ba1ad8a6174775ddde540bf/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">Vue-cli全局配置整理</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

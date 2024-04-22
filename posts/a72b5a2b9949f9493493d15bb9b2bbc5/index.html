@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>linux系统防火墙 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/a72b5a2b9949f9493493d15bb9b2bbc5/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="linux系统防火墙">
+  <meta property="og:description" content="1.防火墙的认识
+引言
+安全技术
+入侵检测系统（Intrusion Detection Systems）：特点是不阻断任何网络访问，量化、定位来自内外网络的威胁情况，主要以提供报警和事后监督为主，提供有针对性的指导措施和安全决策依据,类 似于监控系统一般采用旁路部署（默默的看着你）方式。
+入侵防御系统（Intrusion Prevention System）：以透明模式工作，分析数据包的内容如：溢出攻击、拒绝服务攻击、木马、蠕虫、系统漏洞等进行准确的分析判断，在判定为攻击行为后立即予以 阻断，主动而有效的保护网络的安全，一般采用在线部署方式。（必经之路）
+防火墙（ FireWall ）：隔离功能，工作在网络或主机边缘，对进出网络或主机的数据包基于一定的规则检查，并在匹配某规则时由规则定义的行为进行处理的一组功能的组件，基本上的实现都是默 认情况下关闭所有的通过型访问，只开放允许访问的策略,会将希望外网访问的主机放在DMZ (demilitarized zone)网络中.
+广泛意义上的防水墙：防水墙（Waterwall），与防火墙相对，是一种防止内部信息泄漏的安全产品。 网络、外设接口、存储介质和打印机构成信息泄漏的全部途径。防水墙针对这四种泄密途径，在事前、事 中、事后进行全面防护。其与防病毒产品、外部安全产品一起构成完整的网络安全体系。
+2.防火墙定义 隔离功能，工作在网络或主机边缘，对进出网络或主机的数据包基于一定的规则检查，并在匹配某规则时由规则定义的行为进行处理的一组功能的组件，基本上的实现都是默 认情况下关闭所有的通过型访问，只开放允许访问的策略,会将希望外网访问的主机放在DMZ (demilitarized zone)网络中。
+简单理解为是筛选和过滤流量，对需要的流量进行放行，对不需要或者有威胁的流量进行拒绝
+3.防火墙分类
+按保护范围划分：
+主机防火墙：服务范围为当前一台主机
+网络防火墙：服务范围为防火墙一侧的局域网
+按实现方式划分:
+硬件防火墙：在专用硬件级别实现部分功能的防火墙；另一个部分功能基于软件实现，如：华为， 山石hillstone,天融信，启明星辰，绿盟，深信服, PaloAlto , fortinet, Cisco, Checkpoint， NetScreen(Juniper2004年40亿美元收购)等
+软件防火墙：运行于通用硬件平台之上的防火墙的应用软件，Windows 防火墙 ISA --&amp;gt; Forefront
+按网络协议划分：
+网络层防火墙：OSI模型下四层，又称为包过滤防火墙（协议端口号 ip mac）
+应用层防火墙/代理服务器：proxy 代理网关，OSI模型七层
+防火墙是一个解包和重新装包的过程
+包过滤防火墙
+网络层对数据包进行选择，选择的依据是系统内设置的过滤逻辑，被称为访问控制列表（ACL），通过检查数据流中每个数据的源地址，目的地址，所用端口号和协议状态等因素，或他们的组合来确定是否 允许该数据包通过
+优点：对用户来说透明，处理速度快且易于维护
+缺点：无法检查应用层数据，如病毒等
+应用层防火墙
+应用层防火墙/代理服务型防火墙，也称为代理服务器（Proxy Server)
+将所有跨越防火墙的网络通信链路分为两段
+内外网用户的访问都是通过代理服务器上的“链接”来实现优点：在应用层对数据进行检查，比较安全
+缺点：增加防火墙的负载
+提示：现实生产环境中所使用的防火墙一般都是二者结合体，即先检查网络数据，通过之后再送到应用 层去检查
+3.Linux系统防火墙
+（1）Netfilter
+Linux防火墙是由Netfilter组件提供的，Netfilter工作在内核空间，集成在linux内核中
+Netfilter 是Linux 2.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2024-02-22T14:23:53+08:00">
+    <meta property="article:modified_time" content="2024-02-22T14:23:53+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">linux系统防火墙</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <p>1.<strong>防火墙的认识</strong><br> 引言</p> 
+<p>安全技术</p> 
+<p>入侵检测系统（Intrusion Detection Systems）：特点是不阻断任何网络访问，量化、定位来自内外网络的威胁情况，主要以提供报警和事后监督为主，提供有针对性的指导措施和安全决策依据,类 似于监控系统一般采用旁路部署（默默的看着你）方式。</p> 
+<p><br> 入侵防御系统（Intrusion Prevention System）：以透明模式工作，分析数据包的内容如：溢出攻击、拒绝服务攻击、木马、蠕虫、系统漏洞等进行准确的分析判断，在判定为攻击行为后立即予以 阻断，主动而有效的保护网络的安全，一般采用在线部署方式。（必经之路）</p> 
+<p><br> 防火墙（ FireWall ）：隔离功能，工作在网络或主机边缘，对进出网络或主机的数据包基于一定的规则检查，并在匹配某规则时由规则定义的行为进行处理的一组功能的组件，基本上的实现都是默 认情况下关闭所有的通过型访问，只开放允许访问的策略,会将希望外网访问的主机放在DMZ (demilitarized zone)网络中.</p> 
+<p>广泛意义上的防水墙<strong>：</strong>防水墙（Waterwall），与防火墙相对，是一种防止内部信息泄漏的安全产品。   网络、外设接口、存储介质和打印机构成信息泄漏的全部途径。防水墙针对这四种泄密途径，在事前、事  中、事后进行全面防护。其与防病毒产品、外部安全产品一起构成完整的网络安全体系。</p> 
+<p>2.<strong>防火墙定义 </strong><br> 隔离功能，工作在网络或主机边缘，对进出网络或主机的数据包基于一定的规则检查，并在匹配某规则时由规则定义的行为进行处理的一组功能的组件，基本上的实现都是默 认情况下关闭所有的通过型访问，只开放允许访问的策略,会将希望外网访问的主机放在DMZ (demilitarized zone)网络中。<br> 简单理解为是筛选和过滤流量，对需要的流量进行放行，对不需要或者有威胁的流量进行拒绝</p> 
+<p>3.<strong>防火墙分类</strong><br><strong>按保护范围划分：</strong></p> 
+<p>主机防火墙：服务范围为当前一台主机<br> 网络防火墙：服务范围为防火墙一侧的局域网</p> 
+<p><strong>按实现方式划分:</strong></p> 
+<p>硬件防火墙：在专用硬件级别实现部分功能的防火墙；另一个部分功能基于软件实现，如：华为， 山石hillstone,天融信，启明星辰，绿盟，深信服, PaloAlto , fortinet, Cisco, Checkpoint， NetScreen(Juniper2004年40亿美元收购)等<br> 软件防火墙：运行于通用硬件平台之上的防火墙的应用软件，Windows 防火墙 ISA --&gt; Forefront</p> 
+<p><strong>按网络协议划分：</strong></p> 
+<p>网络层防火墙：OSI模型下四层，又称为包过滤防火墙（协议端口号  ip  mac）<br> 应用层防火墙/代理服务器：proxy 代理网关，OSI模型七层<br> 防火墙是一个解包和重新装包的过程</p> 
+<p><strong>包过滤防火墙</strong></p> 
+<p>网络层对数据包进行选择，选择的依据是系统内设置的过滤逻辑，被称为访问控制列表（ACL），通过检查数据流中每个数据的源地址，目的地址，所用端口号和协议状态等因素，或他们的组合来确定是否 允许该数据包通过</p> 
+<p>优点：对用户来说透明，处理速度快且易于维护<br> 缺点：无法检查应用层数据，如病毒等<br><strong>应用层防火墙</strong></p> 
+<p>应用层防火墙/代理服务型防火墙，也称为代理服务器（Proxy Server)</p> 
+<p>将所有跨越防火墙的网络通信链路分为两段</p> 
+<p>内外网用户的访问都是通过代理服务器上的“链接”来实现优点：在应用层对数据进行检查，比较安全</p> 
+<p>缺点：增加防火墙的负载<br> 提示：现实生产环境中所使用的防火墙一般都是二者结合体，即先检查网络数据，通过之后再送到应用 层去检查</p> 
+<p>3<strong>.Linux系统防火墙</strong><br><strong>（1）Netfilter</strong><br> Linux防火墙是由Netfilter组件提供的，Netfilter工作在内核空间，集成在linux内核中</p> 
+<p>Netfilter 是Linux 2.4.x之后新一代的Linux防火墙机制，是linux内核的一个子系统。Netfilter采用模块化设计，具有良好的可扩充性，提供扩展各种网络服务的结构化底层框架。Netfilter与IP协议栈是无缝契合，并允许对数据报进行过滤、地址转换、处理等操作</p> 
+<p>Netfilter官网文档：https://netfilter.org/documentation/</p> 
+<p><strong>（2）防火墙工具介绍</strong><br><strong>iptables</strong><br> 由软件包iptables提供的命令行工具，工作在用户空间，用来编写规则，写好的规则被送往netfilter，告诉内核如何去处理信息包</p> 
+<p><strong>firewalld</strong><br> 从CentOS 7 版开始引入了新的前端管理工具</p> 
+<p>软件包：</p> 
+<p>firewalld<br> firewalld-config<br> 管理工具：</p> 
+<p>firewall-cmd 命令行工具<br> firewall-config 图形工作<br><strong>nftables</strong><br> 此软件是CentOS 8 新特性,Nftables最初在法国巴黎的Netfilter Workshop 2008上发表，然后由长期的netfilter核心团队成员和项目负责人Patrick McHardy于2009年3月发布。它在2013年末合并到Linux内核中，自2014年以来已在内核3.13中可用。<br> 它重用了netfilter框架的许多部分，例如连接跟踪和NAT功能。它还保留了命名法和基本iptables设计的几个部分，例如表，链和规则。就像iptables一样，表充当链的容器，并且链包含单独的规则，这些规则可以执行操作，例如丢弃数据包，移至下一个规则或跳至新链。从用户的角度来看，nftables添加了一个名为nft的新工具，该工具替代了iptables，arptables和ebtables中的所有其他工具。从体系结构的角度来看，它还替换了内核中处理数据包过滤规则集运行时评估的那些部分。<br><strong>netfilter的五个勾子函数和报文流向 </strong><br><strong>五个勾子</strong><br> Netfilter在内核中选取五个位置放了五个hook(勾子) function(INPUT、OUTPUT、FORWARD、PREROUTING、POSTROUTING)，而这五个hook function向用户开放，用户可以通过一个命令工具（iptables）向其写入规则。<br> 由信息过滤表（table）组成，包含控制IP包处理的规则集（rules），规则被分组放在链（chain）上<br> 提示：从 Linux kernel 4.2 版以后，Netfilter 在prerouting 前加了一个 ingress 勾子函数。可以使用这个新的入口挂钩来过滤来自第2层的流量，这个新挂钩比预路由要早，基本上是 tc 命令（流量控制工具）的替代品。<br> 链chain：</p> 
+<p>内置链：每个内置链对应于一个勾子函数</p> 
+<p>自定义链：用于对内置链进行扩展或补充，可实现更灵活的规则组织管理机制；只有Hook勾子可以调用，用自定义链使才生效。</p> 
+<p><strong>三种报文流向</strong><br> 内核中数据包传输过程</p> 
+<p>当一个数据包进入网卡时，数据包首先进入PREROUTING链，内核根据数据包目的IP判断是否需要 转送出去<br> 如果数据包是进入本机的，数据包就会沿着图向上移动，到达INPUT链。数据包到达INPUT链后， 任何进程都会收到它。本机上运行的程序可以发送数据包，这些数据包经过OUTPUT链，然后到达postrouting<br> 如果数据包是要转发出去的，且内核允许转发，数据包就会向右移动，经过FORWARD链，然后到达POSTROUTING链输出<br> 三种报文流向</p> 
+<p>流入本机：PREROUTING --&gt; INPUT--&gt;用户空间进程(访问我的服务)<br> 流出本机：用户空间进程 --&gt;OUTPUT--&gt; POSTROUTING（穿过我）<br> 转发：PREROUTING --&gt; FORWARD --&gt; POSTROUTING（分摊流量）</p> 
+<p><br>  用户空间进程：例如，用户通过http协议来访问我的80端口，实际上访问我的httpd服务 </p> 
+<p></p> 
+<p>4.<strong>iptables</strong></p> 
+<p><strong>iptables防火墙概述</strong></p> 
+<ul><li> <p>linux系统的防火墙：IP信息包过滤u系统，它实际上由两个组件netfilter和iptables组成。</p> </li><li> <p>主要工作在网络层，针对IP数据包，体现在对包内的IP地址、端口、协议等信息的处理上。</p> </li></ul> 
+<h4><strong>netfilter和iptables之间的关系</strong></h4> 
+<h5 id="netfilter">netfilter</h5> 
+<ul><li> <p>属于“内核态”（user apace，又称为内核空间）的防火墙功能体系。</p> </li><li> <p>是内核的一部份，又一些数据包过滤表组成，这些表包含内核用来控制数据包过滤处理的规则集。</p> </li></ul> 
+<h5 id="iptables">iptables</h5> 
+<ul><li>属于“用户态”（user apace，又称为用户空间）的防火墙管理体系。</li><li>是一种用来管理linux防火墙的命令程序，它使插入、修改和删除数据包过滤表中的规则变得容易，通常位于/sbin/iptables文件下。</li></ul> 
+<p><strong>netfilter/iptables后期简称为iptables。iptables使基于内核的防火墙，其中内置了raw、mangle、net和filter四个规则表。表中所有的规则配置后，立即生效，不需要重启服务。</strong></p> 
+<h4 id="iptables四表五链">iptables四表五链（实际为五表五链） </h4> 
+<h5 id="作用">作用</h5> 
+<ul><li> <p>规则表的作用：容纳各种规则链</p> </li><li> <p>规则链的作用：容纳各种防火墙规则</p> </li></ul> 
+<p><strong>结合：表中有链，链中有规则</strong></p> 
+<h5 id="四表">四表</h5> 
+<ul><li> <p><strong>ram表：</strong> 确定是否对该数据包进行状态跟踪。包含两个规则链，OUTPUT、PREROUTING。</p> </li><li> <p><strong>mangle表</strong>： 修改数据包内容，用来做流量整形的，给数据包设置标记。包含五个规则链，INPUT、OUTPUT、FORWARD、PREROUTING、POSTROUTING。</p> </li><li> <p><strong>nat表：</strong> 负责网络地址转换，用来修改数据包中的源、目标IP地址或端口。包含三个规则链，OUTPUT、PREROUTING、POSTROUTING。</p> </li><li> <p><strong>filter表：</strong> 负责过滤数据包，确定是否放行该数据包（过滤）。包含三个规则链，INPUT、FORWARD、OUTPUT。</p> </li><li>security：用于强制访问控制（MAC）网络规则，由Linux安全模块（如SElinux）实现</li></ul> 
+<p><strong>注</strong>：在 iptables 的四个规则表中，mangle 表和 raw 表的应用相对较少。</p> 
+<h5 id="五链">五链</h5> 
+<ul><li><strong>INPUT</strong>：处理入站数据包，匹配目标IP为本机的数据包。</li><li><strong>OUTPUT</strong>：处理出站数据包，一般不在此链上做配置。</li><li><strong>FORWARD</strong>：处理转发数据包，匹配流经本机的数据包。</li><li><strong>PREROUTING链</strong>：在进行路由选择前处理数据包，用来修改目的地址，用来做DNAT。相当于把内网中的80端口映射到路由器外网端口上。</li><li><strong>POSTROUTING链</strong>：在进行路由选择后处理数据包，用来修改源地址，用来做SNAT。相当于内网通过路由器NAT转换功能实现内网主机通过一个公网IP地址上网。</li></ul> 
+<p><strong> 表与规则链的匹配顺序</strong></p> 
+<h6 id="表的优先顺序">表的优先顺序</h6> 
+<p><strong>数据包到达防火墙时，规则表之间的优先顺序</strong>： <strong>首先过滤raw表里面的规则其次依次过滤&gt; mangle &gt; nat &gt; filter如果所有表都没有匹配到则表示放空</strong></p> 
+<p><img alt="" height="739" src="https://images2.imgbox.com/fc/37/V08lpMjm_o.png" width="1200"></p> 
+<h6 id="规则链之间的匹配顺序">规则链之间的匹配顺序</h6> 
+<p><strong>规则链内的匹配顺序：</strong></p> 
+<ul><li> <p>自上向下按顺序依次进行检查，找到相匹配的规则即停止（LOG策略例外，表示记录相关日志）</p> </li><li> <p>若在该链内找不到相匹配的规则，则按该链的默认策略处理（未修改的状况下，默认策略为允许）</p> </li></ul> 
+<p><img alt="" height="594" src="https://images2.imgbox.com/15/1f/1GaSN0G2_o.png" width="1200"></p> 
+<p><strong>主机型防火墙 ：</strong></p> 
+<ul><li> <p>入站数据(来自外界的数据包，且目标地址是防火墙本机) : PREROUTING --&gt; INPUT --&gt; 本机的应用程序</p> </li><li> <p>出站数据(从防火墙本机向外部地址发送的数据包) :本机的应用程序–&gt; OUTPUT --&gt; POSTROUTING 网络型防火墙</p> </li><li> <p>转发数据(需要经过防火墙转发的数据包) : PREROUTING --&gt; FORWARD --&gt; POSTROUTING</p> </li></ul> 
+<h6 id="内核中数据包的传输过程">内核中数据包的传输过程</h6> 
+<p>当一个封包进入网卡，首先检查 Prerouting，然后检查目的 IP 判断是否需要转送出去，如果来自本机封包则会跳到input进行过滤其次检查OUTPUT 以及 Postrouting 。如果封包需转送处理则会跳入Forward 进行过滤，其次检查 Postrouting。过程中如果符合某条规则将会进行处理 。</p> 
+<p></p> 
+<p><strong>5.实际操作 </strong></p> 
+<p>centos7默认使用firewalld防火墙，没有安装iptables，若想使用iptables防火墙。必须关闭firewalld防火墙，在安装iptables。</p> 
+<pre><code>systemctl stop firewalld                 #关闭firewalld防火墙
+systemctl disabie firewalld.service      #取消firewalld防火墙开机自启
+yum install iptables iptables-services -y#安装iptables防火墙和iptables-services管理程序
+systemctl start iptables.service         #开启iptables防火墙开启</code></pre> 
+<p><img alt="" height="217" src="https://images2.imgbox.com/88/61/39kqazm3_o.png" width="1200"></p> 
+<p><img alt="" height="118" src="https://images2.imgbox.com/71/af/umCKi04c_o.png" width="925"></p> 
+<p><strong>基本语法</strong><br> iptables    [ -t 表名 ]    管理选项    [ 链名 ]    [ 匹配条件 ]    [ -j 控制类型 ]</p> 
+<p>表名、链名   用来指定 iptables 命令所操作的表和链，未指定表名时将默认使用 filter 表；</p> 
+<p>管理选项:     表示iptables规则的操作方式，如插入、增加、删除、查看等；<br> 匹配条件:     用来指定要处理的数据包的特征，不符合指定条件的数据包将不会处理；<br> 控制类型      指的是数据包的处理方式，如允许、拒绝、丢弃等。 </p> 
+<p><strong>注意事项</strong>：</p> 
+<ul><li>不指定表名时，默认指filter表</li><li>不指定链名时，默认指表内的所有链</li><li>除非设置链的默认策略，否则必须指定匹配条件</li><li>选项、链名、控制类型使用大写字母，其余均为小写</li></ul> 
+<p><img alt="" height="665" src="https://images2.imgbox.com/a2/1a/7Lt20AxB_o.png" width="1200"></p> 
+<p><strong> 常用的控制类型</strong></p> 
+<table><thead><tr><th>常用的控制类型</th><th>说明</th></tr></thead><tbody><tr><td>ACCEPT</td><td>允许数据包通过。</td></tr><tr><td>DROP</td><td>直接丢弃数据包，不给出任何回应信息。</td></tr><tr><td>REJECT</td><td>拒绝数据包通过，会给数据端发送一个响应信息。</td></tr><tr><td>SNAT</td><td>修改数据包的源地址。</td></tr><tr><td>DNAT</td><td>修改数据包的目的地址。</td></tr><tr><td>MASQUERADE</td><td>伪装成一个非固定公网IP地址。</td></tr><tr><td>LOG</td><td>在/var/log/messages文件中记录日志信息，然后将数据包传递给下一条规则。LOG只是一种辅助动作，并没有真正处理数据包。</td></tr></tbody></table> 
+<p>防火墙规则的“匹配即停止”对于 LOG 操作来说是一个特例，因为 LOG 只是一种辅助 动作，并没有真正处理数据包。；</p> 
+<p>控制类型<strong>必须使用大写！！！</strong></p> 
+<p></p> 
+<h5 id="常用的管理选项">常用的管理选项</h5> 
+<table><thead><tr><th>常用的管理选项</th><th>作用</th></tr></thead><tbody><tr><td>-A</td><td>在指定链的末尾追加(–append)一~条新的规则</td></tr><tr><td>-I</td><td>在指定链的开头插入(–insert)一条新的规则，未指定序号时默认作为第一条规则</td></tr><tr><td>-R</td><td>修改、替换(–replace) 指定链中的某一条规则，可指定规则序号或具体内容</td></tr><tr><td>-P</td><td>设置指定链的默认策略(–policy)</td></tr><tr><td>-D</td><td>删除(–delete) 指定链中的某一条规则，可指定规则序号或具体内容</td></tr><tr><td>-F</td><td>清空(–flush)指定链中的所有规则，若未指定链名，则清空表中的所有链</td></tr><tr><td>-L</td><td>列出(–list) 指定链中所有的规则，若未指定链名，则列出表中的所有链</td></tr><tr><td>-n</td><td>使用数字形式(–numeric) 显示输出结果，如显示IP地址而不是主机名</td></tr><tr><td>-v</td><td>显示详细信息，包括每条规则的匹配包数量和匹配字节数</td></tr><tr><td>–line-numbers</td><td>查看规则时，显示规则的序号</td></tr></tbody></table> 
+<p>-A    在指定链末尾追加一条 iptables -A INPUT （操作）<br> -I    在指定链中插入一条新的，未指定序号默认作为第一条 iptables -I INPUT （操作）<br> -P    指定默认规则 iptables -P OUTPUT ACCEPT （操作）<br> -D    删除 iptables -t nat -D INPUT 2 （操作）<br> -p    服务名称 icmp tcp<br> -R    修改、替换某一条规则 iptables -t nat -R INPUT （操作）<br> -L    查看 iptables -t nat -L （查看）<br> -n    所有字段以数字形式显示（比如任意ip地址是0.0.0.0而不是anywhere，比如显示协议端口号而不是服务名） iptables -L -n,iptables -nL,iptables -vnL （查看）<br> -v    查看时显示更详细信息，常跟-L一起使用 （查看）<br> --line-number    规则带编号 iptables -t nat -L -n --line-number /iptables -t nat -L --line-number<br> -F    清除链中所有规则 iptables -F （操作）<br> -N    新加自定义链<br> -X    清空自定义链的规则，不影响其他链 iptables -X<br> -Z    清空链的计数器（匹配到的数据包的大小和总和）iptables -Z<br> -S    看链的所有规则或者某个链的规则/某个具体规则后面跟编号</p> 
+<p><strong> 6.添加新的防火墙规则</strong></p> 
+<p><img alt="" height="308" src="https://images2.imgbox.com/96/cd/MA3xsUtq_o.png" width="1200"></p> 
+<p>当前还可以ping通本机 </p> 
+<p><strong> </strong><img alt="" height="202" src="https://images2.imgbox.com/f6/80/v90bz0zR_o.png" width="952"></p> 
+<p>添加一条防火墙规则，不允许任何主机通过icmp协议ping本机  </p> 
+<p><img alt="" height="319" src="https://images2.imgbox.com/9d/be/96SPdk9O_o.png" width="1200"></p> 
+<p> 此时，无法通过icmp协议通过ping来检测与192.168.6.88主机的网络连通性 </p> 
+<p><img alt="" height="205" src="https://images2.imgbox.com/ad/dd/qImX6YA9_o.png" width="957"></p> 
+<p>7. 查看防火墙规则</p> 
+<p>查看已有的防火墙规则时，使用管理选项“-L”，结合“--line-numbers”选项还可显示各条规则在链内的顺序号。例如，若要查看 filter 表 INPUT 链中的所有规则，并显示规则序号， 可以执行以下操作</p> 
+<p><img alt="" height="231" src="https://images2.imgbox.com/3b/c8/Rr33HTGw_o.png" width="1200"></p> 
+<p>-v详细信息；-t查看nat表；-n规则数字化显示  </p> 
+<p>7.<strong>删除替换规则</strong></p> 
+<p>删除规则 -D</p> 
+<p><img alt="" height="400" src="https://images2.imgbox.com/61/03/Mko2vReG_o.png" width="1174"></p> 
+<p>替换规则 </p> 
+<p><img alt="" height="490" src="https://images2.imgbox.com/93/22/ZvXRSV51_o.png" width="1049"></p> 
+<p></p> 
+<p>注意：</p> 
+<ul><li>若规则列表中有多条相同的规则时，按内容匹配只删除的序号最小的一条</li><li>按号码匹配删除时，确保规则号码小于等于已有规则数，否则报错</li><li>按内容匹配删数时，确保规则存在，否则报错</li></ul> 
+<p>8. <strong>设置默认策略</strong></p> 
+<p>​ iptables 的各条链中，默认策略是规则匹配的最后一个环节——当找不到任何一条能够匹配数据包的规则时，则执行默认策略。默认策略的控制类型为 ACCEPT（允许）、DROP（丢弃）两种。例如，执行以下操作可以将 filter 表中 FORWARD 链的默认策略设为丢弃， OUTPUT 链的默认策略设为允许</p> 
+<p>iptables   [-t表名]   -P    &lt;链名&gt;    &lt;控制类型&gt;</p> 
+<p>设置只有192.168.6.88的主机可以接受登录</p> 
+<p><img alt="" height="327" src="https://images2.imgbox.com/8f/df/eLpC5Dl6_o.png" width="1046"></p> 
+<p></p> 
+<p>如果输入拒绝所有192.168.6.0网段的主机连接命令,则xshell断开连接</p> 
+<p><img alt="" height="265" src="https://images2.imgbox.com/ed/c8/ctCyI014_o.png" width="983"></p> 
+<p>  解决办法，进入真机查看防火墙规则</p> 
+<p><img alt="" height="306" src="https://images2.imgbox.com/8f/b3/nKbHHP8b_o.png" width="1091"></p> 
+<p>在真机插入一条防火墙规则，置于拒绝规则之前 </p> 
+<p> Xshell是通过真机来使用的，所以要把本机的ip添加进去，使得真机被接受通过</p> 
+<p><img alt="" height="180" src="https://images2.imgbox.com/40/bb/NQToy9lh_o.png" width="1200"></p> 
+<p> <img alt="" height="203" src="https://images2.imgbox.com/6e/d7/Odd1j0nX_o.png" width="1200"></p> 
+<p> Xshell连接成功</p> 
+<p><img alt="" height="165" src="https://images2.imgbox.com/37/a4/vHkz9Zmo_o.png" width="746"></p> 
+<blockquote> 
+ <p>需要注意的是，当使用管理选项“-F”清空链时，默认策略不受影响。因此若要修改默认 策略，必须通过管理选项“-P”重新进行设置。另外，默认策略并不参与链内规则的顺序编排， 因此在其他规则之前或之后设置并无区别。</p> 
+</blockquote> 
+<p> 8.<strong>规则的匹配</strong></p> 
+<h6 id="通用匹配">通用匹配</h6> 
+<ul><li>可直接使用，不依赖其他条件或扩张，包括网络协议、IP地址、网络接口等条件。</li></ul> 
+<p>协议匹配: -p协议名 .</p> 
+<p>地址匹配: -s源地址、-d目的地址             可以是IP、网段、域名、空(任何地址)</p> 
+<p>接口匹配: -i入站网卡、-o出站网卡</p> 
+<h6 id="6.1%E4%B8%8D%E5%85%81%E8%AE%B8%E5%8F%A6%E4%B8%80%E5%8F%B0%E4%B8%BB%E6%9C%BA%E9%80%9A%E8%BF%87icmp%E5%8D%8F%E8%AE%AE%E6%9D%A5ping%E6%9C%AC%E6%9C%BA">不允许另一台主机通过icmp协议来ping本机</h6> 
+<p>准备工作，目前192.168.6.87可以通过icmp协议来ping通192.168.6.88</p> 
+<p><img alt="" height="226" src="https://images2.imgbox.com/9e/0d/m60gEiv5_o.png" width="772"></p> 
+<p>  设置拒绝192.168.6.87主机通过icmp协议来ping本机</p> 
+<p><img alt="" height="297" src="https://images2.imgbox.com/3f/6d/Z1oCDj0S_o.png" width="1200"></p> 
+<p> 此时看到192.168.6.87主机无法通过icmp协议来ping192.168.6.88主机</p> 
+<p><img alt="" height="175" src="https://images2.imgbox.com/53/25/euLWJidV_o.png" width="826"></p> 
+<p>但是通过ssh命令可以连接本机</p> 
+<p><img alt="" height="213" src="https://images2.imgbox.com/7d/57/I4oqUNId_o.png" width="932"></p> 
+<p><strong>9.模块 </strong></p> 
+<p>.so结尾的均为模块，也就是说在使用配置防护墙规则的时候，调用的是.so结尾的配置文件  </p> 
+<p><img alt="" height="413" src="https://images2.imgbox.com/f4/1b/2kR3DSp4_o.png" width="812"></p> 
+<p> 如果想禁用tcp协议防火墙配置，那么必须要有tcp模块才可以使用限制功能 </p> 
+<p><img alt="" height="91" src="https://images2.imgbox.com/28/c5/bw4QaStN_o.png" width="619"></p> 
+<p><strong>10.隐含扩展 </strong></p> 
+<ul><li>iptables 在使用-p选项指明了特定的协议时，无需再用-m选项指明扩展模块的扩展机制，不需要手动加载扩展模块</li><li>要求以特定的协议匹配作为前提，包括端口、TCP标记、ICMP类型等条件。 端口匹配: --sport 源端口、--dport 目的端口（可以是个别端口、端口范围）</li></ul> 
+<p> 隐含扩展可以通过<strong>man iptables-extension</strong>查看扩展帮助</p> 
+<p>--source-port，--source port[:port]     可为报文源端口，可为端口连续范围<br> --destination-port，--dport port[:port]   匹配报文目标端口，可为连续范围<br> --tcp-flags mask comp（mask 需检查的标志位列表，用","分隔；例如SYN ACK FIN RST等。comp 在mask列表中必须为1的标志位列表，无指定则必须为0，用“,”分隔tcp协议的扩展选项）</p> 
+<p></p> 
+<p>--tcp-flags SYN,ACK,FIN,RST SYN 表示要检查的标志位为SYN,ACK,FIN,RST四个，其中SYN必须为1，余下的必须为0，第一次握手；</p> 
+<p>--tcp-flags SYN,ACK,FIN,RST SYN,ACK 第二次握手。——错误包</p> 
+<p></p> 
+<p>--tcp-flags ALL ALL  <br> --tcp_flags ALL NONE<br> --sport 1000              匹配源端口是1000的数据包<br> --sport 1000:3000     匹配源端口是1000-3000的数据包<br> --sport :3000             匹配源端口是3000及以下的数据包<br> --sport 1000:             匹配源端口是1000及以上的数据包</p> 
+<p>注意: --sport和--dport 必须配合-p &lt;协议类型&gt;使用</p> 
+<p>（dport目的；sport源目的）</p> 
+<p><strong>11.实验 控制目的主机  不想让其访问本机的httpd服务</strong></p> 
+<p>本机操作</p> 
+<p><img alt="" height="324" src="https://images2.imgbox.com/fc/8a/QkGCRa04_o.png" width="1200"></p> 
+<p><img alt="" height="346" src="https://images2.imgbox.com/0d/e8/t4f5kMgU_o.png" width="1057"></p> 
+<p> <img alt="" height="69" src="https://images2.imgbox.com/76/1a/pWgVLO79_o.png" width="1040"></p> 
+<p> </p> 
+<p> 目的主机不能连接</p> 
+<p><img alt="" height="131" src="https://images2.imgbox.com/ee/5c/Ab6PbKsc_o.png" width="854"></p> 
+<p><strong>12.实验 如何实现主机1可以ping主机2，但是主机2无法ping主机1</strong></p> 
+<p><img alt="" height="266" src="https://images2.imgbox.com/d6/b3/9WTAEaQB_o.png" width="1200"></p> 
+<p> <img alt="" height="232" src="https://images2.imgbox.com/88/7a/VdLz7h7L_o.png" width="1117"></p> 
+<p><strong> 13.显式扩展</strong></p> 
+<p>显示扩展即必须使用-m选项指明要调用的扩展模块名称，需要手动加载扩展模块</p> 
+<h6 id="%C2%A07.2.1multiport%E6%89%A9%E5%B1%95">(1)multiport扩展</h6> 
+<p>以离散方式定义多端口匹配，最多指定15个端口</p> 
+<p> [!] --source-ports,--sports port[,port|,port:port]...<br>  #指定多个源端口 逗号隔开<br> [!] --destination-ports,--dports port[,port|,port:port]...<br>  # 指定多个目标端口 逗号隔开<br> [!] --ports port[,port|,port:port]...<br>  #多个源或目标端</p> 
+<p><strong>例,主机1拒绝主机2的远程登录和访问页面服务</strong></p> 
+<p>给主机1添加一条规则，把来源于主机2的22和80端口拒绝访问</p> 
+<p>[root@localhost ~]#iptables -A INPUT -s 192.168.241.22 -p tcp -m multiport --dport 22,80 -j REJECT</p> 
+<p><img alt="" height="42" src="https://images2.imgbox.com/3a/80/rLHlFp1c_o.png" width="1123"></p> 
+<p> 此时，主机2就无法访问主机1的httpd服务，也不可以远程登录主机1<img alt="" height="137" src="https://images2.imgbox.com/c5/14/kdfRGcGq_o.png" width="815"></p> 
+<h6 id="7.2.2iprange%E6%89%A9%E5%B1%95">(2)iprange扩展</h6> 
+<p>指明连续的（但一般不是整个网络）ip地址范围</p> 
+<ol><li> <p><code>[!] --src-range from[-to] 源IP地址范围</code></p> </li><li> <p><code>[!] --dst-range from[-to] 目标IP地址范围</code></p> </li></ol> 
+<p><strong>例,指明具体主机不可以访问本机</strong></p> 
+<p>给主机1设置一条拒绝主机2和主机3地址的防火墙规则</p> 
+<p><img alt="" height="50" src="https://images2.imgbox.com/6f/19/getFVeGY_o.png" width="1133"><br><br>  此时发现，主机2和主机3无法通过icmp协议通过ping来检测与主机1的网络连通性</p> 
+<p><img alt="" height="91" src="https://images2.imgbox.com/c0/91/9Cjp6Ipo_o.png" width="676"></p> 
+<p><img alt="" height="76" src="https://images2.imgbox.com/bd/9b/IJKhO9a8_o.png" width="680"></p> 
+<h6 id="%C2%A07.2.3mac%E5%9C%B0%E5%9D%80">mac地址</h6> 
+<p>mac 模块可以指明源MAC地址,，适用于：PREROUTING, FORWARD，INPUT chains</p> 
+<pre><code>-m   mac    [!] --mac-source XX:XX:XX:XX:XX:XX</code></pre> 
+<p></p> 
+<p></p> 
+<p> </p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/f41e970a67954bc8aacff187649ddbe8/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">理解 ConcurrentHashMap</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/947982dcf78b3dcb35e8da52a484a508/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">【PostgreSQL】Windows安装PostgreSQL数据库图文详细教程</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

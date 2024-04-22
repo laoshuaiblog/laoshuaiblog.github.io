@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>［深入理解Redis］读取RDB文件 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/51508c1196b24402f615b5b42c859628/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="［深入理解Redis］读取RDB文件">
+  <meta property="og:description" content="最近在做一个解析rdb文件的功能，途中遇到了一些问题，也解决了一些问题。具体为什么要做这件事情之后再详谈，本次主要想聊聊遇到的开始处理文件时遇到的第一个难题：理解RDB文件的协议、如何读取二进制文件。
+RDB文件 ［Redis源码阅读］redis持久化 文章介绍过，Redis的持久化是通过RDB和AOF实现的。Redis的RDB文件是二进制格式的文件，从这个方面再次体现了Redis是基于内存的缓存数据库，不管对于存储到硬盘还是恢复数据都十分快捷。Redis有多种数据类型：string、list、hash、set、zset，不同数据类型占用的内存大小是不一样的，解析出自然语言可以识别的数据就需要使用不同的方法，保存到文件的时候也需要一些协议或者规则。这有点类似于编程语言里面的数据类型，不同的数据类型占用的字节大小不一致，但是保存到计算机都是二进制的编码，就看是读取多少个字节，以怎样的方式解读。
+举个例子，redis的对象类型是特定的几个字符表示，0代表字符串，读取到字符串类型后，紧接着就是字符串的长度，保存着接下来需要读取的字节大小，读取到的字节最终构成完整字符串对象的值。对于保存了&#34;name&#34; =&amp;gt; &#34;hoohack&#34;键值对的字符串对象保存到内存可以用下图表示：
+当然，除了字符串，redis还有列表，集合，哈希等各种对象，针对这些类型，在RDB文件里面都有不同的规则定义，只需要按照RDB文件格式的协议来解读文件，就能完整无误地把文件解读成自然语言能描述的字符。
+仔细对比，可以发现跟计算机的操作方式是类似的，数据保存在计算机都是二进制的，具体的值应该看需要多少个字节，以什么类型解析，读取不同的字节解析到的值是不一样的，同样的字节大小，但是使用不同类型保存，只要做适当的转换，也是正确的。比如在C语言中的void *指针是4个字节，int也是4个字节，定义一个int整数，将它保存到void *也是没问题的，读取的时候只需要做一次类型转换就可以了。
+因此，解读RDB文件最关键的就是理解RDB文件的协议，只要理解完RDB文件格式的协议，根据定义好的协议来解析各种数据类型的数据。更详细的RDB文件协议可以参考RDB文件格式的定义文档：RDB file format。
+查看RDB文件 先清空redis数据库，保存一个键值对，然后执行save命令将当前数据库的数据保存的rdb文件，得到文件dump.rdb。
+127.0.0.1:6379&amp;gt; flushall OK 127.0.0.1:6379&amp;gt; set name hoohack OK 127.0.0.1:6379&amp;gt; save OK 复制代码 cat查看文件： 可以看到是一个包含乱码的文件，因为文件是以二进制的格式保存，要想打印出人类能看出的语言，可以通过linux的od命令查看。od命令用于输出文件的八进制、十六进制或其他格式编码的字节，通常用于输出文件中不能直接显示在终端的字符，注意输出的是字节，分隔符之间的字符都是保存在一个字节的。
+od命令输出文件八进制、十六进制等格式 通过man手册可以看到，打印出16进制格式的参数是x，字符是c，将字符与十六进制的对应关系打印出来：od -A x -t x1c -v dump.rdb
+打印得出结果如下：
+从上图看到，文件打印出来的都是一些十六进制的数字，转换成十进制再去ASCII码表就能查找到对应的字符。比如第一个字符，52=5*16&#43;2*1=82=&#39;R&#39;。 在这里说一句，个人觉得这od命令非常有用，在解析数据出现疑惑的时候，就是通过这个命令排查遇到的问题。把文件内容打印出来，找到当前读取的字符，对比RDB文件协议，看看究竟要解析的是什么数据，再对比代码中的解析逻辑，看看是否有问题，然后再修正代码。 如果觉得敲命令麻烦，可以把文件上传然后在线查看：www.onlinehexeditor.com
+数据的二进制保存和读取 我们知道，计算机的所有数据都是以二进制的格式保存的，我们看到的字符是通过读取二进制然后解析出来的数据，程序根据不同数据类型做相应的转换，然后展示出来的就是我们看到的字符。 计算机允许多种数据类型，比如有：32位整数、64位整数、字符串、浮点数、布尔值等等，不同的数据类型是通过读取不同大小的字节，根据类型指定的读取方式读取出来，就是想要的数据了。
+解析数据的第一步，就是读取数据。在计算机里面，大家所知道的数据都是逐个字节地读取数据。因此，首先要实现的就是按照字节去读取文件。
+本次采用实现的解析RDB文件功能的语言是Golang，在Golang的文件操作的API里，提供了按字节读取的函数File.ReadAt。
+函数原型如下：
+func (f *File) ReadAt(b []byte, off int64) (n int, err error) 复制代码 函数从File指针的指向的位置off开始，读取len(b)个字节的数据，并保存到b中。 根据对API的理解，自己实现了一个按照字节读取文件数据的函数，函数接收长度值，代表需要读取的字节长度。具体实现代码如下：
+type Rdb struct { fp *os.File ... // other field } func (r *Rdb) ReadBuf(length int64) ([]byte, error) { // 初始化一个大小为length的字节数组 buf := make([]byte, length) // 从curIndex开始读取length个字节 size, err := r.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2018-08-27T00:28:02+08:00">
+    <meta property="article:modified_time" content="2018-08-27T00:28:02+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">［深入理解Redis］读取RDB文件</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <div class="article-content"> 
+ <p>最近在做一个解析rdb文件的功能，途中遇到了一些问题，也解决了一些问题。具体为什么要做这件事情之后再详谈，本次主要想聊聊遇到的开始处理文件时遇到的第一个难题：理解RDB文件的协议、如何读取二进制文件。</p> 
+ <h3 class="heading">RDB文件</h3> 
+ <p><a href="https://juejin.im/post/5ac468c7518825556919337c" rel="nofollow">［Redis源码阅读］redis持久化</a> 文章介绍过，Redis的持久化是通过RDB和AOF实现的。Redis的RDB文件是二进制格式的文件，从这个方面再次体现了Redis是基于内存的缓存数据库，不管对于存储到硬盘还是恢复数据都十分快捷。Redis有多种数据类型：string、list、hash、set、zset，不同数据类型占用的内存大小是不一样的，解析出自然语言可以识别的数据就需要使用不同的方法，保存到文件的时候也需要一些协议或者规则。这有点类似于编程语言里面的数据类型，不同的数据类型占用的字节大小不一致，但是保存到计算机都是二进制的编码，就看是读取多少个字节，以怎样的方式解读。</p> 
+ <p>举个例子，redis的对象类型是特定的几个字符表示，0代表字符串，读取到字符串类型后，紧接着就是字符串的长度，保存着接下来需要读取的字节大小，读取到的字节最终构成完整字符串对象的值。对于保存了<code>"name" =&gt; "hoohack"</code>键值对的字符串对象保存到内存可以用下图表示：</p> 
+ <p></p> 
+ <figure> 
+  <figcaption></figcaption> 
+ </figure> 
+ <p></p> 
+ <p>当然，除了字符串，redis还有列表，集合，哈希等各种对象，针对这些类型，在RDB文件里面都有不同的规则定义，只需要按照RDB文件格式的协议来解读文件，就能完整无误地把文件解读成自然语言能描述的字符。</p> 
+ <p>仔细对比，可以发现跟计算机的操作方式是类似的，数据保存在计算机都是二进制的，具体的值应该看需要多少个字节，以什么类型解析，读取不同的字节解析到的值是不一样的，同样的字节大小，但是使用不同类型保存，只要做适当的转换，也是正确的。比如在C语言中的<code>void *</code>指针是4个字节，int也是4个字节，定义一个int整数，将它保存到<code>void *</code>也是没问题的，读取的时候只需要做一次类型转换就可以了。</p> 
+ <p>因此，解读RDB文件最关键的就是理解RDB文件的协议，只要理解完RDB文件格式的协议，根据定义好的协议来解析各种数据类型的数据。更详细的RDB文件协议可以参考RDB文件格式的定义文档：<a href="https://link.juejin.im?target=http%3A%2F%2Frdb.fnordig.de%2Ffile_format.html" rel="nofollow">RDB file format</a>。</p> 
+ <h3 class="heading">查看RDB文件</h3> 
+ <p>先清空redis数据库，保存一个键值对，然后执行save命令将当前数据库的数据保存的rdb文件，得到文件dump.rdb。</p> 
+ <pre><code class="copyable">127.0.0.1:6379&gt; flushall
+OK
+127.0.0.1:6379&gt; set name hoohack
+OK
+127.0.0.1:6379&gt; save
+OK
+<span class="copy-code-btn">复制代码</span></code></pre> 
+ <h4 class="heading">cat查看文件：</h4> 
+ <p></p> 
+ <figure> 
+  <figcaption></figcaption> 
+ </figure> 
+ <p></p> 
+ <p>可以看到是一个包含乱码的文件，因为文件是以二进制的格式保存，要想打印出人类能看出的语言，可以通过linux的od命令查看。od命令用于输出文件的八进制、十六进制或其他格式编码的字节，通常用于输出文件中不能直接显示在终端的字符，注意输出的是字节，分隔符之间的字符都是保存在一个字节的。</p> 
+ <h4 class="heading">od命令输出文件八进制、十六进制等格式</h4> 
+ <p>通过man手册可以看到，打印出16进制格式的参数是x，字符是c，将字符与十六进制的对应关系打印出来：<code>od -A x -t x1c -v dump.rdb</code></p> 
+ <p>打印得出结果如下：</p> 
+ <p></p> 
+ <figure> 
+  <figcaption></figcaption> 
+ </figure> 
+ <p></p> 
+ <p>从上图看到，文件打印出来的都是一些十六进制的数字，转换成十进制再去ASCII码表就能查找到对应的字符。比如第一个字符，<code>52=5*16+2*1=82='R'</code>。 在这里说一句，个人觉得这od命令非常有用，在解析数据出现疑惑的时候，就是通过这个命令排查遇到的问题。把文件内容打印出来，找到当前读取的字符，对比RDB文件协议，看看究竟要解析的是什么数据，再对比代码中的解析逻辑，看看是否有问题，然后再修正代码。 如果觉得敲命令麻烦，可以把文件上传然后在线查看：<a href="https://link.juejin.im?target=https%3A%2F%2Fwww.onlinehexeditor.com" rel="nofollow">www.onlinehexeditor.com</a></p> 
+ <h3 class="heading">数据的二进制保存和读取</h3> 
+ <p>我们知道，计算机的所有数据都是以二进制的格式保存的，我们看到的字符是通过读取二进制然后解析出来的数据，程序根据不同数据类型做相应的转换，然后展示出来的就是我们看到的字符。 计算机允许多种数据类型，比如有：32位整数、64位整数、字符串、浮点数、布尔值等等，不同的数据类型是通过读取不同大小的字节，根据类型指定的读取方式读取出来，就是想要的数据了。</p> 
+ <p>解析数据的第一步，就是读取数据。在计算机里面，大家所知道的数据都是逐个字节地读取数据。因此，首先要实现的就是按照字节去读取文件。</p> 
+ <p>本次采用实现的解析RDB文件功能的语言是Golang，在Golang的文件操作的API里，提供了按字节读取的函数<code>File.ReadAt</code>。</p> 
+ <p>函数原型如下：</p> 
+ <pre><code class="copyable">func (f *File) ReadAt(b []byte, off int64) (n int, err error)
+<span class="copy-code-btn">复制代码</span></code></pre> 
+ <p>函数从File指针的指向的位置off开始，读取len(b)个字节的数据，并保存到b中。 根据对API的理解，自己实现了一个按照字节读取文件数据的函数，函数接收长度值，代表需要读取的字节长度。具体实现代码如下：</p> 
+ <pre><code class="copyable">type Rdb struct {
+    fp *os.File
+    ... // other field
+}
+
+func (r *Rdb) ReadBuf(length int64) ([]byte, error) {
+    // 初始化一个大小为length的字节数组
+    buf := make([]byte, length)
+
+    // 从curIndex开始读取length个字节
+    size, err := r.fp.ReadAt(buf[:length], r.curIndex)
+
+    checkErr(err)
+
+    if size &lt; 0 {
+        fmt.Fprintf(os.Stderr, "cat: error reading: %s\n", err.Error())
+        return []byte{}, err
+    } else {
+        // 读取成功，更新文件操作的偏移量
+        r.curIndex += length
+        return buf, nil
+    }
+}
+<span class="copy-code-btn">复制代码</span></code></pre> 
+ <h4 class="heading">Golang的数据转换</h4> 
+ <p>上面实现的函数返回的是字节数组，当函数返回读取到的数据后，如果需要保存在不同的数据类型就需要做转换，Golang也提供了比较强大的api。以下是我在解析数据时遇到的数据类型转换的解决方案，希望对大家有帮助。 字符串</p> 
+ <pre><code class="copyable">str := string(buf)
+<span class="copy-code-btn">复制代码</span></code></pre> 
+ <p>int整数，先转为二进制的值，然后再用int32类型格式化</p> 
+ <pre><code class="copyable">intVal := int(binary.BigEndian.Uint32(buf))
+<span class="copy-code-btn">复制代码</span></code></pre> 
+ <p>int64整数，先转为二进制的值，然后再用int64类型格式化</p> 
+ <pre><code class="copyable">int64Val := int64(int16(binary.LittleEndian.Uint16(valBuf)))
+<span class="copy-code-btn">复制代码</span></code></pre> 
+ <p>浮点数</p> 
+ <pre><code class="copyable">floatVal, err := strconv.ParseFloat(string(floatBuf), 64)
+<span class="copy-code-btn">复制代码</span></code></pre> 
+ <p>float64浮点数，先转为二进制的值，再调用math库的Float64frombits函数转换二进制的值为float64类型</p> 
+ <pre><code class="copyable">floatBit := binary.LittleEndian.Uint64(buf)
+floatVal := math.Float64frombits(floatBit)
+<span class="copy-code-btn">复制代码</span></code></pre> 
+ <h3 class="heading">总结</h3> 
+ <p>理论上的理解和实践上的应用是不一样的，虽然大家都知道数据是二进制的，就是怎么怎么解析，但是真正实现起来还是不少问题。通过操作二进制文件的一次实践，收获了以下几点：</p> 
+ <p>1、更深刻地理解到数据在计算机中的保存方式，一切都是0和1的二进制内容，只是看你要怎么用而已，适当的类似转换也可以得到你想要的内容</p> 
+ <p>2、在某个系统下操作就要遵循已定义好的协议，不然得到的都是乱套或者乱码的东西，比如数据的字节序不同也会使数据的解析结果不一致</p> 
+ <p>原创文章，文笔有限，才疏学浅，文中若有不正之处，万望告知。</p> 
+ <p>如果本文对你有帮助，请点个赞吧，谢谢^_^</p> 
+ <p>更多精彩内容，请关注个人公众号。</p> 
+ <p></p> 
+ <figure> 
+  <figcaption></figcaption> 
+ </figure> 
+ <p></p> 
+</div>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/4351baea916f3eaeb42a9f7f4a9fbaaa/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">Can驱动芯片MCP2515如何实现位定时功能详解（使用的为8Mhz的晶振，波特率为什么不能达到1Mhz）</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/823a765f30043b5c08a905aede1562a7/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">京东数据库智能运维平台建设之路</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

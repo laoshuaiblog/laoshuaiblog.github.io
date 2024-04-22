@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Clickhouse: A股分时线bar数据python实验-批量导入[上] - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/177e33570885ebe868474a9cdbe8a5d5/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="Clickhouse: A股分时线bar数据python实验-批量导入[上]">
+  <meta property="og:description" content="批量导入有两种方式，一种是本地的csv文件集合，一个个读进来，这个比较象生产环境下；另一种是模拟环境的，只需要用随机数生成相应的模拟数据。
+from operator import truediv import sys #from xmlrpc.client import Boolean dir_path = &#34;/home/click/pyclick/minute&#34; sys.path.append(&#34;/home/click/pyclick&#34;) sys.path.append(&#34;/usr/local/lib/python3.8/site-packages&#34;) from clickhouse_driver import Client import pandas as pd import os import datetime import time import math import random def get_all_files_by_root_sub_dirs(directory, file_type): data = list() if os.path.isdir(directory): # 是目录 dir_list = os.walk(directory) # os.listdir(directory) for (root, sub, files) in dir_list: for file in files: path = os.path.join(root, file) # root &#43;&#39;\\&#39;&#43;file if path.endswith(file_type): data.append(path) else: # 不是目录，直接输出 if directory.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2023-09-27T21:01:54+08:00">
+    <meta property="article:modified_time" content="2023-09-27T21:01:54+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">Clickhouse: A股分时线bar数据python实验-批量导入[上]</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-dark">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <p>批量导入有两种方式，一种是本地的csv文件集合，一个个读进来，这个比较象生产环境下；另一种是模拟环境的，只需要用随机数生成相应的模拟数据。</p> 
+<pre><code class="prism language-bash">
+
+
+from operator <span class="token function">import</span> truediv
+<span class="token function">import</span> sys
+<span class="token comment">#from xmlrpc.client import Boolean</span>
+dir_path <span class="token operator">=</span> <span class="token string">"/home/click/pyclick/minute"</span>
+sys.path.append<span class="token punctuation">(</span><span class="token string">"/home/click/pyclick"</span><span class="token punctuation">)</span>
+sys.path.append<span class="token punctuation">(</span><span class="token string">"/usr/local/lib/python3.8/site-packages"</span><span class="token punctuation">)</span>
+from clickhouse_driver <span class="token function">import</span> Client
+<span class="token function">import</span> pandas as pd
+<span class="token function">import</span> os
+<span class="token function">import</span> datetime
+<span class="token function">import</span> <span class="token function">time</span>
+<span class="token function">import</span> math
+<span class="token function">import</span> random
+
+def get_all_files_by_root_sub_dirs<span class="token punctuation">(</span>directory, file_type<span class="token punctuation">)</span>:
+   data <span class="token operator">=</span> list<span class="token punctuation">(</span><span class="token punctuation">)</span>
+   <span class="token keyword">if</span> os.path.isdir<span class="token punctuation">(</span>directory<span class="token punctuation">)</span>:  <span class="token comment"># 是目录</span>
+      dir_list <span class="token operator">=</span> os.walk<span class="token punctuation">(</span>directory<span class="token punctuation">)</span>  <span class="token comment"># os.listdir(directory)</span>
+      <span class="token keyword">for</span> <span class="token punctuation">(</span>root, sub, files<span class="token punctuation">)</span> <span class="token keyword">in</span> dir_list:
+          <span class="token keyword">for</span> <span class="token for-or-select variable">file</span> <span class="token keyword">in</span> files:
+             path <span class="token operator">=</span> os.path.join<span class="token punctuation">(</span>root, <span class="token function">file</span><span class="token punctuation">)</span>  <span class="token comment"># root +'\\'+file</span>
+             <span class="token keyword">if</span> path.endswith<span class="token punctuation">(</span>file_type<span class="token punctuation">)</span>:
+                data.append<span class="token punctuation">(</span>path<span class="token punctuation">)</span>
+   else:  <span class="token comment"># 不是目录，直接输出</span>
+      <span class="token keyword">if</span> directory.endswith<span class="token punctuation">(</span>file_type<span class="token punctuation">)</span>:
+          data.append<span class="token punctuation">(</span>directory<span class="token punctuation">)</span>
+   <span class="token builtin class-name">return</span> data
+def get_code_from_csv_file<span class="token punctuation">(</span>file<span class="token punctuation">)</span>:
+    <span class="token comment"># .csv; .h5 file</span>
+    <span class="token comment"># D:\join_quant_data\futures\minute\A.XDCE\A1909.XDCE_2019-07-25_2019-08-12.CSV</span>
+    <span class="token comment"># D:\join_quant_data\futures\minute\A.XDCE.h5</span>
+    s <span class="token operator">=</span> os.path.basename<span class="token punctuation">(</span>file<span class="token punctuation">)</span>  <span class="token comment"># A1909.XDCE_2019-07-25_2019-08-12.CSV</span>
+    sp <span class="token operator">=</span> s.split<span class="token punctuation">(</span><span class="token string">'_'</span><span class="token punctuation">)</span><span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span>
+
+    <span class="token keyword">if</span> sp.endswith<span class="token punctuation">(</span><span class="token string">".csv"</span><span class="token punctuation">)</span> or sp.endswith<span class="token punctuation">(</span><span class="token string">".CSV"</span><span class="token punctuation">)</span>:
+        code <span class="token operator">=</span> sp<span class="token punctuation">[</span>:-4<span class="token punctuation">]</span>
+    else:
+        code <span class="token operator">=</span> sp
+    <span class="token builtin class-name">return</span> code  <span class="token comment"># A1909.XDCE</span>
+
+<span class="token comment">## 创建表的SQL</span>
+<span class="token comment">## 注意，先库后表</span>
+<span class="token comment"># CREATE TABLE my_db.stock_min </span>
+<span class="token comment"># (</span>
+<span class="token comment">#     `code` String,</span>
+<span class="token comment">#     `datetime` DateTime,</span>
+<span class="token comment">#     `open` Float32,</span>
+<span class="token comment">#     `close` Float32,</span>
+<span class="token comment">#     `low` Float32,</span>
+<span class="token comment">#     `high` Float32,</span>
+<span class="token comment">#     `volume` Float64,</span>
+<span class="token comment">#     `money` Float64,</span>
+<span class="token comment">#     `factor` Float32,</span>
+<span class="token comment">#     `high_limit` Float32,</span>
+<span class="token comment">#     `low_limit` Float32,</span>
+<span class="token comment">#     `avg` Float32,</span>
+<span class="token comment">#     `pre_close` Float32,</span>
+<span class="token comment">#     `paused` Float32,</span>
+<span class="token comment">#     `open_interest` Float64</span>
+<span class="token comment"># )</span>
+<span class="token comment"># ENGINE = MergeTree</span>
+<span class="token comment"># PARTITION BY code</span>
+<span class="token comment"># ORDER BY datetime</span>
+
+def get_block_insert_data_from_file<span class="token punctuation">(</span>_file<span class="token punctuation">)</span>: <span class="token comment"># 把一个csv文件读成一个block_insert_data</span>
+    <span class="token function">df</span> <span class="token operator">=</span> pd.read_csv<span class="token punctuation">(</span>_file<span class="token punctuation">)</span>
+    code <span class="token operator">=</span> get_code_from_csv_file<span class="token punctuation">(</span>_file<span class="token punctuation">)</span>
+    block_insert_data <span class="token operator">=</span> <span class="token punctuation">[</span><span class="token punctuation">]</span> <span class="token comment"># 每个文件当批量insert的单元</span>
+    <span class="token keyword">for</span> <span class="token for-or-select variable">row</span> <span class="token keyword">in</span> df.itertuples<span class="token punctuation">(</span><span class="token punctuation">)</span>:
+        _row <span class="token operator">=</span> list<span class="token punctuation">(</span>row<span class="token punctuation">)</span><span class="token punctuation">[</span><span class="token number">0</span>:15<span class="token punctuation">]</span>
+        _row<span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span> <span class="token operator">=</span> code                                            <span class="token comment"># code</span>
+        _row<span class="token punctuation">[</span><span class="token number">1</span><span class="token punctuation">]</span> <span class="token operator">=</span> datetime.strptime<span class="token punctuation">(</span>row<span class="token punctuation">[</span><span class="token number">1</span><span class="token punctuation">]</span>,<span class="token string">'%Y-%m-%d %H:%M:%S'</span><span class="token punctuation">)</span>   <span class="token comment"># datetime: </span>
+        _row<span class="token punctuation">[</span><span class="token number">2</span><span class="token punctuation">]</span> <span class="token operator">=</span> float<span class="token punctuation">(</span>row.open<span class="token punctuation">)</span>                                 <span class="token comment"># open: ,</span>
+        _row<span class="token punctuation">[</span><span class="token number">3</span><span class="token punctuation">]</span> <span class="token operator">=</span> float<span class="token punctuation">(</span>row.close<span class="token punctuation">)</span>                                <span class="token comment"># close: ,</span>
+        _row<span class="token punctuation">[</span><span class="token number">4</span><span class="token punctuation">]</span> <span class="token operator">=</span> float<span class="token punctuation">(</span>row.low<span class="token punctuation">)</span>                                  <span class="token comment"># low:    </span>
+        _row<span class="token punctuation">[</span><span class="token number">5</span><span class="token punctuation">]</span> <span class="token operator">=</span> float<span class="token punctuation">(</span>row.high<span class="token punctuation">)</span>                                 <span class="token comment"># high: ,</span>
+        _row<span class="token punctuation">[</span><span class="token number">6</span><span class="token punctuation">]</span> <span class="token operator">=</span> float<span class="token punctuation">(</span>row.volume<span class="token punctuation">)</span>                               <span class="token comment"># volume: ,</span>
+        _row<span class="token punctuation">[</span><span class="token number">7</span><span class="token punctuation">]</span> <span class="token operator">=</span> float<span class="token punctuation">(</span>row.money<span class="token punctuation">)</span>                                <span class="token comment"># money: ,</span>
+        _row<span class="token punctuation">[</span><span class="token number">8</span><span class="token punctuation">]</span> <span class="token operator">=</span> float<span class="token punctuation">(</span>row.factor<span class="token punctuation">)</span>                               <span class="token comment"># factor: ,</span>
+        _row<span class="token punctuation">[</span><span class="token number">9</span><span class="token punctuation">]</span> <span class="token operator">=</span> float<span class="token punctuation">(</span>row.high_limit<span class="token punctuation">)</span>                           <span class="token comment"># high_limit:,</span>
+        _row<span class="token punctuation">[</span><span class="token number">10</span><span class="token punctuation">]</span> <span class="token operator">=</span> float<span class="token punctuation">(</span>row.low_limit<span class="token punctuation">)</span>                           <span class="token comment"># low_limit:,</span>
+        _row<span class="token punctuation">[</span><span class="token number">11</span><span class="token punctuation">]</span> <span class="token operator">=</span> float<span class="token punctuation">(</span>row.avg<span class="token punctuation">)</span>                                 <span class="token comment"># avg:  ,</span>
+        _row<span class="token punctuation">[</span><span class="token number">12</span><span class="token punctuation">]</span> <span class="token operator">=</span> float<span class="token punctuation">(</span>row.pre_close<span class="token punctuation">)</span>                           <span class="token comment"># pre_close:,</span>
+        _row<span class="token punctuation">[</span><span class="token number">13</span><span class="token punctuation">]</span> <span class="token operator">=</span> float<span class="token punctuation">(</span>row.paused<span class="token punctuation">)</span>                              <span class="token comment"># paused: ,</span>
+        <span class="token keyword">if</span> math.isnan<span class="token punctuation">(</span>row.open_interest<span class="token punctuation">)</span>:
+            _row<span class="token punctuation">[</span><span class="token number">14</span><span class="token punctuation">]</span> <span class="token operator">=</span> <span class="token number">0.0</span> 
+        else:
+            _row<span class="token punctuation">[</span><span class="token number">14</span><span class="token punctuation">]</span> <span class="token operator">=</span> float<span class="token punctuation">(</span>row.open_interest<span class="token punctuation">)</span>                   <span class="token comment">#open_interest:</span>
+        block_insert_data.append<span class="token punctuation">(</span>_row<span class="token punctuation">)</span>
+    <span class="token builtin class-name">return</span> block_insert_data
+
+def is_trade_day<span class="token punctuation">(</span>dt<span class="token punctuation">)</span>:
+<span class="token comment"># &gt;&gt;&gt; datetime.date.today()</span>
+<span class="token comment"># datetime.date(2022, 8, 5)</span>
+<span class="token comment"># &gt;&gt;&gt; datetime.date.today().weekday() -&gt;4</span>
+    <span class="token keyword">if</span> dt.weekday<span class="token punctuation">(</span><span class="token punctuation">)</span> not <span class="token keyword">in</span> <span class="token punctuation">[</span><span class="token number">5,6</span><span class="token punctuation">]</span>:
+        <span class="token builtin class-name">return</span> True
+    else:
+        <span class="token builtin class-name">return</span> False
+
+def get_someday_stock_minute_data_from_random<span class="token punctuation">(</span>dt,code<span class="token punctuation">)</span>:
+    block_insert_data <span class="token operator">=</span><span class="token punctuation">[</span><span class="token punctuation">]</span>
+    <span class="token keyword">if</span> is_trade_day<span class="token punctuation">(</span>dt<span class="token punctuation">)</span> <span class="token operator">==</span>False:
+        <span class="token builtin class-name">return</span> block_insert_data
+    s_time <span class="token operator">=</span> dt + datetime.timedelta<span class="token punctuation">(</span>hours <span class="token operator">=</span> <span class="token number">9</span><span class="token punctuation">)</span> <span class="token comment"># 每天从9点开始，但中间不模仿有休市的情况</span>
+    <span class="token keyword">for</span> <span class="token for-or-select variable">j</span> <span class="token keyword">in</span> range<span class="token punctuation">(</span><span class="token number">300</span><span class="token punctuation">)</span>:
+        dtime <span class="token operator">=</span> s_time + datetime.timedelta<span class="token punctuation">(</span>minutes <span class="token operator">=</span> j<span class="token punctuation">)</span>
+        _row <span class="token operator">=</span> <span class="token punctuation">[</span><span class="token punctuation">]</span>
+        _row.append<span class="token punctuation">(</span>code<span class="token punctuation">)</span>    <span class="token comment"># code</span>
+        _row.append<span class="token punctuation">(</span>dtime<span class="token punctuation">)</span>   <span class="token comment"># datetime: </span>
+        _row.append<span class="token punctuation">(</span><span class="token number">11.0</span>+random.random<span class="token punctuation">(</span><span class="token punctuation">))</span>      <span class="token comment"># open: ,</span>
+        _row.append<span class="token punctuation">(</span><span class="token number">11.0</span>+random.random<span class="token punctuation">(</span><span class="token punctuation">))</span>      <span class="token comment"># close: ,</span>
+        _row.append<span class="token punctuation">(</span><span class="token number">11.0</span>+random.random<span class="token punctuation">(</span><span class="token punctuation">))</span>      <span class="token comment"># low:    </span>
+        _row.append<span class="token punctuation">(</span><span class="token number">11.0</span>+random.random<span class="token punctuation">(</span><span class="token punctuation">))</span>      <span class="token comment"># high: ,</span>
+        _row.append<span class="token punctuation">(</span><span class="token number">110000.0</span>+random.random<span class="token punctuation">(</span><span class="token punctuation">))</span>  <span class="token comment"># volume: ,</span>
+        _row.append<span class="token punctuation">(</span><span class="token number">1100000.0</span>+random.random<span class="token punctuation">(</span><span class="token punctuation">))</span> <span class="token comment"># money: ,</span>
+        _row.append<span class="token punctuation">(</span><span class="token number">1.0</span>+random.random<span class="token punctuation">(</span><span class="token punctuation">))</span>       <span class="token comment"># factor: ,</span>
+        _row.append<span class="token punctuation">(</span><span class="token number">11.0</span>+random.random<span class="token punctuation">(</span><span class="token punctuation">))</span>      <span class="token comment"># high_limit:,</span>
+        _row.append<span class="token punctuation">(</span><span class="token number">11.0</span>+random.random<span class="token punctuation">(</span><span class="token punctuation">))</span>      <span class="token comment"># low_limit:,</span>
+        _row.append<span class="token punctuation">(</span><span class="token number">11.0</span>+random.random<span class="token punctuation">(</span><span class="token punctuation">))</span>      <span class="token comment"># avg:  ,</span>
+        _row.append<span class="token punctuation">(</span><span class="token number">11.0</span>+random.random<span class="token punctuation">(</span><span class="token punctuation">))</span>      <span class="token comment"># pre_close:,</span>
+        _row.append<span class="token punctuation">(</span><span class="token number">1.0</span>+random.random<span class="token punctuation">(</span><span class="token punctuation">))</span>       <span class="token comment"># paused: ,</span>
+        _row.append<span class="token punctuation">(</span><span class="token number">11.0</span>+random.random<span class="token punctuation">(</span><span class="token punctuation">))</span>      <span class="token comment">#open_interest:</span>
+        block_insert_data.append<span class="token punctuation">(</span>_row<span class="token punctuation">)</span>
+    <span class="token builtin class-name">return</span> block_insert_data
+
+<span class="token comment"># 根据某个代码来生产相应的模拟数据</span>
+def get_code_block_insert_minute_data_from_random<span class="token punctuation">(</span>code,start_date,simulate_days,dailyminutes<span class="token operator">=</span><span class="token number">300</span><span class="token punctuation">)</span>:
+    <span class="token comment"># code : 比如，600036.XSHE</span>
+    <span class="token comment"># start_date : 模拟股票的起止时间,格式"2010-01-01"</span>
+    <span class="token comment"># ndays: 100个交易日</span>
+    <span class="token comment"># dailyminutes: 一天的交易分钟数300条</span>
+    starttime  <span class="token operator">=</span> datetime.datetime.strptime<span class="token punctuation">(</span>start_date,<span class="token string">'%Y-%m-%d'</span><span class="token punctuation">)</span>
+    block_insert_data <span class="token operator">=</span> <span class="token punctuation">[</span><span class="token punctuation">]</span> <span class="token comment"># 每个文件当批量insert的单元</span>
+    <span class="token keyword">for</span> <span class="token for-or-select variable">nday</span> <span class="token keyword">in</span> range<span class="token punctuation">(</span>simulate_days<span class="token punctuation">)</span>:
+        dt <span class="token operator">=</span> starttime + datetime.timedelta<span class="token punctuation">(</span>days <span class="token operator">=</span> nday<span class="token punctuation">)</span>
+        <span class="token keyword">if</span> is_trade_day<span class="token punctuation">(</span>dt<span class="token punctuation">)</span> <span class="token operator">==</span>False:
+            <span class="token builtin class-name">continue</span>
+        s_time <span class="token operator">=</span> dt + datetime.timedelta<span class="token punctuation">(</span>hours <span class="token operator">=</span> <span class="token number">9</span><span class="token punctuation">)</span> <span class="token comment"># 每天从9点开始，但中间不模仿有休市的情况</span>
+        <span class="token keyword">for</span> <span class="token for-or-select variable">j</span> <span class="token keyword">in</span> range<span class="token punctuation">(</span>dailyminutes<span class="token punctuation">)</span>:
+            dtime <span class="token operator">=</span> s_time + datetime.timedelta<span class="token punctuation">(</span>minutes <span class="token operator">=</span> j<span class="token punctuation">)</span>
+            _row <span class="token operator">=</span> <span class="token punctuation">[</span><span class="token punctuation">]</span>
+            _row.append<span class="token punctuation">(</span>code<span class="token punctuation">)</span>                                            <span class="token comment"># code</span>
+            _row.append<span class="token punctuation">(</span>dtime<span class="token punctuation">)</span>   <span class="token comment"># datetime: </span>
+            _row.append<span class="token punctuation">(</span><span class="token number">11.0</span>+random.random<span class="token punctuation">(</span><span class="token punctuation">))</span>                                <span class="token comment"># open: ,</span>
+            _row.append<span class="token punctuation">(</span><span class="token number">11.0</span>+random.random<span class="token punctuation">(</span><span class="token punctuation">))</span>                                <span class="token comment"># close: ,</span>
+            _row.append<span class="token punctuation">(</span><span class="token number">11.0</span>+random.random<span class="token punctuation">(</span><span class="token punctuation">))</span>                                  <span class="token comment"># low:    </span>
+            _row.append<span class="token punctuation">(</span><span class="token number">11.0</span>+random.random<span class="token punctuation">(</span><span class="token punctuation">))</span>                                <span class="token comment"># high: ,</span>
+            _row.append<span class="token punctuation">(</span><span class="token number">110000.0</span>+random.random<span class="token punctuation">(</span><span class="token punctuation">))</span>                               <span class="token comment"># volume: ,</span>
+            _row.append<span class="token punctuation">(</span><span class="token number">1100000.0</span>+random.random<span class="token punctuation">(</span><span class="token punctuation">))</span>                               <span class="token comment"># money: ,</span>
+            _row.append<span class="token punctuation">(</span><span class="token number">1.0</span>+random.random<span class="token punctuation">(</span><span class="token punctuation">))</span>                               <span class="token comment"># factor: ,</span>
+            _row.append<span class="token punctuation">(</span><span class="token number">11.0</span>+random.random<span class="token punctuation">(</span><span class="token punctuation">))</span>                          <span class="token comment"># high_limit:,</span>
+            _row.append<span class="token punctuation">(</span><span class="token number">11.0</span>+random.random<span class="token punctuation">(</span><span class="token punctuation">))</span>                           <span class="token comment"># low_limit:,</span>
+            _row.append<span class="token punctuation">(</span><span class="token number">11.0</span>+random.random<span class="token punctuation">(</span><span class="token punctuation">))</span>                                <span class="token comment"># avg:  ,</span>
+            _row.append<span class="token punctuation">(</span><span class="token number">11.0</span>+random.random<span class="token punctuation">(</span><span class="token punctuation">))</span>                          <span class="token comment"># pre_close:,</span>
+            _row.append<span class="token punctuation">(</span><span class="token number">1.0</span>+random.random<span class="token punctuation">(</span><span class="token punctuation">))</span>                            <span class="token comment"># paused: ,</span>
+            _row.append<span class="token punctuation">(</span><span class="token number">11.0</span>+random.random<span class="token punctuation">(</span><span class="token punctuation">))</span>                   <span class="token comment">#open_interest:</span>
+            block_insert_data.append<span class="token punctuation">(</span>_row<span class="token punctuation">)</span>
+    <span class="token builtin class-name">return</span> block_insert_data
+
+def insert_data_by_files<span class="token punctuation">(</span><span class="token punctuation">)</span>:
+    client <span class="token operator">=</span> Client<span class="token punctuation">(</span><span class="token string">'localhost'</span><span class="token punctuation">)</span>
+    database_name <span class="token operator">=</span> <span class="token string">"my_db"</span>
+    table_name <span class="token operator">=</span> <span class="token string">'stock_data'</span>
+    <span class="token comment"># dir_path = "/home/click/pyclick/minute"</span>
+    <span class="token comment"># sys.path.append("/home/click/pyclick")</span>
+    files <span class="token operator">=</span> get_all_files_by_root_sub_dirs<span class="token punctuation">(</span>dir_path,<span class="token string">".csv"</span><span class="token punctuation">)</span> 
+    t0 <span class="token operator">=</span> time.time<span class="token punctuation">(</span><span class="token punctuation">)</span>
+    file_num <span class="token operator">=</span> <span class="token number">0</span> 
+    <span class="token keyword">for</span> <span class="token for-or-select variable">_file</span> <span class="token keyword">in</span> files:
+        t_file <span class="token operator">=</span> time.time<span class="token punctuation">(</span><span class="token punctuation">)</span>
+        print<span class="token punctuation">(</span>f<span class="token string">"{_file}  =&gt; 第{file_num}个文件， 总共：{len(files)}个！"</span><span class="token punctuation">)</span>
+        block_insert_data <span class="token operator">=</span> get_block_insert_data_from_file<span class="token punctuation">(</span>_file<span class="token punctuation">)</span>
+        <span class="token comment"># 逐条也可以insert json</span>
+        <span class="token comment"># sql = f"INSERT INTO {database_name}.{table_name} FORMAT JSONEachRow {json.dumps(row_data) * 1}"</span>
+        <span class="token comment"># 批量insert </span>
+        client.execute<span class="token punctuation">(</span>f<span class="token string">'INSERT INTO {database_name}.{table_name}  VALUES'</span>, block_insert_data,types_check<span class="token operator">=</span>True<span class="token punctuation">)</span>
+        table_info <span class="token operator">=</span> client.execute<span class="token punctuation">(</span>f<span class="token string">'select count(1) from {database_name}.{table_name}'</span><span class="token punctuation">)</span>
+        print<span class="token punctuation">(</span>f<span class="token string">"clickhouse stock_tb 表信息: {table_info}"</span><span class="token punctuation">)</span>
+        print<span class="token punctuation">(</span>f<span class="token string">"第{file_num}个文件 总共：{len(files)}个 =&gt; {_file}读写完成！ cost time:{time.time()-t_file}"</span><span class="token punctuation">)</span>
+        file_num <span class="token operator">=</span> file_num +1
+
+    print<span class="token punctuation">(</span>f<span class="token string">"文件总共：{file_num}读写完成！ cost time:{time.time()-t0}"</span><span class="token punctuation">)</span>
+
+<span class="token comment">#insert_data_by_files()</span>
+<span class="token comment"># 对n个标的，从期初开始，模拟ndays的分钟数据</span>
+def insert_minute_data_by_random<span class="token punctuation">(</span>startdate,simulate_codes_num,simulate_days<span class="token punctuation">)</span>:
+    <span class="token comment"># startdate ="2020-01-01"</span>
+    <span class="token comment"># codenum : 1000,或其它</span>
+    print<span class="token punctuation">(</span><span class="token string">"start"</span><span class="token punctuation">)</span>
+    client <span class="token operator">=</span> Client<span class="token punctuation">(</span><span class="token string">'localhost'</span><span class="token punctuation">)</span>
+    database_name <span class="token operator">=</span> <span class="token string">"my_db"</span>
+    table_name <span class="token operator">=</span> <span class="token string">'stock_min'</span>
+    code_num <span class="token operator">=</span> <span class="token number">0</span> 
+    <span class="token comment"># 假定clickhouse的写入性能可以考虑一次按100万来insert，故不进行更小层次的拆分insert</span>
+    <span class="token keyword">for</span> <span class="token for-or-select variable">i</span> <span class="token keyword">in</span> range<span class="token punctuation">(</span>simulate_codes_num<span class="token punctuation">)</span>:
+        code <span class="token operator">=</span> str<span class="token punctuation">(</span><span class="token number">1000000</span>+i<span class="token punctuation">)</span> <span class="token comment">## 代码号从100000开始</span>
+        code_time <span class="token operator">=</span> time.time<span class="token punctuation">(</span><span class="token punctuation">)</span>
+        block_insert_data <span class="token operator">=</span> get_code_block_insert_minute_data_from_random<span class="token punctuation">(</span>code,startdate,simulate_days<span class="token punctuation">)</span>
+        print<span class="token punctuation">(</span>f<span class="token string">"block_insert_data 的条数: {len(block_insert_data)}"</span><span class="token punctuation">)</span>
+        client.execute<span class="token punctuation">(</span>f<span class="token string">'INSERT INTO {database_name}.{table_name}  VALUES'</span>, block_insert_data,types_check<span class="token operator">=</span>True<span class="token punctuation">)</span>
+        table_info <span class="token operator">=</span> client.execute<span class="token punctuation">(</span>f<span class="token string">'select count(1) from {database_name}.{table_name}'</span><span class="token punctuation">)</span>
+        print<span class="token punctuation">(</span>f<span class="token string">"clickhouse stock_tb 表信息: {table_info}"</span><span class="token punctuation">)</span>
+        print<span class="token punctuation">(</span>f<span class="token string">"第{code_num}个文件 总共：{simulate_codes_num}个 =&gt; {code}写完成！ cost time:{time.time()-code_time}"</span><span class="token punctuation">)</span>
+        code_num <span class="token operator">=</span> code_num +1
+
+def get_data_from_ch<span class="token punctuation">(</span>sql_mode<span class="token operator">=</span><span class="token number">3</span><span class="token punctuation">)</span>: <span class="token comment"># startdate : 2010-01-01</span>
+    client <span class="token operator">=</span> Client<span class="token punctuation">(</span><span class="token string">'localhost'</span><span class="token punctuation">)</span>
+    database_name <span class="token operator">=</span> <span class="token string">"my_db"</span>
+    table_name <span class="token operator">=</span> <span class="token string">'stock_min'</span>
+    code <span class="token operator">=</span> <span class="token string">"1000001"</span>
+    <span class="token keyword">if</span> sql_mode <span class="token operator">==</span><span class="token number">1</span>:
+        query_sql <span class="token operator">=</span> f<span class="token string">'SELECT * FROM {database_name}.{table_name}  LIMIT 10000000'</span>
+    <span class="token keyword">elif</span> <span class="token assign-left variable">sql_mode</span><span class="token operator">==</span><span class="token number">2</span>:
+        query_sql <span class="token operator">=</span> f<span class="token string">"SELECT * FROM {database_name}.{table_name} WHERE code = '{code}' LIMIT 10"</span>
+    <span class="token keyword">elif</span> sql_mode <span class="token operator">==</span><span class="token number">3</span>:
+        startdate <span class="token operator">=</span> <span class="token string">"2018-01-01"</span>
+        enddate <span class="token operator">=</span> <span class="token string">"2022-02-02"</span>
+        query_sql <span class="token operator">=</span> f<span class="token string">"SELECT * FROM {database_name}.{table_name} WHERE code ='{code}' AND toDate(datetime) &gt;= toDate('{startdate}')  AND toDate(datetime) &lt;= toDate('{enddate}') "</span>
+    else:
+        pass
+    print<span class="token punctuation">(</span>query_sql<span class="token punctuation">)</span>
+    data <span class="token operator">=</span> client.execute<span class="token punctuation">(</span>query_sql<span class="token punctuation">)</span>
+    <span class="token builtin class-name">return</span> data
+
+process_mode <span class="token operator">=</span> <span class="token string">"fetch"</span> <span class="token comment"># fetch or </span>
+t0 <span class="token operator">=</span> time.time<span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token keyword">if</span> process_mode <span class="token operator">==</span><span class="token string">"insert"</span><span class="token builtin class-name">:</span> 
+    <span class="token comment"># data = get_code_block_insert_data_from_random("600036.XSHE","2020-01-01",6)</span>
+    <span class="token comment"># print(data)</span>
+    insert_minute_data_by_random<span class="token punctuation">(</span><span class="token string">"2010-01-01"</span>,10,4000<span class="token punctuation">)</span> <span class="token comment"># 10个标的,4000天的分钟数据</span>
+<span class="token keyword">elif</span> process_mode <span class="token operator">==</span><span class="token string">"fetch"</span><span class="token builtin class-name">:</span>
+    data <span class="token operator">=</span> get_data_from_ch<span class="token punctuation">(</span>sql_mode<span class="token operator">=</span><span class="token number">3</span><span class="token punctuation">)</span>
+    print<span class="token punctuation">(</span>f<span class="token string">"data row num: {len(data)}, data type: {type(data)} "</span><span class="token punctuation">)</span>
+    print<span class="token punctuation">(</span>f<span class="token string">"{data[0]}"</span><span class="token punctuation">)</span>
+else:
+    print<span class="token punctuation">(</span><span class="token string">"no process data!"</span><span class="token punctuation">)</span>
+t1 <span class="token operator">=</span> time.time<span class="token punctuation">(</span><span class="token punctuation">)</span>
+print<span class="token punctuation">(</span>f<span class="token string">"process_data cost time : {t1-t0} s! "</span><span class="token punctuation">)</span>
+
+</code></pre> 
+<p>下面是模拟insert10个标的，每个标的是从2010年初开始，共4000个交易日的分钟数据情况。<br> 注意：每次一次性insert的条数为856800条。总体上看，一次insert大约需要16-17秒的时间。</p> 
+<pre><code>运行情况如下：
+click@iZ9ni05fy7agndgpndc7gsZ:~/pyclick$ python click_test.py
+start
+block_insert_data 的条数: 856800
+clickhouse stock_tb 表信息: [(1091100,)]
+第0个文件 总共：10个 =&gt; 1000000写完成！ cost time:15.92285680770874
+block_insert_data 的条数: 856800
+clickhouse stock_tb 表信息: [(1947900,)]
+第1个文件 总共：10个 =&gt; 1000001写完成！ cost time:16.453603744506836
+block_insert_data 的条数: 856800
+clickhouse stock_tb 表信息: [(2804700,)]
+第2个文件 总共：10个 =&gt; 1000002写完成！ cost time:15.867053985595703
+block_insert_data 的条数: 856800
+clickhouse stock_tb 表信息: [(3661500,)]
+第3个文件 总共：10个 =&gt; 1000003写完成！ cost time:16.036518335342407
+block_insert_data 的条数: 856800
+clickhouse stock_tb 表信息: [(4518300,)]
+第4个文件 总共：10个 =&gt; 1000004写完成！ cost time:16.282844305038452
+</code></pre> 
+<p>期间clickhouse表数据的动态情况：[不是最后完成入库的情况]</p> 
+<pre><code class="prism language-bash">SELECT
+    table AS <span class="token variable"><span class="token variable">`</span>表名<span class="token variable">`</span></span>,
+    sum<span class="token punctuation">(</span>rows<span class="token punctuation">)</span> AS <span class="token variable"><span class="token variable">`</span>总行数<span class="token variable">`</span></span>,
+    formatReadableSize<span class="token punctuation">(</span>sum<span class="token punctuation">(</span>data_uncompressed_bytes<span class="token punctuation">))</span> AS <span class="token variable"><span class="token variable">`</span>原始大小<span class="token variable">`</span></span>,
+    formatReadableSize<span class="token punctuation">(</span>sum<span class="token punctuation">(</span>data_compressed_bytes<span class="token punctuation">))</span> AS <span class="token variable"><span class="token variable">`</span>压缩大小<span class="token variable">`</span></span>,
+    round<span class="token variable"><span class="token punctuation">((</span>sum<span class="token punctuation">(</span>data_compressed_bytes<span class="token punctuation">)</span> <span class="token operator">/</span> sum<span class="token punctuation">(</span>data_uncompressed_bytes<span class="token punctuation">))</span></span> * <span class="token number">100</span>, <span class="token number">0</span><span class="token punctuation">)</span> AS <span class="token variable"><span class="token variable">`</span>压缩率<span class="token variable">`</span></span>
+FROM system.parts
+WHERE table IN <span class="token punctuation">(</span><span class="token string">'stock_tb'</span><span class="token punctuation">)</span>
+GROUP BY table
+</code></pre> 
+<p><img src="https://images2.imgbox.com/46/2b/vabTXIpC_o.png" alt="在这里插入图片描述">数据量较大，文件有20万个csv，估计有199G左右，数据导入后，后面便于用于测试查询。<br> 另外，可以看出，clickhouse的压缩率很高，这个优点是空间占用较小。</p> 
+<p>查看一下表的情况：<br> <img src="https://images2.imgbox.com/8c/76/qhEA4s7P_o.png" alt="在这里插入图片描述">折腾了一天一夜，20多万个文件终于导入clickhouse完成。<br> <img src="https://images2.imgbox.com/e2/62/CQYLD4Wu_o.png" alt="在这里插入图片描述"><img src="https://images2.imgbox.com/74/e3/uiexw1ok_o.png" alt="在这里插入图片描述"></p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/1d78271d5a06333537f54ed7ef964db7/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">oracle数据库新增和查询索引</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/8e47548354a1029b716e55f8c80f4530/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">Sublime Text3配置：在可交互环境下运行python快捷键（亲测可用！）</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

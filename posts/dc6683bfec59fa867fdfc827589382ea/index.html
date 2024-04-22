@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>JAVA对MYSQL数据库进行批量操作，addBatch(),executeBatch()方法 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/dc6683bfec59fa867fdfc827589382ea/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="JAVA对MYSQL数据库进行批量操作，addBatch(),executeBatch()方法">
+  <meta property="og:description" content="最近要做一个批处理插入数据的，但是试了批处理的代码发现没有效果，很纳闷啊。但是之前在学习JDBC操作Mysql批处理的时候，记得要在数据库url中的参数加配置的，但是忘了。网速搜居然不容易搜出来，我也是醉了，难道这么重要的参数都不重视？于是就看到这一篇，感谢博主。至于这个参数就是“rewriteBatchedStatements=true”这个对批处理很大影响，没有它就相当于没有批处理。
+有人说MySQL的JDBC驱动，不是真正支持批量操作的，就算你在代码中调用了批量操作的方法，MySql的JDBC驱动也是按照一般操作来处理的。
+但其实并非如此，Mysql 是有特殊的方式优化整个batch insert 结果的。
+可不可以先假设 batch 的方式与非batch一样，每一条insrt语句事实上均是单独发往服务器的呢？
+浏览下源代码吧。 好多兄弟都描述了源代码，直接从那几个类入手吧，事实上关键的类是这个 com.mysql.jdbc.PreparedStatement 先看了其中的 addBatch 方法，没有任何问题，只是将语句添加进入一个 List 中保存。 那么 executeBatch 呢？ 再贴一下吧， 关键看其中的这部分，顺带说一下， 这个mysql-jdbcdriver的源代码是 5.1.13的 [java] view plain copy try { clearWarnings(); if (!this.batchHasPlainStatements &amp;amp;&amp;amp; this.connection.getRewriteBatchedStatements()) { if (canRewriteAsMultiValueInsertAtSqlLevel()) { return executeBatchedInserts(batchTimeout); //执行路径之一 } if (this.connection.versionMeetsMinimum(4, 1, 0) &amp;amp;&amp;amp; !this.batchHasPlainStatements &amp;amp;&amp;amp; this.batchedArgs != null &amp;amp;&amp;amp; this.batchedArgs.size() &amp;gt; 3 /* cost of option setting rt-wise */) { return executePreparedBatchAsMultiStatement(batchTimeout); //执行路径之二 } } return executeBatchSerially(batchTimeout); //执行路径之三 } finally { clearBatch(); } 其实最终，executeBatch 的执行路径有三种可能。代码中我已标出来 代码不算太复杂，但是有一个参数能帮助我们更快的确定mysql的batch工作机制，那就是 mysql jdbc driver 的connection url， 其中有一个参数是: rewriteBatchedStatements 完整的参数参考看这里：http://ftp.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2017-02-23T13:02:38+08:00">
+    <meta property="article:modified_time" content="2017-02-23T13:02:38+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">JAVA对MYSQL数据库进行批量操作，addBatch(),executeBatch()方法</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <p style="margin-top:0px; margin-bottom:0px; padding-top:0px; padding-bottom:0px; font-family:Arial; font-size:14px"> 最近要做一个批处理插入数据的，但是试了批处理的代码发现没有效果，很纳闷啊。但是之前在学习JDBC操作Mysql批处理的时候，记得要在数据库url中的参数加配置的，但是忘了。网速搜居然不容易搜出来，我也是醉了，难道这么重要的参数都不重视？于是就看到这一篇，感谢博主。至于这个参数就是“<span style="font-family:Arial; font-size:14px">rewriteBatchedStatements=true</span>”这个对批处理很大影响，没有它就相当于没有批处理。</p> 
+<p style="margin-top:0px; margin-bottom:0px; padding-top:0px; padding-bottom:0px; font-family:Arial; font-size:14px"> <br> </p> 
+<p style="margin-top:0px; margin-bottom:0px; padding-top:0px; padding-bottom:0px; font-family:Arial; font-size:14px"> 有人说<a target="_blank" href="http://lib.csdn.net/base/mysql" rel="nofollow noopener noreferrer" class="replace_word" title="MySQL知识库" style="color:rgb(223,52,52); font-weight:bold">MySQL</a>的JDBC驱动，不是真正支持批量操作的，就算你在代码中调用了批量操作的方法，MySql的JDBC驱动也是按照一般操作来处理的。</p> 
+<p style="margin-top:0px; margin-bottom:0px; padding-top:0px; padding-bottom:0px; font-family:Arial; font-size:14px"> </p> 
+<p style="margin-top:0px; margin-bottom:0px; padding-top:0px; padding-bottom:0px; font-family:Arial; font-size:14px"> 但其实并非如此，Mysql 是有特殊的方式优化整个batch insert 结果的。</p> 
+<p style="margin-top:0px; margin-bottom:0px; padding-top:0px; padding-bottom:0px; font-family:Arial; font-size:14px"> <span style="color:red">可不可以先假设 batch 的方式与非batch一样，每一条insrt语句事实上均是单独发往服务器的呢？</span><br> <br> 浏览下源代码吧。 <br> <br> 好多兄弟都描述了源代码，直接从那几个类入手吧，事实上关键的类是这个 com.mysql.jdbc.PreparedStatement <br> <br> 先看了其中的 addBatch 方法，没有任何问题，只是将语句添加进入一个 List 中保存。 <br> <br> 那么 executeBatch 呢？ <br> <br> 再贴一下吧， 关键看其中的这部分，顺带说一下， 这个mysql-jdbcdriver的源代码是 5.1.13的 <br> <br> </p> 
+<p style="margin-top:0px; margin-bottom:0px; padding-top:0px; padding-bottom:0px; font-family:Arial; font-size:14px"> </p> 
+<div class="dp-highlighter bg_java" style='font-family:Consolas,"Courier New",Courier,mono,serif; background-color:rgb(231,229,220); width:936.531px; overflow-x:auto; overflow-y:hidden; padding-top:1px; position:relative; margin:18px 0px!important'> 
+ <div class="bar" style="padding-left:45px"> 
+  <div class="tools" style="padding:3px 8px 10px 10px; font-size:9px; line-height:normal; font-family:Verdana,Geneva,Arial,Helvetica,sans-serif; color:silver; background-color:rgb(248,248,248); border-left:3px solid rgb(108,226,108)"> 
+   <strong>[java]</strong>  
+   <a target="_blank" href="http://blog.csdn.net/miclung/article/details/7231780#" class="ViewSource" title="view plain" style="color:rgb(160,160,160); background-color:inherit; border:none; padding:1px; margin:0px 10px 0px 0px; font-size:9px; display:inline-block; width:16px; height:16px; text-indent:-2000px" rel="noopener noreferrer">view plain</a> 
+    <a target="_blank" href="http://blog.csdn.net/miclung/article/details/7231780#" class="CopyToClipboard" title="copy" style="color:rgb(160,160,160); background-color:inherit; border:none; padding:1px; margin:0px 10px 0px 0px; font-size:9px; display:inline-block; width:16px; height:16px; text-indent:-2000px" rel="noopener noreferrer">copy</a> 
+   <div style="position:absolute; left:721px; top:937px; width:18px; height:18px; z-index:99"> 
+   </div> 
+    
+  </div> 
+ </div> 
+ <ol start="1" class="dp-j" style="padding:0px; border:none; list-style-position:initial; background-color:rgb(255,255,255); color:rgb(92,92,92); margin:0px 0px 1px 45px!important"><li class="alt" style="border-top:none; border-right:none; border-bottom:none; border-left:3px solid rgb(108,226,108); list-style-type:decimal-leading-zero; color:inherit; line-height:18px; margin:0px!important; padding:0px 3px 0px 10px!important; list-style-position:outside!important"> <span style="margin:0px; padding:0px; border:none; color:black; background-color:inherit"><span class="keyword" style="margin:0px; padding:0px; border:none; color:rgb(0,102,153); background-color:inherit; font-weight:bold">try</span><span style="margin:0px; padding:0px; border:none; background-color:inherit"> {     </span></span></li><li style="border-top:none; border-right:none; border-bottom:none; border-left:3px solid rgb(108,226,108); list-style-type:decimal-leading-zero; background-color:rgb(248,248,248); line-height:18px; margin:0px!important; padding:0px 3px 0px 10px!important; list-style-position:outside!important"> <span style="margin:0px; padding:0px; border:none; color:black; background-color:inherit">    clearWarnings();     </span></li><li class="alt" style="border-top:none; border-right:none; border-bottom:none; border-left:3px solid rgb(108,226,108); list-style-type:decimal-leading-zero; color:inherit; line-height:18px; margin:0px!important; padding:0px 3px 0px 10px!important; list-style-position:outside!important"> <span style="margin:0px; padding:0px; border:none; color:black; background-color:inherit">    </span></li><li style="border-top:none; border-right:none; border-bottom:none; border-left:3px solid rgb(108,226,108); list-style-type:decimal-leading-zero; background-color:rgb(248,248,248); line-height:18px; margin:0px!important; padding:0px 3px 0px 10px!important; list-style-position:outside!important"> <span style="margin:0px; padding:0px; border:none; color:black; background-color:inherit">    <span class="keyword" style="margin:0px; padding:0px; border:none; color:rgb(0,102,153); background-color:inherit; font-weight:bold">if</span><span style="margin:0px; padding:0px; border:none; background-color:inherit"> (!</span><span class="keyword" style="margin:0px; padding:0px; border:none; color:rgb(0,102,153); background-color:inherit; font-weight:bold">this</span><span style="margin:0px; padding:0px; border:none; background-color:inherit">.batchHasPlainStatements     </span></span></li><li class="alt" style="border-top:none; border-right:none; border-bottom:none; border-left:3px solid rgb(108,226,108); list-style-type:decimal-leading-zero; color:inherit; line-height:18px; margin:0px!important; padding:0px 3px 0px 10px!important; list-style-position:outside!important"> <span style="margin:0px; padding:0px; border:none; color:black; background-color:inherit">            &amp;&amp; <span class="keyword" style="margin:0px; padding:0px; border:none; color:rgb(0,102,153); background-color:inherit; font-weight:bold">this</span><span style="margin:0px; padding:0px; border:none; background-color:inherit">.connection.getRewriteBatchedStatements()) {     </span></span></li><li style="border-top:none; border-right:none; border-bottom:none; border-left:3px solid rgb(108,226,108); list-style-type:decimal-leading-zero; background-color:rgb(248,248,248); line-height:18px; margin:0px!important; padding:0px 3px 0px 10px!important; list-style-position:outside!important"> <span style="margin:0px; padding:0px; border:none; color:black; background-color:inherit">             </span></li><li class="alt" style="border-top:none; border-right:none; border-bottom:none; border-left:3px solid rgb(108,226,108); list-style-type:decimal-leading-zero; color:inherit; line-height:18px; margin:0px!important; padding:0px 3px 0px 10px!important; list-style-position:outside!important"> <span style="margin:0px; padding:0px; border:none; color:black; background-color:inherit">             </span></li><li style="border-top:none; border-right:none; border-bottom:none; border-left:3px solid rgb(108,226,108); list-style-type:decimal-leading-zero; background-color:rgb(248,248,248); line-height:18px; margin:0px!important; padding:0px 3px 0px 10px!important; list-style-position:outside!important"> <span style="margin:0px; padding:0px; border:none; color:black; background-color:inherit">        <span class="keyword" style="margin:0px; padding:0px; border:none; color:rgb(0,102,153); background-color:inherit; font-weight:bold">if</span><span style="margin:0px; padding:0px; border:none; background-color:inherit"> (canRewriteAsMultiValueInsertAtSqlLevel()) {     </span></span></li><li class="alt" style="border-top:none; border-right:none; border-bottom:none; border-left:3px solid rgb(108,226,108); list-style-type:decimal-leading-zero; color:inherit; line-height:18px; margin:0px!important; padding:0px 3px 0px 10px!important; list-style-position:outside!important"> <span style="margin:0px; padding:0px; border:none; color:black; background-color:inherit">            <span class="keyword" style="margin:0px; padding:0px; border:none; color:rgb(0,102,153); background-color:inherit; font-weight:bold">return</span><span style="margin:0px; padding:0px; border:none; background-color:inherit"> executeBatchedInserts(batchTimeout); </span><span class="comment" style="margin:0px; padding:0px; border:none; color:rgb(0,130,0); background-color:inherit">//执行路径之一   </span><span style="margin:0px; padding:0px; border:none; background-color:inherit">  </span></span></li><li style="border-top:none; border-right:none; border-bottom:none; border-left:3px solid rgb(108,226,108); list-style-type:decimal-leading-zero; background-color:rgb(248,248,248); line-height:18px; margin:0px!important; padding:0px 3px 0px 10px!important; list-style-position:outside!important"> <span style="margin:0px; padding:0px; border:none; color:black; background-color:inherit">        }     </span></li><li class="alt" style="border-top:none; border-right:none; border-bottom:none; border-left:3px solid rgb(108,226,108); list-style-type:decimal-leading-zero; color:inherit; line-height:18px; margin:0px!important; padding:0px 3px 0px 10px!important; list-style-position:outside!important"> <span style="margin:0px; padding:0px; border:none; color:black; background-color:inherit">             </span></li><li style="border-top:none; border-right:none; border-bottom:none; border-left:3px solid rgb(108,226,108); list-style-type:decimal-leading-zero; background-color:rgb(248,248,248); line-height:18px; margin:0px!important; padding:0px 3px 0px 10px!important; list-style-position:outside!important"> <span style="margin:0px; padding:0px; border:none; color:black; background-color:inherit">        <span class="keyword" style="margin:0px; padding:0px; border:none; color:rgb(0,102,153); background-color:inherit; font-weight:bold">if</span><span style="margin:0px; padding:0px; border:none; background-color:inherit"> (</span><span class="keyword" style="margin:0px; padding:0px; border:none; color:rgb(0,102,153); background-color:inherit; font-weight:bold">this</span><span style="margin:0px; padding:0px; border:none; background-color:inherit">.connection.versionMeetsMinimum(</span><span class="number" style="margin:0px; padding:0px; border:none; color:rgb(192,0,0); background-color:inherit">4</span><span style="margin:0px; padding:0px; border:none; background-color:inherit">, </span><span class="number" style="margin:0px; padding:0px; border:none; color:rgb(192,0,0); background-color:inherit">1</span><span style="margin:0px; padding:0px; border:none; background-color:inherit">, </span><span class="number" style="margin:0px; padding:0px; border:none; color:rgb(192,0,0); background-color:inherit">0</span><span style="margin:0px; padding:0px; border:none; background-color:inherit">)      </span></span></li><li class="alt" style="border-top:none; border-right:none; border-bottom:none; border-left:3px solid rgb(108,226,108); list-style-type:decimal-leading-zero; color:inherit; line-height:18px; margin:0px!important; padding:0px 3px 0px 10px!important; list-style-position:outside!important"> <span style="margin:0px; padding:0px; border:none; color:black; background-color:inherit">                &amp;&amp; !<span class="keyword" style="margin:0px; padding:0px; border:none; color:rgb(0,102,153); background-color:inherit; font-weight:bold">this</span><span style="margin:0px; padding:0px; border:none; background-color:inherit">.batchHasPlainStatements     </span></span></li><li style="border-top:none; border-right:none; border-bottom:none; border-left:3px solid rgb(108,226,108); list-style-type:decimal-leading-zero; background-color:rgb(248,248,248); line-height:18px; margin:0px!important; padding:0px 3px 0px 10px!important; list-style-position:outside!important"> <span style="margin:0px; padding:0px; border:none; color:black; background-color:inherit">                &amp;&amp; <span class="keyword" style="margin:0px; padding:0px; border:none; color:rgb(0,102,153); background-color:inherit; font-weight:bold">this</span><span style="margin:0px; padding:0px; border:none; background-color:inherit">.batchedArgs != </span><span class="keyword" style="margin:0px; padding:0px; border:none; color:rgb(0,102,153); background-color:inherit; font-weight:bold">null</span><span style="margin:0px; padding:0px; border:none; background-color:inherit">      </span></span></li><li class="alt" style="border-top:none; border-right:none; border-bottom:none; border-left:3px solid rgb(108,226,108); list-style-type:decimal-leading-zero; color:inherit; line-height:18px; margin:0px!important; padding:0px 3px 0px 10px!important; list-style-position:outside!important"> <span style="margin:0px; padding:0px; border:none; color:black; background-color:inherit">                &amp;&amp; <span class="keyword" style="margin:0px; padding:0px; border:none; color:rgb(0,102,153); background-color:inherit; font-weight:bold">this</span><span style="margin:0px; padding:0px; border:none; background-color:inherit">.batchedArgs.size() &gt; </span><span class="number" style="margin:0px; padding:0px; border:none; color:rgb(192,0,0); background-color:inherit">3</span><span style="margin:0px; padding:0px; border:none; background-color:inherit"> </span><span class="comment" style="margin:0px; padding:0px; border:none; color:rgb(0,130,0); background-color:inherit">/* cost of option setting rt-wise */</span><span style="margin:0px; padding:0px; border:none; background-color:inherit">) {     </span></span></li><li style="border-top:none; border-right:none; border-bottom:none; border-left:3px solid rgb(108,226,108); list-style-type:decimal-leading-zero; background-color:rgb(248,248,248); line-height:18px; margin:0px!important; padding:0px 3px 0px 10px!important; list-style-position:outside!important"> <span style="margin:0px; padding:0px; border:none; color:black; background-color:inherit">            <span class="keyword" style="margin:0px; padding:0px; border:none; color:rgb(0,102,153); background-color:inherit; font-weight:bold">return</span><span style="margin:0px; padding:0px; border:none; background-color:inherit"> executePreparedBatchAsMultiStatement(batchTimeout); </span><span class="comment" style="margin:0px; padding:0px; border:none; color:rgb(0,130,0); background-color:inherit">//执行路径之二   </span><span style="margin:0px; padding:0px; border:none; background-color:inherit">  </span></span></li><li class="alt" style="border-top:none; border-right:none; border-bottom:none; border-left:3px solid rgb(108,226,108); list-style-type:decimal-leading-zero; color:inherit; line-height:18px; margin:0px!important; padding:0px 3px 0px 10px!important; list-style-position:outside!important"> <span style="margin:0px; padding:0px; border:none; color:black; background-color:inherit">        }     </span></li><li style="border-top:none; border-right:none; border-bottom:none; border-left:3px solid rgb(108,226,108); list-style-type:decimal-leading-zero; background-color:rgb(248,248,248); line-height:18px; margin:0px!important; padding:0px 3px 0px 10px!important; list-style-position:outside!important"> <span style="margin:0px; padding:0px; border:none; color:black; background-color:inherit">    }     </span></li><li class="alt" style="border-top:none; border-right:none; border-bottom:none; border-left:3px solid rgb(108,226,108); list-style-type:decimal-leading-zero; color:inherit; line-height:18px; margin:0px!important; padding:0px 3px 0px 10px!important; list-style-position:outside!important"> <span style="margin:0px; padding:0px; border:none; color:black; background-color:inherit">    </span></li><li style="border-top:none; border-right:none; border-bottom:none; border-left:3px solid rgb(108,226,108); list-style-type:decimal-leading-zero; background-color:rgb(248,248,248); line-height:18px; margin:0px!important; padding:0px 3px 0px 10px!important; list-style-position:outside!important"> <span style="margin:0px; padding:0px; border:none; color:black; background-color:inherit">    <span class="keyword" style="margin:0px; padding:0px; border:none; color:rgb(0,102,153); background-color:inherit; font-weight:bold">return</span><span style="margin:0px; padding:0px; border:none; background-color:inherit"> executeBatchSerially(batchTimeout); </span><span class="comment" style="margin:0px; padding:0px; border:none; color:rgb(0,130,0); background-color:inherit">//执行路径之三   </span><span style="margin:0px; padding:0px; border:none; background-color:inherit">  </span></span></li><li class="alt" style="border-top:none; border-right:none; border-bottom:none; border-left:3px solid rgb(108,226,108); list-style-type:decimal-leading-zero; color:inherit; line-height:18px; margin:0px!important; padding:0px 3px 0px 10px!important; list-style-position:outside!important"> <span style="margin:0px; padding:0px; border:none; color:black; background-color:inherit">} <span class="keyword" style="margin:0px; padding:0px; border:none; color:rgb(0,102,153); background-color:inherit; font-weight:bold">finally</span><span style="margin:0px; padding:0px; border:none; background-color:inherit"> {     </span></span></li><li style="border-top:none; border-right:none; border-bottom:none; border-left:3px solid rgb(108,226,108); list-style-type:decimal-leading-zero; background-color:rgb(248,248,248); line-height:18px; margin:0px!important; padding:0px 3px 0px 10px!important; list-style-position:outside!important"> <span style="margin:0px; padding:0px; border:none; color:black; background-color:inherit">    clearBatch();     </span></li><li class="alt" style="border-top:none; border-right:none; border-bottom:none; border-left:3px solid rgb(108,226,108); list-style-type:decimal-leading-zero; color:inherit; line-height:18px; margin:0px!important; padding:0px 3px 0px 10px!important; list-style-position:outside!important"> <span style="margin:0px; padding:0px; border:none; color:black; background-color:inherit">}   </span></li></ol> 
+</div> 
+<br style="font-family:Arial; font-size:14px"> 
+<span style="font-family:Arial; font-size:14px">其实最终，executeBatch 的执行路径有三种可能。代码中我已标出来 </span> 
+<br style="font-family:Arial; font-size:14px"> 
+<br style="font-family:Arial; font-size:14px"> 
+<br style="font-family:Arial; font-size:14px"> 
+<span style="font-family:Arial; font-size:14px; color:red">代码不算太复杂，但是有一个参数能帮助我们更快的确定mysql的batch工作机制，那就是 <br> mysql jdbc driver 的connection url， 其中有一个参数是: rewriteBatchedStatements</span> 
+<span style="font-family:Arial; font-size:14px"> </span> 
+<br style="font-family:Arial; font-size:14px"> 
+<br style="font-family:Arial; font-size:14px"> 
+<span style="font-family:Arial; font-size:14px">完整的参数参考看这里：http://ftp.ntu.edu.tw/ftp/pub/MySQL/doc/refman/5.1/en/connector-j-reference-configuration-properties.html</span> 
+<br style="font-family:Arial; font-size:14px"> 
+<br style="font-family:Arial; font-size:14px"> 
+<span style="font-family:Arial; font-size:14px">rewriteBatchedStatements 参数默认为false, 需要手工设置为true，设置方式大概像这样：</span> 
+<br style="font-family:Arial; font-size:14px"> 
+<p style="margin-top:0px; margin-bottom:0px; padding-top:0px; padding-bottom:0px; font-family:Arial; font-size:14px"> </p> 
+<p style="margin-top:0px; margin-bottom:0px; padding-top:0px; padding-bottom:0px; font-family:Arial; font-size:14px"> </p> 
+<div class="dp-highlighter bg_java" style='font-family:Consolas,"Courier New",Courier,mono,serif; background-color:rgb(231,229,220); width:936.531px; overflow-x:auto; overflow-y:hidden; padding-top:1px; position:relative; margin:18px 0px!important'> 
+ <div class="bar" style="padding-left:45px"> 
+  <div class="tools" style="padding:3px 8px 10px 10px; font-size:9px; line-height:normal; font-family:Verdana,Geneva,Arial,Helvetica,sans-serif; color:silver; background-color:rgb(248,248,248); border-left:3px solid rgb(108,226,108)"> 
+   <strong>[java]</strong>  
+   <a target="_blank" href="http://blog.csdn.net/miclung/article/details/7231780#" class="ViewSource" title="view plain" style="color:rgb(160,160,160); background-color:inherit; border:none; padding:1px; margin:0px 10px 0px 0px; font-size:9px; display:inline-block; width:16px; height:16px; text-indent:-2000px" rel="noopener noreferrer">view plain</a> 
+    <a target="_blank" href="http://blog.csdn.net/miclung/article/details/7231780#" class="CopyToClipboard" title="copy" style="color:rgb(160,160,160); background-color:inherit; border:none; padding:1px; margin:0px 10px 0px 0px; font-size:9px; display:inline-block; width:16px; height:16px; text-indent:-2000px" rel="noopener noreferrer">copy</a> 
+   <div style="position:absolute; left:721px; top:1680px; width:18px; height:18px; z-index:99"> 
+   </div> 
+    
+  </div> 
+ </div> 
+ <ol start="1" class="dp-j" style="padding:0px; border:none; list-style-position:initial; background-color:rgb(255,255,255); color:rgb(92,92,92); margin:0px 0px 1px 45px!important"><li class="alt" style="border-top:none; border-right:none; border-bottom:none; border-left:3px solid rgb(108,226,108); list-style-type:decimal-leading-zero; color:inherit; line-height:18px; margin:0px!important; padding:0px 3px 0px 10px!important; list-style-position:outside!important"> <span style="margin:0px; padding:0px; border:none; color:black; background-color:inherit"><span style="margin:0px; padding:0px; border:none; background-color:inherit">String connectionUrl=</span><span class="string" style="margin:0px; padding:0px; border:none; color:blue; background-color:inherit">"jdbc:mysql://192.168.1.100:3306/test?rewriteBatchedStatements=true"</span><span style="margin:0px; padding:0px; border:none; background-color:inherit">;      </span></span></li></ol> 
+</div> 
+<br style="font-family:Arial; font-size:14px"> 
+<span style="font-family:Arial; font-size:14px">默认时候，rewriteBatchedStatements=false时，执行路径会跳到 executeBatchSerially，此方法内部将语句一条条发送，与非batch处理简直一样，所以慢，就在这里了。</span> 
+<br style="font-family:Arial; font-size:14px"> 
+<br style="font-family:Arial; font-size:14px"> 
+<span style="font-family:Arial; font-size:14px">当设为 true时，会执行executeBatchedInserts方法，事实上mysql支持这样的插入语句</span> 
+<br style="font-family:Arial; font-size:14px"> 
+<p style="margin-top:0px; margin-bottom:0px; padding-top:0px; padding-bottom:0px; font-family:Arial; font-size:14px"> </p> 
+<p style="margin-top:0px; margin-bottom:0px; padding-top:0px; padding-bottom:0px; font-family:Arial; font-size:14px"> </p> 
+<div class="dp-highlighter bg_sql" style='font-family:Consolas,"Courier New",Courier,mono,serif; background-color:rgb(231,229,220); width:936.531px; overflow-x:auto; overflow-y:hidden; padding-top:1px; position:relative; margin:18px 0px!important'> 
+ <div class="bar" style="padding-left:45px"> 
+  <div class="tools" style="padding:3px 8px 10px 10px; font-size:9px; line-height:normal; font-family:Verdana,Geneva,Arial,Helvetica,sans-serif; color:silver; background-color:rgb(248,248,248); border-left:3px solid rgb(108,226,108)"> 
+   <strong>[sql]</strong>  
+   <a target="_blank" href="http://blog.csdn.net/miclung/article/details/7231780#" class="ViewSource" title="view plain" style="color:rgb(160,160,160); background-color:inherit; border:none; padding:1px; margin:0px 10px 0px 0px; font-size:9px; display:inline-block; width:16px; height:16px; text-indent:-2000px" rel="noopener noreferrer">view plain</a> 
+    <a target="_blank" href="http://blog.csdn.net/miclung/article/details/7231780#" class="CopyToClipboard" title="copy" style="color:rgb(160,160,160); background-color:inherit; border:none; padding:1px; margin:0px 10px 0px 0px; font-size:9px; display:inline-block; width:16px; height:16px; text-indent:-2000px" rel="noopener noreferrer">copy</a> 
+   <div style="position:absolute; left:711px; top:1897px; width:18px; height:18px; z-index:99"> 
+   </div> 
+    
+  </div> 
+ </div> 
+ <ol start="1" class="dp-sql" style="padding:0px; border:none; list-style-position:initial; background-color:rgb(255,255,255); color:rgb(92,92,92); margin:0px 0px 1px 45px!important"><li class="alt" style="border-top:none; border-right:none; border-bottom:none; border-left:3px solid rgb(108,226,108); list-style-type:decimal-leading-zero; color:inherit; line-height:18px; margin:0px!important; padding:0px 3px 0px 10px!important; list-style-position:outside!important"> <span style="margin:0px; padding:0px; border:none; color:black; background-color:inherit"><span class="keyword" style="margin:0px; padding:0px; border:none; color:rgb(0,102,153); background-color:inherit; font-weight:bold">insert</span><span style="margin:0px; padding:0px; border:none; background-color:inherit"> </span><span class="keyword" style="margin:0px; padding:0px; border:none; color:rgb(0,102,153); background-color:inherit; font-weight:bold">into</span><span style="margin:0px; padding:0px; border:none; background-color:inherit"> t_user(id,uname) </span><span class="keyword" style="margin:0px; padding:0px; border:none; color:rgb(0,102,153); background-color:inherit; font-weight:bold">values</span><span style="margin:0px; padding:0px; border:none; background-color:inherit">(1, </span><span class="string" style="margin:0px; padding:0px; border:none; color:blue; background-color:inherit">'1'</span><span style="margin:0px; padding:0px; border:none; background-color:inherit">), (2,</span><span class="string" style="margin:0px; padding:0px; border:none; color:blue; background-color:inherit">'2'</span><span style="margin:0px; padding:0px; border:none; background-color:inherit">), (3, </span><span class="string" style="margin:0px; padding:0px; border:none; color:blue; background-color:inherit">'3'</span><span style="margin:0px; padding:0px; border:none; background-color:inherit">) ....    </span></span></li></ol> 
+</div> 
+<br style="font-family:Arial; font-size:14px"> 
+<span style="font-family:Arial; font-size:14px">针对rewriteBatchedStatements=true 参数我做了测试，我加了这个参数，做同们的插入10万条记录测试： </span> 
+<br style="font-family:Arial; font-size:14px"> 
+<span style="font-family:Arial; font-size:14px">我的mysql 安装的虚拟机上，所以慢一些。 </span> 
+<br style="font-family:Arial; font-size:14px"> 
+<table class="bbcode    " style="color:rgb(0,0,0); font-family:Arial; font-size:14px"><tbody><tr><td>MySql JDBC 驱动版本</td><td>结果</td></tr><tr><td>5.0.8</td><td>没有提高 18秒</td></tr><tr><td>5.1.7</td><td>没有提高 18秒</td></tr><tr><td>5.1.13</td><td>有提高 1.6秒</td></tr></tbody></table> 
+<br style="font-family:Arial; font-size:14px"> 
+<p style="margin-top:0px; margin-bottom:0px; padding-top:0px; padding-bottom:0px; font-family:Arial; font-size:14px"> </p> 
+<p style="margin-top:0px; margin-bottom:0px; padding-top:0px; padding-bottom:0px; font-family:Arial; font-size:14px"> 所以Mysql的批量操作一定要加上<span style="font-size:13px">MySql连接的url中要加rewriteBatchedStatements参数设为true。</span></p> 
+<p style="margin-top:0px; margin-bottom:0px; padding-top:0px; padding-bottom:0px; font-family:Arial; font-size:14px"> <span style="font-size:13px"><br> </span></p> 
+<p style="margin-top:0px; margin-bottom:0px; padding-top:0px; padding-bottom:0px; font-family:Arial; font-size:14px"> <span style="font-size:13px">最后贴下代码：</span></p> 
+<p style="margin-top:0px; margin-bottom:0px; padding-top:0px; padding-bottom:0px; font-family:Arial; font-size:14px"> <span style="font-size:13px"></span></p> 
+<pre><code class="language-java">public static void batchSave() {
+		new Thread() {
+			public void run() {
+				long start = System.currentTimeMillis();
+				Connection conn = null;
+				PreparedStatement pstmt = null;
+				try {
+					String sql = "insert into bluetooth_code_raw(rawCode, md5Code) values(?,?)";
+					conn = db1.conn;
+					// JAVA默认为TRUE,我们自己处理需要设置为FALSE,并且修改为手动提交,才可以调用rollback()函数
+					conn.setAutoCommit(false);
+					pstmt = conn.prepareStatement(sql);
+					for (int i = 0; i &lt; 100000; i++) {
+						String gunCode = MagicCodeUtil.generateGunCode(0, i);
+
+						pstmt.setString(1, gunCode);
+						pstmt.setString(2, MagicCodeUtil.getMd5(gunCode));
+						pstmt.addBatch();
+						//防止内存溢出，我也不是很清楚都这么写
+						if ((i + 1) % 1000 == 0) {
+							pstmt.executeBatch();
+							pstmt.clearBatch();
+						}
+					}
+					pstmt.executeBatch(); // 批量执行
+					conn.commit();// 提交事务
+				} catch (SQLException e) {
+					try {
+						conn.rollback(); // 进行事务回滚
+					} catch (SQLException ex) {
+						e.printStackTrace();
+					}
+				} finally {
+					if (pstmt != null)
+						try {
+							pstmt.close();
+						} catch (SQLException e) {
+							e.printStackTrace();
+						}
+					if (conn != null)
+						try {
+							conn.close();
+						} catch (SQLException e) {
+							e.printStackTrace();
+						}
+				}
+				System.out.println((System.currentTimeMillis() - start) / 1000);
+			};
+		}.start();
+	}</code></pre> 
+<br> 
+<br> 
+<p></p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/2bc39751c1583020caa084afee213540/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">RabbitMQ之消息确认机制（事务&#43;Confirm）</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/995bb6c9c4034c34d6b4e2b94ae10c25/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">我所理解的Java到底是解释型语言还是编译型语言</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

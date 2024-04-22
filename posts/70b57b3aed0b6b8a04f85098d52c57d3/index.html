@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>ClickHouse数据查询处理高级技巧 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/70b57b3aed0b6b8a04f85098d52c57d3/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="ClickHouse数据查询处理高级技巧">
+  <meta property="og:description" content="本文介绍ClickHouse查询远程服务、多表联合查询、查询特定分区，以及如何交换表和软删除表。
+查询远程ClickHouse服务 如果有多个ClickHouse 集群，可能需要发送远程请求查询。ClickHouse很容易实现，通过内置函数即可实现。
+可以在from子句中使用remoteSecure 和 remote ，读取远程服务。语法如下：
+cluster(&#39;cluster_name&#39;, db.table[, sharding_key]) cluster(&#39;cluster_name&#39;, db, table[, sharding_key]) clusterAllReplicas(&#39;cluster_name&#39;, db.table[, sharding_key]) clusterAllReplicas(&#39;cluster_name&#39;, db, table[, sharding_key]) 下面举例通过remote函数实现远程查询：
+SELECT count() FROM remote(&#39;127.0.0.1:9000&#39;, &#39;default.t1&#39;) AS t WHERE date &amp;gt;= today() Query id: 1868afed-9689-4605-9675-4be4a7725ea4 ┌─count()─┐ │ 14191 │ └─────────┘ 如果以及配置远程服务作为集群，可以发送查询给整个集群，使用clusterAllReplicas函数，举例：
+parallel_replicas Query id: e53b1851-3246-4d40-8c95-687d3fde5958 Row 1: ────── hostName(): host-db-2 database: database_name table: table_name mutation_id: 0000000004 command: MATERIALIZE TTL create_time: 2022-09-19 16:34:24 block_numbers.partition_id: [&#39;all&#39;] block_numbers.number: [238358] parts_to_do_names: [&#39;all_164055_173528_6_184171&#39;] parts_to_do: 1 is_done: 0 latest_failed_part: latest_fail_time: 1970-01-01 00:00:00 latest_fail_reason: 1 rows in set.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2023-06-06T10:54:58+08:00">
+    <meta property="article:modified_time" content="2023-06-06T10:54:58+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">ClickHouse数据查询处理高级技巧</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-dark">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <blockquote> 
+ <p>本文介绍ClickHouse查询远程服务、多表联合查询、查询特定分区，以及如何交换表和软删除表。</p> 
+</blockquote> 
+<h3><a id="ClickHouse_4"></a>查询远程ClickHouse服务</h3> 
+<p>如果有多个ClickHouse 集群，可能需要发送远程请求查询。ClickHouse很容易实现，通过内置函数即可实现。</p> 
+<p>可以在from子句中使用<code>remoteSecure</code> 和 <code>remote</code> ，读取远程服务。语法如下：</p> 
+<pre><code class="prism language-sql">cluster<span class="token punctuation">(</span><span class="token string">'cluster_name'</span><span class="token punctuation">,</span> db<span class="token punctuation">.</span><span class="token keyword">table</span><span class="token punctuation">[</span><span class="token punctuation">,</span> sharding_key<span class="token punctuation">]</span><span class="token punctuation">)</span>
+cluster<span class="token punctuation">(</span><span class="token string">'cluster_name'</span><span class="token punctuation">,</span> db<span class="token punctuation">,</span> <span class="token keyword">table</span><span class="token punctuation">[</span><span class="token punctuation">,</span> sharding_key<span class="token punctuation">]</span><span class="token punctuation">)</span>
+clusterAllReplicas<span class="token punctuation">(</span><span class="token string">'cluster_name'</span><span class="token punctuation">,</span> db<span class="token punctuation">.</span><span class="token keyword">table</span><span class="token punctuation">[</span><span class="token punctuation">,</span> sharding_key<span class="token punctuation">]</span><span class="token punctuation">)</span>
+clusterAllReplicas<span class="token punctuation">(</span><span class="token string">'cluster_name'</span><span class="token punctuation">,</span> db<span class="token punctuation">,</span> <span class="token keyword">table</span><span class="token punctuation">[</span><span class="token punctuation">,</span> sharding_key<span class="token punctuation">]</span><span class="token punctuation">)</span>
+</code></pre> 
+<p>下面举例通过<code>remote</code>函数实现远程查询：</p> 
+<pre><code class="prism language-sql"><span class="token keyword">SELECT</span> <span class="token function">count</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token keyword">FROM</span> remote<span class="token punctuation">(</span><span class="token string">'127.0.0.1:9000'</span><span class="token punctuation">,</span> <span class="token string">'default.t1'</span><span class="token punctuation">)</span> <span class="token keyword">AS</span> t
+<span class="token keyword">WHERE</span> <span class="token keyword">date</span> <span class="token operator">&gt;=</span> today<span class="token punctuation">(</span><span class="token punctuation">)</span>
+
+Query id: <span class="token number">1868</span>afed<span class="token operator">-</span><span class="token number">9689</span><span class="token operator">-</span><span class="token number">4605</span><span class="token operator">-</span><span class="token number">9675</span><span class="token operator">-</span><span class="token number">4</span>be4a7725ea4
+
+┌─<span class="token function">count</span><span class="token punctuation">(</span><span class="token punctuation">)</span>─┐
+│   <span class="token number">14191</span> │
+└─────────┘
+</code></pre> 
+<p>如果以及配置远程服务作为集群，可以发送查询给整个集群，使用clusterAllReplicas函数，举例：</p> 
+<pre><code class="prism language-sql">parallel_replicas
+
+Query id: e53b1851<span class="token operator">-</span><span class="token number">3246</span><span class="token operator">-</span><span class="token number">4</span>d40<span class="token operator">-</span><span class="token number">8</span>c95<span class="token operator">-</span><span class="token number">687</span>d3fde5958
+
+<span class="token keyword">Row</span> <span class="token number">1</span>:
+──────
+hostName<span class="token punctuation">(</span><span class="token punctuation">)</span>:                 host<span class="token operator">-</span>db<span class="token operator">-</span><span class="token number">2</span>
+<span class="token keyword">database</span>:                   database_name
+<span class="token keyword">table</span>:                      table_name
+mutation_id:                <span class="token number">0000000004</span>
+command:                    MATERIALIZE TTL
+create_time:                <span class="token number">2022</span><span class="token operator">-</span><span class="token number">09</span><span class="token operator">-</span><span class="token number">19</span> <span class="token number">16</span>:<span class="token number">34</span>:<span class="token number">24</span>
+block_numbers<span class="token punctuation">.</span>partition_id: <span class="token punctuation">[</span><span class="token string">'all'</span><span class="token punctuation">]</span>
+block_numbers<span class="token punctuation">.</span>number:       <span class="token punctuation">[</span><span class="token number">238358</span><span class="token punctuation">]</span>
+parts_to_do_names:          <span class="token punctuation">[</span><span class="token string">'all_164055_173528_6_184171'</span><span class="token punctuation">]</span>
+parts_to_do:                <span class="token number">1</span>
+is_done:                    <span class="token number">0</span>
+latest_failed_part:         
+latest_fail_time:           <span class="token number">1970</span><span class="token operator">-</span><span class="token number">01</span><span class="token operator">-</span><span class="token number">01</span> <span class="token number">00</span>:<span class="token number">00</span>:<span class="token number">00</span>
+latest_fail_reason:         
+
+<span class="token number">1</span> <span class="token keyword">rows</span> <span class="token operator">in</span> <span class="token keyword">set</span><span class="token punctuation">.</span> Elapsed: <span class="token number">0.017</span> sec<span class="token punctuation">.</span>
+</code></pre> 
+<h3><a id="_60"></a>查询多表数据</h3> 
+<p>如果需要一次性从多个相同结构表或有共同子集表中查询数据，对于其他RDBMS可能需要使用<code>union all</code> 语法，示例如下：</p> 
+<pre><code class="prism language-sql"><span class="token keyword">SELECT</span> <span class="token function">max</span><span class="token punctuation">(</span>d1<span class="token punctuation">)</span>
+<span class="token keyword">FROM</span>
+<span class="token punctuation">(</span>
+    <span class="token keyword">SELECT</span> <span class="token operator">*</span>
+    <span class="token keyword">FROM</span> t_20220919
+    <span class="token keyword">UNION</span> <span class="token keyword">ALL</span>
+    <span class="token keyword">SELECT</span> <span class="token operator">*</span>
+    <span class="token keyword">FROM</span> t_20220920
+    <span class="token keyword">UNION</span> <span class="token keyword">ALL</span>
+    <span class="token keyword">SELECT</span> <span class="token operator">*</span>
+    <span class="token keyword">FROM</span> t_20220920
+<span class="token punctuation">)</span>
+</code></pre> 
+<p>在ClickHouse中能使用merge函数轻松实现，merge可以像单表一样查询多个表，语法更简单，且易读易维护：</p> 
+<pre><code class="prism language-sql"><span class="token keyword">SELECT</span> <span class="token function">max</span><span class="token punctuation">(</span>d1<span class="token punctuation">)</span>
+<span class="token keyword">FROM</span> <span class="token keyword">merge</span><span class="token punctuation">(</span><span class="token string">'_local'</span><span class="token punctuation">,</span> <span class="token string">'t_202209*'</span><span class="token punctuation">)</span>
+</code></pre> 
+<p>另外，也能使用regex模型匹配表名称，如果多个表命名按照一定规则，模式匹配可以自动包括在相应查询中。语法如下：</p> 
+<pre><code class="prism language-sql"><span class="token keyword">merge</span><span class="token punctuation">(</span><span class="token string">'db_name'</span><span class="token punctuation">,</span> <span class="token string">'tables_regexp'</span><span class="token punctuation">)</span>
+</code></pre> 
+<p>举例下面是利用正则查询表中特定字段的值，col是列名称，后面正则是匹配值表达式：</p> 
+<pre><code class="prism language-sql"><span class="token keyword">SELECT</span> <span class="token operator">*</span> <span class="token keyword">FROM</span> tbl <span class="token keyword">WHERE</span> <span class="token keyword">match</span><span class="token punctuation">(</span>col<span class="token punctuation">,</span> <span class="token string">'D.+'</span><span class="token punctuation">)</span>
+</code></pre> 
+<h3><a id="_98"></a>查询分区</h3> 
+<p>part 和 partition是ClickHouse数据库的主要组成部分。通常，part 用于存储表的部分数据，是磁盘上的物理文件。另一方面，partition是经常用于表中的性能和数据管理的逻辑结构。</p> 
+<p>如果需要查询分区表的part 或 partition，可以ClickHouse的虚拟列<code>_part</code>和 <code>_partition_id</code>.</p> 
+<ul><li>查询特定part</li></ul> 
+<pre><code class="prism language-sql"><span class="token keyword">SELECT</span>
+    <span class="token function">count</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span>
+    _part
+<span class="token keyword">FROM</span> products
+<span class="token keyword">GROUP</span> <span class="token keyword">BY</span> _part
+
+Query id: e3cb8687<span class="token operator">-</span><span class="token number">82</span>ef<span class="token operator">-</span><span class="token number">4</span>d5c<span class="token operator">-</span><span class="token number">9109</span><span class="token operator">-</span><span class="token number">01</span>d327d1a1ab
+
+┌─<span class="token function">count</span><span class="token punctuation">(</span><span class="token punctuation">)</span>─┬─_part─────┐
+│     <span class="token number">100</span> │ all_2_2_0 │
+│   <span class="token number">10000</span> │ all_3_3_0 │
+└─────────┴───────────┘
+
+<span class="token keyword">SELECT</span> <span class="token function">avg</span><span class="token punctuation">(</span>cost<span class="token punctuation">)</span>
+<span class="token keyword">FROM</span> products
+<span class="token keyword">WHERE</span> _part <span class="token operator">=</span> <span class="token string">'all_2_2_0'</span>
+
+Query id: <span class="token number">31</span>a9632d<span class="token operator">-</span>b902<span class="token operator">-</span><span class="token number">4</span>abe<span class="token operator">-</span>bcc9<span class="token operator">-</span><span class="token number">2</span>d1b37b599cf
+
+┌─────────<span class="token function">avg</span><span class="token punctuation">(</span>cost<span class="token punctuation">)</span>─┐
+│ <span class="token number">2114.058412771225</span> │
+└───────────────────┘
+
+<span class="token number">1</span> <span class="token keyword">row</span> <span class="token operator">in</span> <span class="token keyword">set</span><span class="token punctuation">.</span> Elapsed: <span class="token number">0.010</span> sec<span class="token punctuation">.</span> 
+</code></pre> 
+<ul><li>查询特定partition</li></ul> 
+<p>可以使用虚拟列<code>_partition_id</code> 过滤特定partition ,举例：</p> 
+<pre><code class="prism language-sql"><span class="token keyword">SELECT</span>
+    <span class="token function">count</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span>
+    _partition_id
+<span class="token keyword">FROM</span> products
+<span class="token keyword">GROUP</span> <span class="token keyword">BY</span> _partition_id
+
+Query id: <span class="token number">50148</span>c02<span class="token operator">-</span><span class="token number">84</span>a6<span class="token operator">-</span><span class="token number">4</span>be9<span class="token operator">-</span>a21a<span class="token operator">-</span><span class="token number">3</span>f8b4cbc7bbe
+
+┌─<span class="token function">count</span><span class="token punctuation">(</span><span class="token punctuation">)</span>─┬─_partition_id─┐
+│   <span class="token number">10100</span> │ <span class="token keyword">all</span>           │
+└─────────┴───────────────┘
+
+<span class="token number">1</span> <span class="token keyword">row</span> <span class="token operator">in</span> <span class="token keyword">set</span><span class="token punctuation">.</span> Elapsed: <span class="token number">0.001</span> sec<span class="token punctuation">.</span> 
+</code></pre> 
+<h3><a id="_153"></a>交换表</h3> 
+<p>典型场景中需要交换一个表示至另一个。我们有<code>my_table</code>和<code>my_table_new</code> ,希望 <code>my_table_new</code> 变为 <code>my_table</code>，如果你删除原表，然后重命名新表，但这样有一定风险，因为不能反向操作。ClickHouse提供了两种方式可以实现该功能。</p> 
+<p>如果两个表都是Atomic数据库，可以直接使用Exchange tables;</p> 
+<pre><code class="prism language-sql">EXCHANGE <span class="token keyword">TABLES</span> db1<span class="token punctuation">.</span>my_table <span class="token operator">AND</span> db2<span class="token punctuation">.</span>my_table_new <span class="token keyword">ON</span> CLUSTER my_cluster
+</code></pre> 
+<p>这时原子交换，意味着并行操作不会失败，也不会出现其中一个表不存在的情况。</p> 
+<p>如果仍使用<code>Ordinary</code>数据库（提示：应该迁移至Atomic），可以Rename Table :</p> 
+<pre><code class="prism language-sql"><span class="token keyword">RENAME</span> <span class="token keyword">TABLE</span> db1<span class="token punctuation">.</span>my_table <span class="token keyword">TO</span> db1<span class="token punctuation">.</span>my_table_tmp<span class="token punctuation">,</span>
+            db2<span class="token punctuation">.</span>my_table_new <span class="token keyword">TO</span> db1<span class="token punctuation">.</span>my_table<span class="token punctuation">,</span>
+            db1<span class="token punctuation">.</span>my_table_tmp <span class="token keyword">TO</span> db2<span class="token punctuation">.</span>my_table_new
+            <span class="token keyword">ON</span> CLUSTER my_cluster
+</code></pre> 
+<p>该命令与Exchange等效，但不是原子的，并发查询可能会报错，提示表不存在。两者都可以一次操作多个交换，但不是同时执行，但Exchange每个交换是原子的。</p> 
+<h3><a id="_176"></a>软删除表</h3> 
+<p>可以直接通过下面语句删除表：</p> 
+<pre><code class="prism language-sql"><span class="token keyword">DROP</span> <span class="token keyword">TABLE</span> table_name<span class="token punctuation">;</span>
+</code></pre> 
+<p>但有两种情况下不能删除表、或不太方便删除表。首先，MergeTree 表大于50GB不能被删除，这是由<code>max_table_size_to_drop</code> 参数限制的，需要修复服务端参数值。另外，删除表时要小心，在某种情况下还需要恢复。基于上述原因，需要软删除表，就是让不能再被查询，实际数据并没有被删除。</p> 
+<p>在 ClickHouse 中可以使用<code>DETACH TABLE</code>命令：</p> 
+<pre><code class="prism language-sql">DETACH <span class="token keyword">TABLE</span> table_name PERMANENTLY<span class="token punctuation">;</span>
+</code></pre> 
+<p>如果重新启动 ClickHouse 服务器，它将不会加载分离表的数据，因此不会影响服务器的启动时间。如果需要可以使用<code>ATTACH TABLE</code> 进行恢复：</p> 
+<pre><code class="prism language-sql">ATTACH <span class="token keyword">TABLE</span> table_name<span class="token punctuation">;</span>
+</code></pre> 
+<h3><a id="_200"></a>总结</h3> 
+<p>上述功能一般RDBMS实现较难，ClickHouse提供的功能可以更高效、更便捷查询处理数据。</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/3754d37498b0a737e2f3f1d63814d83b/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">clickhouse插入最佳实践</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/d0ae4eb6e5dcba6ad568ab2e2c975d8e/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">cas单点登录-服务端部署</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

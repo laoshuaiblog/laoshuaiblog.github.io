@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>SPI、I2C、CAN通信的简单介绍和笔记 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/4ec4ad1c40d23dd3ea269cf718f2e906/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="SPI、I2C、CAN通信的简单介绍和笔记">
+  <meta property="og:description" content="标题中的三种通信方式（协议）是比较常见的一些通信协议，对于它们有一定的了解对于我们学习嵌入式单片机的学习有着非常重要的作用。于是我们对此有一些信息给到各位读者，这也是笔者自己巩固知识点的方式。如果觉得有帮到各位，还希望不吝点赞转发；如果笔者有所纰漏，还望指正。
+1.SPI（Serial Peripheral Interface 串行外设接口）
+SPI 串行外设接口是最初由摩托罗拉公司制定的一种同步串行传输规范，也是一种芯片之间、外设芯片的串行扩展接口，一种高速、全双工、同步通信总线，可以同时发送接受信息。
+在一次SPI通信中，可以有多个芯片，但是主芯片（master chip）只能有一个，从芯片（slave chip）可以有多个。SPI接口的读写操作，都是由主芯片发起，当存在多个从设备时，通过各自的片选信号进行管理。
+完成一次SPI通信至少需要4根线（单向通信3根）， 接下来介绍这4根线：
+1. SCLK（Serial Clock）：时钟信号，由主设备产生；
+2. CS/SS（Chip Select/Slave Select）：从设备使能信号，由主设备控制，一主多从时，CS/SS是从芯片是否被主芯片选中的控制信号，只有片选信号为预先规定的使能信号时（高电位或低电位），主芯片对此从芯片的操作才有效(一般使能信号是低电位)；
+3. MISO（ Master Input Slave Output）：主设备数据输入，从设备数据输出；
+4. MOSI（Master Output Slave Input）：主设备数据输出，从设备数据输入；
+SPI有一主一从、一主多从的模式，不过两者的通信原理差不多，我们就以一主一从（向93C46芯片的0x01地址写入00001111）为例进行介绍：
+PS：在93C46芯片的使用指南上指明了SCLK的使能信号为高电平，需要注意。然后在这个芯片中，有128个不同的地址，每个地址存储1个字节的数据，每个存储空间都有相应的寻址。这个芯片可以接受100w次擦写，并能存储100年。
+首先，单片机给93C46芯片发送高电平使能信号，于是我们在两个芯片之间的通信就建立起来了。
+接下来，我们先给93C46芯片发送起始位1表示操作开始，然后传输写数据的操作码01告诉芯片我们即将进行写入数据的操作，再发送7位二进制地址0000001告诉芯片我们写入数据的相应寻址，最后我们传输8位二进制的数据00001111，于是一次写数据操作就完成了。
+不过，数据发送的原理并非这么简单。首先在SS/CS高电位使能信号起作用的时候，我们的通信才能建立。其次，只有在时钟信号SCLK处于上升沿触发的时候，MOSI输出相应的信号才能被读取。在这个案例中我们采集到的数据就是1 01 0000001 00001111。
+在接下来，我们再看一下SPI数据是如何读取93C46芯片里的数据的。
+在我们写入这些数据后，我们进行读数据的操作。和写数据一样，第一步我们发送起始位1信号，表示操作开始，然后输入10读数据信号，告诉芯片我们即将进行读数据操作，再发送要求读数据的相应地址0000001，接下来我们就能接收到来自93C46芯片的相应数据。
+注意：在这两个操作过程中，我们的SS/CS和SCLK都在持续输出相应的信号。
+2. I2C（Inter-Integrated Circuit 集成电路总线）
+过去我们所知道的串口通信只能发生在两个串口之间，如果需要通信的芯片数量多起来，不仅会使通信线路变得很多，也会使这个线路变得很复杂很乱。而I2C简单的结构可以很好地解决这个问题。
+I2C是由Philips公司开发的一种简单、双向二线制同步串行总线。它只需要两根线即可在连接于总线上的器件之间传送信息。主器件用于启动总线传送数据，并产生时钟以开放传送的器件，此时任何被寻址的器件均被认为是从器件。
+和SPI通信类似，I2C同样采用一主多从地结构。同样我们先以主设备向从设备写入数据为例。 通信的两个数据线分别为SCL时钟线和SDA数据线。所有的数据操作都是在这两个数据线的输出的共同作用下产生的，类似于SPI的CS/SS、SCLK、MOSI之间的相互作用。
+我们先说一下这个信号采集的原理，以图为例，只有在SCL的时钟信号和SDA的数据信号都处于高电平的时候才能读取高电平1；相反地，如果SCL处于高电平，而SDA处于低电平，那么就会读取低电平0；如果SCL时钟信号处于低电平，说明没有处在工作状态，不会被采集。
+当我们开始传输数据的时候，我们先发送起始位1表示操作开始，然后发送7位设备地址来在设备群里寻找相应的设备，再输出操作位0表示写数据操作，然后给一个位的时间接收目标从设备的应答信号，之后我们再输出一个8位寄存器的地址，在相应设备中寻找相应的地址，再留出一个目标设备的一个应答讯号。最后输出8位数据，留一位接收目标设备的应答信号，再输出停止位表示停止操作。
+接下来我们再演示一下读数据操作。我们先发送起始位1表示操作开始，然后发送7位设备地址来在设备群里寻找相应的设备，再输出操作位0表示写数据操作，然后给一个位的时间接收目标从设备的应答信号，之后我们再输出一个8位寄存器的地址，在相应设备中寻找相应的地址，再留出一个目标设备的一个应答讯号，第一部分的操作就完成了。第二部分中，再往起始位输出1表示操作开始，然后发送7位设备地址来在设备群里寻找相应的设备，再输出操作位1表示读数据操作，然后给一个位的时间接收目标从设备的应答信号，再输出8位数据，留一位接收目标设备的应答信号，再输出停止位表示停止操作。
+这就是I2C通信。
+3. CAN（Controller Area Network 控制器局域网）
+我们所熟知的局域网中，我们可以把电脑连接到路由器上，这几台设备之间就可以交互通信了。在CAN里也是类似的。
+我们的ECU之间的通信中，类似于串口通信，原来我们同样需要很多线路进行通信，不仅工作量大且复杂杂乱。而采用CAN总线通信之后，那就简化了电路，节约了线材资源和引脚接口资源，组成了相应的局域网通信。
+要进行CAN通信的时候，需要专门的CAN通信芯片进行信号转换。比如我们的TTL芯片里3.3V~5V识别为高电平，0~0.4V识别为低电平，但我们需要在经过CAN信号转换芯片的转换之后，我们就能把这个高低电平分解为差分信号，传输给别的ECU。
+差分信号和我们普通的高低电平信号不一样，它是利用不同的信号电压差来传输不同的信号。比如在这个利用TTL芯片的信号转换为差分信号后，原来的低电平输出为一个3.5V和1.5V两个信号，这个2V的电压差表示TTL信号的逻辑低电平信号；原来的高电平信号输出为2个2.5V信号，这个0V电压差表示TTL信号的逻辑高电平信号。使用差分信号的原因是它是利用电压差表示不同的信号的，而且它们两条线的连接方式一般是两绞线，即使收到干扰，电压差也不会有很大的变化。
+因此，CAN总线通信可以经受更长的线材通信。
+那我们以我们发送数据为例，我们先发送1位起始位，表示操作开始，这个起始位一定是0。再发送11位识别码，表示我们需要寻找的相应设备寻址。接下来输出RTR位，表示到底进行的是远程请求位（相应操作码为1）或数据位（相应操作位为0）。
+接下来是6位控制码，表示相应的数据长度.控制码第一位IDE码是区别标准格式（IDE码为0）和拓展模式（IDE码为1）。标准格式有11位识别码，在11位识别码之后是0的RTR码和IDE码0；在拓展格式中有29位识别码，在29位识别码之后是0的RTR码和IDE码1。接下来再是一位空闲位。接下来是4位DLC（Data link control）码，用来表示数据长度代码，比如他是0001就表示有一个字节的数据，如果是1000，那就表示后面有8个字节的数据即64位。
+接下来是CRC16位循环冗余校验位，是为了表示数据准确性设置的，首先是15位校验码，设备接收端会根据数据计算出它的CRC位，如果不同就表示数据有误，于是就会重新发送一遍数据帧；下一位是CRC的界定符，是逻辑1，用于间隔后面的信号。
+然后是2位ACK码，第一位是确认槽，发送端发出1，接收端发出0表示应答，第二位是ACK界定符，一定是1。最后是7位结束符，这7位都是1。">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2023-05-27T10:24:38+08:00">
+    <meta property="article:modified_time" content="2023-05-27T10:24:38+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">SPI、I2C、CAN通信的简单介绍和笔记</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <p>标题中的三种通信方式（协议）是比较常见的一些通信协议，对于它们有一定的了解对于我们学习嵌入式单片机的学习有着非常重要的作用。于是我们对此有一些信息给到各位读者，这也是笔者自己巩固知识点的方式。如果觉得有帮到各位，还希望不吝点赞转发；如果笔者有所纰漏，还望指正。</p> 
+<hr> 
+<p>1.SPI（Serial Peripheral Interface 串行外设接口）</p> 
+<p>SPI 串行外设接口是最初由摩托罗拉公司制定的一种同步串行传输规范，也是一种芯片之间、外设芯片的串行扩展接口，一种高速、全双工、同步通信总线，可以同时发送接受信息。</p> 
+<p>在一次SPI通信中，可以有多个芯片，但是主芯片（master chip）只能有一个，从芯片（slave chip）可以有多个。SPI接口的读写操作，都是由主芯片发起，当存在多个从设备时，通过各自的片选信号进行管理。</p> 
+<p style="text-align:center;"><img alt="" src="https://images2.imgbox.com/e4/33/fz1Wy6AE_o.png"></p> 
+<p>完成一次SPI通信至少需要4根线（单向通信3根）， 接下来介绍这4根线：</p> 
+<p>1. SCLK（Serial Clock）：时钟信号，由主设备产生；</p> 
+<p>2. CS/SS（Chip Select/Slave Select）：从设备使能信号，由主设备控制，一主多从时，CS/SS是从芯片是否被主芯片选中的控制信号，只有片选信号为预先规定的使能信号时（高电位或低电位），主芯片对此从芯片的操作才有效(一般使能信号是低电位)；</p> 
+<p>3. MISO（ Master Input Slave Output）：主设备数据输入，从设备数据输出；</p> 
+<p>4. MOSI（Master Output Slave Input）：主设备数据输出，从设备数据输入；</p> 
+<p>SPI有一主一从、一主多从的模式，不过两者的通信原理差不多，我们就以一主一从（向93C46芯片的0x01地址写入00001111）为例进行介绍：</p> 
+<p style="text-align:center;"><img alt="" src="https://images2.imgbox.com/90/70/Ld7BUwd6_o.png"></p> 
+<p>PS：在93C46芯片的使用指南上指明了SCLK的使能信号为高电平，需要注意。然后在这个芯片中，有128个不同的地址，每个地址存储1个字节的数据，每个存储空间都有相应的寻址。这个芯片可以接受100w次擦写，并能存储100年。</p> 
+<p>首先，单片机给93C46芯片发送高电平使能信号，于是我们在两个芯片之间的通信就建立起来了。</p> 
+<p style="text-align:center;"><img alt="" src="https://images2.imgbox.com/5c/b9/MWilKi3b_o.png"></p> 
+<p>接下来，我们先给93C46芯片发送起始位1表示操作开始，然后传输写数据的操作码01告诉芯片我们即将进行写入数据的操作，再发送7位二进制地址0000001告诉芯片我们写入数据的相应寻址，最后我们传输8位二进制的数据00001111，于是一次写数据操作就完成了。</p> 
+<p style="text-align:center;"><img alt="" src="https://images2.imgbox.com/db/1b/4irrz3EK_o.png"></p> 
+<p> 不过，数据发送的原理并非这么简单。首先在SS/CS高电位使能信号起作用的时候，我们的通信才能建立。其次，只有在时钟信号SCLK处于上升沿触发的时候，MOSI输出相应的信号才能被读取。在这个案例中我们采集到的数据就是1 01 0000001 00001111。</p> 
+<p style="text-align:center;"><img alt="" src="https://images2.imgbox.com/c6/28/9Jtn9Nmm_o.png"></p> 
+<p></p> 
+<p>在接下来，我们再看一下SPI数据是如何读取93C46芯片里的数据的。</p> 
+<p>在我们写入这些数据后，我们进行读数据的操作。和写数据一样，第一步我们发送起始位1信号，表示操作开始，然后输入10读数据信号，告诉芯片我们即将进行读数据操作，再发送要求读数据的相应地址0000001，接下来我们就能接收到来自93C46芯片的相应数据。</p> 
+<p>注意：在这两个操作过程中，我们的SS/CS和SCLK都在持续输出相应的信号。</p> 
+<hr> 
+<p>2. I2C（Inter-Integrated Circuit 集成电路总线）</p> 
+<p>过去我们所知道的串口通信只能发生在两个串口之间，如果需要通信的芯片数量多起来，不仅会使通信线路变得很多，也会使这个线路变得很复杂很乱。而I2C简单的结构可以很好地解决这个问题。</p> 
+<p>I2C是由<em>Philips</em>公司开发的一种简单、双向二线制同步串行总线。它只需要两根线即可在连接于总线上的器件之间传送信息。主器件用于启动总线传送数据，并产生时钟以开放传送的器件，此时任何被寻址的器件均被认为是从器件。</p> 
+<p style="text-align:center;"><img alt="" src="https://images2.imgbox.com/81/dd/03RDJPgE_o.png"></p> 
+<p>和SPI通信类似，I2C同样采用一主多从地结构。同样我们先以主设备向从设备写入数据为例。 </p> 
+<p>通信的两个数据线分别为SCL时钟线和SDA数据线。所有的数据操作都是在这两个数据线的输出的共同作用下产生的，类似于SPI的CS/SS、SCLK、MOSI之间的相互作用。</p> 
+<p>我们先说一下这个信号采集的原理，以图为例，只有在SCL的时钟信号和SDA的数据信号都处于高电平的时候才能读取高电平1；相反地，如果SCL处于高电平，而SDA处于低电平，那么就会读取低电平0；如果SCL时钟信号处于低电平，说明没有处在工作状态，不会被采集。</p> 
+<p style="text-align:center;"><img alt="" src="https://images2.imgbox.com/e4/cd/LWcWihPR_o.png"></p> 
+<p> 当我们开始传输数据的时候，我们先发送起始位1表示操作开始，然后发送7位设备地址来在设备群里寻找相应的设备，再输出操作位0表示写数据操作，然后给一个位的时间接收目标从设备的应答信号，之后我们再输出一个8位寄存器的地址，在相应设备中寻找相应的地址，再留出一个目标设备的一个应答讯号。最后输出8位数据，留一位接收目标设备的应答信号，再输出停止位表示停止操作。</p> 
+<p style="text-align:center;"><img alt="" src="https://images2.imgbox.com/4d/5f/AQYh8fOW_o.png"></p> 
+<p> 接下来我们再演示一下读数据操作。我们先发送起始位1表示操作开始，然后发送7位设备地址来在设备群里寻找相应的设备，再输出操作位0表示写数据操作，然后给一个位的时间接收目标从设备的应答信号，之后我们再输出一个8位寄存器的地址，在相应设备中寻找相应的地址，再留出一个目标设备的一个应答讯号，第一部分的操作就完成了。第二部分中，再往起始位输出1表示操作开始，然后发送7位设备地址来在设备群里寻找相应的设备，再输出操作位1表示读数据操作，然后给一个位的时间接收目标从设备的应答信号，再输出8位数据，留一位接收目标设备的应答信号，再输出停止位表示停止操作。</p> 
+<p style="text-align:center;"><img alt="" src="https://images2.imgbox.com/df/15/QlIfPftO_o.png"></p> 
+<p> 这就是I2C通信。</p> 
+<hr> 
+<p>3. CAN（Controller Area Network 控制器局域网）</p> 
+<p>我们所熟知的局域网中，我们可以把电脑连接到路由器上，这几台设备之间就可以交互通信了。在CAN里也是类似的。</p> 
+<p>我们的ECU之间的通信中，类似于串口通信，原来我们同样需要很多线路进行通信，不仅工作量大且复杂杂乱。而采用CAN总线通信之后，那就简化了电路，节约了线材资源和引脚接口资源，组成了相应的局域网通信。</p> 
+<p style="text-align:center;"><img alt="" src="https://images2.imgbox.com/d9/1f/fUexJYYu_o.png"></p> 
+<p> 要进行CAN通信的时候，需要专门的CAN通信芯片进行信号转换。比如我们的TTL芯片里3.3V~5V识别为高电平，0~0.4V识别为低电平，但我们需要在经过CAN信号转换芯片的转换之后，我们就能把这个高低电平分解为差分信号，传输给别的ECU。</p> 
+<p style="text-align:center;"><img alt="" src="https://images2.imgbox.com/2c/7e/XGfDk05Z_o.png"></p> 
+<p>差分信号和我们普通的高低电平信号不一样，它是利用不同的信号电压差来传输不同的信号。比如在这个利用TTL芯片的信号转换为差分信号后，原来的低电平输出为一个3.5V和1.5V两个信号，这个2V的电压差表示TTL信号的逻辑低电平信号；原来的高电平信号输出为2个2.5V信号，这个0V电压差表示TTL信号的逻辑高电平信号。使用差分信号的原因是它是利用电压差表示不同的信号的，而且它们两条线的连接方式一般是两绞线，即使收到干扰，电压差也不会有很大的变化。</p> 
+<p>因此，CAN总线通信可以经受更长的线材通信。</p> 
+<p style="text-align:center;"><img alt="" src="https://images2.imgbox.com/cc/b8/siQgmmjc_o.png"></p> 
+<p>那我们以我们发送数据为例，我们先发送1位起始位，表示操作开始，这个起始位一定是0。再发送11位识别码，表示我们需要寻找的相应设备寻址。接下来输出RTR位，表示到底进行的是远程请求位（相应操作码为1）或数据位（相应操作位为0）。</p> 
+<p>接下来是6位控制码，表示相应的数据长度.控制码第一位IDE码是区别标准格式（IDE码为0）和拓展模式（IDE码为1）。标准格式有11位识别码，在11位识别码之后是0的RTR码和IDE码0；在拓展格式中有29位识别码，在29位识别码之后是0的RTR码和IDE码1。接下来再是一位空闲位。接下来是4位DLC（Data link control）码，用来表示数据长度代码，比如他是0001就表示有一个字节的数据，如果是1000，那就表示后面有8个字节的数据即64位。</p> 
+<p>接下来是CRC16位循环冗余校验位，是为了表示数据准确性设置的，首先是15位校验码，设备接收端会根据数据计算出它的CRC位，如果不同就表示数据有误，于是就会重新发送一遍数据帧；下一位是CRC的界定符，是逻辑1，用于间隔后面的信号。</p> 
+<p>然后是2位ACK码，第一位是确认槽，发送端发出1，接收端发出0表示应答，第二位是ACK界定符，一定是1。最后是7位结束符，这7位都是1。</p> 
+<p style="text-align:center;"><img alt="" src="https://images2.imgbox.com/e2/0c/jzlBjjfD_o.png"></p> 
+<p> 如果是两个设备同时发出信号，那么区分优先级的方法从识别码着手。在识别码不同的第一个位置上，为逻辑0的优先，为1的会被阻断。</p> 
+<p>到此为止，三种通信方式（协议）我们就简单介绍完了。</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/89bf696e7c58278dfc1c71c44b26074f/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">SQL 语句中 WHERE 1=1 的作用</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/03e43104e040debf84508aeb355ae6fe/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">Android | Android OS 源码结构</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

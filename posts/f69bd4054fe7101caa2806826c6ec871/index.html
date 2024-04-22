@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>PreparedStatement的介绍与解决sql注入 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/f69bd4054fe7101caa2806826c6ec871/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="PreparedStatement的介绍与解决sql注入">
+  <meta property="og:description" content="相关文章
+jdbc连接以及出现的异常处理Jdbc工具类ResultSet的介绍与使用jdbc中的sql注入PreparedStatement的介绍与解决sql注入jdbc管理事务 PreparedStatement PreparedStatement是Statement的子接口，Statement是试行静态sql对象，PreparedStatement是执行预编译sql对象，用占位符?动态传参，解决sql注入问题。
+下面就通过一个例子演示，例子是通过jdbc连接查account表中的数据，然后用实体类Account封装起来，返回这个类的集合。 jdbc工具类代码
+package com.lingaolu.Utils; import java.io.FileReader; import java.io.IOException; import java.net.URL; import java.sql.*; import java.util.Properties; /** * @author 林高禄 * @create 2020-06-23-11:12 */ public class JdbcUtils { private static String driver; private static String url; private static String userName; private static String pw; static{ try { Properties p = new Properties(); ClassLoader classLoader = JdbcUtils.class.getClassLoader(); // 这个路径相对于src的路径来说 URL resource = classLoader.getResource(&#34;com/lingaolu/file/jdbc.properties&#34;); String path = resource.getPath(); p.load(new FileReader(path)); driver = p.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2020-06-24T09:52:03+08:00">
+    <meta property="article:modified_time" content="2020-06-24T09:52:03+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">PreparedStatement的介绍与解决sql注入</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <blockquote> 
+ <p>相关文章</p> 
+ <ul><li><a href="https://blog.csdn.net/lgl782519197/article/details/106789304">jdbc连接以及出现的异常处理</a></li><li><a href="https://blog.csdn.net/lgl782519197/article/details/106920047">Jdbc工具类</a></li><li><a href="https://blog.csdn.net/lgl782519197/article/details/106936495">ResultSet的介绍与使用</a></li><li><a href="https://blog.csdn.net/lgl782519197/article/details/106936770">jdbc中的sql注入</a></li><li><a href="https://blog.csdn.net/lgl782519197/article/details/106937544">PreparedStatement的介绍与解决sql注入</a></li><li><a href="https://blog.csdn.net/lgl782519197/article/details/106940720">jdbc管理事务</a></li></ul> 
+</blockquote> 
+<blockquote> 
+ <h3>PreparedStatement</h3> 
+ <p>PreparedStatement是Statement的子接口，Statement是试行静态sql对象，PreparedStatement是执行预编译sql对象，用占位符?动态传参，解决sql注入问题。</p> 
+</blockquote> 
+<p style="text-align:center;"><img alt="" src="https://images2.imgbox.com/26/ef/mwDsvARU_o.png"></p> 
+<p> </p> 
+<blockquote> 
+ <p>下面就通过一个例子演示，例子是通过jdbc连接查account表中的数据，然后用实体类Account封装起来，返回这个类的集合。 </p> 
+</blockquote> 
+<blockquote> 
+ <p>jdbc工具类代码</p> 
+</blockquote> 
+<pre><code class="language-java">package com.lingaolu.Utils;
+
+import java.io.FileReader;
+import java.io.IOException;
+import java.net.URL;
+import java.sql.*;
+import java.util.Properties;
+
+/**
+ * @author 林高禄
+ * @create 2020-06-23-11:12
+ */
+public class JdbcUtils {
+    private static String driver;
+    private static String url;
+    private static String userName;
+    private static String pw;
+
+    static{
+        try {
+            Properties p = new Properties();
+            ClassLoader classLoader = JdbcUtils.class.getClassLoader();
+            // 这个路径相对于src的路径来说
+            URL resource = classLoader.getResource("com/lingaolu/file/jdbc.properties");
+            String path = resource.getPath();
+            p.load(new FileReader(path));
+            driver = p.getProperty("driver");
+            url = p.getProperty("url");
+            userName = p.getProperty("user");
+            pw = p.getProperty("password");
+            Class.forName(driver);
+        } catch (IOException e) {
+            e.printStackTrace();
+        } catch (ClassNotFoundException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public static Connection createConnection() throws SQLException {
+        return DriverManager.getConnection(url, userName, pw);
+    }
+
+    public static void close(Statement stmt,Connection con){
+        if(null != stmt){
+            try {
+                stmt.close();
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+        }
+        if(null != con){
+            try {
+                con.close();
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    public static void close(ResultSet set,Statement s,Connection con){
+        if(null != set){
+            try {
+                set.close();
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+        }
+        close(s,con);
+    }
+}
+</code></pre> 
+<blockquote> 
+ <p>Account实体类代码</p> 
+</blockquote> 
+<pre><code class="language-java">package com.lingaolu.jdbcConnector;
+
+/**
+ * @author 林高禄
+ * @create 2020-06-24-8:28
+ */
+public class Account {
+    private int id;
+    private String name;
+    private double balance;
+    private int myAge;
+
+    public int getId() {
+        return id;
+    }
+
+    public void setId(int id) {
+        this.id = id;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public double getBalance() {
+        return balance;
+    }
+
+    public void setBalance(double balance) {
+        this.balance = balance;
+    }
+
+    public int getMyAge() {
+        return myAge;
+    }
+
+    public void setMyAge(int myAge) {
+        this.myAge = myAge;
+    }
+
+    @Override
+    public String toString() {
+        return "Account{" +
+                "id=" + id +
+                ", name='" + name + '\'' +
+                ", balance=" + balance +
+                ", myAge=" + myAge +
+                '}';
+    }
+}
+</code></pre> 
+<blockquote> 
+ <p>测试Demo5的代码</p> 
+</blockquote> 
+<pre><code class="language-java">package com.lingaolu.jdbcConnector;
+
+import com.lingaolu.Utils.JdbcUtils;
+
+import java.sql.*;
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * @author 林高禄
+ * @create 2020-06-24-09:04
+ */
+public class Demo5 {
+    public static void main(String[] args) {
+        List&lt;Account&gt; accounts = fineAccount("李四");
+        accounts.forEach(System.out::println);
+        System.out.println("----------------------------------");
+        accounts = fineAccount("王五");
+        accounts.forEach(System.out::println);
+        System.out.println("----------------------------------");
+        accounts = fineAccount("王五' or '1'='1");
+        accounts.forEach(System.out::println);
+    }
+
+    public static List&lt;Account&gt; fineAccount(String accoutName){
+        Connection con = null;
+        PreparedStatement pstmt = null;
+        ResultSet resultSet = null;
+        List&lt;Account&gt; rerurnList = new ArrayList&lt;&gt;();
+        try {
+            con = JdbcUtils.createConnection();
+            // 定义sql
+            String sql = "select * from account where name=?";
+            // 获取执行的sql
+            pstmt = con.prepareStatement(sql);
+            System.out.println(sql);
+            // 给?赋值,setString表示类型，第一个参数表示在sql参数中的位置，第二个参数表示值
+            pstmt.setString(1,accoutName);
+            // 执行查询，不需调传递sql
+            resultSet = pstmt.executeQuery();
+            Account acc = null;
+            while(resultSet.next()){
+                // 引号里的字段要与表里的一样
+                int id = resultSet.getInt("id");
+                String name = resultSet.getString("name");
+                double balance = resultSet.getDouble("balance");
+                int age = resultSet.getInt("age");
+
+                acc = new Account();
+                acc.setId(id);
+                acc.setName(name);
+                acc.setBalance(balance);
+                acc.setMyAge(age);
+
+                rerurnList.add(acc);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }finally {
+            JdbcUtils.close(resultSet,pstmt,con);
+        }
+        return rerurnList;
+    }
+}
+</code></pre> 
+<blockquote> 
+ <p>数据库数据：</p> 
+ <p> </p> 
+ <p style="text-align:center;"><img alt="" src="https://images2.imgbox.com/94/35/9XcuKbXK_o.png"></p> 
+ <p> </p> 
+</blockquote> 
+<blockquote> 
+ <p>运行输出</p> 
+ <p>select * from account where name=?<br> Account{id=2, name='李四', balance=1000.0, myAge=16}<br> ----------------------------------<br> select * from account where name=?<br> ----------------------------------<br> select * from account where name=?</p> 
+</blockquote> 
+<blockquote> 
+ <p>输出结果与我们对照数据库的数据预期结果一样，解决了sql注入问题，这个问题再这里使用Statement演示了一边<a href="https://blog.csdn.net/lgl782519197/article/details/106936770">jdbc中sql注入</a></p> 
+</blockquote>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/50ecf7b4dc2e98270471d4fd19048cbe/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">ResultSet的介绍与使用</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/df5fb589947948beaca4fd56a1bb190f/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">完美解决form表单中提交Ajax请求不进入回调方法无法接收返回的任何数据</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

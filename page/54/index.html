@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta name="generator" content="Hugo 0.125.1">
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="老帅的博客">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="老帅的博客">
+  <meta property="og:description" content="老帅的博客">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="website">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+	<link rel="alternate" type="application/rss+xml" href="/index.xml" title="老帅的博客">
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main list" role="main">
+	<article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/e7fc3eed72b2328ef543c96df090d975/" rel="bookmark">
+			如何设计秒杀系统（三）
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		实施方案 减库存逻辑 减库存的方式：
+下单减库存
+控制精准且简单，不会出现超卖，但是会有人故意刷单，下完单不付款。付款减库存
+当并发比较高时可能会出现下单后无法付款的情况。预扣库存
+超时释放库存，实现比较复杂。也有可能出现刷单，对于这种情况可以利用反作弊措施来制止（例如识别打标或者为某些类别设置最大购买件数）。 针对秒杀这个业务场景，使用下单减库存方式更为合适。 下单减库存如何保证数据一致性：
+应用程序中通过事务来判断，即保证减后库存不能为负数，否则就回滚；直接设置数据库的字段数据为无符号整数，这样减后库存字段值小于零时会直接执行 SQL 语句来报错；使用 CASE WHEN 判断语句 UPDATE item SET inventory = CASE WHEN inventory &gt;= xxx THEN inventory-xxx ELSE inventory END 性能优化 如果秒杀商品的减库存逻辑非常单一，比如没有复杂的 SKU 库存和总库存这种联动关系，可以放到Redis等缓存中
+如果直接操作数据库，会带来很多的锁竞争，因为热点的几行数据拖垮整个数据库。解决办法是可以把热点数据进行分库，但是这个会带来维护上的困难，且即使是单库也并没有解决并发锁的问题。要解决并发锁问题，有两种方案：
+应用层排队
+按照商品维度设置队列，减少同一个机器对同一行记录操作的并发度，同时也能控制单个商品占用数据连接的数量。数据库层排队
+可以收用一些开源的组件，如阿里在InnoDB层上的补丁程序（patch） 兜底方案 高可用建设 架构阶段：架构阶段主要考虑系统的可扩展性和容错性，要避免系统出现单点问题。例如多机房单元化部署，即使某个城市的某个机房出现整体故障，仍然不会影响整体网站的运转。
+编码阶段：编码最重要的是保证代码的健壮性，例如涉及远程调用问题时，要设置合理的超时退出机制，防止被其他系统拖垮，也要对调用的返回结果集有预期，防止返回的结果超出程序处理范围，最常见的做法就是对错误异常进行捕获，对无法预料的错误要有默认处理结果。
+测试阶段：测试主要是保证测试用例的覆盖度，保证最坏情况发生时，我们也有相应的处理流程。
+发布阶段：发布时也有一些地方需要注意，因为发布时最容易出现错误，因此要有紧急的回滚机制。
+运行阶段：运行时是系统的常态，系统大部分时间都会处于运行态，运行态最重要的是对系统的监控要准确及时，发现问题能够准确报警并且报警数据要准确详细，以便于排查问题。
+故障发生：故障发生时首先最重要的就是及时止损，例如由于程序问题导致商品价格错误，那就要及时下架商品或者关闭购买链接，防止造成重大资产损失。然后就是要能够及时恢复服务，并定位原因解决问题。
+降级 所谓“降级”，就是当系统的容量达到一定程度时，限制或者关闭系统的某些非核心功能，从而把有限的资源保留给更核心的业务。
+降级方案可以这样设计：当秒杀流量达到 5w/s 时，把成交记录的获取从展示 20 条降级到只展示 5 条。“从 20 改到 5”这个操作由一个开关来实现，也就是设置一个能够从开关系统动态获取的系统参数。
+两部分，一部分是开关控制台，它保存了开关的具体配置信息，以及具体执行开关所对应的机器列表；另一部分是执行下发开关数据的 Agent，主要任务就是保证开关被正确执行，即使系统重启后也会生效。
+限流 客户端限流
+优点：可以限制无用请求的发出
+缺点：阈值不好确定服务端限流
+好处是可以根据服务端的性能设置合理的阈值，而缺点就是被限制的请求都是无效的请求，处理这些无效的请求本身也会消耗服务器资源。 拒绝服务 当系统负载达到一定阈值时，例如 CPU 使用率达到 90% 或者系统 load 值达到 2*CPU 核数时，系统直接拒绝所有请求。
+	</div>
+	<div class="list__footer clearfix">
+		<a class="list__footer-readmore btn" href="/posts/e7fc3eed72b2328ef543c96df090d975/">Read more…</a>
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/46de638c975b70bebfe5918bc49f9e9c/" rel="bookmark">
+			手撕/手写/自己实现 BN层/batch norm/BatchNormalization python torch pytorch
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		计算过程 在卷积神经网络中，BN 层输入的特征图维度是 （N,C,H,W）, 输出的特征图维度也是 （N,C,H,W）
+N 代表 batch size
+C 代表 通道数
+H 代表 特征图的高
+W 代表 特征图的宽
+我们需要在通道维度上做 batch normalization，
+在一个 batch 中，
+使用 所有特征图 相同位置上的 channel 的 所有元素，计算 均值和方差，
+然后用计算出来的 均值和 方差，更新对应特征图上的 channel ， 生成新的特征图
+如下图所示：
+对于4个橘色的特征图，计算所有元素的均值和方差，然后在用于更新4个特征图中的元素（原来元素减去均值，除以方差）
+代码 def my_batch_norm_2d_detail(features, eps=1e-5): ''' 这个函数的写法是为了帮助理解 BatchNormalization 具体运算过程 实际使用时这样写会比较慢 ''' n,c,h,w = features.shape features_copy = features.clone() running_var = torch.randn(c) running_mean = torch.randn(c) for ci in range(c):# 分别 处理每一个通道 mean = 0 # 均值 var = 0 # 方差 _sum = 0 # 对一个 batch 中，特征图相同位置 channel 的每一个元素求和 for ni in range(n): for hi in range(h): for wi in range(w): _sum += features[ni,ci, hi, wi] mean = _sum / (n * h * w) running_mean[ci] = mean _sum = 0 # 对一个 batch 中，特征图相同位置 channel 的每一个元素求平方和，用于计算方差 for ni in range(n): for hi in range(h): for wi in range(w): _sum += (features[ni,ci, hi, wi] - mean) ** 2 var = _sum / (n * h * w ) running_var[ci] = _sum / (n * h * w - 1) # 更新元素 for ni in range(n): for hi in range(h): for wi in range(w): features_copy[ni,ci, hi, wi] = (features_copy[ni,ci, hi, wi] - mean) / torch.
+	</div>
+	<div class="list__footer clearfix">
+		<a class="list__footer-readmore btn" href="/posts/46de638c975b70bebfe5918bc49f9e9c/">Read more…</a>
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/97413cc2edb0cb603ff36843aaf0bc89/" rel="bookmark">
+			Linux安装nginx详细步骤
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		Linux安装nginx详细步骤 一、安装nginx依赖二、下载并解压nginx安装包1.下载nginx安装包2.解压nginx安装包 三、安装nginx四、启动nginx五、停止重启nginx六、设置开机自启动nginx七、补充1.配置nginx.conf2.防火墙设置 一、安装nginx依赖 #安装gcc yum install gcc-c++ #安装PCRE pcre-devel yum install -y pcre pcre-devel #安装zlib yum install -y zlib zlib-devel #安装Open SSL yum install -y openssl openssl-devel 二、下载并解压nginx安装包 1.下载nginx安装包 wget http://nginx.org/download/nginx-1.23.0.tar.gz 你也可以到网站选择你所需要的版本 下载完成后将压缩包通过ssh命令使用winscp工具或其他工具上传至服务器
+2.解压nginx安装包 #创建一个文件夹 cd /usr/local mkdir nginx cd nginx #解压缩包，直接tar -xvf nginx安装包所在路径 tar -xvf nginx-1.16.1.tar.gz 三、安装nginx #进入nginx目录 cd /usr/local/nginx #进入目录 cd nginx-1.16.1 #编译 执行命令 考虑到后续安装ssl证书 添加两个模块 如不需要直接执行./configure即可 ./configure --with-http_stub_status_module --with-http_ssl_module #执行make命令(要是执行不成功请检查最开始安装的四个依赖有没有安装成功) make #执行make install命令 make install 补充查看编译参数
+	</div>
+	<div class="list__footer clearfix">
+		<a class="list__footer-readmore btn" href="/posts/97413cc2edb0cb603ff36843aaf0bc89/">Read more…</a>
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/2f19bf0846cc71cdbde4c4a7b3b244bb/" rel="bookmark">
+			（2）Verilog HDL Bits:设计电路实现Thermostat（温度调节器）
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		 1.1 目录 （1）目录
+（2）FPGA介绍
+（3）Verilog HDL Bits:设计电路实现Thermostat（温度调节器）
+（4）原理和代码讲解
+1.2 FPGA简介 FPGA是在PAL、GAL、EPLD、CPLD等可编程器件的基础上进一步发展的产物。它是作为ASIC领域中的一种半定制电路而出现的，即解决了定制电路的不足，又克服了原有可编程器件门电路有限的缺点。
+FPGA采用了逻辑单元阵列LCA（Logic Cell Array）这样一个概念，内部包括可配置逻辑模块CLB（Configurable Logic Block）、输入输出模块IOB（Input Output Block）和内部连线（Interconnect）三个部分。 现场可编程门阵列（FPGA）是可编程器件，与传统逻辑电路和门阵列（如PAL，GAL及CPLD器件）相比，FPGA具有不同的结构。FPGA利用小型查找表（16×1RAM）来实现组合逻辑，每个查找表连接到一个D触发器的输入端，触发器再来驱动其他逻辑电路或驱动I/O，由此构成了既可实现组合逻辑功能又可实现时序逻辑功能的基本逻辑单元模块，这些模块间利用金属连线互相连接或连接到I/O模块。FPGA的逻辑是通过向内部静态存储单元加载编程数据来实现的，存储在存储器单元中的值决定了逻辑单元的逻辑功能以及各模块之间或模块与I/O间的联接方式，并最终决定了FPGA所能实现的功能，FPGA允许无限次的编程。
+1.3 Verilog HDL Bits:设计电路实现Thermostat（温度调节器） 本题在HDL Bits题库中的位置为Circuits/Combinational Logic/Basic Gates/Thermostat
+题目要求：恒温器有两种模式:加热模式(mode = 1)和冷却模式(mode = 0)，在加热模式下，温度过低(too_cold = 1)时打开加热器，但不使用空调。在制冷模式下，当温度过高(too_hot = 1)时，请打开空调，但不要打开暖气。当加热器或空调打开时，也要打开风扇，让空气流通。此外，用户还可以要求打开风扇(fan_on = 1)，即使加热器和空调关闭。尝试只使用赋值语句，看看是否可以转换问题描述。
+由题可画真值表：
+​由题可知，空调（aircon）是否打开主要与模式（mode）和过热信号（too_hot）有关，所以对其列真值表得到，空调（aircon）的开关值逻辑表达式。
+​由题可知，加热器（heater）是否打开主要与模式（mode）和过冷信号（too_cold）有关，所以对其列真值表得到，加热器（heater）的开关值逻辑表达式。
+同理可以得出，风扇开关（fan）与fan_on（代号d）和heater、aircon有关。所以得出其逻辑表达式为：fan=（！AC）+AB+d，即相当于加热棒加热打开风扇、空调打开同时也打开风扇、同时风扇由fan_on控制。
+1.4 原理和代码讲解 module top_module ( input too_cold, input too_hot, input mode, input fan_on, output heater, output aircon, output fan ); assign fan=(!mode&amp;too_hot)|(mode&amp;too_cold)|fan_on; assign heater=mode&amp;too_cold; assign aircon=!mode&amp;too_hot; endmodule 
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/732312a61db938257b29be470cb54728/" rel="bookmark">
+			一个接口满足你对天气数据的所有想象，包含小时预报，实况，逐日预报，城市预报,实况，雷达月报，生活指数
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		无极低码:wheart.cn 数据接口如下： {"code":0,"data":{"aqiForecast":[{"date":"2023-04-04","publishTime":"2023-04-04 00:00:00","value" :38},{"date":"2023-04-05","publishTime":"2023-04-05 20:00:00","value":37},{"date":"2023-04 -06","publishTime":"2023-04-05 20:00:00","value":42},{"date":"2023-04-07","publishTime":"2023-04- 05 20:00:00","value":69},{"date":"2023-04-08","publishTime":"2023-04-05 20:00:00","value":71 },{"date":"2023-04-09","publishTime":"2023-04-05 20:00:00","value":74},{"date":"2023-04-10 “，”发布时间“：”2023-04-05 20:00:00","value":75}],"aqiForecastHourly":[{"forecastTime":"2023-04-05 21:00:00","publishTime":"2023- 04-05 20:00:00","value":30},{"forecastTime":"2023-04-05 22:00:00","publishTime":"2023-04-05 20:00:00 ","value":29},{"forecastTime":"2023-04-05 23:00:00","publishTime":"2023-04-05 20:00:00","value":29} ,{"forecastTime":"2023-04-06 00:00:00","publishTime":"2023-04-05 20:00:00","value":29},{"forecastTime":"2023 -04-06 01:00:00","publishTime":"2023-04-05 20:00:00","value":29},{"forecastTime":"2023-04-06 02:00: 00","发布时间":"2023-04-05 20:00:00","value":29},{"forecastTime":"2023-04-06 03:00:00","publishTime":"2023-04-05 20:00 :00","value":31},{"forecastTime":"2023-04-06 04:00:00","publishTime":"2023-04-05 20:00:00","value": 33},{"forecastTime":"2023-04-06 05:00:00","publishTime":"2023-04-05 20:00:00","value":35},{"forecastTime": "2023-04-06 06:00:00","publishTime":"2023-04-05 20:00:00","value":36},{"forecastTime":"2023-04-06 07: 00:00","publishTime":"2023-04-05 20:00:00","value":37},{"forecastTime":"2023-04-06 08:00:00","publishTime" ：“2023-04-05 20:00:00”，“值”：38},{"forecastTime":"2023-04-06 09:00:00","publishTime":"2023-04-05 20:00:00","value":40},{"forecastTime": "2023-04-06 10:00:00","publishTime":"2023-04-05 20:00:00","value":43},{"forecastTime":"2023-04-06 11: 00:00","publishTime":"2023-04-05 20:00:00","value":46},{"forecastTime":"2023-04-06 12:00:00","publishTime" :"2023-04-05 20:00:00","value":48},{"forecastTime":"2023-04-06 13:00:00","publishTime":"2023-04-05 20 :00:00","value":48},{"forecastTime":"2023-04-06 14:00:00","publishTime":"2023-04-05 20:00:00","value “：48}，{“预测时间”：“2023-04-06 15:00:00","publishTime":"2023-04-05 20:00:00","value":46},{"forecastTime":"2023-04-06 16:00 :00"
+	</div>
+	<div class="list__footer clearfix">
+		<a class="list__footer-readmore btn" href="/posts/732312a61db938257b29be470cb54728/">Read more…</a>
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/581346ab88d1b60a951f9e795a8d8e24/" rel="bookmark">
+			如何设计秒杀系统（二）
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		实施方案 热点数据 分类：
+静态热点数据，可以提前预测的热点数据，可以提前缓存。
+动态热点数据，一般是突发的临时的。如何发现热点数据
+可以通过运营手段提前报名来发现静态热点数据，也可以通过数据统计出TOPN的商品。
+发现动态热点数据：
+构建一个异步的系统，它可以收集交易链路上各个环节中的中间件产品的热点 Key，如 Nginx、缓存、RPC 服务框架等这些中间件（一些中间件产品本身已经有热点统计模块）。
+建立一个热点上报和可以按照需求订阅的热点服务的下发规范，主要目的是通过交易链路上各个系统（包括详情、购物车、交易、优惠、库存、物流等）访问的时间差，把上游已经发现的热点透传给下游系统，提前做好保护。比如，对于大促高峰期，详情系统是最早知道的，在统一接入层上 Nginx 模块统计的热点 URL。
+将上游系统收集的热点数据发送到热点服务台，然后下游系统（如交易系统）就会知道哪些商品会被频繁调用，然后做热点保护。
+注意事项： 日志抓取采用异步的方式，即保证通用性也不影响主流程。应用和组件间要有自己的限流保护措施。热点发现要快（3s）
+热点数据的处理：
+对热点数据利用LRU队列进行缓存
+把热点请求和普通请求进行隔离，防止热点数据影响到普通的请求
+（业务隔离，系统隔离，数据隔离）。 削峰错谷 为什么要削峰：
+节省服务器资源让服务端处理变得更加平稳
+怎么做：
+1.排队
+消息对立
+线程加锁，排队等待
+内存排队算法
+顺序读文件
+2.答题
+系统设计思路：
+答题验证设计：
+分层过滤
+依次走浏览器缓存，CDN，统一cache，后台，数据库
+原则：
+将动态请求的读数据缓存（Cache）在 Web 端，过滤掉无效的数据读；
+对读数据不做强一致性校验，减少因为一致性校验产生瓶颈的问题；
+对写数据进行基于时间的合理分片，过滤掉过期的失效请求；
+对写请求做限流保护，将超出系统承载能力的请求过滤掉；
+对写数据进行强一致性校验，只保留最后有效的数据。 系统性能优化 概述
+一般用QPS来衡量性能，总 QPS =（1000ms / 响应时间）× 线程数量
+响应时间:
+响应时间一般由CPU执行时间和线程等待时间组成，优化线程等待时间对性能影响不大，要做的是增加CPU的执行时间。
+线程数：
+默认配置，线程数 = 2 * CPU 核数 + 1
+最佳实践得出来的公式：
+线程数 = [(线程等待时间 + 线程 CPU 时间) / 线程 CPU 时间] × CPU 数量
+	</div>
+	<div class="list__footer clearfix">
+		<a class="list__footer-readmore btn" href="/posts/581346ab88d1b60a951f9e795a8d8e24/">Read more…</a>
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/4dac9391f465c055b5fb1ea4ff84bb27/" rel="bookmark">
+			八大排序算法之归并排序(递归实现&#43;非递归实现)
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		目录
+一.归并排序的基本思想
+归并排序算法思想(排升序为例)
+二.两个有序子序列(同一个数组中)的归并(排升序)
+两个有序序列归并操作代码:
+三.归并排序的递归实现
+递归归并排序的实现:(后序遍历递归)
+递归函数抽象分析: 四.非递归归并排序的实现
+1.非递归归并排序算法思想:
+2.算法实现
+初步非递归归并排序函数:
+一般情况下(所排序数组元素个数不为​编辑)边界条件分析:
+经过边界修正后的非递归归并排序函数
+排序实测:
+一.归并排序的基本思想 归并排序是基于分治思想和归并操作而设计出来的一种高效排序算法所谓的归并操作就是将两个有序的子序列合并为一个有序序列的操作(归并操作算法的时间复杂度为O(N+M),N+M分别为两个子数组的元素个数) 归并排序算法思想(排升序为例) 假设数组有N个元素,先将数组不断地二分,直到将数组划分为N个由单个元素构成的子数组,整个划分过程中所有子数组构成满二叉树(或接近满二叉树)的逻辑结构,如图:数组划分完后再逐层向上将二叉树兄弟结点子数组(具有相同前驱结构)两两进行归并操作完成排序:归并操作算法的时间复杂度为O(M1+M2),M1+M2分别为两个子数组的元素个数,因此二叉树一层子数组的两两归并操作的总时间复杂度为O(N)(N表示原数组的元素个数),而满二叉树的层次数量级为O(logN),因此归并排序的总体时间复杂度为O(NlogN)由于归并排序的数组划分每次都是严格地二分,因此每次排序(无论具体面对怎样的序列)子数组划分结构都是稳定的满二叉树(或接近满二叉树)结构,因此归并排序的时间复杂度在各种情况下都不会有变化(不会像快排,希尔排那样由于所处理的序列的逆序数的差异而导致算法时间复杂度有所变化)然而由于有序序列归并操作需要额外开辟数组来完成,因此归并排序有较大的空间消耗,这是归并排序的一个缺陷 二.两个有序子序列(同一个数组中)的归并(排升序) 函数首部:
+void MergeSort(int* arr,int* tem, int left,int right) arr是被分割的原数组,tem是用于归并操作的临时数组,left是arr的左端下标,right是arr的右端下标
+假设数组arr被二等分为两个子序列(两个子序列都是有序的):接下来我们将上图中的[left,(left+right)/2)和[(left+right)/2),right)两个子序列(有序)合并到一个tem数组中构成一个新的有序序列(利用三指针操作完成归并):从算法gif中不难看出,归并操作的时间复杂度与两个子数组的元素个数成线性关系 两个有序序列归并操作代码: void MergeSort(int* arr,int* tem, int left,int right) { int mid = left + (right - left) / 2;	//找到数组[left,right]的中间分割点 int ptr1 = left;	//ptr1指向左子数组的首元素 int ptr2 = mid;	//ptr2指向右子数组的首元素 int ptrtem = left; //ptrtem用于在tem数组中尾插数据 while (ptr1 &lt; mid &amp;&amp; ptr2 &lt; right)	//ptr1和ptr2其中一个遍历完子数组就停止循环 { //将较小元素尾插进tem数组中 if (arr[ptr1] &gt; arr[ptr2]) { tem[ptrtem] = arr[ptr2]; ++ptrtem; ++ptr2; } else { tem[ptrtem] = arr[ptr1]; ++ptrtem; ++ptr1; } } //将未被遍历完的子数组剩下的元素尾插到tem数组中 while (ptr1 &lt; mid) { tem[ptrtem] = arr[ptr1]; ++ptrtem; ++ptr1; } while (ptr2 &lt; right) { tem[ptrtem] = arr[ptr2]; ++ptrtem; ++ptr2; } //将归并好的有序序列拷贝到原数组arr上 for (int i = left; i &lt; right; ++i) { arr[i] = tem[i]; } } 三.
+	</div>
+	<div class="list__footer clearfix">
+		<a class="list__footer-readmore btn" href="/posts/4dac9391f465c055b5fb1ea4ff84bb27/">Read more…</a>
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/ecb4aeb70f6b76d89bd491fd38129424/" rel="bookmark">
+			Linux-编译工具
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		一、gcc 1.1 一步到位 gcc 最简单的用法
+gcc c_name.c	# 会产生一个 a.out 的可执行文件 这样会生成一个叫做 a.out 的可执行文件。
+如果想要指定生成文件的名字，可以采用 -o 选项，也就是 output。比如下面的指令
+gcc -o hello hello.c 这个 -o 参数可以跟在后面讲的所有指令后面，也就是说，可以给所有生成的中间文件进行命名。
+如果想要最佳化执行速度，可以使用下面的命令：
+gcc -O c_name.c 可以根据操作环境最佳化执行速度
+如果想要显示警告信息，可以用 -Wall 参数，如下
+gcc -o hello hello.c -Wall 这样一步到位，似乎只能适用于比较低端的情况，如果想要更细致的操作，需要了解整个编译的流程，即图：
+1.2 预处理 ​ 在这个过程就是展开宏定义和include文件，可以使用如下命令
+gcc -E c_name.c ​ 但是直接使用这条命令，不会生成一个 .i 文件，而是将展开结果直接输出到终端，所以得指定一个名字
+gcc -E c_name.c -o i_name.i ​ 生成完的文件会特别丑，大概这样：
+​ 在这里，我们还有一个问题，就是头文件在哪里，我们系统一般会把头文件存在 /usr/include 下（ /usr 不是user的缩写,其实usr是Unix Software Resource的缩写, 也就是Unix操作系统软件资源所放置的目录,而不是用户的数据;所有系统默认的软件都会放置到 /usr），这个文件夹长这样，里面有我们常用的头文件
+当然我们也可以使用指令来指定我们的头文件：
+gcc c_name.
+	</div>
+	<div class="list__footer clearfix">
+		<a class="list__footer-readmore btn" href="/posts/ecb4aeb70f6b76d89bd491fd38129424/">Read more…</a>
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/df34053a81afeca55248dc5ca928d1aa/" rel="bookmark">
+			Linux下编译LibreOffice在线编辑
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		Linux下编译LibreOffice在线编辑 如何编译LibreOffice在线编辑环境步骤结束语 如何编译LibreOffice在线编辑 LibreOffice本身是没有在线编辑的功能，如果要编译LibreOffice在线编辑，需要编译另外一套源码CollaboraOnline，CollaboraOnline是基于LibreOffice为核心构建的文档在线编辑，编辑步骤参考以下内容：
+环境 Linux系统版本：Ubantu20.04CollaboraOnline源码分支：distro/collabora/co-22-05 步骤 打开shell命令窗口，执行以下代码，安装编译环境 sudo apt install -y dialog sudo apt install -y libpoco-dev python3-polib libcap-dev npm \ libpam-dev wget git build-essential libtool \ libcap2-bin python3-lxml libpng-dev libcppunit-dev \ pkg-config fontconfig snapd chromium-browser 第二步是下载编译好的LibreOffice core源码，当然也可以自己拉取LibreOffice core源码进行编译，对应的分支：distro/collabora/co-22.05，想要快速的获取一个在线编辑，我们直接拉取官方编译好的core就可以了，执行以下代码： wget https://github.com/CollaboraOnline/online/releases/download/for-code-assets/core-co-22.05-assets.tar.gz 拉取成功后解压 tar xvf core-co-22.05-assets.tar.gz 解压成功后会看到两个文件夹include和instdir，这两个文件里的包将是编译online源码的核心。
+拉取git上online的代码 git clone https://github.com/CollaboraOnline/online.git 切换分支 git checkout distro/collabora/co-22-05 进入拉取online的目录，运行 autogen 生成配置文件： cd online ./autogen.sh 执行配置文件，检查配置 ./configure --enable-silent-rules --with-lokit-path=/data/core/include \ --with-lo-path=/data/core/instdir \ --enable-debug --enable-cypress 如果在检查配置的过程中报错，说明缺少对应的环境，请根据错误提示，安装对应的环境，参考步骤1
+	</div>
+	<div class="list__footer clearfix">
+		<a class="list__footer-readmore btn" href="/posts/df34053a81afeca55248dc5ca928d1aa/">Read more…</a>
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/2c533c3b3fdc9dbad6bc31ff60c2171a/" rel="bookmark">
+			linux的挂起命令 linux 挂起命令
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		参考:http://www.bxcqd.com/news/187241.html
+linux挂起按什么唤醒
+命令运行时使用CTRL+Z，强制当前进程转为后台，并使之挂起（暂停）.
+使进程恢复运行(后台) (1)使用命令bg
+Example:
+zuii@zuii-desktop:~/unp/tcpcliserv$ ./tcpserv01
+这里使用CTRL+Z,此时serv01是停止状态
+[1]+ Stopped ./tcpserv01
+zuii@zuii-desktop:~/unp/tcpcliserv$ bg
+[1]+ ./tcpserv01 此时serv01运行在后台
+zuii@zuii-desktop:~/unp/tcpcliserv$
+(2)如果用CTRL+Z停止了几个程序呢?
+Example:
+zuii@zuii-desktop:~/unp/tcpcliserv$ jobs
+[1]- Running ./tcpserv01
+[2]+ Stopped ./tcpcli01 127.0.0.1
+zuii@zuii-desktop:~/unp/tcpcliserv$ bg %1
+bash: bg：任务 1 已转入后台 后台运行
+使进程恢复至前台运行 Example:
+zuii@zuii-desktop:~/unp/tcpcliserv$ ./tcpserv04
+[1]+ Stopped ./tcpserv04
+zuii@zuii-desktop:~/unp/tcpcliserv$ fg
+./tcpserv04
+总结:
+(1) CTRL+Z挂起进程并放入后台
+(2) jobs 显示当前暂停的进程
+(3) bg %N 使第N个任务在后台运行(%前有空格)
+(4) fg %N 使第N个任务在前台运行
+默认bg,fg不带%N时表示对最后一个进程操作!
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/50b00a5684309937a1f148e2f5be6440/" rel="bookmark">
+			Win10怎么以管理员运行命令提示符？
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		方法一： 1、windows10系统电脑按下【ctrl+shift+esc】组合键打开任务管理器；
+2、在任务管理器中点击【文件】-【运行新任务】；
+3、在新建任务框中勾选【以系统管理权限创建此任务】，输入【cmd】点击确定即可。
+4、此时的“命令提示符”为管理员模式，方便运行一些权限要求较高的程序。
+方法二： 右键开始菜单，点击Windows Power Shell（管理员）（A）
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/76d803162d33842c2850aba8382f94ad/" rel="bookmark">
+			Android Studio Connect to repo.maven.apache.org:443 failed: Connection time
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		声明：该博文参考了Android Studio 设置阿里云镜像代理（如果设置之后还是远程仓库下载失败，请仔细阅读其内容就可以解决了）若原博客主人觉得侵权了，请联系，该博客就删除。
+目的：方便遇到类似问题的人，可以少走弯路。
+问题：如图所示：
+解决方法：按照Android Studio 设置阿里云镜像代理（如果设置之后还是远程仓库下载失败，请仔细阅读其内容就可以解决了）提到的方法。修改了整个项目的build.gradle两处，如下：
+buildscript { repositories { maven{ url 'https://maven.aliyun.com/repository/google'} //修改1 maven{ url 'https://maven.aliyun.com/repository/gradle-plugin'} //修改1 maven{ url 'https://maven.aliyun.com/repository/public'} //修改1 maven{ url 'https://maven.aliyun.com/repository/jcenter'} //修改1 google() mavenCentral() } dependencies { classpath "com.android.tools.build:gradle:4.2.2" classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version" // NOTE: Do not place your application dependencies here; they belong // in the individual module build.gradle files } } allprojects { repositories { maven{ url 'https://maven.aliyun.com/repository/google'} //修改2 maven{ url 'https://maven.aliyun.com/repository/gradle-plugin'} //修改2 maven{ url 'https://maven.
+	</div>
+	<div class="list__footer clearfix">
+		<a class="list__footer-readmore btn" href="/posts/76d803162d33842c2850aba8382f94ad/">Read more…</a>
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/c9a9c9827c280958d4e895adcb1f7bbd/" rel="bookmark">
+			nginx常用命令与相关理论
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		文章目录 常用命令业务流程nginx的基础配置：server_name：匹配规则 正/反向代理正向代理反向代理内网反向代理 负载均衡轮询weight（权重）downbackup保持会话的负载均衡（不常用）**ip_hash****least_conn****url_hash****fair** 动静分离URLRewrite网关防盗链高可用不安全的协议、证书配置对称加密不安全：非对称加密：HTTPS（CA机构）nginx证书引入 常用命令 进入安装目录的sbin文件夹下：
+./nginx 或 systemctl start nginx.service 启动./nginx -s stop 或systemctl stop nginx.service 或 kill -9/-15 pid 快速停止./nginx -s quit 处理完当前工作后停止systemctl restart nginx.service 或 ./nginx -s reopen 重启./nginx -s reload 或 systemctl reload nginx 重新加载配置文件./nginx -v 查看版本信息ps aux | grep nginx 查看启动后的记录systemctl status nginx 状态systemctl enable nginx.service 开启自启动
+docker 中
+docker run --name nginx -p 80:80 -d nginx 容器内文件
+docker exec -it nginx /bin/bash docker run -p 80:80 -p 443:443 --name nginx --restart=always \ -v /usr/local/nginx/conf/nginx.
+	</div>
+	<div class="list__footer clearfix">
+		<a class="list__footer-readmore btn" href="/posts/c9a9c9827c280958d4e895adcb1f7bbd/">Read more…</a>
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/117e9f0954591b1538a6d790083e304d/" rel="bookmark">
+			Vue中的key有什么作用？
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		在 Vue 中，key 是一个特殊的属性，用于给每个节点（组件）设置唯一的标识符。它在 Vue 的虚拟 DOM 的渲染和更新过程中发挥重要作用，主要有以下两个方面的作用：
+提高渲染效率 当 Vue 在进行虚拟 DOM 的 diff 算法比较新旧节点时，如果节点具有相同的 key，则 Vue
+会认为它们是相同的节点，不会进行重新渲染，从而提高渲染效率。
+保持组件状态 在使用 v-for 指令渲染列表时，每个列表项都应该拥有唯一的 key，这样可以在列表项顺序改变时，Vue
+可以准确地判断哪些列表项是新添加的，哪些列表项是已存在但位置改变的，哪些列表项是被删除的，从而保持组件状态的正确性。
+需要注意的是，key 只在其直接的子组件中起作用，如果两个组件的 key 相同，但它们不是直接的子组件，则 Vue 仍然会重新渲染它们。另外，key 应该是稳定且唯一的，不应该使用随机数或索引作为 key，因为这样可能会导致渲染错误。
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/f77b7fdb93cd276649026f89e647a34f/" rel="bookmark">
+			2000-2020年全国各城市湿度（逐日、逐月、逐年）
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		之前我们介绍过Excel格式的全国各城市逐日、逐月、逐年的湿度数据（可查看之前的文章），好多小伙伴拿到数据后问我们有没有GIS矢量格式的数据，我们专门对数据进行了处理，转换为了GIS矢量格式（shp格式）分享给大家！数据分为逐日、逐月和逐年三种形式，以下为详细介绍：
+逐年的城市湿度
+2000-2020年逐年湿度数据，每个年份为一个shp文件，我们以2020年的数据为例来预览一下：
+2020年全国各城市平均湿度图 逐月的城市湿度
+我们再来看看2000-2020年逐月湿度，每个年份为一个shp文件，每个shp文件的属性表中包括当年的12个月每月的湿度，我们以2020年12月份的数据为例来预览一下：
+2020年12月全国各城市平均湿度图 逐日的城市湿度
+我们再来看看2000-2020年逐日湿度，每个年份为一个shp文件，每个shp文件的属性表中包括当年的365天每天的湿度数据，我们以2020年12月31号的数据为例来预览一下：
+2020年12月31号全国各城市平均湿度图 数据来源
+中国地面气候资料日值数据集V3.0处理生成
+处理方法
+由于原始数据是逐日站点数据，数据每月保存为一份TXT，这样就完全没有办法直接使用和分析。所以我们首先用python将清洗后的数据处理成每日一份的csv数据，保留需要的经纬度与每日平均相对湿度的数值。而后，将每日的csv文件进行展点，再投影，采用反距离权重法对每日的数据进行插值。再然后，按行政区划将数据分区统计并进行拼接，最后得到逐日的分市数据。将原始数据按月份、年度平均后，按照相同的方法，获取到逐月逐年的全国各市数据。然后再将逐年、逐月、逐日的湿度数据链接到中国地级市行政区划矢量数据上！
+注意事项
+1.该数据是通过插值方法得到的，由于插值的方式与各种处理参数的不同，该数据可能会与其他来源的湿度数据有微小差别，这个很正常，特此说明！
+2.如果在论文中使用该数据，数据来源请写上面的原始数据来源，处理方法请写上面的处理方式！
+文末下方是我们的公众号名片，我们将定期介绍各类城市数据以及数据的可视化和分析技术，有关2000-2020年全国各逐日、逐月、逐年的城市湿度数据的更多详情，欢迎大家多多关注我们进行了解~
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/615f10c7150629daae1ec586602844f8/" rel="bookmark">
+			使用Zerotier进行内网穿透的几种组网模式
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		Zerotier是一个非常好的内网穿透的软件，能够非常方便的组建自己的虚拟局域网，重点是：免费，速度快。因为它通过UDP打洞成功之后，不再经过服务器中转，相当于两个异地主机之间用QQ传在线文件有多快，那这个虚拟局域网就有多快。我常常用它来在办公室看家里的IPTV。将家里的NAS直接映射为办公室电脑的网盘而不用经过NAS的专用软件。貌似这种方式，可以直接把办公室的资料存在家里的NAS上，哪天干得不爽时，都不用删办公室电脑里面的文件，直接断开映射的网盘，取消Zerotier的网络授权就好。是不是很邪恶？
+因为Zerotier支持多种操作系统多种终端，所以组网方式也就非常灵活，特别是在路由器上装有Zerotier，设定好路由之后，在不同路由器下的设备，就可以无感互访了。
+一、简单主机模式
+典型的场景是：将家里和办公室的两台电脑都装上Zerotier，加入同一虚拟局域网。只要两台电脑不关机，就可以在异地进行远程操控。具体的使用方法，网上有太多太多的教程，这里就不啰嗦了。
+二、普通路由模式
+普通路由模式，是指在路由器上装上Zerotier，然后这个路由器下的主机全都能接入虚拟局域网。当然这个路由器要能够装Zerotier，那便不是普通的在网上或店里买回来的路由器。推荐使用将路由器刷机成OpenWRT的路由器，哪些路由器能够刷机成OpenWRT，可以去OpenWRT的官网上去查，具体刷机的方法，也可以在网上去找，这里不再啰嗦。其实很多路由器都是基于OpenWRT做的二次开发，重新定制了管理界面和相关应用。比如小米路由器。因为这些家用路由器就是一台嵌入式设备，内核是基于Linux的。而OpenWRT是一种非常流行的通用的嵌入式设备的操作系统，广泛应用在普通家用路由器上。OpenWRT为这些设备提供了统一的web和SSH管理接口，种类繁多的应用软件，类似Linux的操作，你使用之后一定会让你爱上它。
+典型的应用场景是：你办公室和家里都有一台路由器，分别装上了Zerotier，如果办公室的路由器得到的Zerotier网络地址是192.168.192.100，路由器LAN下的地址是192.168.10.*。家里的路由器得到的Zerotier网络地址是192.168.192.200，路由器LAN下的地址是192.168.2.*。则在Zerotier的管理网页中配置路由，在两台路由器的OpenWRT管理界面中设置一定的网络防火墙区域，并设定转发放行规则，就可以实现办公室和家中不同路由器下的设备互访了。
+依据上述场景和地址示例，在Zerotier的管理网页中，需要做如下配置：
+提交上图的路由规则，同时，还需要提交一条Destination为192.168.2.0/24，Via为192.168.192.200的路由规则。以此改变两地互访的路由。（PS：如果不在Zerotier的网页管理界面中做配置，也可以在路由器OpenWRT中设定路由规则）
+在路由器的OpenWRT管理界面中，还需要增加网络接口设定防火墙的转发规则。如图所示：
+1、在Network—Interface中增加接口
+2、指定其防火墙区域为
+3、在Network—Firewall中设定区域的转发规则
+（这三处图示设定，在旧版的OpenWRT中，也可能通过自定义的防火墙规则搞定）
+三、旁路由模式
+旁路由模式是因为在某些特定场合下，不能在主路由上装上Zerotier，而要实现对其下的设备进行单向访问的需求。比如：你家里的主路由是可以通过手机APP进行管理的路由器，所以你不想换成OpenWRT，而你又想将家里的NAS映射为办公室电脑的网盘。
+此时，你需要在主路由下接入一台装有Zerotier的路由器，弃用它的WAN口，LAN口配置为主路由器下地址段中的一个静态地址，网关配置为主路由的网关，用网线将它的LAN口与主路由的LAN口直连。在OpenWRT中增加网络接口和防火墙区域与普通路由模式一致，但转发规则有所区别，如图所示：
+形成的总览视图为：
+例如：主路由下LAN地址段为192.168.31.*，旁路由得到的Zerotier网络地址为：192.168.192.200，则需要在Zerotier管理网页中提交一条Destination为192.168.31.0/24，Via为192.168.192.200的路由规则。（当然，不在Zerotier的管理网页中配置，也可以在其它装有Zerotier的主机中配置）
+这样可以实现办公室的设备访问家中主路由器下的其他设备，但不能实现反向访问。
+四、混合模式
+如果要实现上述旁路由模式中的反向访问，则家中主路由下的电脑还是要装上Zerotier才能达到效果。但此时如果在Zerotier的管理网页中指定的某些路由，则会改变家中电脑的路由，所以不建议在Zerotier的管理网页中统一配置路由，而将不同位置的装有Zerotier的设备按不同的需求进行路由配置。
+更进一步的是，如我办公室的上一级网络是172.16.*.*的，公司服务器的地址是202.10.10.*的，则配置家中的主机的路由时，将以上两个网段的路由全部转发到办公室的装有Zeroiter的路由器的Zerotier网络地址。这样家里的电脑就能够无感访问公司的内网资源了。
+如果你有一台笔记本电脑，这台笔记本电脑有时在办公室，有时在家里，有时会随你出差在外，要能灵活使用这虚拟局域网，根据需要自己启用或禁用Zerotier网络，或在笔记本电脑上灵活配置不同的路由规则达到异地访问的目的。
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/bce70f89595aa9005aed6d3be839ba5f/" rel="bookmark">
+			中国地面气候资料日值数据集(V3.0)
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		1.数据集信息
+数据集中文名称：中国国家级地面气象站基本气象要素日值数据集(V3.0)
+数据集代码：SURF_CLI_CHN_MUL_DAY
+数据集版本：V3.0
+2.数据文件命名由数据集代码（SURF_CLI_CHN_MUL_DAY）、要素代码（XXX)、项目代码（XXXXX）、年份标识（YYYY）和月份标识（MM）组成。其中，SURF表示地面气象资料，CLI表示地面气候资料，CHN表示中国，MUL表示多要素，DAY表示日值数据。
+XXX-XXXXX说明：PRS-10004表示本站气压，TEM-12001表示气温，RHU-13003表示相对湿度，PRE-13011表示降水，EVP-13240表示蒸发，WIN-11002表示风向风速，SSD-14032表示日照，GST-12030-0cm表示0cm地温。
+文件命名为：
+本站气压：SURF_CLI_CHN_MUL_DAY-PRS-10004-YYYYMM.TXT
+气温：SURF_CLI_CHN_MUL_DAY-TEM-12001-YYYYMM.TXT
+相对湿度：SURF_CLI_CHN_MUL_DAY-RHU-13003-YYYYMM.TXT
+降水：SURF_CLI_CHN_MUL_DAY-PRE-13011-YYYYMM.TXT
+蒸发：SURF_CLI_CHN_MUL_DAY-EVP-13240-YYYYMM.TXT
+风向风速：SURF_CLI_CHN_MUL_DAY-WIN-11002-YYYYMM.TXT
+日照：SURF_CLI_CHN_MUL_DAY-SSD-14032-YYYYMM.TXT
+0cm地温：SURF_CLI_CHN_MUL_DAY-GST-12030-0cm-YYYYMM.TXT
+降水量 32700 表示降水"微量"
+32XXX XXX为纯雾露霜
+31XXX XXX为雨和雪的总量
+30XXX XXX为雪量(仅包括雨夹雪，雪暴）
+蒸发量 32700 表示蒸发器结冰
+质量控制码 含义
+0 数据正确
+1 数据可疑
+2 数据错误
+8 数据缺测或无观测任务
+9 数据未进行质量控制
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/06d25e3276267e6cbfe919439a7c187a/" rel="bookmark">
+			Verilog单边沿检测和双边沿检测的方法（HDLBits例题）
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		1.单边沿检测 边沿检测是用来检测某一信号是否发送了从0至1或者从1至0的变化，有同步和异步之分。
+同步边沿检测：是使用一个基准时钟，即在同一个时钟下来检测一个信号的上升沿或者下降沿。
+异步边沿检测：是利用D触发器来实现边沿检测。
+HDLBits例题： 单边沿检测例题
+题目：对于8位向量中的每一位，检测输入信号在一个时钟周期内从0变化到下一个时钟周期的1(类似于正边缘检测)。输出位应该在0到1转换发生后的循环中设置。
+解法是让该信号再过一级触发器，令 in_r &lt;= in; 有点像打了一拍，然后当判断到前一次信号为1（in == 1），这一次信号为0（in_r == 0）时即发生了信号0至1的跳变。这就是上升沿检测。
+module top_module ( input clk, input [7:0] in, output [7:0] pedge ); reg [7:0] in_r; always@(posedge clk)begin in_r &lt;= in; pedge &lt;= in &amp; ~in_r; end endmodule 另外检测下降沿的话也是同样的原理，让该信号再过一级触发器，令 in_r &lt;= in; 然后当判断到前一次信号为0（in == 0），这一次信号为1（in_r == 1）时即发生了信号0至1的跳变。
+module top_module ( input clk, input [7:0] in, output [7:0] pedge ); reg [7:0] in_d; always@(posedge clk)begin in_d &lt;= in; pedge &lt;= ~in &amp; in_d; end endmodule 2.
+	</div>
+	<div class="list__footer clearfix">
+		<a class="list__footer-readmore btn" href="/posts/06d25e3276267e6cbfe919439a7c187a/">Read more…</a>
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/9b6676672daaa99ff7903c24585d127b/" rel="bookmark">
+			结构体进阶
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		系列文章目录 结构体数组与数组遍历
+结构体数组与数组参数
+结构体与指针
+提示：写完文章后，目录可以自动生成，如何生成可参考右边的帮助文档
+结构体数组与数组遍历
+结构体数组与数组参数
+结构体与指针
+前言 前面已经学过了用结构体表示一个人的基本信息，包括姓名、年龄和性别。在主函数中创建一个这样的结构体变量，输入其信息并输出。但是，编写一个函数，接受一个结构体数组和数组长度作为参数，遍历该数组并输出每个元素的信息又该如何
+提示：以下是本篇文章正文内容，下面案例可供参考
+一、 结构体数组与数组遍历 可以先创建一个结构体数组，再定义一个函数遍历结构体，最后
+调用函数遍历输出
+结构体数组
+代码如下：
+```c #include &lt;stdio.h&gt; struct person { char name[20]; int age; char gender; }; void print_person(struct person arr[], int len) { for (int i = 0; i &lt; len; i++) { printf("Person %d: Name: %s, Age: %d, Gender: %c\n", i + 1, arr[i].name, arr[i].age, arr[i].gender); } } int main() { struct person p[3] = { {"
+	</div>
+	<div class="list__footer clearfix">
+		<a class="list__footer-readmore btn" href="/posts/9b6676672daaa99ff7903c24585d127b/">Read more…</a>
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/76a21573be423a13eb359e0731b3bd7a/" rel="bookmark">
+			基于遗传算法优化TCN-LSTM开发预测研究（Python代码实现）
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		👨‍🎓个人主页：研学社的博客 💥💥💞💞欢迎来到本博客❤️❤️💥💥
+🏆博主优势：🌞🌞🌞博客内容尽量做到思维缜密，逻辑清晰，为了方便读者。
+⛳️座右铭：行百里者，半于九十。
+📋📋📋本文目录如下：🎁🎁🎁
+目录
+💥1 概述
+📚2 运行结果
+🎉3 参考文献
+🌈4 Python代码实现
+💥1 概述 时间卷积网络( temporal convolutional network ,TCN)是一种新型的、可以对时间序列数据进行处理的神经网络架构,与传统的卷积神经网络相比,它可以更有效地提取时序数据的特征。TCN通过卷积神经网络( convolutional neural network , CNN)变化而来,它由多个残差单元构成。为了提高学习能力, TCN通过加入残差连接模块,使得该模型可以将信息以跨层的方式来进行传递,进而使模型的反馈和收敛速度进一步提升。图1为TCN模型的单个残差单元。
+在残差单元中一维扩张因果卷积发挥着重要作用,一维扩张因果卷积通过卷积系数来控制对输入的采样间隔,使得TCN 网络只需要通过很少的层,就能够拥有较长的感受野。同时和CNN不同TCN中的因果卷积不是双向,而是单向的,即模型中t时刻的输出只由前一层中t时刻及t时刻以前的输入来决定,这样避免了模型不会丢失掉历史信息及受到未来信息的影响,这也使得TCN模型变成了一种严格的时间约束模型。
+📚2 运行结果 部分代码：
+fig, ax = plt.subplots(1, 1, figsize=( 18,6)) plt.plot(actual_entire_lstm_tcn, label = 'Actual production') plt.plot(forecast_entire_lstm_tcn, label = 'GA-TCN-LSTM predicted values') # create the horizontal dashed line plt.axvline(x=train_X.shape[0] + 1, color='black', linestyle='--') plt.legend() # add text labels plt.text(1350, 17500, 'Training set', rotation=0, verticalalignment='center', style='italic', fontweight='bold') plt.
+	</div>
+	<div class="list__footer clearfix">
+		<a class="list__footer-readmore btn" href="/posts/76a21573be423a13eb359e0731b3bd7a/">Read more…</a>
+	</div>
+</article>
+</main>
+
+<div class="pagination">
+	<a class="pagination__item pagination__item--prev btn" href="/page/53/">«</a>
+	<span class="pagination__item pagination__item--current">54/134</span>
+	<a class="pagination__item pagination__item--next btn" href="/page/55/">»</a>
+</div>
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>支持 input 函数的在线 python 运行环境 - 基于队列 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/310c7af429cd07a267dfa60ab71e2207/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="支持 input 函数的在线 python 运行环境 - 基于队列">
+  <meta property="og:description" content="支持 input 函数的在线 python 运行环境 - 基于队列 思路两次用户输入三次用户输入 实现前端使用 vue &#43; element uiWindows 环境的执行器子进程需要执行的代码 代码仓库参考 本文提供了一种方式来实现支持 input 函数，即支持用户输的在线 python 运行环境。效果如下图所示：
+思路 前端使用一个数组 input_queue 记录用户从点击运行按钮到现在的所有输入
+点击运行按钮时将 code、input_queue 传给后端
+后端将参数传给执行 python 代码的子进程
+子进程重写 input() 函数，假设新的实现为 input_wrapper，代码如下，到用户代码运行到 input() 函数时，会执行重写的 input_wrapper()， 在 input_wrapper 中获取到 input_queue，然后使用 input_queue.pop(0) 弹出用户输入最早的信息，如果 input_queue 为空，则说明需要用户输入，通过抛出 InputRequestException 异常的方式通知后端
+def input_wrapper(prompt=&#39;&#39;): if input_queue: input_str = input_queue.pop(0) sys.stdout.write(str(prompt) &#43; input_str &#43; &#34;\n&#34;) return input_str raise InputRequestException(str(prompt)) 后端通过处理子进程的标准输出、标准错误，知晓需要用户输入，然后向前端返回以下 json，event.type 为 input_request 代表需要用户输入，prompt 是提示信息">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2024-01-05T10:00:24+08:00">
+    <meta property="article:modified_time" content="2024-01-05T10:00:24+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">支持 input 函数的在线 python 运行环境 - 基于队列</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-dracula">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <p></p> 
+<div class="toc"> 
+ <h4>支持 input 函数的在线 python 运行环境 - 基于队列</h4> 
+ <ul><li><ul><li><a href="#_10" rel="nofollow">思路</a></li><li><ul><li><a href="#_60" rel="nofollow">两次用户输入</a></li><li><a href="#_127" rel="nofollow">三次用户输入</a></li></ul> 
+   </li><li><a href="#_215" rel="nofollow">实现</a></li><li><ul><li><a href="#_vue__element_ui_217" rel="nofollow">前端使用 vue + element ui</a></li><li><a href="#Windows__325" rel="nofollow">Windows 环境的执行器</a></li><li><a href="#_467" rel="nofollow">子进程需要执行的代码</a></li></ul> 
+   </li><li><a href="#_517" rel="nofollow">代码仓库</a></li><li><a href="#_521" rel="nofollow">参考</a></li></ul> 
+ </li></ul> 
+</div> 
+<p></p> 
+<p>本文提供了一种方式来实现支持 <code>input</code> 函数，即支持用户输的在线 python 运行环境。效果如下图所示：</p> 
+<p><img src="https://images2.imgbox.com/31/1e/m43NtYvS_o.png" alt="image-20240104163231417"></p> 
+<p><img src="https://images2.imgbox.com/c1/5a/79ZoM5GJ_o.png" alt="image-20240104163319674"><br> <img src="https://images2.imgbox.com/fe/37/opq4B6ef_o.gif" alt="在这里插入图片描述"></p> 
+<h3><a id="_10"></a>思路</h3> 
+<ul><li> <p>前端使用一个数组 <code>input_queue</code> 记录用户从点击运行按钮到现在的所有输入</p> </li><li> <p>点击运行按钮时将 <code>code</code>、<code>input_queue</code> 传给后端</p> </li><li> <p>后端将参数传给执行 python 代码的子进程</p> </li><li> <p>子进程重写 <code>input()</code> 函数，假设新的实现为 <code>input_wrapper</code>，代码如下，到用户代码运行到 <code>input()</code> 函数时，会执行重写的 <code>input_wrapper()</code>， 在 <code>input_wrapper</code> 中获取到 <code>input_queue</code>，然后使用 <code>input_queue.pop(0)</code> 弹出用户输入最早的信息，如果 <code>input_queue</code> 为空，则说明需要用户输入，通过抛出 <code>InputRequestException</code> 异常的方式通知后端</p> <pre><code class="prism language-python"><span class="token keyword">def</span> <span class="token function">input_wrapper</span><span class="token punctuation">(</span>prompt<span class="token operator">=</span><span class="token string">''</span><span class="token punctuation">)</span><span class="token punctuation">:</span>
+    <span class="token keyword">if</span> input_queue<span class="token punctuation">:</span>
+        input_str <span class="token operator">=</span> input_queue<span class="token punctuation">.</span>pop<span class="token punctuation">(</span><span class="token number">0</span><span class="token punctuation">)</span>
+        sys<span class="token punctuation">.</span>stdout<span class="token punctuation">.</span>write<span class="token punctuation">(</span><span class="token builtin">str</span><span class="token punctuation">(</span>prompt<span class="token punctuation">)</span> <span class="token operator">+</span> input_str <span class="token operator">+</span> <span class="token string">"\n"</span><span class="token punctuation">)</span>
+        <span class="token keyword">return</span> input_str
+    <span class="token keyword">raise</span> InputRequestException<span class="token punctuation">(</span><span class="token builtin">str</span><span class="token punctuation">(</span>prompt<span class="token punctuation">)</span><span class="token punctuation">)</span>
+</code></pre> </li><li> <p>后端通过处理子进程的标准输出、标准错误，知晓需要用户输入，然后向前端返回以下 json，<code>event.type</code> 为 input_request 代表需要用户输入，<code>prompt</code> 是提示信息</p> <pre><code class="prism language-json"><span class="token punctuation">{<!-- --></span>
+    <span class="token string-property property">"is_timeout"</span><span class="token operator">:</span> <span class="token boolean">false</span><span class="token punctuation">,</span>
+    <span class="token string-property property">"done"</span><span class="token operator">:</span> <span class="token boolean">false</span><span class="token punctuation">,</span>
+    <span class="token string-property property">"event"</span><span class="token operator">:</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token string-property property">"type"</span><span class="token operator">:</span> <span class="token string">"input_request"</span><span class="token punctuation">,</span>
+        <span class="token string-property property">"prompt"</span><span class="token operator">:</span> <span class="token string">"请输入姓名："</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre> </li><li> <p>前端弹出弹框提示用户输入，用户输入并点击继续执行按钮时，会将本次的输入追加到 <code>input_queue</code> 的末尾，然后再次调用运行接口，这样循环往复直到程序结束</p> <p><img src="https://images2.imgbox.com/ed/73/BOYjuLhv_o.png" alt="image-20240104170040751"></p> </li></ul> 
+<p>在执行以下代码时，可能需要两次用户输入，也可能需要三次。</p> 
+<pre><code class="prism language-python">name <span class="token operator">=</span> <span class="token builtin">input</span><span class="token punctuation">(</span><span class="token string">"请输入姓名："</span><span class="token punctuation">)</span>
+<span class="token keyword">print</span><span class="token punctuation">(</span><span class="token string">"姓名："</span><span class="token punctuation">,</span> name<span class="token punctuation">)</span>
+
+<span class="token keyword">if</span> name <span class="token operator">==</span> <span class="token string">"tom"</span><span class="token punctuation">:</span>
+    age <span class="token operator">=</span> <span class="token builtin">input</span><span class="token punctuation">(</span><span class="token string">"请输入年龄："</span><span class="token punctuation">)</span>
+    <span class="token keyword">print</span><span class="token punctuation">(</span><span class="token string">"年龄："</span><span class="token punctuation">,</span> age<span class="token punctuation">)</span>
+
+gender <span class="token operator">=</span> <span class="token builtin">input</span><span class="token punctuation">(</span><span class="token string">"请输入性别："</span><span class="token punctuation">)</span>
+<span class="token keyword">print</span><span class="token punctuation">(</span><span class="token string">"性别："</span><span class="token punctuation">,</span> gender<span class="token punctuation">)</span>
+</code></pre> 
+<h4><a id="_60"></a>两次用户输入</h4> 
+<p>点击运行按钮</p> 
+<pre><code class="prism language-json">请求参数中的 input_queue 为 <span class="token punctuation">[</span><span class="token punctuation">]</span>
+
+<span class="token punctuation">{<!-- --></span>
+    <span class="token string-property property">"code"</span><span class="token operator">:</span> <span class="token string">"name = input(\"请输入姓名：\")\nprint(\"姓名：\", name)\n\nif name == \"tom\":\n    age = input(\"请输入年龄：\")\n    print(\"年龄：\", age)\n\ngender = input(\"请输入性别：\")\nprint(\"性别：\", gender)"</span><span class="token punctuation">,</span>
+    <span class="token string-property property">"input_queue"</span><span class="token operator">:</span> <span class="token punctuation">[</span><span class="token punctuation">]</span>
+<span class="token punctuation">}</span>
+
+返回值
+<span class="token punctuation">{<!-- --></span>
+    <span class="token string-property property">"is_timeout"</span><span class="token operator">:</span> <span class="token boolean">false</span><span class="token punctuation">,</span>
+    <span class="token string-property property">"done"</span><span class="token operator">:</span> <span class="token boolean">false</span><span class="token punctuation">,</span>
+    <span class="token string-property property">"event"</span><span class="token operator">:</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token string-property property">"type"</span><span class="token operator">:</span> <span class="token string">"input_request"</span><span class="token punctuation">,</span>
+        <span class="token string-property property">"prompt"</span><span class="token operator">:</span> <span class="token string">"请输入姓名："</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>输入 jack</p> 
+<pre><code class="prism language-json">请求参数中的 input_queue 为 <span class="token punctuation">[</span><span class="token string">"jack"</span><span class="token punctuation">]</span>
+
+<span class="token punctuation">{<!-- --></span>
+    <span class="token string-property property">"code"</span><span class="token operator">:</span> <span class="token string">"name = input(\"请输入姓名：\")\nprint(\"姓名：\", name)\n\nif name == \"tom\":\n    age = input(\"请输入年龄：\")\n    print(\"年龄：\", age)\n\ngender = input(\"请输入性别：\")\nprint(\"性别：\", gender)"</span><span class="token punctuation">,</span>
+    
+    <span class="token string-property property">"input_queue"</span><span class="token operator">:</span> <span class="token punctuation">[</span>
+        <span class="token string">"jack"</span>
+    <span class="token punctuation">]</span>
+<span class="token punctuation">}</span>
+
+返回值
+<span class="token punctuation">{<!-- --></span>
+    <span class="token string-property property">"is_timeout"</span><span class="token operator">:</span> <span class="token boolean">false</span><span class="token punctuation">,</span>
+    <span class="token string-property property">"done"</span><span class="token operator">:</span> <span class="token boolean">false</span><span class="token punctuation">,</span>
+    <span class="token string-property property">"event"</span><span class="token operator">:</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token string-property property">"type"</span><span class="token operator">:</span> <span class="token string">"input_request"</span><span class="token punctuation">,</span>
+        <span class="token string-property property">"prompt"</span><span class="token operator">:</span> <span class="token string">"请输入性别："</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>输入 男</p> 
+<pre><code class="prism language-json">请求参数中的 input_queue 为 <span class="token punctuation">[</span><span class="token string">"jack"</span><span class="token punctuation">,</span> <span class="token string">"男"</span><span class="token punctuation">]</span>
+<span class="token punctuation">{<!-- --></span>
+    <span class="token string-property property">"code"</span><span class="token operator">:</span> <span class="token string">"name = input(\"请输入姓名：\")\nprint(\"姓名：\", name)\n\nif name == \"tom\":\n    age = input(\"请输入年龄：\")\n    print(\"年龄：\", age)\n\ngender = input(\"请输入性别：\")\nprint(\"性别：\", gender)"</span><span class="token punctuation">,</span>
+    <span class="token string-property property">"input_queue"</span><span class="token operator">:</span> <span class="token punctuation">[</span>
+        <span class="token string">"jack"</span><span class="token punctuation">,</span>
+        <span class="token string">"男"</span>
+    <span class="token punctuation">]</span>
+<span class="token punctuation">}</span>
+
+返回值
+<span class="token punctuation">{<!-- --></span>
+    <span class="token string-property property">"is_timeout"</span><span class="token operator">:</span> <span class="token boolean">false</span><span class="token punctuation">,</span>
+    <span class="token string-property property">"done"</span><span class="token operator">:</span> <span class="token boolean">true</span><span class="token punctuation">,</span>
+    <span class="token string-property property">"output"</span><span class="token operator">:</span> <span class="token string">"请输入姓名：jack\r\n姓名： jack\r\n请输入性别：男\r\n性别： 男\r\n"</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<h4><a id="_127"></a>三次用户输入</h4> 
+<p>点击运行按钮</p> 
+<pre><code class="prism language-json">请求参数中的 input_queue 为 <span class="token punctuation">[</span><span class="token punctuation">]</span>
+<span class="token punctuation">{<!-- --></span>
+    <span class="token string-property property">"code"</span><span class="token operator">:</span> <span class="token string">"name = input(\"请输入姓名：\")\nprint(\"姓名：\", name)\n\nif name == \"tom\":\n    age = input(\"请输入年龄：\")\n    print(\"年龄：\", age)\n\ngender = input(\"请输入性别：\")\nprint(\"性别：\", gender)"</span><span class="token punctuation">,</span>
+    <span class="token string-property property">"input_queue"</span><span class="token operator">:</span> <span class="token punctuation">[</span><span class="token punctuation">]</span>
+<span class="token punctuation">}</span>
+
+返回值
+<span class="token punctuation">{<!-- --></span>
+    <span class="token string-property property">"is_timeout"</span><span class="token operator">:</span> <span class="token boolean">false</span><span class="token punctuation">,</span>
+    <span class="token string-property property">"done"</span><span class="token operator">:</span> <span class="token boolean">false</span><span class="token punctuation">,</span>
+    <span class="token string-property property">"event"</span><span class="token operator">:</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token string-property property">"type"</span><span class="token operator">:</span> <span class="token string">"input_request"</span><span class="token punctuation">,</span>
+        <span class="token string-property property">"prompt"</span><span class="token operator">:</span> <span class="token string">"请输入姓名："</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>输入 tom</p> 
+<pre><code class="prism language-json">请求参数中的 input_queue 为 <span class="token punctuation">[</span><span class="token string">"tom"</span><span class="token punctuation">]</span>
+<span class="token punctuation">{<!-- --></span>
+    <span class="token string-property property">"code"</span><span class="token operator">:</span> <span class="token string">"name = input(\"请输入姓名：\")\nprint(\"姓名：\", name)\n\nif name == \"tom\":\n    age = input(\"请输入年龄：\")\n    print(\"年龄：\", age)\n\ngender = input(\"请输入性别：\")\nprint(\"性别：\", gender)"</span><span class="token punctuation">,</span>
+    <span class="token string-property property">"input_queue"</span><span class="token operator">:</span> <span class="token punctuation">[</span>
+        <span class="token string">"tom"</span>
+    <span class="token punctuation">]</span>
+<span class="token punctuation">}</span>
+
+返回值
+<span class="token punctuation">{<!-- --></span>
+    <span class="token string-property property">"is_timeout"</span><span class="token operator">:</span> <span class="token boolean">false</span><span class="token punctuation">,</span>
+    <span class="token string-property property">"done"</span><span class="token operator">:</span> <span class="token boolean">false</span><span class="token punctuation">,</span>
+    <span class="token string-property property">"event"</span><span class="token operator">:</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token string-property property">"type"</span><span class="token operator">:</span> <span class="token string">"input_request"</span><span class="token punctuation">,</span>
+        <span class="token string-property property">"prompt"</span><span class="token operator">:</span> <span class="token string">"请输入年龄："</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>输入 18</p> 
+<pre><code class="prism language-json">请求参数中的 input_queue 为 <span class="token punctuation">[</span><span class="token string">"tom"</span><span class="token punctuation">,</span> <span class="token string">"18"</span><span class="token punctuation">]</span>
+<span class="token punctuation">{<!-- --></span>
+    <span class="token string-property property">"code"</span><span class="token operator">:</span> <span class="token string">"name = input(\"请输入姓名：\")\nprint(\"姓名：\", name)\n\nif name == \"tom\":\n    age = input(\"请输入年龄：\")\n    print(\"年龄：\", age)\n\ngender = input(\"请输入性别：\")\nprint(\"性别：\", gender)"</span><span class="token punctuation">,</span>
+    <span class="token string-property property">"input_queue"</span><span class="token operator">:</span> <span class="token punctuation">[</span>
+        <span class="token string">"tom"</span><span class="token punctuation">,</span>
+        <span class="token string">"18"</span>
+    <span class="token punctuation">]</span>
+<span class="token punctuation">}</span>
+
+返回值
+<span class="token punctuation">{<!-- --></span>
+    <span class="token string-property property">"is_timeout"</span><span class="token operator">:</span> <span class="token boolean">false</span><span class="token punctuation">,</span>
+    <span class="token string-property property">"done"</span><span class="token operator">:</span> <span class="token boolean">false</span><span class="token punctuation">,</span>
+    <span class="token string-property property">"event"</span><span class="token operator">:</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token string-property property">"type"</span><span class="token operator">:</span> <span class="token string">"input_request"</span><span class="token punctuation">,</span>
+        <span class="token string-property property">"prompt"</span><span class="token operator">:</span> <span class="token string">"请输入性别："</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>输入 男</p> 
+<pre><code class="prism language-json">请求参数中的 input_queue 为 <span class="token punctuation">[</span><span class="token string">"tom"</span><span class="token punctuation">,</span> <span class="token string">"18"</span><span class="token punctuation">,</span> <span class="token string">"男"</span><span class="token punctuation">]</span>
+<span class="token punctuation">{<!-- --></span>
+    <span class="token string-property property">"code"</span><span class="token operator">:</span> <span class="token string">"name = input(\"请输入姓名：\")\nprint(\"姓名：\", name)\n\nif name == \"tom\":\n    age = input(\"请输入年龄：\")\n    print(\"年龄：\", age)\n\ngender = input(\"请输入性别：\")\nprint(\"性别：\", gender)"</span><span class="token punctuation">,</span>
+    <span class="token string-property property">"input_queue"</span><span class="token operator">:</span> <span class="token punctuation">[</span>
+        <span class="token string">"tom"</span><span class="token punctuation">,</span>
+        <span class="token string">"18"</span><span class="token punctuation">,</span>
+        <span class="token string">"男"</span>
+    <span class="token punctuation">]</span>
+<span class="token punctuation">}</span>
+
+返回值
+<span class="token punctuation">{<!-- --></span>
+    <span class="token string-property property">"is_timeout"</span><span class="token operator">:</span> <span class="token boolean">false</span><span class="token punctuation">,</span>
+    <span class="token string-property property">"done"</span><span class="token operator">:</span> <span class="token boolean">true</span><span class="token punctuation">,</span>
+    <span class="token string-property property">"output"</span><span class="token operator">:</span> <span class="token string">"请输入姓名：tom\r\n姓名： tom\r\n请输入年龄：18\r\n年龄： 18\r\n请输入性别：男\r\n性别： 男\r\n"</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<h3><a id="_215"></a>实现</h3> 
+<h4><a id="_vue__element_ui_217"></a>前端使用 vue + element ui</h4> 
+<pre><code class="prism language-html"><span class="token doctype"><span class="token punctuation">&lt;!</span><span class="token doctype-tag">DOCTYPE</span> <span class="token name">html</span><span class="token punctuation">&gt;</span></span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>html</span> <span class="token attr-name">lang</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span><span class="token punctuation">"</span></span> <span class="token special-attr"><span class="token attr-name">style</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span><span class="token value css language-css"><span class="token property">height</span><span class="token punctuation">:</span> 100%<span class="token punctuation">;</span></span><span class="token punctuation">"</span></span></span><span class="token punctuation">&gt;</span></span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>head</span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>meta</span> <span class="token attr-name">charset</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>UTF-8<span class="token punctuation">"</span></span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>link</span> <span class="token attr-name">rel</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>stylesheet<span class="token punctuation">"</span></span> <span class="token attr-name">href</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>./element-ui/index.css<span class="token punctuation">"</span></span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>title</span><span class="token punctuation">&gt;</span></span>在线 python 执行<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>title</span><span class="token punctuation">&gt;</span></span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>head</span><span class="token punctuation">&gt;</span></span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>body</span> <span class="token special-attr"><span class="token attr-name">style</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span><span class="token value css language-css"><span class="token property">height</span><span class="token punctuation">:</span> 100%<span class="token punctuation">;</span><span class="token property">margin</span><span class="token punctuation">:</span> 0<span class="token punctuation">;</span></span><span class="token punctuation">"</span></span></span><span class="token punctuation">&gt;</span></span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>div</span> <span class="token attr-name">id</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>app<span class="token punctuation">"</span></span> <span class="token special-attr"><span class="token attr-name">style</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span><span class="token value css language-css"><span class="token property">height</span><span class="token punctuation">:</span> 98%<span class="token punctuation">;</span><span class="token property">width</span><span class="token punctuation">:</span> 98%<span class="token punctuation">;</span><span class="token property">padding</span><span class="token punctuation">:</span> 5px</span><span class="token punctuation">"</span></span></span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>el-input</span>
+            <span class="token attr-name">type</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>textarea<span class="token punctuation">"</span></span>
+            <span class="token attr-name">:autosize</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>{ minRows: 10, maxRows: 100}<span class="token punctuation">"</span></span>
+            <span class="token attr-name">placeholder</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>请输入代码<span class="token punctuation">"</span></span>
+            <span class="token attr-name">v-model</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>code<span class="token punctuation">"</span></span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>el-input</span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>el-button</span> <span class="token attr-name">type</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>primary<span class="token punctuation">"</span></span> <span class="token special-attr"><span class="token attr-name">style</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span><span class="token value css language-css"><span class="token property">margin-top</span><span class="token punctuation">:</span> 5px<span class="token punctuation">;</span><span class="token property">margin-bottom</span><span class="token punctuation">:</span> 5px</span><span class="token punctuation">"</span></span></span> <span class="token attr-name">@click</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>exec()<span class="token punctuation">"</span></span><span class="token punctuation">&gt;</span></span>运行<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>el-button</span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>el-input</span>
+            <span class="token attr-name">type</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>textarea<span class="token punctuation">"</span></span>
+            <span class="token attr-name">:autosize</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>{ minRows: 10, maxRows: 100}<span class="token punctuation">"</span></span>
+            <span class="token attr-name">placeholder</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>运行结果<span class="token punctuation">"</span></span>
+            <span class="token attr-name">v-model</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>result<span class="token punctuation">"</span></span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>el-input</span><span class="token punctuation">&gt;</span></span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>div</span><span class="token punctuation">&gt;</span></span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>body</span><span class="token punctuation">&gt;</span></span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>script</span> <span class="token attr-name">src</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>./axios.min.js<span class="token punctuation">"</span></span><span class="token punctuation">&gt;</span></span><span class="token script"></span><span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>script</span><span class="token punctuation">&gt;</span></span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>script</span> <span class="token attr-name">src</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>./vue.js<span class="token punctuation">"</span></span><span class="token punctuation">&gt;</span></span><span class="token script"></span><span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>script</span><span class="token punctuation">&gt;</span></span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>script</span> <span class="token attr-name">src</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>./element-ui/index.js<span class="token punctuation">"</span></span><span class="token punctuation">&gt;</span></span><span class="token script"></span><span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>script</span><span class="token punctuation">&gt;</span></span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>script</span><span class="token punctuation">&gt;</span></span><span class="token script"><span class="token language-javascript">
+
+    <span class="token keyword">new</span> <span class="token class-name">Vue</span><span class="token punctuation">(</span><span class="token punctuation">{<!-- --></span>
+        <span class="token literal-property property">el</span><span class="token operator">:</span> <span class="token string">'#app'</span><span class="token punctuation">,</span>
+        <span class="token function">mounted</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token punctuation">}</span><span class="token punctuation">,</span>
+        <span class="token literal-property property">methods</span><span class="token operator">:</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token function">exec</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                <span class="token keyword">const</span> params <span class="token operator">=</span> <span class="token punctuation">{<!-- --></span>
+                    <span class="token literal-property property">code</span><span class="token operator">:</span> <span class="token keyword">this</span><span class="token punctuation">.</span>code<span class="token punctuation">,</span>
+                    <span class="token literal-property property">input_queue</span><span class="token operator">:</span> <span class="token keyword">this</span><span class="token punctuation">.</span>input_queue
+                <span class="token punctuation">}</span>
+                axios<span class="token punctuation">.</span><span class="token function">post</span><span class="token punctuation">(</span><span class="token string">'http://localhost:8080/exec'</span><span class="token punctuation">,</span> params<span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">then</span><span class="token punctuation">(</span><span class="token parameter">res</span> <span class="token operator">=&gt;</span> <span class="token punctuation">{<!-- --></span>
+                    console<span class="token punctuation">.</span><span class="token function">log</span><span class="token punctuation">(</span><span class="token string">"exec"</span><span class="token punctuation">,</span> res<span class="token punctuation">)</span>
+
+                    <span class="token keyword">if</span> <span class="token punctuation">(</span>res<span class="token punctuation">.</span>data<span class="token punctuation">.</span>done<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                        <span class="token comment">// 执行结束了，需要清空队列</span>
+                        <span class="token keyword">this</span><span class="token punctuation">.</span><span class="token function">clearQueue</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+
+                        <span class="token keyword">if</span> <span class="token punctuation">(</span>res<span class="token punctuation">.</span>data<span class="token punctuation">.</span>is_timeout<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                            <span class="token comment">// 执行超时</span>
+                            <span class="token keyword">this</span><span class="token punctuation">.</span><span class="token function">$message</span><span class="token punctuation">(</span><span class="token string">"执行超时"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+                        <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{<!-- --></span>
+                            <span class="token comment">// 正常执行结束</span>
+                            <span class="token keyword">this</span><span class="token punctuation">.</span>result <span class="token operator">=</span> res<span class="token punctuation">.</span>data<span class="token punctuation">.</span>output
+                        <span class="token punctuation">}</span>
+                    <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{<!-- --></span>
+                        <span class="token comment">// 执行中，需要用户输入</span>
+                        <span class="token keyword">const</span> event <span class="token operator">=</span> res<span class="token punctuation">.</span>data<span class="token punctuation">.</span>event
+                        <span class="token keyword">if</span> <span class="token punctuation">(</span>event<span class="token punctuation">.</span>type <span class="token operator">===</span> <span class="token string">'input_request'</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                            <span class="token comment">// 弹框提示用户输入</span>
+                            <span class="token keyword">this</span><span class="token punctuation">.</span><span class="token function">$prompt</span><span class="token punctuation">(</span>event<span class="token punctuation">.</span>prompt<span class="token punctuation">,</span> <span class="token string">'输入'</span><span class="token punctuation">,</span> <span class="token punctuation">{<!-- --></span>
+                                <span class="token literal-property property">confirmButtonText</span><span class="token operator">:</span> <span class="token string">'继续执行'</span><span class="token punctuation">,</span>
+                                <span class="token literal-property property">cancelButtonText</span><span class="token operator">:</span> <span class="token string">'终止执行'</span><span class="token punctuation">,</span>
+                                <span class="token literal-property property">showClose</span><span class="token operator">:</span> <span class="token boolean">false</span><span class="token punctuation">,</span>
+                                <span class="token literal-property property">closeOnClickModal</span><span class="token operator">:</span> <span class="token boolean">false</span><span class="token punctuation">,</span>
+                                <span class="token literal-property property">closeOnPressEscape</span><span class="token operator">:</span> <span class="token boolean">false</span>
+                            <span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">then</span><span class="token punctuation">(</span><span class="token punctuation">(</span><span class="token parameter"><span class="token punctuation">{<!-- --></span>value<span class="token punctuation">}</span></span><span class="token punctuation">)</span> <span class="token operator">=&gt;</span> <span class="token punctuation">{<!-- --></span>
+                                <span class="token comment">// 继续执行，将本次输入的信息追加进队列，然后再次执行</span>
+                                <span class="token keyword">this</span><span class="token punctuation">.</span>input_queue<span class="token punctuation">.</span><span class="token function">push</span><span class="token punctuation">(</span>value<span class="token punctuation">)</span>
+                                <span class="token keyword">this</span><span class="token punctuation">.</span><span class="token function">exec</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+                            <span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">catch</span><span class="token punctuation">(</span><span class="token punctuation">(</span><span class="token parameter">action</span><span class="token punctuation">)</span> <span class="token operator">=&gt;</span> <span class="token punctuation">{<!-- --></span>
+                                <span class="token comment">// 终止执行，需要清空队列</span>
+                                console<span class="token punctuation">.</span><span class="token function">log</span><span class="token punctuation">(</span><span class="token string">"action "</span><span class="token punctuation">,</span> action<span class="token punctuation">)</span>
+                                <span class="token keyword">this</span><span class="token punctuation">.</span><span class="token function">clearQueue</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+                                <span class="token keyword">this</span><span class="token punctuation">.</span><span class="token function">$message</span><span class="token punctuation">(</span><span class="token string">"终止执行"</span><span class="token punctuation">)</span>
+                            <span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+                        <span class="token punctuation">}</span>
+                    <span class="token punctuation">}</span>
+                <span class="token punctuation">}</span><span class="token punctuation">)</span>
+            <span class="token punctuation">}</span><span class="token punctuation">,</span>
+            <span class="token function">clearQueue</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                <span class="token keyword">this</span><span class="token punctuation">.</span>input_queue <span class="token operator">=</span> <span class="token punctuation">[</span><span class="token punctuation">]</span>
+            <span class="token punctuation">}</span>
+        <span class="token punctuation">}</span><span class="token punctuation">,</span>
+        <span class="token function">data</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token keyword">return</span> <span class="token punctuation">{<!-- --></span>
+                <span class="token literal-property property">code</span><span class="token operator">:</span>
+<span class="token template-string"><span class="token template-punctuation string">`</span><span class="token string">name = input("请输入姓名：")
+print("姓名：", name)
+
+if name == "tom":
+    age = input("请输入年龄：")
+    print("年龄：", age)
+
+gender = input("请输入性别：")
+print("性别：", gender)
+</span><span class="token template-punctuation string">`</span></span><span class="token punctuation">,</span>
+                <span class="token literal-property property">input_queue</span><span class="token operator">:</span> <span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token punctuation">,</span>
+                <span class="token literal-property property">result</span><span class="token operator">:</span> <span class="token keyword">null</span><span class="token punctuation">,</span>
+            <span class="token punctuation">}</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span><span class="token punctuation">)</span>
+
+</span></span><span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>script</span><span class="token punctuation">&gt;</span></span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>html</span><span class="token punctuation">&gt;</span></span>
+</code></pre> 
+<h4><a id="Windows__325"></a>Windows 环境的执行器</h4> 
+<pre><code class="prism language-python"><span class="token keyword">import</span> json
+<span class="token keyword">import</span> os
+<span class="token keyword">import</span> subprocess
+<span class="token keyword">import</span> threading
+<span class="token keyword">from</span> threading <span class="token keyword">import</span> Timer
+
+<span class="token keyword">import</span> psutil
+
+
+<span class="token keyword">class</span> <span class="token class-name">AbstractExecutor</span><span class="token punctuation">:</span>
+
+    <span class="token keyword">def</span> <span class="token function">__init__</span><span class="token punctuation">(</span>self<span class="token punctuation">,</span> param<span class="token punctuation">)</span><span class="token punctuation">:</span>
+        <span class="token comment"># param 包括 code、input_queue</span>
+        self<span class="token punctuation">.</span>param <span class="token operator">=</span> param
+        <span class="token comment"># 用于保护 is_timeout 的锁</span>
+        self<span class="token punctuation">.</span>lock <span class="token operator">=</span> threading<span class="token punctuation">.</span>Lock<span class="token punctuation">(</span><span class="token punctuation">)</span>
+        <span class="token comment"># 是否执行超时了</span>
+        self<span class="token punctuation">.</span>is_timeout <span class="token operator">=</span> <span class="token boolean">None</span>
+
+    <span class="token keyword">def</span> <span class="token function">timeout_callback</span><span class="token punctuation">(</span>self<span class="token punctuation">,</span> p<span class="token punctuation">:</span> subprocess<span class="token punctuation">.</span>Popen<span class="token punctuation">)</span><span class="token punctuation">:</span>
+        <span class="token triple-quoted-string string">"""
+        执行超时时的回调，会终止执行 python 代码的进程组
+        :param p: 执行 python 代码的进程
+        """</span>
+        <span class="token keyword">with</span> self<span class="token punctuation">.</span>lock<span class="token punctuation">:</span>
+            <span class="token keyword">if</span> self<span class="token punctuation">.</span>is_timeout <span class="token keyword">is</span> <span class="token boolean">None</span><span class="token punctuation">:</span>
+                self<span class="token punctuation">.</span>is_timeout <span class="token operator">=</span> <span class="token boolean">True</span>
+
+        <span class="token keyword">if</span> self<span class="token punctuation">.</span>is_timeout<span class="token punctuation">:</span>
+            <span class="token keyword">try</span><span class="token punctuation">:</span>
+                <span class="token comment"># 终止执行 python 代码的进程组</span>
+                self<span class="token punctuation">.</span>terminating_process_group<span class="token punctuation">(</span>p<span class="token punctuation">)</span>
+            <span class="token keyword">except</span> Exception <span class="token keyword">as</span> e<span class="token punctuation">:</span>
+                <span class="token keyword">print</span><span class="token punctuation">(</span><span class="token string">"超时回调异常, error: %s"</span><span class="token punctuation">,</span> e<span class="token punctuation">)</span>
+
+    <span class="token keyword">def</span> <span class="token function">terminating_process_group</span><span class="token punctuation">(</span>self<span class="token punctuation">,</span> p<span class="token punctuation">:</span> subprocess<span class="token punctuation">.</span>Popen<span class="token punctuation">)</span><span class="token punctuation">:</span>
+        <span class="token triple-quoted-string string">"""
+        终止进程 p 及其子进程
+        :param p: 要终止的进程
+        """</span>
+        <span class="token keyword">raise</span> NotImplementedError<span class="token punctuation">(</span><span class="token punctuation">)</span>
+
+    <span class="token keyword">def</span> <span class="token function">create_popen</span><span class="token punctuation">(</span>self<span class="token punctuation">)</span> <span class="token operator">-</span><span class="token operator">&gt;</span> subprocess<span class="token punctuation">.</span>Popen<span class="token punctuation">:</span>
+        <span class="token triple-quoted-string string">"""
+        创建 subprocess.Popen，必须将 stderr 重定向到 stdout
+        """</span>
+        <span class="token keyword">raise</span> NotImplementedError<span class="token punctuation">(</span><span class="token punctuation">)</span>
+
+    <span class="token keyword">def</span> <span class="token function">output</span><span class="token punctuation">(</span>self<span class="token punctuation">,</span> stdout<span class="token punctuation">)</span><span class="token punctuation">:</span>
+        <span class="token keyword">if</span> stdout <span class="token keyword">is</span> <span class="token keyword">not</span> <span class="token boolean">None</span><span class="token punctuation">:</span>
+            <span class="token keyword">return</span> stdout<span class="token punctuation">.</span>decode<span class="token punctuation">(</span><span class="token string">"utf-8"</span><span class="token punctuation">)</span>
+        <span class="token keyword">else</span><span class="token punctuation">:</span>
+            <span class="token keyword">return</span> <span class="token string">""</span>
+
+    <span class="token keyword">def</span> <span class="token function">execute</span><span class="token punctuation">(</span>self<span class="token punctuation">)</span><span class="token punctuation">:</span>
+        p <span class="token operator">=</span> self<span class="token punctuation">.</span>create_popen<span class="token punctuation">(</span><span class="token punctuation">)</span>
+        timer <span class="token operator">=</span> Timer<span class="token punctuation">(</span><span class="token number">3</span><span class="token punctuation">,</span> self<span class="token punctuation">.</span>timeout_callback<span class="token punctuation">,</span> <span class="token punctuation">[</span>p<span class="token punctuation">]</span><span class="token punctuation">)</span>
+        timer<span class="token punctuation">.</span>start<span class="token punctuation">(</span><span class="token punctuation">)</span>
+        <span class="token keyword">try</span><span class="token punctuation">:</span>
+            <span class="token comment"># 从标准输入传入 json 参数：code、input_queue</span>
+            p<span class="token punctuation">.</span>stdin<span class="token punctuation">.</span>write<span class="token punctuation">(</span>json<span class="token punctuation">.</span>dumps<span class="token punctuation">(</span>self<span class="token punctuation">.</span>param<span class="token punctuation">)</span><span class="token punctuation">.</span>encode<span class="token punctuation">(</span>encoding<span class="token operator">=</span><span class="token string">"utf-8"</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+
+            stdout<span class="token punctuation">,</span> stderr <span class="token operator">=</span> p<span class="token punctuation">.</span>communicate<span class="token punctuation">(</span><span class="token punctuation">)</span>
+
+            <span class="token keyword">with</span> self<span class="token punctuation">.</span>lock<span class="token punctuation">:</span>
+                <span class="token keyword">if</span> self<span class="token punctuation">.</span>is_timeout <span class="token keyword">is</span> <span class="token boolean">None</span><span class="token punctuation">:</span>
+                    self<span class="token punctuation">.</span>is_timeout <span class="token operator">=</span> <span class="token boolean">False</span>
+
+        <span class="token keyword">finally</span><span class="token punctuation">:</span>
+            timer<span class="token punctuation">.</span>cancel<span class="token punctuation">(</span><span class="token punctuation">)</span>
+        <span class="token keyword">return</span> self<span class="token punctuation">.</span>is_timeout<span class="token punctuation">,</span> self<span class="token punctuation">.</span>output<span class="token punctuation">(</span>stdout<span class="token punctuation">)</span>
+
+
+<span class="token keyword">class</span> <span class="token class-name">WindowsExecutor</span><span class="token punctuation">(</span>AbstractExecutor<span class="token punctuation">)</span><span class="token punctuation">:</span>
+
+    __output_prefix <span class="token operator">=</span> <span class="token string">"Active code page: 65001\r\n"</span>
+
+    <span class="token keyword">def</span> <span class="token function">create_popen</span><span class="token punctuation">(</span>self<span class="token punctuation">)</span> <span class="token operator">-</span><span class="token operator">&gt;</span> subprocess<span class="token punctuation">.</span>Popen<span class="token punctuation">:</span>
+        filename <span class="token operator">=</span> <span class="token string">r"D:\project\python\online-python-code-executor\queue-base\exec_py.py"</span>
+        cmd <span class="token operator">=</span> <span class="token string">'chcp 65001 &amp; set PYTHONIOENCODING=utf-8 &amp; python '</span> <span class="token operator">+</span> filename
+
+        <span class="token comment"># 将 stderr 重定向到了 stdout</span>
+        <span class="token keyword">return</span> subprocess<span class="token punctuation">.</span>Popen<span class="token punctuation">(</span>cmd<span class="token punctuation">,</span> stdin<span class="token operator">=</span>subprocess<span class="token punctuation">.</span>PIPE<span class="token punctuation">,</span> stdout<span class="token operator">=</span>subprocess<span class="token punctuation">.</span>PIPE<span class="token punctuation">,</span> stderr<span class="token operator">=</span>subprocess<span class="token punctuation">.</span>STDOUT<span class="token punctuation">,</span>
+                                shell<span class="token operator">=</span><span class="token boolean">True</span><span class="token punctuation">)</span>
+
+    <span class="token keyword">def</span> <span class="token function">terminating_process_group</span><span class="token punctuation">(</span>self<span class="token punctuation">,</span> p<span class="token punctuation">:</span> subprocess<span class="token punctuation">.</span>Popen<span class="token punctuation">)</span><span class="token punctuation">:</span>
+        proc_pid <span class="token operator">=</span> p<span class="token punctuation">.</span>pid
+        parent_proc <span class="token operator">=</span> psutil<span class="token punctuation">.</span>Process<span class="token punctuation">(</span>proc_pid<span class="token punctuation">)</span>
+        <span class="token keyword">for</span> child_proc <span class="token keyword">in</span> parent_proc<span class="token punctuation">.</span>children<span class="token punctuation">(</span>recursive<span class="token operator">=</span><span class="token boolean">True</span><span class="token punctuation">)</span><span class="token punctuation">:</span>
+            <span class="token keyword">print</span><span class="token punctuation">(</span>child_proc<span class="token punctuation">.</span>pid<span class="token punctuation">)</span>
+            child_proc<span class="token punctuation">.</span>kill<span class="token punctuation">(</span><span class="token punctuation">)</span>
+        parent_proc<span class="token punctuation">.</span>kill<span class="token punctuation">(</span><span class="token punctuation">)</span>
+        <span class="token keyword">print</span><span class="token punctuation">(</span>parent_proc<span class="token punctuation">.</span>pid<span class="token punctuation">)</span>
+
+    <span class="token keyword">def</span> <span class="token function">output</span><span class="token punctuation">(</span>self<span class="token punctuation">,</span> stdout<span class="token punctuation">)</span><span class="token punctuation">:</span>
+        output <span class="token operator">=</span> <span class="token builtin">super</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span>output<span class="token punctuation">(</span>stdout<span class="token punctuation">)</span>
+        <span class="token keyword">if</span> output<span class="token punctuation">.</span>startswith<span class="token punctuation">(</span>self<span class="token punctuation">.</span>__output_prefix<span class="token punctuation">)</span><span class="token punctuation">:</span>
+            <span class="token keyword">return</span> output<span class="token punctuation">.</span>removeprefix<span class="token punctuation">(</span>self<span class="token punctuation">.</span>__output_prefix<span class="token punctuation">)</span>
+        <span class="token keyword">else</span><span class="token punctuation">:</span>
+            <span class="token keyword">return</span> output
+
+
+<span class="token keyword">if</span> os<span class="token punctuation">.</span>name <span class="token operator">==</span> <span class="token string">"nt"</span><span class="token punctuation">:</span>
+    executor_cls <span class="token operator">=</span> WindowsExecutor
+
+
+<span class="token keyword">def</span> <span class="token function">execute</span><span class="token punctuation">(</span>param<span class="token punctuation">)</span><span class="token punctuation">:</span>
+
+    <span class="token comment"># 执行用户代码</span>
+    is_timeout<span class="token punctuation">,</span> stdout <span class="token operator">=</span> executor_cls<span class="token punctuation">(</span>param<span class="token punctuation">)</span><span class="token punctuation">.</span>execute<span class="token punctuation">(</span><span class="token punctuation">)</span>
+
+    <span class="token keyword">if</span> is_timeout<span class="token punctuation">:</span>
+        <span class="token comment"># 执行超时了</span>
+        <span class="token keyword">return</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token string">"is_timeout"</span><span class="token punctuation">:</span> is_timeout<span class="token punctuation">,</span>
+            <span class="token string">"done"</span><span class="token punctuation">:</span> <span class="token boolean">True</span><span class="token punctuation">,</span>
+            <span class="token string">"output"</span><span class="token punctuation">:</span> stdout<span class="token punctuation">,</span>
+        <span class="token punctuation">}</span>
+    <span class="token keyword">else</span><span class="token punctuation">:</span>
+        arr <span class="token operator">=</span> stdout<span class="token punctuation">.</span>split<span class="token punctuation">(</span><span class="token string">"InputRequestException"</span><span class="token punctuation">)</span>
+        <span class="token keyword">if</span> <span class="token builtin">len</span><span class="token punctuation">(</span>arr<span class="token punctuation">)</span> <span class="token operator">&gt;</span> <span class="token number">1</span><span class="token punctuation">:</span>
+            <span class="token comment"># 需要用户输入</span>
+            <span class="token keyword">return</span> <span class="token punctuation">{<!-- --></span>
+                <span class="token string">"is_timeout"</span><span class="token punctuation">:</span> is_timeout<span class="token punctuation">,</span>
+                <span class="token string">"done"</span><span class="token punctuation">:</span> <span class="token boolean">False</span><span class="token punctuation">,</span>
+                <span class="token string">"event"</span><span class="token punctuation">:</span> <span class="token punctuation">{<!-- --></span>
+                    <span class="token string">"type"</span><span class="token punctuation">:</span> <span class="token string">"input_request"</span><span class="token punctuation">,</span>
+                    <span class="token string">"prompt"</span><span class="token punctuation">:</span> arr<span class="token punctuation">[</span><span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">]</span>
+                <span class="token punctuation">}</span>
+            <span class="token punctuation">}</span>
+        <span class="token keyword">else</span><span class="token punctuation">:</span>
+            <span class="token comment"># 正常执行结束</span>
+            <span class="token keyword">return</span> <span class="token punctuation">{<!-- --></span>
+                <span class="token string">"is_timeout"</span><span class="token punctuation">:</span> is_timeout<span class="token punctuation">,</span>
+                <span class="token string">"done"</span><span class="token punctuation">:</span> <span class="token boolean">True</span><span class="token punctuation">,</span>
+                <span class="token string">"output"</span><span class="token punctuation">:</span> stdout<span class="token punctuation">,</span>
+            <span class="token punctuation">}</span>
+</code></pre> 
+<h4><a id="_467"></a>子进程需要执行的代码</h4> 
+<pre><code class="prism language-python"><span class="token keyword">import</span> json
+<span class="token keyword">import</span> sys
+
+
+input_queue <span class="token operator">=</span> <span class="token punctuation">[</span><span class="token punctuation">]</span>
+
+
+<span class="token keyword">class</span> <span class="token class-name">InputRequestException</span><span class="token punctuation">(</span>Exception<span class="token punctuation">)</span><span class="token punctuation">:</span>
+    <span class="token triple-quoted-string string">"""
+    抛出此异常表示需要用户输入
+    """</span>
+    <span class="token keyword">pass</span>
+
+
+<span class="token keyword">def</span> <span class="token function">execute</span><span class="token punctuation">(</span>param<span class="token punctuation">)</span><span class="token punctuation">:</span>
+    <span class="token comment"># 重写 input 函数</span>
+    __builtins__<span class="token punctuation">.</span><span class="token builtin">input</span> <span class="token operator">=</span> input_wrapper
+
+    <span class="token comment"># input_queue</span>
+    <span class="token keyword">global</span> input_queue
+    input_queue <span class="token operator">=</span> param<span class="token punctuation">[</span><span class="token string">"input_queue"</span><span class="token punctuation">]</span>
+    <span class="token keyword">try</span><span class="token punctuation">:</span>
+        <span class="token comment"># 执行代码</span>
+        <span class="token keyword">exec</span><span class="token punctuation">(</span>param<span class="token punctuation">[</span><span class="token string">"code"</span><span class="token punctuation">]</span><span class="token punctuation">)</span>
+    <span class="token keyword">except</span> InputRequestException <span class="token keyword">as</span> e<span class="token punctuation">:</span>
+        <span class="token comment"># 如果需要用户输入，则直接退出</span>
+        sys<span class="token punctuation">.</span>stdout<span class="token punctuation">.</span>write<span class="token punctuation">(</span><span class="token string">"\n"</span> <span class="token operator">+</span> <span class="token string">"InputRequestException"</span> <span class="token operator">+</span> e<span class="token punctuation">.</span>args<span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span><span class="token punctuation">)</span>
+        exit<span class="token punctuation">(</span><span class="token punctuation">)</span>
+
+
+<span class="token keyword">def</span> <span class="token function">input_wrapper</span><span class="token punctuation">(</span>prompt<span class="token operator">=</span><span class="token string">''</span><span class="token punctuation">)</span><span class="token punctuation">:</span>
+    <span class="token comment"># 从 input_queue 中弹出</span>
+    <span class="token keyword">if</span> input_queue<span class="token punctuation">:</span>
+        input_str <span class="token operator">=</span> input_queue<span class="token punctuation">.</span>pop<span class="token punctuation">(</span><span class="token number">0</span><span class="token punctuation">)</span>
+        sys<span class="token punctuation">.</span>stdout<span class="token punctuation">.</span>write<span class="token punctuation">(</span><span class="token builtin">str</span><span class="token punctuation">(</span>prompt<span class="token punctuation">)</span> <span class="token operator">+</span> input_str <span class="token operator">+</span> <span class="token string">"\n"</span><span class="token punctuation">)</span>
+        <span class="token keyword">return</span> input_str
+    <span class="token comment"># 需要用户输入</span>
+    <span class="token keyword">raise</span> InputRequestException<span class="token punctuation">(</span><span class="token builtin">str</span><span class="token punctuation">(</span>prompt<span class="token punctuation">)</span><span class="token punctuation">)</span>
+
+
+<span class="token keyword">if</span> __name__ <span class="token operator">==</span> <span class="token string">'__main__'</span><span class="token punctuation">:</span>
+    <span class="token comment"># 从标准输入读取 json 参数：code、input_queue</span>
+    arg <span class="token operator">=</span> sys<span class="token punctuation">.</span>stdin<span class="token punctuation">.</span>read<span class="token punctuation">(</span><span class="token punctuation">)</span>
+    <span class="token comment"># 执行</span>
+    execute<span class="token punctuation">(</span>json<span class="token punctuation">.</span>loads<span class="token punctuation">(</span>arg<span class="token punctuation">)</span><span class="token punctuation">)</span>
+</code></pre> 
+<h3><a id="_517"></a>代码仓库</h3> 
+<ul><li><a href="https://github.com/zhaobingshuang/online-python-code-executor/tree/main/queue-base">online-python-code-executor/queue-base (github.com)</a></li></ul> 
+<h3><a id="_521"></a>参考</h3> 
+<ul><li>https://pythontutor.com</li><li>https://github.com/seamile/PyTutor</li></ul>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/c0af28ba21a54242e323edcee27071a6/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">全球大气二氧化碳浓度2°x2.5°栅格模拟数据集（1992-2020）</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/735e818391078c7b88949c4373e218f1/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">java时间监视器System.currentTimeMillis()的平替StopWatch！</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

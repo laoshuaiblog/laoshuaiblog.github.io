@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>半同步/半异步并发模式进程池实现 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/a9e86aba8d07e30ef8f00a9da2457c94/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="半同步/半异步并发模式进程池实现">
+  <meta property="og:description" content="半同步/半异步并发模式：父进程监听到新的客户端连接请求后，以通信管道通知进程池中的某一子进程：“嘿，有新的客户连接来了，你去accept，然后处理下！”，从而避免在进程间传递文件描述符。这种模式中，一个客户连接上的所有任务始终有同一个进程来处理。
+具体细节，尽在代码中：
+#ifndef PROCESSPOOL_H #define PROCESSPOOL_H #include &amp;lt;sys/types.h&amp;gt; #include &amp;lt;sys/socket.h&amp;gt; #include &amp;lt;netinet/in.h&amp;gt; #include &amp;lt;arpa/inet.h&amp;gt; #include &amp;lt;assert.h&amp;gt; #include &amp;lt;stdio.h&amp;gt; #include &amp;lt;unistd.h&amp;gt; #include &amp;lt;errno.h&amp;gt; #include &amp;lt;string.h&amp;gt; #include &amp;lt;fcntl.h&amp;gt; #include &amp;lt;stdlib.h&amp;gt; #include &amp;lt;sys/epoll.h&amp;gt; #include &amp;lt;signal.h&amp;gt; #include &amp;lt;sys/wait.h&amp;gt; #include &amp;lt;sys/stat.h&amp;gt; //描述一个子进程的类 class process { public: process() : m_pid( -1 ){} public: pid_t m_pid; //子进程pid int m_pipefd[2];//子进程与父进程通信管道（父进程通过管道通知选定的子进程：“有新的连接到来，你去accept&#34;） }; //进程池类：将需要处理的逻辑任务封装为任务类，作为模板参数，以提高代码复用 template&amp;lt; typename T &amp;gt; class processpool { private: //构造函数，creat函数调用 processpool( int listenfd, int process_number = 8 ); public: //给定服务器监听的socket，和进程数，创建子进程。（注：单例模式）。 为静态函数，因此可以直接以类名调用 static processpool&amp;lt; T &amp;gt;* create( int listenfd, int process_number = 8 ) { if( !">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2015-07-02T22:20:35+08:00">
+    <meta property="article:modified_time" content="2015-07-02T22:20:35+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">半同步/半异步并发模式进程池实现</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-dark">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <p><strong>半同步/半异步并发模式：</strong>父进程监听到新的客户端连接请求后，以通信管道通知进程池中的某一子进程：“嘿，有新的客户连接来了，你去accept，然后处理下！”，从而避免在进程间传递文件描述符。这种模式中，一个客户连接上的所有任务始终有同一个进程来处理。</p> 
+<p><strong>具体细节，尽在代码中：</strong></p> 
+<pre class="prettyprint"><code class=" hljs cpp"><span class="hljs-preprocessor">#ifndef PROCESSPOOL_H</span>
+<span class="hljs-preprocessor">#define PROCESSPOOL_H</span>
+
+<span class="hljs-preprocessor">#include &lt;sys/types.h&gt;</span>
+<span class="hljs-preprocessor">#include &lt;sys/socket.h&gt;</span>
+<span class="hljs-preprocessor">#include &lt;netinet/in.h&gt;</span>
+<span class="hljs-preprocessor">#include &lt;arpa/inet.h&gt;</span>
+<span class="hljs-preprocessor">#include &lt;assert.h&gt;</span>
+<span class="hljs-preprocessor">#include &lt;stdio.h&gt;</span>
+<span class="hljs-preprocessor">#include &lt;unistd.h&gt;</span>
+<span class="hljs-preprocessor">#include &lt;errno.h&gt;</span>
+<span class="hljs-preprocessor">#include &lt;string.h&gt;</span>
+<span class="hljs-preprocessor">#include &lt;fcntl.h&gt;</span>
+<span class="hljs-preprocessor">#include &lt;stdlib.h&gt;</span>
+<span class="hljs-preprocessor">#include &lt;sys/epoll.h&gt;</span>
+<span class="hljs-preprocessor">#include &lt;signal.h&gt;</span>
+<span class="hljs-preprocessor">#include &lt;sys/wait.h&gt;</span>
+<span class="hljs-preprocessor">#include &lt;sys/stat.h&gt;</span>
+
+<span class="hljs-comment">//描述一个子进程的类</span>
+<span class="hljs-keyword">class</span> process
+{
+<span class="hljs-keyword">public</span>:
+    process() : m_pid( -<span class="hljs-number">1</span> ){}
+
+<span class="hljs-keyword">public</span>:
+    pid_t m_pid;    <span class="hljs-comment">//子进程pid</span>
+    <span class="hljs-keyword">int</span> m_pipefd[<span class="hljs-number">2</span>];<span class="hljs-comment">//子进程与父进程通信管道（父进程通过管道通知选定的子进程：“有新的连接到来，你去accept"）</span>
+};
+
+<span class="hljs-comment">//进程池类：将需要处理的逻辑任务封装为任务类，作为模板参数，以提高代码复用</span>
+<span class="hljs-keyword">template</span>&lt; <span class="hljs-keyword">typename</span> T &gt;
+<span class="hljs-keyword">class</span> processpool
+{
+<span class="hljs-keyword">private</span>:
+<span class="hljs-comment">//构造函数，creat函数调用</span>
+    processpool( <span class="hljs-keyword">int</span> listenfd, <span class="hljs-keyword">int</span> process_number = <span class="hljs-number">8</span> );
+<span class="hljs-keyword">public</span>:
+<span class="hljs-comment">//给定服务器监听的socket，和进程数，创建子进程。（注：单例模式）。 为静态函数，因此可以直接以类名调用</span>
+    <span class="hljs-keyword">static</span> processpool&lt; T &gt;* create( <span class="hljs-keyword">int</span> listenfd, <span class="hljs-keyword">int</span> process_number = <span class="hljs-number">8</span> )
+    {
+        <span class="hljs-keyword">if</span>( !m_instance )<span class="hljs-comment">//确保只创建唯一的一个进程池实例</span>
+        {
+            m_instance = <span class="hljs-keyword">new</span> processpool&lt; T &gt;( listenfd, process_number );
+        }
+        <span class="hljs-keyword">return</span> m_instance;
+    }
+    ~processpool()
+    {
+        <span class="hljs-keyword">delete</span> [] m_sub_process;
+    }
+    <span class="hljs-keyword">void</span> run();  <span class="hljs-comment">//启动进程池，在其中根据当前进程的标号来区分为父进程或子进程，并分别调用其run_***函数来处理逻辑任务</span>
+
+<span class="hljs-keyword">private</span>:
+    <span class="hljs-keyword">void</span> setup_sig_pipe();
+    <span class="hljs-keyword">void</span> run_parent();  <span class="hljs-comment">//父进程的逻辑任务处理函数：监听listen socket，并通知工作进程</span>
+    <span class="hljs-keyword">void</span> run_child();   <span class="hljs-comment">//子进程的任务逻辑处理函数：接受连接socket，完成客户任务请求</span>
+
+<span class="hljs-keyword">private</span>:
+    <span class="hljs-keyword">static</span> <span class="hljs-keyword">const</span> <span class="hljs-keyword">int</span> MAX_PROCESS_NUMBER = <span class="hljs-number">16</span>;  <span class="hljs-comment">//进程池允许的最大进程数量</span>
+    <span class="hljs-keyword">static</span> <span class="hljs-keyword">const</span> <span class="hljs-keyword">int</span> USER_PER_PROCESS = <span class="hljs-number">65536</span>;  <span class="hljs-comment">//每个子进程处理的最大的客户任务数量</span>
+    <span class="hljs-keyword">static</span> <span class="hljs-keyword">const</span> <span class="hljs-keyword">int</span> MAX_EVENT_NUMBER = <span class="hljs-number">10000</span>;  <span class="hljs-comment">//  epoll能处理的最大事件数量</span>
+    <span class="hljs-keyword">int</span> m_process_number;                       <span class="hljs-comment">//进程池中的进程数量</span>
+    <span class="hljs-keyword">int</span> m_idx;                                  <span class="hljs-comment">//子进程在池中的编号，从0开始</span>
+    <span class="hljs-keyword">int</span> m_epollfd;  <span class="hljs-comment">//指向poll内核事件表的文件描述符：每个进程都独立创建一个epoll内核事件表项</span>
+    <span class="hljs-keyword">int</span> m_listenfd; <span class="hljs-comment">//监听socket：父进程与所有子进程的监听socket文件描述符指向内核中的同一文件表项</span>
+    <span class="hljs-keyword">int</span> m_stop;     <span class="hljs-comment">//子进程是否要停止运行</span>
+    process* m_sub_process; <span class="hljs-comment">//保存所有子进程的数组</span>
+    <span class="hljs-keyword">static</span> processpool&lt; T &gt;* m_instance;  <span class="hljs-comment">//进程池静态实例：标识全局唯一的进程池</span>
+};
+<span class="hljs-keyword">template</span>&lt; <span class="hljs-keyword">typename</span> T &gt;
+processpool&lt; T &gt;* processpool&lt; T &gt;::m_instance = NULL;<span class="hljs-comment">//初始化静态成员</span>
+
+<span class="hljs-keyword">static</span> <span class="hljs-keyword">int</span> sig_pipefd[<span class="hljs-number">2</span>];<span class="hljs-comment">//用于处理信号的管道，以实现统一事件源</span>
+
+<span class="hljs-comment">//将文件描述符设为非阻塞</span>
+<span class="hljs-keyword">static</span> <span class="hljs-keyword">int</span> setnonblocking( <span class="hljs-keyword">int</span> fd )
+{
+    <span class="hljs-keyword">int</span> old_option = fcntl( fd, F_GETFL );
+    <span class="hljs-keyword">int</span> new_option = old_option | O_NONBLOCK;
+    fcntl( fd, F_SETFL, new_option );
+    <span class="hljs-keyword">return</span> old_option;
+}
+
+<span class="hljs-comment">//向epoll内核时间表注册事件</span>
+<span class="hljs-keyword">static</span> <span class="hljs-keyword">void</span> addfd( <span class="hljs-keyword">int</span> epollfd, <span class="hljs-keyword">int</span> fd )
+{
+    epoll_event event;
+    event.data.fd = fd;
+    event.events = EPOLLIN | EPOLLET;
+    epoll_ctl( epollfd, EPOLL_CTL_ADD, fd, &amp;event );
+    setnonblocking( fd );<span class="hljs-comment">//”只有当事件就绪时，非阻塞才是高校的“</span>
+}
+
+<span class="hljs-comment">//删除fd上的注册事件</span>
+<span class="hljs-keyword">static</span> <span class="hljs-keyword">void</span> removefd( <span class="hljs-keyword">int</span> epollfd, <span class="hljs-keyword">int</span> fd )
+{
+    epoll_ctl( epollfd, EPOLL_CTL_DEL, fd, <span class="hljs-number">0</span> );
+    close( fd );
+}
+
+<span class="hljs-comment">//消息处理函数，实现事件统一处理：只是往号管道写端写入信号消息，具体信号处理逻辑在while循环中统一处理。</span>
+<span class="hljs-comment">// 减短信号处理函数执行时间，从而确保信号不被屏蔽（信号在处理期间，系统不会再次出发该信号）</span>
+<span class="hljs-keyword">static</span> <span class="hljs-keyword">void</span> sig_handler( <span class="hljs-keyword">int</span> sig )
+{
+    <span class="hljs-keyword">int</span> save_errno = errno;
+    <span class="hljs-keyword">int</span> msg = sig;
+    send( sig_pipefd[<span class="hljs-number">1</span>], ( <span class="hljs-keyword">char</span>* )&amp;msg, <span class="hljs-number">1</span>, <span class="hljs-number">0</span> ); 
+    errno = save_errno;
+}
+
+<span class="hljs-keyword">static</span> <span class="hljs-keyword">void</span> addsig( <span class="hljs-keyword">int</span> sig, <span class="hljs-keyword">void</span>( handler )(<span class="hljs-keyword">int</span>), <span class="hljs-keyword">bool</span> restart = <span class="hljs-keyword">true</span> )
+{
+    <span class="hljs-keyword">struct</span> sigaction sa;
+    <span class="hljs-built_in">memset</span>( &amp;sa, <span class="hljs-string">'\0'</span>, <span class="hljs-keyword">sizeof</span>( sa ) );
+    sa.sa_handler = handler;
+    <span class="hljs-keyword">if</span>( restart )
+    {
+        sa.sa_flags |= SA_RESTART;
+    }
+    sigfillset( &amp;sa.sa_mask );
+    assert( sigaction( sig, &amp;sa, NULL ) != -<span class="hljs-number">1</span> );
+}
+
+<span class="hljs-comment">//进程池构造函数</span>
+<span class="hljs-keyword">template</span>&lt; <span class="hljs-keyword">typename</span> T &gt;
+processpool&lt; T &gt;::processpool( <span class="hljs-keyword">int</span> listenfd, <span class="hljs-keyword">int</span> process_number ) 
+    : m_listenfd( listenfd ), m_process_number( process_number ), m_idx( -<span class="hljs-number">1</span> ), m_stop( <span class="hljs-keyword">false</span> )
+{
+    assert( ( process_number &gt; <span class="hljs-number">0</span> ) &amp;&amp; ( process_number &lt;= MAX_PROCESS_NUMBER ) );
+
+    m_sub_process = <span class="hljs-keyword">new</span> process[ process_number ];
+    assert( m_sub_process );
+
+    <span class="hljs-keyword">for</span>( <span class="hljs-keyword">int</span> i = <span class="hljs-number">0</span>; i &lt; process_number; ++i )
+    {
+        <span class="hljs-keyword">int</span> ret = socketpair( PF_UNIX, SOCK_STREAM, <span class="hljs-number">0</span>, m_sub_process[i].m_pipefd );
+        assert( ret == <span class="hljs-number">0</span> );
+
+        m_sub_process[i].m_pid = fork();
+        assert( m_sub_process[i].m_pid &gt;= <span class="hljs-number">0</span> );
+        <span class="hljs-keyword">if</span>( m_sub_process[i].m_pid &gt; <span class="hljs-number">0</span> )<span class="hljs-comment">//为父进程</span>
+        {
+            close( m_sub_process[i].m_pipefd[<span class="hljs-number">1</span>] );
+            <span class="hljs-keyword">continue</span>;<span class="hljs-comment">//父进程继续创建好所有的子进程后，才退出该函数</span>
+        }
+        <span class="hljs-keyword">else</span>
+        {
+            close( m_sub_process[i].m_pipefd[<span class="hljs-number">0</span>] );<span class="hljs-comment">//子进程</span>
+            m_idx = i;<span class="hljs-comment">//初始化子进程在进程池中的编号（最小为0，而父进程标号为-1）</span>
+            <span class="hljs-keyword">break</span>;<span class="hljs-comment">//子进程一旦创建好，就退出该函数，进入逻辑任务处理（pool-&gt;run）</span>
+        }
+    }
+}
+
+<span class="hljs-comment">//信号管道设置函数</span>
+<span class="hljs-keyword">template</span>&lt; <span class="hljs-keyword">typename</span> T &gt;
+<span class="hljs-keyword">void</span> processpool&lt; T &gt;::setup_sig_pipe()
+{
+    m_epollfd = epoll_create( <span class="hljs-number">5</span> );
+    assert( m_epollfd != -<span class="hljs-number">1</span> );
+
+    <span class="hljs-keyword">int</span> ret = socketpair( PF_UNIX, SOCK_STREAM, <span class="hljs-number">0</span>, sig_pipefd );
+    assert( ret != -<span class="hljs-number">1</span> );
+
+    setnonblocking( sig_pipefd[<span class="hljs-number">1</span>] );<span class="hljs-comment">//信号处理函数向写端写入消息</span>
+    addfd( m_epollfd, sig_pipefd[<span class="hljs-number">0</span>] );<span class="hljs-comment">//在while中监听读端</span>
+
+    addsig( SIGCHLD, sig_handler );<span class="hljs-comment">//子进程退出会暂停</span>
+    addsig( SIGTERM, sig_handler );<span class="hljs-comment">//终止进程，kill函数默认即发送该信号</span>
+    addsig( SIGINT, sig_handler );<span class="hljs-comment">//键盘输入以终止该进程ctrl+C</span>
+    addsig( SIGPIPE, SIG_IGN );<span class="hljs-comment">//忽略往管道读端被关闭的管道写数据的信号</span>
+}
+
+<span class="hljs-comment">//进程池启动函数</span>
+<span class="hljs-keyword">template</span>&lt; <span class="hljs-keyword">typename</span> T &gt;
+<span class="hljs-keyword">void</span> processpool&lt; T &gt;::run()
+{
+    <span class="hljs-keyword">if</span>( m_idx != -<span class="hljs-number">1</span> )
+    {
+        run_child();<span class="hljs-comment">//子进程</span>
+        <span class="hljs-keyword">return</span>;<span class="hljs-comment">//子进程退出后，记得return</span>
+    }
+    run_parent();<span class="hljs-comment">//父进程</span>
+}
+
+<span class="hljs-comment">//子进程逻辑函数</span>
+<span class="hljs-keyword">template</span>&lt; <span class="hljs-keyword">typename</span> T &gt;
+<span class="hljs-keyword">void</span> processpool&lt; T &gt;::run_child()
+{
+    setup_sig_pipe();
+
+    <span class="hljs-keyword">int</span> pipefd = m_sub_process[m_idx].m_pipefd[ <span class="hljs-number">1</span> ];<span class="hljs-comment">//与父进程的通信管道</span>
+    addfd( m_epollfd, pipefd );
+
+    epoll_event events[ MAX_EVENT_NUMBER ];
+    T* users = <span class="hljs-keyword">new</span> T [ USER_PER_PROCESS ];     <span class="hljs-comment">//一次性创建所有的客户端任务对象数组（也用到池的思想，当某个客户任务处理完后，不用释放该对象资源，而是放回池中再利用）</span>
+    assert( users );
+    <span class="hljs-keyword">int</span> number = <span class="hljs-number">0</span>;
+    <span class="hljs-keyword">int</span> ret = -<span class="hljs-number">1</span>;
+
+    <span class="hljs-comment">//监听信号管道、通信管道、连接socket，处理逻辑任务</span>
+    <span class="hljs-keyword">while</span>( ! m_stop )
+    {
+        number = epoll_wait( m_epollfd, events, MAX_EVENT_NUMBER, -<span class="hljs-number">1</span> );
+        <span class="hljs-keyword">if</span> ( ( number &lt; <span class="hljs-number">0</span> ) &amp;&amp; ( errno != EINTR ) )
+        {
+            <span class="hljs-built_in">printf</span>( <span class="hljs-string">"epoll failure\n"</span> );
+            <span class="hljs-keyword">break</span>;
+        }
+
+        <span class="hljs-keyword">for</span> ( <span class="hljs-keyword">int</span> i = <span class="hljs-number">0</span>; i &lt; number; i++ )
+        {
+            <span class="hljs-keyword">int</span> sockfd = events[i].data.fd;
+            <span class="hljs-keyword">if</span>( ( sockfd == pipefd ) &amp;&amp; ( events[i].events &amp; EPOLLIN ) ) <span class="hljs-comment">//为父进程的通信事件</span>
+            {
+                <span class="hljs-keyword">int</span> client = <span class="hljs-number">0</span>;
+                ret = recv( sockfd, ( <span class="hljs-keyword">char</span>* )&amp;client, <span class="hljs-keyword">sizeof</span>( client ), <span class="hljs-number">0</span> );
+                <span class="hljs-keyword">if</span>( ( ( ret &lt; <span class="hljs-number">0</span> ) &amp;&amp; ( errno != EAGAIN ) ) || ret == <span class="hljs-number">0</span> ) 
+                {
+                    <span class="hljs-keyword">continue</span>;
+                }
+                <span class="hljs-keyword">else</span>
+                {
+                    <span class="hljs-keyword">struct</span> sockaddr_in client_address;
+                    socklen_t client_addrlength = <span class="hljs-keyword">sizeof</span>( client_address );
+                    <span class="hljs-keyword">int</span> connfd = accept( m_listenfd, ( <span class="hljs-keyword">struct</span> sockaddr* )&amp;client_address, &amp;client_addrlength );
+                    <span class="hljs-keyword">if</span> ( connfd &lt; <span class="hljs-number">0</span> )
+                    {
+                        <span class="hljs-built_in">printf</span>( <span class="hljs-string">"errno is: %d\n"</span>, errno );
+                        <span class="hljs-keyword">continue</span>;
+                    }
+                    addfd( m_epollfd, connfd );
+                    users[connfd].init( m_epollfd, connfd, client_address );
+                }
+            }
+            <span class="hljs-keyword">else</span> <span class="hljs-keyword">if</span>( ( sockfd == sig_pipefd[<span class="hljs-number">0</span>] ) &amp;&amp; ( events[i].events &amp; EPOLLIN ) )<span class="hljs-comment">//为信号管道事件</span>
+            {
+                <span class="hljs-keyword">int</span> sig;
+                <span class="hljs-keyword">char</span> signals[<span class="hljs-number">1024</span>];
+                ret = recv( sig_pipefd[<span class="hljs-number">0</span>], signals, <span class="hljs-keyword">sizeof</span>( signals ), <span class="hljs-number">0</span> );
+                <span class="hljs-keyword">if</span>( ret &lt;= <span class="hljs-number">0</span> )
+                {
+                    <span class="hljs-keyword">continue</span>;
+                }
+                <span class="hljs-keyword">else</span>
+                {
+                    <span class="hljs-keyword">for</span>( <span class="hljs-keyword">int</span> i = <span class="hljs-number">0</span>; i &lt; ret; ++i )
+                    {
+                        <span class="hljs-keyword">switch</span>( signals[i] )
+                        {
+                            <span class="hljs-keyword">case</span> SIGCHLD:
+                            {
+                                pid_t pid;
+                                <span class="hljs-keyword">int</span> stat;
+                                <span class="hljs-keyword">while</span> ( ( pid = waitpid( -<span class="hljs-number">1</span>, &amp;stat, WNOHANG ) ) &gt; <span class="hljs-number">0</span> )
+                                {
+                                    <span class="hljs-keyword">continue</span>;
+                                }
+                                <span class="hljs-keyword">break</span>;
+                            }
+                            <span class="hljs-keyword">case</span> SIGTERM:
+                            <span class="hljs-keyword">case</span> SIGINT:
+                            {
+                                m_stop = <span class="hljs-keyword">true</span>;
+                                <span class="hljs-keyword">break</span>;
+                            }
+                            <span class="hljs-keyword">default</span>:
+                            {
+                                <span class="hljs-keyword">break</span>;
+                            }
+                        }
+                    }
+                }
+            }
+            <span class="hljs-keyword">else</span> <span class="hljs-keyword">if</span>( events[i].events &amp; EPOLLIN )  <span class="hljs-comment">//为连接socket事件</span>
+            {
+                 users[sockfd].process();<span class="hljs-comment">//客户任务对象的逻辑处理函数</span>
+            }
+            <span class="hljs-keyword">else</span>
+            {
+                <span class="hljs-keyword">continue</span>;
+            }
+        }
+    }
+
+    <span class="hljs-keyword">delete</span> [] users;
+    users = NULL;
+    close( pipefd );<span class="hljs-comment">//关闭与父进程的通信管道的读端</span>
+    <span class="hljs-comment">//close( m_listenfd );//”对象由那个函数创建，就由那个函数销毁“</span>
+    close( m_epollfd );
+}
+
+<span class="hljs-comment">//父进程逻辑函数</span>
+<span class="hljs-keyword">template</span>&lt; <span class="hljs-keyword">typename</span> T &gt;
+<span class="hljs-keyword">void</span> processpool&lt; T &gt;::run_parent()
+{
+    setup_sig_pipe();
+
+    addfd( m_epollfd, m_listenfd );
+
+    epoll_event events[ MAX_EVENT_NUMBER ];
+    <span class="hljs-keyword">int</span> sub_process_counter = <span class="hljs-number">0</span>;
+    <span class="hljs-keyword">int</span> new_conn = <span class="hljs-number">1</span>;
+    <span class="hljs-keyword">int</span> number = <span class="hljs-number">0</span>;
+    <span class="hljs-keyword">int</span> ret = -<span class="hljs-number">1</span>;
+
+    <span class="hljs-comment">//监听listen socket、和信号管道</span>
+    <span class="hljs-keyword">while</span>( ! m_stop )
+    {
+        number = epoll_wait( m_epollfd, events, MAX_EVENT_NUMBER, -<span class="hljs-number">1</span> );
+        <span class="hljs-keyword">if</span> ( ( number &lt; <span class="hljs-number">0</span> ) &amp;&amp; ( errno != EINTR ) )
+        {
+            <span class="hljs-built_in">printf</span>( <span class="hljs-string">"epoll failure\n"</span> );
+            <span class="hljs-keyword">break</span>;
+        }
+
+        <span class="hljs-keyword">for</span> ( <span class="hljs-keyword">int</span> i = <span class="hljs-number">0</span>; i &lt; number; i++ )
+        {
+            <span class="hljs-keyword">int</span> sockfd = events[i].data.fd;
+            <span class="hljs-keyword">if</span>( sockfd == m_listenfd ) <span class="hljs-comment">//监听到新连接到来，论选出一个子进程，通知该子进程”嘿，有新的连接到了，你接受下！“</span>
+            {
+                <span class="hljs-keyword">int</span> i =  sub_process_counter;
+                <span class="hljs-keyword">do</span>
+                {
+                    <span class="hljs-keyword">if</span>( m_sub_process[i].m_pid != -<span class="hljs-number">1</span> )
+                    {
+                        <span class="hljs-keyword">break</span>;
+                    }
+                    i = (i+<span class="hljs-number">1</span>)%m_process_number;
+                }
+                <span class="hljs-keyword">while</span>( i != sub_process_counter );
+
+                <span class="hljs-keyword">if</span>( m_sub_process[i].m_pid == -<span class="hljs-number">1</span> )<span class="hljs-comment">//所有子进程都都已经推出</span>
+                {
+                    m_stop = <span class="hljs-keyword">true</span>;
+                    <span class="hljs-keyword">break</span>;
+                }
+                sub_process_counter = (i+<span class="hljs-number">1</span>)%m_process_number;
+                <span class="hljs-comment">//send( m_sub_process[sub_process_counter++].m_pipefd[0], ( char* )&amp;new_conn, sizeof( new_conn ), 0 );</span>
+                send( m_sub_process[i].m_pipefd[<span class="hljs-number">0</span>], ( <span class="hljs-keyword">char</span>* )&amp;new_conn, <span class="hljs-keyword">sizeof</span>( new_conn ), <span class="hljs-number">0</span> );<span class="hljs-comment">//通知子进程</span>
+                <span class="hljs-built_in">printf</span>( <span class="hljs-string">"send request to child %d\n"</span>, i );
+                <span class="hljs-comment">//sub_process_counter %= m_process_number;</span>
+            }
+            <span class="hljs-keyword">else</span> <span class="hljs-keyword">if</span>( ( sockfd == sig_pipefd[<span class="hljs-number">0</span>] ) &amp;&amp; ( events[i].events &amp; EPOLLIN ) )
+            {
+                <span class="hljs-keyword">int</span> sig;
+                <span class="hljs-keyword">char</span> signals[<span class="hljs-number">1024</span>];
+                ret = recv( sig_pipefd[<span class="hljs-number">0</span>], signals, <span class="hljs-keyword">sizeof</span>( signals ), <span class="hljs-number">0</span> );
+                <span class="hljs-keyword">if</span>( ret &lt;= <span class="hljs-number">0</span> )
+                {
+                    <span class="hljs-keyword">continue</span>;
+                }
+                <span class="hljs-keyword">else</span>
+                {
+                    <span class="hljs-keyword">for</span>( <span class="hljs-keyword">int</span> i = <span class="hljs-number">0</span>; i &lt; ret; ++i )
+                    {
+                        <span class="hljs-keyword">switch</span>( signals[i] )
+                        {
+                            <span class="hljs-keyword">case</span> SIGCHLD:<span class="hljs-comment">//子进程退出信号</span>
+                            {
+                                pid_t pid;
+                                <span class="hljs-keyword">int</span> stat;
+                                <span class="hljs-keyword">while</span> ( ( pid = waitpid( -<span class="hljs-number">1</span>, &amp;stat, WNOHANG ) ) &gt; <span class="hljs-number">0</span> )
+                                {
+                                    <span class="hljs-keyword">for</span>( <span class="hljs-keyword">int</span> i = <span class="hljs-number">0</span>; i &lt; m_process_number; ++i )
+                                    {
+                                        <span class="hljs-keyword">if</span>( m_sub_process[i].m_pid == pid )
+                                        {
+                                            <span class="hljs-built_in">printf</span>( <span class="hljs-string">"child %d join\n"</span>, i );
+                                            close( m_sub_process[i].m_pipefd[<span class="hljs-number">0</span>] );
+                                            m_sub_process[i].m_pid = -<span class="hljs-number">1</span>;  <span class="hljs-comment">//设置已经推出的子进程的PID为-1</span>
+                                        }
+                                    }
+                                }
+                                m_stop = <span class="hljs-keyword">true</span>;
+                                <span class="hljs-keyword">for</span>( <span class="hljs-keyword">int</span> i = <span class="hljs-number">0</span>; i &lt; m_process_number; ++i )
+                                {
+                                    <span class="hljs-keyword">if</span>( m_sub_process[i].m_pid != -<span class="hljs-number">1</span> )  <span class="hljs-comment">//只要还有一个子进程没有退出，则父进程继续</span>
+                                    {
+                                        m_stop = <span class="hljs-keyword">false</span>;
+                                    }
+                                }
+                                <span class="hljs-keyword">break</span>;
+                            }
+                            <span class="hljs-keyword">case</span> SIGTERM:
+                            <span class="hljs-keyword">case</span> SIGINT:
+                            {
+                                <span class="hljs-built_in">printf</span>( <span class="hljs-string">"kill all the clild now\n"</span> );
+                                <span class="hljs-keyword">for</span>( <span class="hljs-keyword">int</span> i = <span class="hljs-number">0</span>; i &lt; m_process_number; ++i )
+                                {
+                                    <span class="hljs-keyword">int</span> pid = m_sub_process[i].m_pid;
+                                    <span class="hljs-keyword">if</span>( pid != -<span class="hljs-number">1</span> )
+                                    {
+                                        kill( pid, SIGTERM );
+                                    }
+                                }
+                                <span class="hljs-keyword">break</span>;
+                            }
+                            <span class="hljs-keyword">default</span>:
+                            {
+                                <span class="hljs-keyword">break</span>;
+                            }
+                        }
+                    }
+                }
+            }
+            <span class="hljs-keyword">else</span>
+            {
+                <span class="hljs-keyword">continue</span>;
+            }
+        }
+    }
+
+    <span class="hljs-comment">//close( m_listenfd );</span>
+    close( m_epollfd );
+}
+
+<span class="hljs-preprocessor">#endif</span>
+</code></pre>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/d7caa8b6107d939687ba833229df25b2/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">详解Java反射机制</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/afd32152bb3549da90173797040edee3/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">CAS总结之Ticket篇(转,非常详细，后文还提到一个ppt，非常易懂)</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>如何设计秒杀系统（二） - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/581346ab88d1b60a951f9e795a8d8e24/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="如何设计秒杀系统（二）">
+  <meta property="og:description" content="实施方案 热点数据 分类：
+静态热点数据，可以提前预测的热点数据，可以提前缓存。
+动态热点数据，一般是突发的临时的。如何发现热点数据
+可以通过运营手段提前报名来发现静态热点数据，也可以通过数据统计出TOPN的商品。
+发现动态热点数据：
+构建一个异步的系统，它可以收集交易链路上各个环节中的中间件产品的热点 Key，如 Nginx、缓存、RPC 服务框架等这些中间件（一些中间件产品本身已经有热点统计模块）。
+建立一个热点上报和可以按照需求订阅的热点服务的下发规范，主要目的是通过交易链路上各个系统（包括详情、购物车、交易、优惠、库存、物流等）访问的时间差，把上游已经发现的热点透传给下游系统，提前做好保护。比如，对于大促高峰期，详情系统是最早知道的，在统一接入层上 Nginx 模块统计的热点 URL。
+将上游系统收集的热点数据发送到热点服务台，然后下游系统（如交易系统）就会知道哪些商品会被频繁调用，然后做热点保护。
+注意事项： 日志抓取采用异步的方式，即保证通用性也不影响主流程。应用和组件间要有自己的限流保护措施。热点发现要快（3s）
+热点数据的处理：
+对热点数据利用LRU队列进行缓存
+把热点请求和普通请求进行隔离，防止热点数据影响到普通的请求
+（业务隔离，系统隔离，数据隔离）。 削峰错谷 为什么要削峰：
+节省服务器资源让服务端处理变得更加平稳
+怎么做：
+1.排队
+消息对立
+线程加锁，排队等待
+内存排队算法
+顺序读文件
+2.答题
+系统设计思路：
+答题验证设计：
+分层过滤
+依次走浏览器缓存，CDN，统一cache，后台，数据库
+原则：
+将动态请求的读数据缓存（Cache）在 Web 端，过滤掉无效的数据读；
+对读数据不做强一致性校验，减少因为一致性校验产生瓶颈的问题；
+对写数据进行基于时间的合理分片，过滤掉过期的失效请求；
+对写请求做限流保护，将超出系统承载能力的请求过滤掉；
+对写数据进行强一致性校验，只保留最后有效的数据。 系统性能优化 概述
+一般用QPS来衡量性能，总 QPS =（1000ms / 响应时间）× 线程数量
+响应时间:
+响应时间一般由CPU执行时间和线程等待时间组成，优化线程等待时间对性能影响不大，要做的是增加CPU的执行时间。
+线程数：
+默认配置，线程数 = 2 * CPU 核数 &#43; 1
+最佳实践得出来的公式：
+线程数 = [(线程等待时间 &#43; 线程 CPU 时间) / 线程 CPU 时间] × CPU 数量">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2023-04-05T21:10:31+08:00">
+    <meta property="article:modified_time" content="2023-04-05T21:10:31+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">如何设计秒杀系统（二）</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-dark">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <h3><a id="_0"></a>实施方案</h3> 
+<h4><a id="_1"></a>热点数据</h4> 
+<ol><li>分类：<br> 静态热点数据，可以提前预测的热点数据，可以提前缓存。<br> 动态热点数据，一般是突发的临时的。</li><li>如何发现热点数据<br> 可以通过运营手段提前报名来发现静态热点数据，也可以通过数据统计出TOPN的商品。<br> 发现动态热点数据：<br> 构建一个异步的系统，它可以收集交易链路上各个环节中的中间件产品的热点 Key，如 Nginx、缓存、RPC 服务框架等这些中间件（一些中间件产品本身已经有热点统计模块）。<br> 建立一个热点上报和可以按照需求订阅的热点服务的下发规范，主要目的是通过交易链路上各个系统（包括详情、购物车、交易、优惠、库存、物流等）访问的时间差，把上游已经发现的热点透传给下游系统，提前做好保护。比如，对于大促高峰期，详情系统是最早知道的，在统一接入层上 Nginx 模块统计的热点 URL。<br> 将上游系统收集的热点数据发送到热点服务台，然后下游系统（如交易系统）就会知道哪些商品会被频繁调用，然后做热点保护。<br> <img src="https://images2.imgbox.com/91/42/t6ZTXZJ2_o.png" alt="在这里插入图片描述"><br> 注意事项： 
+  <ol><li>日志抓取采用异步的方式，即保证通用性也不影响主流程。</li><li>应用和组件间要有自己的限流保护措施。</li><li>热点发现要快（3s）<br> 热点数据的处理：<br> 对热点数据利用LRU队列进行缓存<br> 把热点请求和普通请求进行隔离，防止热点数据影响到普通的请求<br> （业务隔离，系统隔离，数据隔离）。</li></ol> </li></ol> 
+<h4><a id="_20"></a>削峰错谷</h4> 
+<p>为什么要削峰：</p> 
+<ol><li>节省服务器资源</li><li>让服务端处理变得更加平稳<br> 怎么做：<br> 1.排队<br> 消息对立<br> 线程加锁，排队等待<br> 内存排队算法<br> 顺序读文件<br> 2.答题<br> 系统设计思路：<br> <img src="https://images2.imgbox.com/8a/23/K3zOAnSn_o.png" alt="在这里插入图片描述"><br> 答题验证设计：<br> <img src="https://images2.imgbox.com/4f/05/htxP2bts_o.png" alt="在这里插入图片描述"></li><li>分层过滤<br> <img src="https://images2.imgbox.com/45/2d/wcEMoFLN_o.png" alt="在这里插入图片描述"><br> 依次走浏览器缓存，CDN，统一cache，后台，数据库<br> 原则：<br> 将动态请求的读数据缓存（Cache）在 Web 端，过滤掉无效的数据读；<br> 对读数据不做强一致性校验，减少因为一致性校验产生瓶颈的问题；<br> 对写数据进行基于时间的合理分片，过滤掉过期的失效请求；<br> 对写请求做限流保护，将超出系统承载能力的请求过滤掉；<br> 对写数据进行强一致性校验，只保留最后有效的数据。</li></ol> 
+<h4><a id="_45"></a>系统性能优化</h4> 
+<ol><li>概述<br> 一般用QPS来衡量性能，总 QPS =（1000ms / 响应时间）× 线程数量<br> 响应时间:<br> 响应时间一般由CPU执行时间和线程等待时间组成，优化线程等待时间对性能影响不大，要做的是增加CPU的执行时间。<br> 线程数：<br> 默认配置，线程数 = 2 * CPU 核数 + 1<br> 最佳实践得出来的公式：<br> 线程数 = [(线程等待时间 + 线程 CPU 时间) / 线程 CPU 时间] × CPU 数量<br> 当然还是不要“本本主义”，需要实际去做性能测试，选择合适的线程数量。</li><li>如何发现瓶颈<br> JProfiler 和 Yourkit 这两个工具，它们可以列出整个请求中每个函数的 CPU 执行时间，或者使用jstack 定时地打印调用栈。</li><li>如何优化 <br> 1.减少编码<br> 拿java举例，就是减少把字符编译成字节的过程，因为比较耗时<br> 举例：<br> 网页输出是可以直接进行流输出的，即用 resp.getOutputStream() 函数写数据，把一些静态的数据提前转化成字节，等到真正往外写的时候再直接用 OutputStream() 函数写，就可以减少静态数据的编码转换。<br> 2.减少序列化<br> 把关联性强的应用进行合并部署，放到同一个tomcat容器中，不走本机的socket<br> 3.Java优化<br> 把大量的请求和数据从nginx或者Web代理容器（Varnish、Squid）中返回；<br> 直接写servlet，避免使用传统的框架<br> 直接输出流数据 resp.getOutputStream()<br> 4.并发读缓存<br> 利用一致性hash及案例集中式缓存</li></ol>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/4dac9391f465c055b5fb1ea4ff84bb27/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">八大排序算法之归并排序(递归实现&#43;非递归实现)</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/732312a61db938257b29be470cb54728/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">一个接口满足你对天气数据的所有想象，包含小时预报，实况，逐日预报，城市预报,实况，雷达月报，生活指数</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

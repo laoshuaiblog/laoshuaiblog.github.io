@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Android MediaPlayer库源码解读(1)：setDataSource() - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/331e82d5116842ce68152479e18f8556/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="Android MediaPlayer库源码解读(1)：setDataSource()">
+  <meta property="og:description" content="前言 MediaPlayer是Android音视频子系统中重要的一个子模块库，其功能丰富，且与Audio库联系紧密，是Android系统音视频子系统学习的第一站。源码解读需要具备相关Java、JNI、C&#43;&#43;、Binder等知识，较为复杂难懂，简单记录追踪流程。
+java层 【frameworks/base/media/java/android/media/MediaPlayer.java】
+**setDataSource()**在MediaPlayer.java中用户可直接调用的方法有四个：
+public void setDataSource(String path)public void setDataSource(FileDescriptor fd)public void setDataSource(FileDescriptor fd, long offset, long length)public void setDataSource(MediaDataSource dataSource) 下面就第一个setDataSource(String path)进行具体分析，其字符串可以是本地文件路径也可以是网络url。
+public void setDataSource(String path) //传参1，本地文件地址或网络地址 throws IOException, IllegalArgumentException, SecurityException, IllegalStateException { setDataSource(path, null, null); //调用1-1 重载函数 } 可以看到，上面的代码调用了内部函数setDataSource(String path, Map&amp;lt;String, String&amp;gt; headers, List cookies)。
+@UnsupportedAppUsage //被调用1-1 private void setDataSource(String path, Map&amp;lt;String, String&amp;gt; headers, List&amp;lt;HttpCookie&amp;gt; cookies) throws IOException, IllegalArgumentException, SecurityException, IllegalStateException {	//声明并初始化键值对数组 String[] keys = null; String[] values = null; //赋值 if (headers !">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2020-10-21T23:25:17+08:00">
+    <meta property="article:modified_time" content="2020-10-21T23:25:17+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">Android MediaPlayer库源码解读(1)：setDataSource()</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-dark">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <h2><a id="_0"></a>前言</h2> 
+<p>MediaPlayer是Android音视频子系统中重要的一个子模块库，其功能丰富，且与Audio库联系紧密，是Android系统音视频子系统学习的第一站。源码解读需要具备相关Java、JNI、C++、Binder等知识，较为复杂难懂，简单记录追踪流程。</p> 
+<h2><a id="java_3"></a>java层</h2> 
+<p>【frameworks/base/media/java/android/media/MediaPlayer.java】<br> **setDataSource()**在MediaPlayer.java中用户可直接调用的方法有四个：</p> 
+<ul><li>public void setDataSource(String path)</li><li>public void setDataSource(FileDescriptor fd)</li><li>public void setDataSource(FileDescriptor fd, long offset, long length)</li><li>public void setDataSource(MediaDataSource dataSource)</li></ul> 
+<p>下面就第一个setDataSource(String path)进行具体分析，其字符串可以是本地文件路径也可以是网络url。</p> 
+<pre><code class="prism language-java">    <span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">setDataSource</span><span class="token punctuation">(</span>String path<span class="token punctuation">)</span> <span class="token comment">//传参1，本地文件地址或网络地址</span>
+            <span class="token keyword">throws</span> IOException<span class="token punctuation">,</span> IllegalArgumentException<span class="token punctuation">,</span> SecurityException<span class="token punctuation">,</span> IllegalStateException <span class="token punctuation">{<!-- --></span>
+        <span class="token function">setDataSource</span><span class="token punctuation">(</span>path<span class="token punctuation">,</span> null<span class="token punctuation">,</span> null<span class="token punctuation">)</span><span class="token punctuation">;</span>  <span class="token comment">//调用1-1 重载函数</span>
+    <span class="token punctuation">}</span>
+</code></pre> 
+<p>可以看到，上面的代码调用了内部函数setDataSource(String path, Map&lt;String, String&gt; headers, List cookies)。</p> 
+<pre><code class="prism language-java">    <span class="token annotation punctuation">@UnsupportedAppUsage</span> <span class="token comment">//被调用1-1</span>
+    <span class="token keyword">private</span> <span class="token keyword">void</span> <span class="token function">setDataSource</span><span class="token punctuation">(</span>String path<span class="token punctuation">,</span> Map<span class="token generics function"><span class="token punctuation">&lt;</span>String<span class="token punctuation">,</span> String<span class="token punctuation">&gt;</span></span> headers<span class="token punctuation">,</span> List<span class="token generics function"><span class="token punctuation">&lt;</span>HttpCookie<span class="token punctuation">&gt;</span></span> cookies<span class="token punctuation">)</span>
+            <span class="token keyword">throws</span> IOException<span class="token punctuation">,</span> IllegalArgumentException<span class="token punctuation">,</span> SecurityException<span class="token punctuation">,</span> IllegalStateException
+    <span class="token punctuation">{<!-- --></span>	
+		<span class="token comment">//声明并初始化键值对数组</span>
+        String<span class="token punctuation">[</span><span class="token punctuation">]</span> keys <span class="token operator">=</span> null<span class="token punctuation">;</span>
+        String<span class="token punctuation">[</span><span class="token punctuation">]</span> values <span class="token operator">=</span> null<span class="token punctuation">;</span>
+		
+		<span class="token comment">//赋值</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>headers <span class="token operator">!=</span> null<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            keys <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">String</span><span class="token punctuation">[</span>headers<span class="token punctuation">.</span><span class="token function">size</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">]</span><span class="token punctuation">;</span>
+            values <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">String</span><span class="token punctuation">[</span>headers<span class="token punctuation">.</span><span class="token function">size</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">]</span><span class="token punctuation">;</span>
+
+            <span class="token keyword">int</span> i <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+			<span class="token comment">//遍历传入的headers这个map集合的键值对数组中</span>
+            <span class="token keyword">for</span> <span class="token punctuation">(</span>Map<span class="token punctuation">.</span>Entry<span class="token generics function"><span class="token punctuation">&lt;</span>String<span class="token punctuation">,</span> String<span class="token punctuation">&gt;</span></span> entry<span class="token operator">:</span> headers<span class="token punctuation">.</span><span class="token function">entrySet</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                keys<span class="token punctuation">[</span>i<span class="token punctuation">]</span> <span class="token operator">=</span> entry<span class="token punctuation">.</span><span class="token function">getKey</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+                values<span class="token punctuation">[</span>i<span class="token punctuation">]</span> <span class="token operator">=</span> entry<span class="token punctuation">.</span><span class="token function">getValue</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token operator">++</span>i<span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+        <span class="token punctuation">}</span>
+		<span class="token comment">//调用1-2</span>
+        <span class="token function">setDataSource</span><span class="token punctuation">(</span>path<span class="token punctuation">,</span> keys<span class="token punctuation">,</span> values<span class="token punctuation">,</span> cookies<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+</code></pre> 
+<p>然后可以看到其继续调用了内部函数setDataSource(String path, String[] keys, String[] values, List cookies)。</p> 
+<pre><code class="prism language-Java"> @UnsupportedAppUsage  //被调用1-2
+    private void setDataSource(String path, String[] keys, String[] values,
+            List&lt;HttpCookie&gt; cookies)
+            throws IOException, IllegalArgumentException, SecurityException, IllegalStateException {
+        final Uri uri = Uri.parse(path);  //使用Uri解析文件路径
+        final String scheme = uri.getScheme();//如果本地路径，函数返回值为file，如果是网络地址，返回值为"http"
+        if ("file".equals(scheme)) { 	
+            path = uri.getPath();		//本地路径，直接赋值给path
+        } else if (scheme != null) {   
+            // handle non-file sources
+            nativeSetDataSource(		//如果是网络地址，调用本地方法nativeSetDataSource
+                MediaHTTPService.createHttpServiceBinderIfNecessary(path, cookies),
+                path,
+                keys,
+                values);
+            return;
+        }
+		//后面的处理path为本地文件的情况
+        final File file = new File(path);	//传入本地path
+        try (FileInputStream is = new FileInputStream(file)) {
+            setDataSource(is.getFD());  //调用1-3
+        }
+    }
+</code></pre> 
+<p>可以看到其后续又调用了内部类setDataSource(FileDescriptor fd) 。</p> 
+<pre><code class="prism language-java">    <span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">setDataSource</span><span class="token punctuation">(</span>FileDescriptor fd<span class="token punctuation">)</span> <span class="token comment">//被调用1-3</span>
+           <span class="token keyword">throws</span> IOException<span class="token punctuation">,</span> IllegalArgumentException<span class="token punctuation">,</span> IllegalStateException <span class="token punctuation">{<!-- --></span>
+       <span class="token comment">// intentionally less than LONG_MAX</span>
+       <span class="token function">setDataSource</span><span class="token punctuation">(</span>fd<span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">,</span> <span class="token number">0</span>x7ffffffffffffffL<span class="token punctuation">)</span><span class="token punctuation">;</span> <span class="token comment">//调用1-4 传入（文件描述符、偏移量0，预先设置的最大播放位数）</span>
+   <span class="token punctuation">}</span>
+</code></pre> 
+<p>随后，其调用了内部函数setDataSource(FileDescriptor fd, long offset, long length)。</p> 
+<pre><code class="prism language-java">    <span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">setDataSource</span><span class="token punctuation">(</span>FileDescriptor fd<span class="token punctuation">,</span> <span class="token keyword">long</span> offset<span class="token punctuation">,</span> <span class="token keyword">long</span> length<span class="token punctuation">)</span> <span class="token comment">//被调用1-4</span>
+            <span class="token keyword">throws</span> IOException<span class="token punctuation">,</span> IllegalArgumentException<span class="token punctuation">,</span> IllegalStateException <span class="token punctuation">{<!-- --></span>
+        <span class="token function">_setDataSource</span><span class="token punctuation">(</span>fd<span class="token punctuation">,</span> offset<span class="token punctuation">,</span> length<span class="token punctuation">)</span><span class="token punctuation">;</span> <span class="token comment">//调用1-5 native方法</span>
+    <span class="token punctuation">}</span>
+</code></pre> 
+<p>紧接着其调用了内部函数_setDataSource(FileDescriptor fd, long offset, long length)，其是native方法，至此进入JNI层。不了解的同学可以先行学习jni。</p> 
+<pre><code class="prism language-Java">	//被调用1-5
+    private native void _setDataSource(FileDescriptor fd, long offset, long length) //进入jni
+            throws IOException, IllegalArgumentException, IllegalStateException;
+</code></pre> 
+<h2><a id="JNI_93"></a>JNI层</h2> 
+<p>JNI是Android中Java层与c++层之间的胶水层，负责JNI与C++的通信，其代码位于：【frameworks/base/media/jni/android_media_MediaPlayer.cpp】。<br> 首先，android_media_MediaPlayer.cpp中会对_setDataSource函数进行一次换名。</p> 
+<pre><code class="prism language-c++">static const JNINativeMethod gMethods[] = {   // 函数映射，对函数换名
+    {
+        "nativeSetDataSource",
+        "(Landroid/os/IBinder;Ljava/lang/String;[Ljava/lang/String;"
+        "[Ljava/lang/String;)V",
+        (void *)android_media_MediaPlayer_setDataSourceAndHeaders
+    },
+
+    {"_setDataSource",      "(Ljava/io/FileDescriptor;JJ)V",    (void *)android_media_MediaPlayer_setDataSourceFD}, //换名3
+    ...
+</code></pre> 
+<p>经此，_setDataSource 函数换民为android_media_MediaPlayer_setDataSourceFD函数。</p> 
+<pre><code class="prism language-c++">static void
+android_media_MediaPlayer_setDataSourceFD(JNIEnv *env, jobject thiz, jobject fileDescriptor, jlong offset, jlong length) //衔接_setDataSource
+{	
+	//调用getMediaPlayer获取上层java环境中的MediaPlayer对象指针
+    sp&lt;MediaPlayer&gt; mp = getMediaPlayer(env, thiz); //创建MediaPlayer对象
+	//判断指针非空
+    if (mp == NULL ) {
+        jniThrowException(env, "java/lang/IllegalStateException", NULL);
+        return;
+    }
+	//判断传入的文件描述符非空
+    if (fileDescriptor == NULL) {
+        jniThrowException(env, "java/lang/IllegalArgumentException", NULL);
+        return;
+    }
+    int fd = jniGetFDFromFileDescriptor(env, fileDescriptor);
+    ALOGV("setDataSourceFD: fd %d", fd);
+    process_media_player_call( env, thiz, mp-&gt;setDataSource(fd, offset, length), "java/io/IOException", "setDataSourceFD failed." );
+	//1-6 调用native层的 setDataSource(int fd, int64_t offset, int64_t length)  
+}
+</code></pre> 
+<p>通过 mp-&gt;setDataSource可见，其最后调用了native层的函数setDataSource(int fd, int64_t offset, int64_t length)。</p> 
+<h2><a id="native_132"></a>native层</h2> 
+<pre><code class="prism language-c++">//被jni android_media_MediaPlayer_setDataSourceFD 调用  被调用1-6
+status_t MediaPlayer::setDataSource(int fd, int64_t offset, int64_t length)
+{
+    //用于记录framework APIs返回成功与否
+	ALOGV("setDataSource(%d, %" PRId64 ", %" PRId64 ")", fd, offset, length);
+    status_t err = UNKNOWN_ERROR;
+	//此处开始涉及Binder通信
+	//getMediaPlayerService()函数定义域framework/av/media/libmedia/IMediaDeathNotifier.cpp中
+	//getMediaPlayerService()返回的是MediaPlayerService服务在客户端的代理对象BpMediaPlayerService
+    const sp&lt;IMediaPlayerService&gt; (getMediaPlayerService()); //调用服务端
+    if (service != 0) {
+		//调用IMediaPlayerService中的create()函数查询服务
+		//并返回一个调用IMediaPlayer对象
+        sp&lt;IMediaPlayer&gt; player(service-&gt;create(this, mAudioSessionId));
+		
+        if ((NO_ERROR != doSetRetransmitEndpoint(player)) ||
+            (NO_ERROR != player-&gt;setDataSource(fd, offset, length))) {  //1-7调用服务端的setDataSource(int fd, int64_t offset, int64_t length)方法
+            player.clear();
+        }
+		//重置一些变量，更新MediaPlayer对象
+        err = attachNewPlayer(player);
+    }
+    return err;
+}
+</code></pre> 
+<p>从const sp (getMediaPlayerService());<br> 这句中可以得知，其设计Binder通信，IMediaPlayerService是Binder驱动层，IMediaPlayerService.h和IMediaPlayerService.cpp中包含一些接口定义。不了解Binder通信机制的可以先行学习Binder，此处我们再去服务端MediaPlayerService.cpp中去看status_t setDataSource(int fd, int64_t offset, int64_t length)函数。</p> 
+<pre><code class="prism language-c++">//被调用1-7
+status_t MediaPlayerService::Client::setDataSource(int fd, int64_t offset, int64_t length)
+{
+    ALOGV("setDataSource fd=%d (%s), offset=%lld, length=%lld",
+            fd, nameForFd(fd).c_str(), (long long) offset, (long long) length);
+	//stat结构体主要用来描述系统文件中文件的属性结构
+	//列如， 修改时间，文件用户标识等
+    struct stat sb;
+	//fstat获取文件相关信息保持在stat结构体中，为0表示返回成功
+    int ret = fstat(fd, &amp;sb);
+    if (ret != 0) {
+        ALOGE("fstat(%d) failed: %d, %s", fd, ret, strerror(errno));
+        return UNKNOWN_ERROR;
+    }
+
+    ALOGV("st_dev  = %llu", static_cast&lt;unsigned long long&gt;(sb.st_dev));
+    ALOGV("st_mode = %u", sb.st_mode);
+    ALOGV("st_uid  = %lu", static_cast&lt;unsigned long&gt;(sb.st_uid));
+    ALOGV("st_gid  = %lu", static_cast&lt;unsigned long&gt;(sb.st_gid));
+    ALOGV("st_size = %llu", static_cast&lt;unsigned long long&gt;(sb.st_size));
+	
+	//做一些检查，判断输入参数的合法性
+    if (offset &gt;= sb.st_size) {
+        ALOGE("offset error");
+        return UNKNOWN_ERROR;
+    }
+    if (offset + length &gt; sb.st_size) {
+        length = sb.st_size - offset;
+        ALOGV("calculated length = %lld", (long long)length);
+    }
+	//调用getPlayerType函数，通过评分机制，获取最优播放器类型
+	//MediaPlayerFactory.h
+    player_type playerType = MediaPlayerFactory::getPlayerType(this,
+                                                               fd,
+                                                               offset,
+    //创建播放器                                                           length);
+    sp&lt;MediaPlayerBase&gt; p = setDataSource_pre(playerType); //调用1-8
+    if (p == NULL) {
+        return NO_INIT;
+    }
+
+    // now set data source
+	//在创建的播放器中，设置播放器的数据源
+    return mStatus = setDataSource_post(p, p-&gt;setDataSource(fd, offset, length));
+}
+</code></pre> 
+<p>可以看到服务端实现的setDataSource（）函数流程也比较清楚，在调用MediaPlayerFact::getPlayerType()处，使用评分机制选择最优的播放器类型，MediaPlayerFact.h中定义。此外还调用了内部函数setDataSource_pre( player_type playerType)</p> 
+<pre><code class="prism language-c++">//被调用1-8
+sp&lt;MediaPlayerBase&gt; MediaPlayerService::Client::setDataSource_pre(
+        player_type playerType)
+{
+    ALOGV("player type = %d", playerType);
+
+    // create the right type of player
+	//根据播放器类型创建播放器
+    sp&lt;MediaPlayerBase&gt; p = createPlayer(playerType);
+    if (p == NULL) {
+        return p;
+    }
+
+	//...........
+	//...........
+	//...........
+	
+    Mutex::Autolock lock(mLock);
+
+    mDeathNotifiers.clear();
+    mDeathNotifiers.swap(deathNotifiers);
+    mAudioDeviceUpdatedListener = new AudioDeviceUpdatedNotifier(p);
+	
+	//NU_PLAYER播放器的实现在Nuplayer.cpp中 setAudioSink
+	
+    if (!p-&gt;hardwareOutput()) {
+        mAudioOutput = new AudioOutput(mAudioSessionId, IPCThreadState::self()-&gt;getCallingUid(),
+                mPid, mAudioAttributes, mAudioDeviceUpdatedListener);
+        static_cast&lt;MediaPlayerInterface*&gt;(p.get())-&gt;setAudioSink(mAudioOutput);
+    }
+
+    return p;
+}
+</code></pre> 
+<p>其中createPlayer(playerType)函数调用类内函数createPlayer(player_type playerType)</p> 
+<pre><code class="prism language-c++">//被调用
+sp&lt;MediaPlayerBase&gt; MediaPlayerService::Client::createPlayer(player_type playerType)
+{
+    // determine if we have the right player type
+    sp&lt;MediaPlayerBase&gt; p = getPlayer();
+    if ((p != NULL) &amp;&amp; (p-&gt;playerType() != playerType)) {
+        ALOGV("delete player");
+        p.clear();
+    }
+    if (p == NULL) {
+		//根据播放器类型创建播放器，并设置监听和pid号
+        p = MediaPlayerFactory::createPlayer(playerType, mListener, mPid);
+    }
+	//设置uid
+    if (p != NULL) {
+        p-&gt;setUID(mUid);
+    }
+
+    return p;
+}
+</code></pre> 
+<p>其中调用了MediaPlayerFactory中的createPlayer去创建播放器<br> 【./frameworks av media libmediaplayerservice MediaPlayerFactory.cpp】</p> 
+<pre><code class="prism language-c++"> virtual sp&lt;MediaPlayerBase&gt; createPlayer(pid_t pid) {
+        ALOGV(" create NuPlayer");
+        //创建播放器
+        return new NuPlayerDriver(pid);
+    }
+</code></pre> 
+<p>这里调用的是NuPlayerDriver的构造函数去创建播放器。<br> 【.frameworks av media libmediaplayerservice nuplayer NuPlayerDriver.cpp】</p> 
+<pre><code class="prism language-c++">NuPlayerDriver::NuPlayerDriver(pid_t pid)
+    : mState(STATE_IDLE),
+      mIsAsyncPrepare(false),
+      mAsyncResult(UNKNOWN_ERROR),
+      mSetSurfaceInProgress(false),
+      mDurationUs(-1),
+      mPositionUs(-1),
+      mSeekInProgress(false),
+      mPlayingTimeUs(0),
+      mRebufferingTimeUs(0),
+      mRebufferingEvents(0),
+      mRebufferingAtExit(false),
+      mLooper(new ALooper),
+      mMediaClock(new MediaClock),
+      mPlayer(new NuPlayer(pid, mMediaClock)),
+      mPlayerFlags(0),
+      mAnalyticsItem(NULL),
+      mClientUid(-1),
+      mAtEOS(false),
+      mLooping(false),
+      mAutoLoop(false) {
+    ALOGD("NuPlayerDriver(%p) created, clientPid(%d)", this, pid);
+    mLooper-&gt;setName("NuPlayerDriver Looper");
+
+    mMediaClock-&gt;init();
+
+    // set up an analytics record
+    mAnalyticsItem = new MediaAnalyticsItem(kKeyPlayer);
+
+    mLooper-&gt;start(
+            false, /* runOnCallingThread */
+            true,  /* canCallJava */
+            PRIORITY_AUDIO);
+
+    mLooper-&gt;registerHandler(mPlayer);
+
+    mPlayer-&gt;init(this);
+}
+</code></pre> 
+<p>在构造函数的初始化列表中调用了NuPlayer的构造函数去初始化NuPlayer对象，这就是实际的播放器对象。在NuPlayer的构造函数也会以初始化列表的方式完成一些变量的初始化赋值操作。具体的setDataSource也是在Nuplay中实现的。</p> 
+<pre><code class="prism language-c++">status_t NuPlayerDriver::setDataSource(int fd, int64_t offset, int64_t length) {
+    ALOGV("setDataSource(%p) file(%d)", this, fd);
+    Mutex::Autolock autoLock(mLock);
+
+    if (mState != STATE_IDLE) {
+        return INVALID_OPERATION;
+    }
+
+    mState = STATE_SET_DATASOURCE_PENDING;
+
+    mPlayer-&gt;setDataSourceAsync(fd, offset, length);
+
+    while (mState == STATE_SET_DATASOURCE_PENDING) {
+        mCondition.wait(mLock);
+    }
+
+    return mAsyncResult;
+}
+</code></pre> 
+<p>再通过setDataSourceAsync(httpService, url, headers)，去到NuPlayer</p> 
+<pre><code class="prism language-c++">void NuPlayer::setDataSourceAsync(int fd, int64_t offset, int64_t length) {
+	//发送消息的形式
+    sp&lt;AMessage&gt; msg = new AMessage(kWhatSetDataSource, this);
+
+    sp&lt;AMessage&gt; notify = new AMessage(kWhatSourceNotify, this);
+	
+	//重置Source数据
+    sp&lt;GenericSource&gt; source =
+            new GenericSource(notify, mUIDValid, mUID, mMediaClock);
+
+    ALOGV("setDataSourceAsync fd %d/%lld/%lld source: %p",
+            fd, (long long)offset, (long long)length, source.get());
+	
+	//调用GenericSource中的setDataSource方法
+    status_t err = source-&gt;setDataSource(fd, offset, length);
+
+    if (err != OK) {
+        ALOGE("Failed to set data source!");
+        source = NULL;
+    }
+
+    msg-&gt;setObject("source", source);
+    msg-&gt;post();
+    mDataSourceType = DATA_SOURCE_TYPE_GENERIC_FD;
+}
+</code></pre> 
+<p>调用了GenericSource的setDataSource方法。<br> 【./frameworks av media libmediaplayerservice nuplayer GenericSource.cpp】</p> 
+<pre><code class="prism language-c++">status_t NuPlayer::GenericSource::setDataSource(
+        int fd, int64_t offset, int64_t length) {
+    Mutex::Autolock _l(mLock);
+    ALOGV("setDataSource %d/%lld/%lld", fd, (long long)offset, (long long)length);
+	
+	//重置相关变量
+    resetDataSource();
+	
+	//dup函数是返回一个指向同一个文件的文件描述符
+    mFd = dup(fd);
+    mOffset = offset;
+    mLength = length;
+
+    // delay data source creation to prepareAsync() to avoid blocking
+    // the calling thread in setDataSource for any significant time.
+    return OK;
+}
+</code></pre> 
+<p>随后NuPlayer使用消息的形式：</p> 
+<pre><code class="prism language-c++">void NuPlayer::onMessageReceived(const sp&lt;AMessage&gt; &amp;msg) {
+    switch (msg-&gt;what()) {
+        case kWhatSetDataSource:
+        {
+            ALOGV("kWhatSetDataSource");
+
+            CHECK(mSource == NULL);
+
+            status_t err = OK;
+            sp&lt;RefBase&gt; obj;
+            CHECK(msg-&gt;findObject("source", &amp;obj));
+            if (obj != NULL) {
+                Mutex::Autolock autoLock(mSourceLock);
+                mSource = static_cast&lt;Source *&gt;(obj.get());
+            } else {
+                err = UNKNOWN_ERROR;
+            }
+
+            CHECK(mDriver != NULL);
+            sp&lt;NuPlayerDriver&gt; driver = mDriver.promote();
+            if (driver != NULL) {
+                driver-&gt;notifySetDataSourceCompleted(err);
+            }
+            break;
+        }
+</code></pre> 
+<p>mSource为GenericSource对象，Source设置完成则变更mState的状态为：</p> 
+<pre><code class="prism language-c++">void NuPlayerDriver::notifySetDataSourceCompleted(status_t err) {
+    Mutex::Autolock autoLock(mLock);
+
+    CHECK_EQ(mState, STATE_SET_DATASOURCE_PENDING);
+
+    mAsyncResult = err;
+    //更改mState的状态为STATE_UNPREPARED 
+    mState = (err == OK) ? STATE_UNPREPARED : STATE_IDLE;
+    mCondition.broadcast();
+}
+</code></pre> 
+<p>至此，setDataSource()的流程结束，但播放器的状态还是STATE_UNPREPARED。</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/1a71533925289aa5e58d12eea28fa51d/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">glance服务报错HTTPInternalServerError (HTTP 500)</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/6a725a864546efa469ca0ec40c3777dd/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">cad批量打印_CAD批量打印PDF软件CAD转PDF自动选纸SmartBatchPlo</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

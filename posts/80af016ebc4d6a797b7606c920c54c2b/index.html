@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>读取sftp服务器上的文件内容到指定的数据库表内 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/80af016ebc4d6a797b7606c920c54c2b/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="读取sftp服务器上的文件内容到指定的数据库表内">
+  <meta property="og:description" content="引入sftp jar依赖 &amp;lt;dependency&amp;gt; &amp;lt;groupId&amp;gt;com.jcraft&amp;lt;/groupId&amp;gt; &amp;lt;artifactId&amp;gt;jsch&amp;lt;/artifactId&amp;gt; &amp;lt;version&amp;gt;0.1.27&amp;lt;/version&amp;gt; &amp;lt;/dependency&amp;gt; 登录sftp的工具类 package com.chenfu; import com.jcraft.jsch.*; import java.util.Properties; public class SftpUtils { private static ChannelSftp sftp = null; private static Session session = null; // 登录 public static ChannelSftp login() throws JSchException, SftpException { JSch jSch = new JSch(); // 设置用户名和主机，端口号一般都是22 session = jSch.getSession(&#34;userName&#34;, &#34;host&#34;, port); // 设置密码 session.setPassword(&#34;password&#34;); Properties config = new Properties(); config.put(&#34;StrictHostKeyChecking&#34;, &#34;no&#34;); session.setConfig(config); session.connect(); Channel channel = session.openChannel(&#34;sftp&#34;); channel.connect(); sftp = (ChannelSftp) channel; System.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2018-09-14T23:35:54+08:00">
+    <meta property="article:modified_time" content="2018-09-14T23:35:54+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">读取sftp服务器上的文件内容到指定的数据库表内</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-github-gist">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <h6><a id="sftp_jar_0"></a>引入sftp jar依赖</h6> 
+<pre><code class="prism language-java"><span class="token generics function"><span class="token punctuation">&lt;</span>dependency<span class="token punctuation">&gt;</span></span>
+    <span class="token generics function"><span class="token punctuation">&lt;</span>groupId<span class="token punctuation">&gt;</span></span>com<span class="token punctuation">.</span>jcraft<span class="token operator">&lt;</span><span class="token operator">/</span>groupId<span class="token operator">&gt;</span>
+    <span class="token generics function"><span class="token punctuation">&lt;</span>artifactId<span class="token punctuation">&gt;</span></span>jsch<span class="token operator">&lt;</span><span class="token operator">/</span>artifactId<span class="token operator">&gt;</span>
+    <span class="token generics function"><span class="token punctuation">&lt;</span>version<span class="token punctuation">&gt;</span></span><span class="token number">0.1</span><span class="token number">.27</span><span class="token operator">&lt;</span><span class="token operator">/</span>version<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span><span class="token operator">/</span>dependency<span class="token operator">&gt;</span>
+</code></pre> 
+<h6><a id="sftp_9"></a>登录sftp的工具类</h6> 
+<pre><code class="prism language-java"><span class="token keyword">package</span> com<span class="token punctuation">.</span>chenfu<span class="token punctuation">;</span>
+
+<span class="token keyword">import</span> com<span class="token punctuation">.</span>jcraft<span class="token punctuation">.</span>jsch<span class="token punctuation">.</span>*<span class="token punctuation">;</span>
+
+<span class="token keyword">import</span> java<span class="token punctuation">.</span>util<span class="token punctuation">.</span>Properties<span class="token punctuation">;</span>
+
+<span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">SftpUtils</span> <span class="token punctuation">{<!-- --></span>
+
+    <span class="token keyword">private</span> <span class="token keyword">static</span> ChannelSftp sftp <span class="token operator">=</span> null<span class="token punctuation">;</span>
+    <span class="token keyword">private</span> <span class="token keyword">static</span> Session session <span class="token operator">=</span> null<span class="token punctuation">;</span>
+	<span class="token comment">// 登录</span>
+    <span class="token keyword">public</span> <span class="token keyword">static</span> ChannelSftp <span class="token function">login</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token keyword">throws</span> JSchException<span class="token punctuation">,</span> SftpException <span class="token punctuation">{<!-- --></span>
+        JSch jSch <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">JSch</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token comment">// 设置用户名和主机，端口号一般都是22</span>
+        session <span class="token operator">=</span> jSch<span class="token punctuation">.</span><span class="token function">getSession</span><span class="token punctuation">(</span><span class="token string">"userName"</span><span class="token punctuation">,</span> <span class="token string">"host"</span><span class="token punctuation">,</span> port<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token comment">// 设置密码</span>
+        session<span class="token punctuation">.</span><span class="token function">setPassword</span><span class="token punctuation">(</span><span class="token string">"password"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        Properties config <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">Properties</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        config<span class="token punctuation">.</span><span class="token function">put</span><span class="token punctuation">(</span><span class="token string">"StrictHostKeyChecking"</span><span class="token punctuation">,</span> <span class="token string">"no"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        session<span class="token punctuation">.</span><span class="token function">setConfig</span><span class="token punctuation">(</span>config<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        session<span class="token punctuation">.</span><span class="token function">connect</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        Channel channel <span class="token operator">=</span> session<span class="token punctuation">.</span><span class="token function">openChannel</span><span class="token punctuation">(</span><span class="token string">"sftp"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        channel<span class="token punctuation">.</span><span class="token function">connect</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        sftp <span class="token operator">=</span> <span class="token punctuation">(</span>ChannelSftp<span class="token punctuation">)</span> channel<span class="token punctuation">;</span>
+        System<span class="token punctuation">.</span>out<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"connect success...."</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">return</span> sftp<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token comment">// 退出登录</span>
+    <span class="token keyword">public</span> <span class="token keyword">static</span> <span class="token keyword">void</span> <span class="token function">logout</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>sftp <span class="token operator">!=</span> null<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span>sftp<span class="token punctuation">.</span><span class="token function">isConnected</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                sftp<span class="token punctuation">.</span><span class="token function">disconnect</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+        <span class="token punctuation">}</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>session <span class="token operator">!=</span> null<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span>session<span class="token punctuation">.</span><span class="token function">isConnected</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                session<span class="token punctuation">.</span><span class="token function">disconnect</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+
+<span class="token punctuation">}</span>
+
+
+</code></pre> 
+<h6><a id="JDBCOracle_58"></a>使用JDBC方式插入数据到Oracle数据库内</h6> 
+<pre><code class="prism language-java"><span class="token keyword">package</span> com<span class="token punctuation">.</span>chenfu<span class="token punctuation">;</span>
+
+<span class="token keyword">import</span> com<span class="token punctuation">.</span>jcraft<span class="token punctuation">.</span>jsch<span class="token punctuation">.</span>ChannelSftp<span class="token punctuation">;</span>
+<span class="token keyword">import</span> com<span class="token punctuation">.</span>jcraft<span class="token punctuation">.</span>jsch<span class="token punctuation">.</span>JSchException<span class="token punctuation">;</span>
+<span class="token keyword">import</span> com<span class="token punctuation">.</span>jcraft<span class="token punctuation">.</span>jsch<span class="token punctuation">.</span>SftpException<span class="token punctuation">;</span>
+
+<span class="token keyword">import</span> java<span class="token punctuation">.</span>io<span class="token punctuation">.</span>*<span class="token punctuation">;</span>
+<span class="token keyword">import</span> java<span class="token punctuation">.</span>sql<span class="token punctuation">.</span>Connection<span class="token punctuation">;</span>
+<span class="token keyword">import</span> java<span class="token punctuation">.</span>sql<span class="token punctuation">.</span>DriverManager<span class="token punctuation">;</span>
+<span class="token keyword">import</span> java<span class="token punctuation">.</span>sql<span class="token punctuation">.</span>PreparedStatement<span class="token punctuation">;</span>
+<span class="token keyword">import</span> java<span class="token punctuation">.</span>sql<span class="token punctuation">.</span>SQLException<span class="token punctuation">;</span>
+<span class="token keyword">import</span> java<span class="token punctuation">.</span>util<span class="token punctuation">.</span>ArrayList<span class="token punctuation">;</span>
+
+<span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">ReadData</span> <span class="token punctuation">{<!-- --></span>
+
+    <span class="token keyword">public</span> <span class="token keyword">static</span> <span class="token keyword">void</span> <span class="token function">main</span><span class="token punctuation">(</span>String<span class="token punctuation">[</span><span class="token punctuation">]</span> args<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+
+        Connection connection <span class="token operator">=</span> null<span class="token punctuation">;</span>
+        PreparedStatement preparedStatement <span class="token operator">=</span> null<span class="token punctuation">;</span>
+        BufferedReader reader <span class="token operator">=</span> null<span class="token punctuation">;</span>
+
+        <span class="token keyword">try</span> <span class="token punctuation">{<!-- --></span>
+	        <span class="token comment">// 登录sftp服务器</span>
+            ChannelSftp sftp <span class="token operator">=</span> SftpUtils<span class="token punctuation">.</span><span class="token function">login</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token comment">// 构建文件输入流，读取文件内容，因为最终是要打成jar包，所以文件名从args上取</span>
+            reader <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">BufferedReader</span><span class="token punctuation">(</span><span class="token keyword">new</span> <span class="token class-name">InputStreamReader</span><span class="token punctuation">(</span>sftp<span class="token punctuation">.</span><span class="token function">get</span><span class="token punctuation">(</span><span class="token string">"/path/dir/"</span><span class="token operator">+</span>args<span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token string">"utf-8"</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            Class<span class="token punctuation">.</span><span class="token function">forName</span><span class="token punctuation">(</span><span class="token string">"oracle.jdbc.driver.OracleDriver"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            String url<span class="token operator">=</span><span class="token string">"jdbc:oracle:thin:@host:port:orcl"</span><span class="token punctuation">;</span>
+            String username <span class="token operator">=</span> <span class="token string">"scott"</span><span class="token punctuation">;</span>
+            String password <span class="token operator">=</span> <span class="token string">"root"</span><span class="token punctuation">;</span>
+
+			<span class="token comment">// 获得数据库的连接</span>
+            connection <span class="token operator">=</span> DriverManager<span class="token punctuation">.</span><span class="token function">getConnection</span><span class="token punctuation">(</span>url<span class="token punctuation">,</span> username<span class="token punctuation">,</span> password<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token comment">// 表名也是从args上取</span>
+            StringBuilder builder <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">StringBuilder</span><span class="token punctuation">(</span><span class="token string">"insert into "</span> <span class="token operator">+</span> args<span class="token punctuation">[</span><span class="token number">1</span><span class="token punctuation">]</span> <span class="token operator">+</span> <span class="token string">" values("</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token comment">// 将所有数据存到一个list集合内</span>
+            ArrayList<span class="token generics function"><span class="token punctuation">&lt;</span>String<span class="token punctuation">&gt;</span></span> list <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">ArrayList</span><span class="token operator">&lt;</span><span class="token operator">&gt;</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token keyword">while</span><span class="token punctuation">(</span><span class="token boolean">true</span><span class="token punctuation">)</span><span class="token punctuation">{<!-- --></span>
+                String line <span class="token operator">=</span> reader<span class="token punctuation">.</span><span class="token function">readLine</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token keyword">if</span><span class="token punctuation">(</span>line <span class="token operator">==</span> null<span class="token punctuation">)</span><span class="token punctuation">{<!-- --></span>
+                    <span class="token keyword">break</span><span class="token punctuation">;</span>
+                <span class="token punctuation">}</span>
+                list<span class="token punctuation">.</span><span class="token function">add</span><span class="token punctuation">(</span>line<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+
+			<span class="token comment">// 通过其中的一行数据来看有多少列</span>
+            String line <span class="token operator">=</span> list<span class="token punctuation">.</span><span class="token function">get</span><span class="token punctuation">(</span><span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token comment">// 规定的一行数据之间的分隔符是英文的逗号</span>
+            String<span class="token punctuation">[</span><span class="token punctuation">]</span> strings <span class="token operator">=</span> line<span class="token punctuation">.</span><span class="token function">split</span><span class="token punctuation">(</span><span class="token string">","</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token comment">// 插入sql的占位符</span>
+            <span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token keyword">int</span> i<span class="token operator">=</span><span class="token number">0</span><span class="token punctuation">;</span>i<span class="token operator">&lt;</span>strings<span class="token punctuation">.</span>length<span class="token punctuation">;</span>i<span class="token operator">++</span><span class="token punctuation">)</span><span class="token punctuation">{<!-- --></span>
+                <span class="token keyword">if</span><span class="token punctuation">(</span>i<span class="token operator">&gt;=</span>strings<span class="token punctuation">.</span>length<span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">{<!-- --></span>
+                    builder<span class="token punctuation">.</span><span class="token function">append</span><span class="token punctuation">(</span><span class="token string">"?)"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token punctuation">}</span><span class="token keyword">else</span><span class="token punctuation">{<!-- --></span>
+                    builder<span class="token punctuation">.</span><span class="token function">append</span><span class="token punctuation">(</span><span class="token string">"?,"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token punctuation">}</span>
+            <span class="token punctuation">}</span>
+            <span class="token comment">// 获取完整sql</span>
+            String sql <span class="token operator">=</span> builder<span class="token punctuation">.</span><span class="token function">toString</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            System<span class="token punctuation">.</span>out<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"sql:"</span><span class="token operator">+</span>sql<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token comment">// 拿到预编译的对象</span>
+            preparedStatement <span class="token operator">=</span> connection<span class="token punctuation">.</span><span class="token function">prepareStatement</span><span class="token punctuation">(</span>sql<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+            <span class="token keyword">for</span> <span class="token punctuation">(</span>String s<span class="token operator">:</span>list<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                String<span class="token punctuation">[</span><span class="token punctuation">]</span> split <span class="token operator">=</span> s<span class="token punctuation">.</span><span class="token function">split</span><span class="token punctuation">(</span><span class="token string">","</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token keyword">int</span> i<span class="token operator">=</span><span class="token number">1</span><span class="token punctuation">;</span>i<span class="token operator">&lt;=</span>split<span class="token punctuation">.</span>length<span class="token punctuation">;</span>i<span class="token operator">++</span><span class="token punctuation">)</span><span class="token punctuation">{<!-- --></span>
+	                <span class="token comment">// 数据表内的所有字段都是varChar2类型的，所以都通过此种方式填充数据</span>
+                    preparedStatement<span class="token punctuation">.</span><span class="token function">setString</span><span class="token punctuation">(</span>i<span class="token punctuation">,</span>split<span class="token punctuation">[</span>i<span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">]</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token punctuation">}</span>
+                preparedStatement<span class="token punctuation">.</span><span class="token function">addBatch</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+            preparedStatement<span class="token punctuation">.</span><span class="token function">executeBatch</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token comment">// 退出sftp服务器</span>
+            SftpUtils<span class="token punctuation">.</span><span class="token function">logout</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            System<span class="token punctuation">.</span>out<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"insert success....."</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span> <span class="token keyword">catch</span> <span class="token punctuation">(</span><span class="token class-name">FileNotFoundException</span> e<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            e<span class="token punctuation">.</span><span class="token function">printStackTrace</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span> <span class="token keyword">catch</span> <span class="token punctuation">(</span><span class="token class-name">UnsupportedEncodingException</span> e<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            e<span class="token punctuation">.</span><span class="token function">printStackTrace</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span> <span class="token keyword">catch</span> <span class="token punctuation">(</span><span class="token class-name">ClassNotFoundException</span> e<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            e<span class="token punctuation">.</span><span class="token function">printStackTrace</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span> <span class="token keyword">catch</span> <span class="token punctuation">(</span><span class="token class-name">SQLException</span> e<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            e<span class="token punctuation">.</span><span class="token function">printStackTrace</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span> <span class="token keyword">catch</span> <span class="token punctuation">(</span><span class="token class-name">IOException</span> e<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            e<span class="token punctuation">.</span><span class="token function">printStackTrace</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span> <span class="token keyword">catch</span> <span class="token punctuation">(</span><span class="token class-name">JSchException</span> e<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            e<span class="token punctuation">.</span><span class="token function">printStackTrace</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span> <span class="token keyword">catch</span> <span class="token punctuation">(</span><span class="token class-name">SftpException</span> e<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            e<span class="token punctuation">.</span><span class="token function">printStackTrace</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span> <span class="token keyword">finally</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token keyword">try</span> <span class="token punctuation">{<!-- --></span>
+                <span class="token keyword">if</span> <span class="token punctuation">(</span>reader<span class="token operator">!=</span>null<span class="token punctuation">)</span><span class="token punctuation">{<!-- --></span>
+                    reader<span class="token punctuation">.</span><span class="token function">close</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token punctuation">}</span>
+                <span class="token keyword">if</span><span class="token punctuation">(</span>preparedStatement<span class="token operator">!=</span>null<span class="token punctuation">)</span><span class="token punctuation">{<!-- --></span>
+                    preparedStatement<span class="token punctuation">.</span><span class="token function">close</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token punctuation">}</span>
+                <span class="token keyword">if</span><span class="token punctuation">(</span>connection<span class="token operator">!=</span>null<span class="token punctuation">)</span><span class="token punctuation">{<!-- --></span>
+                    connection<span class="token punctuation">.</span><span class="token function">close</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token punctuation">}</span>
+            <span class="token punctuation">}</span> <span class="token keyword">catch</span> <span class="token punctuation">(</span><span class="token class-name">SQLException</span> e<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                e<span class="token punctuation">.</span><span class="token function">printStackTrace</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span> <span class="token keyword">catch</span> <span class="token punctuation">(</span><span class="token class-name">IOException</span> e<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                e<span class="token punctuation">.</span><span class="token function">printStackTrace</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+
+</code></pre>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/7d528681d134e5570c79c4c888187eb4/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">spring boot security 防止用户重复登录（原创）</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/286ada483e8da6349eb3bcbf84d13008/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">NoSQL和SQL简介和对比</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>.NET Core 之 七 EF Core（五） - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/c25897d7fb073cce1605efe51ea2002a/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content=".NET Core 之 七 EF Core（五）">
+  <meta property="og:description" content="一、EF Core执行非查询原生sql语句
+为什么要写原生sql语句
+执行非查询sql语句
+内插值语法：$&#34;我是{name},我的年龄是{age}&#34;
+多行@
+ctx.Database.ExecateSqlInterpolatedAsync($&#34;inster into...&#34;)
+有sql注入漏洞吗？ 没有 sql注入最好的解决方案是参数化sql处理
+1、字符串内插值的方式不会有sql注入攻击漏洞；
+2、字符串内插如果赋值给string变量，就是字符串拼接；字符串内插值如果赋值给FormattableString类型变量，编译器就会构造FormattableString对象，属性Formar和GetArguments()方法
+3、ExecuteSqlInterPolatedAsync()的参数FormattableString类型，因此ExecutSqlInterPolatedAsync会进行参数化sql处理
+4、除了ExecuteSqlInterPolated()，ExecuteSqlInterPolatedAsync()还有ExecuteSqlRaw()，ExecuSqlRawAsync()也可以执行原生sql语句，但需要开发人员自己处理查询参数，用不好容易造成sql注入风险，以前旧版本用，新版本推荐用内插值方法。
+二、执行实体相关查询原生sql语句
+如果要执行的原生sql是一个查询语句，并且查询结果也能对应一个实体，就可以调用对应实体的DbSet的FormSqlInterPolated()方法来执行一个查询sql语句，同样使用字符串内插来传递参数
+SQL select newid() 可用作随机排序
+like时需要参数传入&#34;%中%&#34;，不能把%直接放入字符串中
+SQL 子查询中不能使用order By
+把只能用原生sql语句写的逻辑用FormSqlInterPolated()去执行，然后把分页，分组，二次过滤，排序，Include等其他逻辑尽可能仍然使用EFCore的标准操作去实现
+局限性
+1、sql查询必须返回实体类型对应数据库表的所有列；
+2、结果集中的列名必须与属性映射的列名称匹配；
+3、只能单表查询，不能使join语句进行关联查询，但是可以在查询后面使用Include()来进行关联数据的获取；
+三、EFCore执行任意原生sql查询语句
+什么时候需要ADO.NET
+不推荐使用视图，存储过程
+执行任意sql
+ADO.NET 演示，操作太复杂不推荐
+Dapper框架
+演示，1、建对应DTO对象 2、Query方法
+总结
+四、EFCore如何知道实体数据变了
+演示，SaveChanges时奇怪的地方，与数据库不一致的才会执行修改
+快照更改跟踪，概念
+实体的状态：已添加(Added)，未改变(Unchanged)，
+已修改(Modified)，已删除(Deleted)，已分离/未跟踪(Datached)
+Savechanges的操作
+EntityEntry
+1、使用DbContext的Entry()方法来获得实体在EFCore中的跟踪信息对象EntityEntry，EntityEntry类的State属性代表实体的状态，通过DebugView.LongView属性可以看到实体的变化信息
+2、代码演示
+总结：DbContext会根据跟踪的实体的状态，在SaveChanges()的时候根据实体状态的不同，生成update，delete，inster等sql语句，来把内存中实体的变化更新到数据库中。这就是SaveChanges的原理
+五、EFCore优化之AsNoTracking
+如果查询出来的对象不会被修改，删除等吗，那么查询时可以用AsNoTracking()，就能降低内存占用；不需要跟踪状态，不需要快照
+代码演示
+六、EFCore实体状态跟踪的妙用（不推荐使用）
+修改和删除只执行一句sql语句，不用执行查询sql，可以性能优化，但代码可读性不强，难维护，提升微乎其微，弊大于利，不推荐使用；
+七、EFCor数据的批量删除、更新、插入
+SQLBulkCopy 可以一次性把很多数据插入到数据库中
+演示，EFCore批量修改、删除、插如实体n条sql会执行
+为什么不用sql实现
+a、原生sql语句需要把表名、列名等硬编码到sql语句中，不符合模型驱动，分层隔离等思想，程序员直接面对数据库表，无法利用EFCore强类型的特性，如果模型发生改变，必须手动变更sql语句；
+b、无法利用EFCore强大的sql翻译机制来屏蔽不同底层数据库的差异
+c、EFCore官方迟迟未支持的原因
+与EFCore实体状态跟踪冲突，会导致状态混乱
+我的开源实现 Zack.EFCore.Batch 包
+批量删除、更新、插入 使用方法，官方文档">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2021-10-03T09:21:43+08:00">
+    <meta property="article:modified_time" content="2021-10-03T09:21:43+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">.NET Core 之 七 EF Core（五）</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <p>一、EF Core执行非查询原生sql语句</p> 
+<p>                为什么要写原生sql语句</p> 
+<p>                执行非查询sql语句</p> 
+<p>                        内插值语法：$"我是{name},我的年龄是{age}"</p> 
+<p>                        多行@</p> 
+<p>                <strong>ctx.Database.ExecateSqlInterpolatedAsync($"inster into...")</strong></p> 
+<p>                有sql注入漏洞吗？ 没有                sql注入最好的解决方案是参数化sql处理</p> 
+<p>                        1、字符串内插值的方式不会有sql注入攻击漏洞；</p> 
+<p>                        2、字符串内插如果赋值给string变量，就是字符串拼接；字符串内插值如果赋值给<strong>FormattableString</strong>类型变量，编译器就会构造FormattableString对象，属性Formar和GetArguments()方法</p> 
+<p>                        3、ExecuteSqlInterPolatedAsync()的参数FormattableString类型，因此ExecutSqlInterPolatedAsync会进行参数化sql处理</p> 
+<p>                        4、除了ExecuteSqlInterPolated()，ExecuteSqlInterPolatedAsync()还有ExecuteSqlRaw()，ExecuSqlRawAsync()也可以执行原生sql语句，但需要开发人员自己处理查询参数，用不好容易造成sql注入风险，以前旧版本用，新版本推荐用内插值方法。</p> 
+<p>二、执行实体相关查询原生sql语句</p> 
+<p>        如果要执行的原生sql是一个查询语句，并且查询结果也能对应一个实体，就可以调用对应实体的DbSet的FormSqlInterPolated()方法来执行一个查询sql语句，同样使用字符串内插来传递参数</p> 
+<p>                SQL        select newid()        可用作随机排序</p> 
+<p>                like时需要参数传入"%中%"，不能把%直接放入字符串中</p> 
+<p>                SQL        子查询中不能使用order By</p> 
+<p>        把只能用原生sql语句写的逻辑用FormSqlInterPolated()去执行，然后把分页，分组，二次过滤，排序，Include等其他逻辑尽可能仍然使用EFCore的标准操作去实现</p> 
+<p>        局限性</p> 
+<p>                1、sql查询必须返回实体类型对应数据库表的所有列；</p> 
+<p>                2、结果集中的列名必须与属性映射的列名称匹配；</p> 
+<p>                3、只能单表查询，不能使join语句进行关联查询，但是可以在查询后面使用Include()来进行关联数据的获取；</p> 
+<p>三、EFCore执行任意原生sql查询语句</p> 
+<p>        什么时候需要ADO.NET</p> 
+<p>                不推荐使用视图，存储过程</p> 
+<p>        执行任意sql</p> 
+<p>                ADO.NET 演示，操作太复杂不推荐</p> 
+<p>        <strong>Dapper框架</strong></p> 
+<p>                演示，1、建对应DTO对象        2、Query方法</p> 
+<p>        总结</p> 
+<p>四、EFCore如何知道实体数据变了</p> 
+<p>        演示，SaveChanges时奇怪的地方，与数据库不一致的才会执行修改</p> 
+<p>        快照更改跟踪，概念</p> 
+<p>        实体的状态：已添加(Added)，未改变(Unchanged)，</p> 
+<p>                             已修改(Modified)，已删除(Deleted)，已分离/未跟踪(Datached)</p> 
+<p>                Savechanges的操作</p> 
+<p>        EntityEntry</p> 
+<p>                1、使用DbContext的Entry()方法来获得实体在EFCore中的跟踪信息对象EntityEntry，EntityEntry类的State属性代表实体的状态，通过DebugView.LongView属性可以看到实体的变化信息</p> 
+<p>                2、代码演示</p> 
+<p>        总结：DbContext会根据跟踪的实体的状态，在SaveChanges()的时候根据实体状态的不同，生成update，delete，inster等sql语句，来把内存中实体的变化更新到数据库中。这就是<strong>SaveChanges的原理</strong></p> 
+<p>五、EFCore优化之AsNoTracking</p> 
+<p>        如果查询出来的对象不会被修改，删除等吗，那么查询时可以用<strong>AsNoTracking</strong>()，就能降低内存占用；不需要跟踪状态，不需要快照</p> 
+<p>        代码演示</p> 
+<p>六、EFCore实体状态跟踪的妙用（不推荐使用）</p> 
+<p>        修改和删除只执行一句sql语句，不用执行查询sql，可以性能优化，但代码可读性不强，难维护，提升微乎其微，弊大于利，不推荐使用；</p> 
+<p>七、EFCor数据的批量删除、更新、插入</p> 
+<p>       <strong> SQLBulkCopy        可以一次性把很多数据插入到数据库中</strong></p> 
+<p>        演示，EFCore批量修改、删除、插如实体n条sql会执行</p> 
+<p>        为什么不用sql实现</p> 
+<p>                a、原生sql语句需要把表名、列名等硬编码到sql语句中，不符合模型驱动，分层隔离等思想，程序员直接面对数据库表，无法利用EFCore强类型的特性，如果模型发生改变，必须手动变更sql语句；</p> 
+<p>                b、无法利用EFCore强大的sql翻译机制来屏蔽不同底层数据库的差异</p> 
+<p>                c、EFCore官方迟迟未支持的原因</p> 
+<p>                        与EFCore实体状态跟踪冲突，会导致状态混乱</p> 
+<p>        我的开源实现        Zack.EFCore.Batch 包</p> 
+<p>                批量删除、更新、插入        使用方法，官方文档</p> 
+<p>                演示</p> 
+<p>八、全局查询筛选器</p> 
+<p>        EFCore会自动将这个查询筛选器应用于涉及这个实体类型的所有Linq查询</p> 
+<p>        场景：软删除，多租户(eg:商城系统商家入驻，每条记录都带有商户ID)</p> 
+<p>                软删除概念，代码演示</p> 
+<p>                builder.<strong>HasQueryFilter</strong>(a=&gt;a.IsDeleted == false);</p> 
+<p>        忽略：ctx.Books.IgnoreQueryFilters().Where(b=&gt;b.Age&gt;10).ToArray();</p> 
+<p>        全局筛选器的性能陷阱：数据量大时，可能会造成全表扫描，根据情况优化系统，如：聚集索引</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/50f30ef1023258d98a2a1ec09dbd10c8/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">SpringBoot——单元测试1——业务逻辑层单元测试</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/6b3ee3129cbaaa6ddf60b6af15c65d2e/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">结构体，联合体，枚举详解</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

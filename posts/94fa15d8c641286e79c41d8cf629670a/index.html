@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>【Linux】半同步半异步线程池 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/94fa15d8c641286e79c41d8cf629670a/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="【Linux】半同步半异步线程池">
+  <meta property="og:description" content="首先来复习一下什么是：阻塞、非阻塞、同步、异步
+阻塞：调用方在得到结果之前会一直等待；
+非阻塞：调用方在不能得到结果时，不会等待。
+打个比喻：David准备钓鱼回家买菜做饭。
+阻塞：钓鱼时一直守在鱼竿前等鱼上钩，就这样钓到鱼后去做别的事情。
+非阻塞：David抛出鱼竿后，没有鱼上钩，于是开始先买菜洗菜玩手机，鱼上钩后，再去处理鱼。
+同步：被调用方得到最终结果之后才返回给调用方。所有的操作都做完，才返回给用户。这样用户在线等待的时间太长，给用户一种卡死了的感觉（就是系统迁移中，点击了迁移，界面就不动了，但是程序还在执行，卡死了的感觉）。这种情况下，用户不能关闭界面，如果关闭了，即迁移程序就中断了。
+异步：不用等所有操作等做完，就相应调用方的请求。即先相应请求，然后慢慢去处理，调用方的体验比较好。
+打个比喻：David叫nana去吃饭，而nana此刻正在化妆，收拾屋子，穿衣服......
+同步：David叫了一声，没有得到任何回应，David听到后很可能去一个人走了；nana收到消息后没有回应，一直忙着自己的事情，化妆换衣服之后，给David发消息：我收好了，可以和你去吃饭。
+异步：David叫了一声，nana说等等我有事情，David听到后就阻塞住；nana忙完后又告诉David：我收好了，可以和你去吃饭。
+然后两个人手牵手去吃饭。
+-------------------
+这里同步的理解好像有些不恰当，
+举例线程同步：
+总之，同步讲的是被调用者的事情。 -------------------
+由此可见：异步是最优的解决方案，能够满足调用方和被调用方；同步可能让双方都达不到目的。
+同步模式编程简单，但是I/O的利用率低；
+而异步模式编程复杂，但是I/O利用率高。
+综合同步异步的有优点，就有了半同步半异步的设计模式。
+---------------------------------------------------------------------------------------------------------
+半同步/半异步线程池中：添加一个共享队列（单例模式并保证线程安全）
+【1】主线程只管理监听socket、连接，得到新的连接socket由工作线程来管理。当有新的连接到来时，主线程就接受并将新返回的连接socket派发给某个工作线程，此后，该连接套接字clifd上任何I/O操作都由被选中的工作线程来处理，知道客户端关闭连接。
+【2】主线程向工作线程派发socket的方式，是通过一个共享队列，连接套接字clifd上有事件，主线程就将clifd添加到queue中。工作线程检测到queue上有数据，如果是，就处理该事件。（扩充：工作线程可以写成一个epoll事件处理模式）
+【3】此模式每个线程都做自己的事件。
+总结起来线程池就是： 1. 同步服务层：不断的将新任务添加到同步队列中，可以用多路复用或者多线程来完成。一开始没看懂任务是什么，其实一个函数就是一个任务，C&#43;&#43;11通过std::function将函数封装为类模板对象，可以将这些任务（函数）放到容器中保存起来，以进行添加读取任务操作。 2. 排队层：就是一个同步队列，处于核心地位。所有待处理的任务都存在这里，要保证队列中共享数据线程安全（加锁），还要控制任务的数量，上层服务层往队列添加任务，下层从这里取任务去执行。 3. 异步服务层： 预先创建好线程，来并行处理队列中的任务。
+//项目中的代码分析：
+共享队列：
+//共享队列：单例，保证线程安全 队列为空，则阻塞等待。所以后面的锁需要重新new class ShareQueue { public: static ShareQueue* getShareQueue(); void Share_push(int clifd) { _queue-&amp;gt;push(clifd); } int Share_pop() { Mylock::getMylock()-&amp;gt;lock(); while(_queue-&amp;gt;empty()) { sleep(1); } int clifd = _queue-&amp;gt;front(); _queue-&amp;gt;pop(); Mylock::getMylock()-&amp;gt;unlock(); return clifd; } private: ShareQueue() { _queue = new queue&amp;lt;int&amp;gt;; } queue&amp;lt;int&amp;gt; *_queue; static ShareQueue* _instance;//单例中的唯一实例对象 }; 线程池：">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2019-04-02T17:30:43+08:00">
+    <meta property="article:modified_time" content="2019-04-02T17:30:43+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">【Linux】半同步半异步线程池</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <p> </p> 
+<p>首先来复习一下什么是：阻塞、非阻塞、同步、异步</p> 
+<p>阻塞：调用方在得到结果之前会一直等待；</p> 
+<p>非阻塞：调用方在不能得到结果时，不会等待。</p> 
+<p>打个比喻：David准备钓鱼回家买菜做饭。</p> 
+<p>阻塞：钓鱼时一直守在鱼竿前等鱼上钩，就这样钓到鱼后去做别的事情。</p> 
+<p>非阻塞：David抛出鱼竿后，没有鱼上钩，于是开始先买菜洗菜玩手机，鱼上钩后，再去处理鱼。</p> 
+<p> </p> 
+<p>同步：被调用方得到最终结果之后才返回给调用方。所有的操作都做完，才返回给用户。这样用户在线等待的时间太长，给用户一种卡死了的感觉（就是系统迁移中，点击了迁移，界面就不动了，但是程序还在执行，卡死了的感觉）。这种情况下，用户不能关闭界面，如果关闭了，即迁移程序就中断了。</p> 
+<p>异步：不用等所有操作等做完，就相应调用方的请求。即先相应请求，然后慢慢去处理，调用方的体验比较好。</p> 
+<p>打个比喻：David叫nana去吃饭，而nana此刻正在化妆，收拾屋子，穿衣服......</p> 
+<p>同步：David叫了一声，没有得到任何回应，David听到后很可能去一个人走了；nana收到消息后没有回应，一直忙着自己的事情，化妆换衣服之后，给David发消息：我收好了，可以和你去吃饭。</p> 
+<p>异步：David叫了一声，nana说等等我有事情，David听到后就阻塞住；nana忙完后又告诉David：我收好了，可以和你去吃饭。</p> 
+<p>然后两个人手牵手去吃饭。</p> 
+<p>-------------------</p> 
+<p>这里同步的理解好像有些不恰当，</p> 
+<p>举例线程同步：</p> 
+<p><img alt="" class="has" height="142" src="https://images2.imgbox.com/73/a6/SNSqRQ81_o.png" width="750"></p> 
+<p>总之，同步讲的是被调用者的事情。 </p> 
+<p>-------------------</p> 
+<p>由此可见：异步是最优的解决方案，能够满足调用方和被调用方；同步可能让双方都达不到目的。</p> 
+<p>同步模式编程简单，但是I/O的利用率低；</p> 
+<p>而异步模式编程复杂，但是I/O利用率高。<br> 综合同步异步的有优点，就有了半同步半异步的设计模式。</p> 
+<p>---------------------------------------------------------------------------------------------------------</p> 
+<p><img alt="" class="has" height="684" src="https://images2.imgbox.com/89/69/Lvl271sb_o.png" width="1080"></p> 
+<p><strong>半同步/半异步线程池中：添加一个共享队列（单例模式并保证线程安全）</strong></p> 
+<p><strong>【1】主线程只管理监听socket、连接，得到新的连接socket由工作线程来管理。当有新的连接到来时，主线程就接受并将新返回的连接socket派发给某个工作线程，此后，该连接套接字clifd上任何I/O操作都由被选中的工作线程来处理，知道客户端关闭连接。</strong></p> 
+<p><strong>【2】主线程向工作线程派发socket的方式，是通过一个共享队列，连接套接字clifd上有事件，主线程就将clifd添加到queue中。工作线程检测到queue上有数据，如果是，就处理该事件。（扩充：工作线程可以写成一个epoll事件处理模式）</strong></p> 
+<p><strong>【3】此模式每个线程都做自己的事件。</strong></p> 
+<p>总结起来线程池就是： <br> 1. 同步服务层：不断的将新任务添加到同步队列中，可以用多路复用或者多线程来完成。一开始没看懂任务是什么，其实一个函数就是一个任务，C++11通过std::function将函数封装为类模板对象，可以将这些任务（函数）放到容器中保存起来，以进行添加读取任务操作。 <br> 2. 排队层：就是一个同步队列，处于核心地位。所有待处理的任务都存在这里，要保证队列中共享数据线程安全（加锁），还要控制任务的数量，上层服务层往队列添加任务，下层从这里取任务去执行。 <br> 3. 异步服务层： 预先创建好线程，来并行处理队列中的任务。</p> 
+<p><img alt="" class="has" height="380" src="https://images2.imgbox.com/8b/b2/hzcdVEa4_o.png" width="814"><br>  </p> 
+<p>//项目中的代码分析：</p> 
+<p>共享队列：</p> 
+<pre class="has"><code>//共享队列：单例，保证线程安全 队列为空，则阻塞等待。所以后面的锁需要重新new
+class ShareQueue
+{
+public:
+	static ShareQueue* getShareQueue();
+
+	void Share_push(int clifd)
+    {
+	    _queue-&gt;push(clifd);
+    }
+
+	int Share_pop()
+    {
+	    Mylock::getMylock()-&gt;lock();
+        while(_queue-&gt;empty()) 
+	    {
+		    sleep(1);
+	    }
+	    int clifd = _queue-&gt;front();
+	    _queue-&gt;pop();
+	    Mylock::getMylock()-&gt;unlock();
+	    return clifd;
+    }
+private:
+	ShareQueue()
+    {
+	    _queue = new queue&lt;int&gt;;
+    }
+	queue&lt;int&gt; *_queue; 
+	static ShareQueue* _instance;//单例中的唯一实例对象
+
+};</code></pre> 
+<p>线程池：</p> 
+<pre class="has"><code>class PthreadPool
+{
+public:
+
+	PthreadPool(int n)//构造函数创建线程池
+    {
+	    for(int i = 0;i &lt; n;i++)
+	    {
+	    	pthread_t _id;
+		    pthread_create(&amp;_id,NULL,Pth_run,NULL);
+	    }
+    }
+
+	static void* Pth_run(void* arg)//线程函数：处理clifd上的事物
+    {
+	    while(1)
+	    {
+		    int clifd = ShareQueue::getShareQueue()-&gt;Share_pop();//工作线程阻塞在这里
+		
+		    if(clifd &lt;= 0) continue;
+		    string recv_str;//not tar json
+		    int num = Server::getServer("127.0.0.1",6000)-&gt;SerRecv(recv_str);
+
+		    if(num &lt;= 0) //accept error
+		    {	
+		    	if(event_arr[clifd] != NULL)
+			    {
+			    	cout&lt;&lt;"NO."&lt;&lt;clifd&lt;&lt;" client accept over..."&lt;&lt;endl;
+				    event_free(event_arr[clifd]);//delete the event 
+				    event_arr[clifd] = NULL;
+			    }
+			    Server::getServer("127.0.0.1",6000)-&gt;SerCloseClifd();
+		    }
+		    else
+		    {
+		    	Contral::getContral()-&gt;Con_process(clifd,recv_str);
+		    }
+	    }
+    }
+};</code></pre> 
+<p>主线程：libevent监听clifd 如果有事件就将clifd push到队列中</p> 
+<pre class="has"><code>void System::Sys_recv(int clifd,short ev,void* arg)// only push clifd
+{
+	ShareQueue::getShareQueue()-&gt;Share_push(clifd);	//
+}</code></pre> 
+<p> </p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/5799d611534bf5e9b941f30b61e15b82/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">电脑连不上WiFi，右下角出现红叉怎么解决</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/1978ddb3d8f78885e480999f3fc366a1/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">SpringMVC中使用Ajax请求以json格式返回null值</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

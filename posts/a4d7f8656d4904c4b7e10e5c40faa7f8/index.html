@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>使用Elasticsearch处理大量数据,如何翻页查询 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/a4d7f8656d4904c4b7e10e5c40faa7f8/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="使用Elasticsearch处理大量数据,如何翻页查询">
+  <meta property="og:description" content="当使用Elasticsearch处理大量数据时，从第一页直接跳转到第100页进行查询确实是一个挑战，因为需要计算跳过的记录数并有效地获取目标页的数据。以下是一些建议来实现这种跳页查询：
+使用from和size参数：
+Elasticsearch提供了from和size参数来实现分页。from参数指定了要跳过的文档数量，而size参数指定了每页返回的文档数量。要跳到第100页，你可以设置from为(100 - 1) * size，其中size是你每页想要显示的文档数。
+GET /your_index/_search { &#34;from&#34;: 99 * size, // 例如，如果每页10条记录，那么这里就是 990 &#34;size&#34;: size, // 每页显示的记录数，例如10 &#34;query&#34;: { // 你的查询条件 } } 注意：当from的值非常大时，这种分页方式可能会变得非常低效，因为Elasticsearch需要扫描并跳过指定数量的文档才能找到目标页的数据。对于非常大的数据集，这可能会导致性能问题。
+使用search_after参数：
+search_after参数允许你基于上一页的最后一个文档的排序值来进行分页。这种方法比使用from和size更高效，特别是在处理大量数据时。你需要保存上一页最后一个文档的排序字段的值，并将其作为search_after参数的值。
+GET /your_index/_search { &#34;size&#34;: size, // 每页显示的记录数 &#34;query&#34;: { // 你的查询条件 }, &#34;sort&#34;: [ { &#34;your_sort_field&#34;: { // 用于排序的字段 &#34;order&#34;: &#34;asc&#34; // 排序顺序，可以是asc或desc } } ], &#34;search_after&#34;: [last_doc_sort_value] // 上一页最后一个文档的排序值 } 使用search_after时，你需要确保查询中的排序条件与search_after中使用的排序条件一致。
+使用Scroll API：
+对于需要遍历大量数据的情况，Elasticsearch提供了Scroll API。这种方法允许你保持一个“游标”来遍历查询结果，而不是一次性获取所有结果。Scroll API通常用于大量数据的导出或处理，而不是常规的分页展示。但它也可以用于实现高效的跳页功能，尤其是当跳过的页数非常多时。
+优化索引和查询：
+确保你的Elasticsearch索引已经针对查询进行了优化，例如通过合理的映射设置、分析器和过滤器配置。此外，优化查询本身也很重要，避免使用耗时的查询条件，尽量使用过滤器和聚合来提高性能。">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2024-03-22T16:21:10+08:00">
+    <meta property="article:modified_time" content="2024-03-22T16:21:10+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">使用Elasticsearch处理大量数据,如何翻页查询</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-dark">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <p>当使用Elasticsearch处理大量数据时，从第一页直接跳转到第100页进行查询确实是一个挑战，因为需要计算跳过的记录数并有效地获取目标页的数据。以下是一些建议来实现这种跳页查询：</p> 
+<ol><li> <p><strong>使用<code>from</code>和<code>size</code>参数</strong>：<br> Elasticsearch提供了<code>from</code>和<code>size</code>参数来实现分页。<code>from</code>参数指定了要跳过的文档数量，而<code>size</code>参数指定了每页返回的文档数量。要跳到第100页，你可以设置<code>from</code>为<code>(100 - 1) * size</code>，其中<code>size</code>是你每页想要显示的文档数。</p> <pre><code class="prism language-json"><span class="token constant">GET</span> <span class="token operator">/</span>your_index<span class="token operator">/</span>_search  
+<span class="token punctuation">{<!-- --></span>  
+  <span class="token string-property property">"from"</span><span class="token operator">:</span> <span class="token number">99</span> <span class="token operator">*</span> size<span class="token punctuation">,</span> <span class="token comment">// 例如，如果每页10条记录，那么这里就是 990  </span>
+  <span class="token string-property property">"size"</span><span class="token operator">:</span> size<span class="token punctuation">,</span> <span class="token comment">// 每页显示的记录数，例如10  </span>
+  <span class="token string-property property">"query"</span><span class="token operator">:</span> <span class="token punctuation">{<!-- --></span>  
+    <span class="token comment">// 你的查询条件  </span>
+  <span class="token punctuation">}</span>  
+<span class="token punctuation">}</span>
+</code></pre> <p>注意：当<code>from</code>的值非常大时，这种分页方式可能会变得非常低效，因为Elasticsearch需要扫描并跳过指定数量的文档才能找到目标页的数据。对于非常大的数据集，这可能会导致性能问题。</p> </li><li> <p><strong>使用<code>search_after</code>参数</strong>：<br> <code>search_after</code>参数允许你基于上一页的最后一个文档的排序值来进行分页。这种方法比使用<code>from</code>和<code>size</code>更高效，特别是在处理大量数据时。你需要保存上一页最后一个文档的排序字段的值，并将其作为<code>search_after</code>参数的值。</p> <pre><code class="prism language-json"><span class="token constant">GET</span> <span class="token operator">/</span>your_index<span class="token operator">/</span>_search  
+<span class="token punctuation">{<!-- --></span>  
+  <span class="token string-property property">"size"</span><span class="token operator">:</span> size<span class="token punctuation">,</span> <span class="token comment">// 每页显示的记录数  </span>
+  <span class="token string-property property">"query"</span><span class="token operator">:</span> <span class="token punctuation">{<!-- --></span>  
+    <span class="token comment">// 你的查询条件  </span>
+  <span class="token punctuation">}</span><span class="token punctuation">,</span>  
+  <span class="token string-property property">"sort"</span><span class="token operator">:</span> <span class="token punctuation">[</span>  
+    <span class="token punctuation">{<!-- --></span>  
+      <span class="token string-property property">"your_sort_field"</span><span class="token operator">:</span> <span class="token punctuation">{<!-- --></span> <span class="token comment">// 用于排序的字段  </span>
+        <span class="token string-property property">"order"</span><span class="token operator">:</span> <span class="token string">"asc"</span> <span class="token comment">// 排序顺序，可以是asc或desc  </span>
+      <span class="token punctuation">}</span>  
+    <span class="token punctuation">}</span>  
+  <span class="token punctuation">]</span><span class="token punctuation">,</span>  
+  <span class="token string-property property">"search_after"</span><span class="token operator">:</span> <span class="token punctuation">[</span>last_doc_sort_value<span class="token punctuation">]</span> <span class="token comment">// 上一页最后一个文档的排序值  </span>
+<span class="token punctuation">}</span>
+</code></pre> <p>使用<code>search_after</code>时，你需要确保查询中的排序条件与<code>search_after</code>中使用的排序条件一致。</p> </li><li> <p><strong>使用Scroll API</strong>：<br> 对于需要遍历大量数据的情况，Elasticsearch提供了Scroll API。这种方法允许你保持一个“游标”来遍历查询结果，而不是一次性获取所有结果。Scroll API通常用于大量数据的导出或处理，而不是常规的分页展示。但它也可以用于实现高效的跳页功能，尤其是当跳过的页数非常多时。</p> </li><li> <p><strong>优化索引和查询</strong>：<br> 确保你的Elasticsearch索引已经针对查询进行了优化，例如通过合理的映射设置、分析器和过滤器配置。此外，优化查询本身也很重要，避免使用耗时的查询条件，尽量使用过滤器和聚合来提高性能。</p> </li><li> <p><strong>缓存</strong>：<br> 如果某些页面被频繁访问，你可以考虑使用缓存来存储这些页面的结果，从而减少对Elasticsearch的查询次数。这可以通过在应用程序层面实现缓存或使用Elasticsearch的缓存功能来实现。</p> </li></ol> 
+<p>最终选择哪种方法取决于你的具体需求、数据集的大小以及Elasticsearch集群的性能。在处理大量数据时，通常建议进行性能测试和调优，以找到最适合你场景的分页策略。</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/a7ef48c0053b4c90442dfa8a55e816a5/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">【深度视觉】第十一章：语义分隔</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/98937db07a9f71d8436fe406fd3db52e/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">看了一篇开源作者文章我沉默了良久还是发一篇心情文章</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>4. 案例-使用 Statement 完成 JDBC 增删改查 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/41e2926b804e218a41d5b3588b1236a9/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="4. 案例-使用 Statement 完成 JDBC 增删改查">
+  <meta property="og:description" content="4. 案例-使用 Statement 完成 JDBC 增删改查 前言 在前面的章节中，我们已经懂得如何获取数据库连接 以及 单元测试，下面我们来使用 Statement 来实现 JDBC 的增删查改。
+案例-增删改查练习 1.需求 使用JDBC完成增删改查练习
+2.步骤 注册驱动
+获得连接
+创建执行sql语句对象
+执行sql语句, 处理结果
+释放资源
+3.实现 3.1 准备提供操作的数据库表
+首先准备提供操作的 testdb 数据库 以及 user 数据表，如下：
+mysql&amp;gt; use testdb Reading table information for completion of table and column names You can turn off this feature to get a quicker startup with -A Database changed mysql&amp;gt; mysql&amp;gt; show tables; &#43;------------------&#43; | Tables_in_testdb | &#43;------------------&#43; | t_user | | user | &#43;------------------&#43; 2 rows in set (0.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2021-05-30T00:00:00+08:00">
+    <meta property="article:modified_time" content="2021-05-30T00:00:00+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">4. 案例-使用 Statement 完成 JDBC 增删改查</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <div id="js_content"> 
+ <h2>4. 案例-使用 Statement 完成 JDBC 增删改查</h2> 
+ <h3>前言</h3> 
+ <p>在前面的章节中，我们已经懂得如何获取数据库连接 以及 单元测试，下面我们来使用 Statement 来实现 JDBC 的增删查改。</p> 
+ <h3>案例-增删改查练习</h3> 
+ <h4>1.需求</h4> 
+ <ul><li> <p>使用JDBC完成增删改查练习</p> </li></ul> 
+ <h4>2.步骤</h4> 
+ <ol><li> <p>注册驱动</p> </li><li> <p>获得连接</p> </li><li> <p>创建执行sql语句对象</p> </li><li> <p>执行sql语句, 处理结果</p> </li><li> <p>释放资源</p> </li></ol> 
+ <h4>3.实现</h4> 
+ <p>3.1 准备提供操作的数据库表</p> 
+ <p>首先准备提供操作的 testdb 数据库 以及 user 数据表，如下：</p> 
+ <pre class="has"><code class="language-go">mysql&gt; use testdb
+Reading table information for completion of table and column names
+You can turn off this feature to get a quicker startup with -A
+
+Database changed
+mysql&gt; 
+mysql&gt; show tables;
++------------------+
+| Tables_in_testdb |
++------------------+
+| t_user           |
+| user             |
++------------------+
+2 rows in set (0.00 sec)
+
+mysql&gt; 
+mysql&gt; select * from t_user;
++----+-------+------+------+
+| id | uname | age  | sex  |
++----+-------+------+------+
+|  1 | zs    |   18 |    1 |
+|  2 | ls    |   20 |    0 |
+|  3 | ww    |   23 |    1 |
+|  4 | zl    |   24 |    1 |
+|  5 | lq    |   15 |    0 |
+|  6 | hh    |   12 |    0 |
+|  7 | wzx   |   60 | NULL |
+|  8 | lb    | NULL | NULL |
++----+-------+------+------+
+8 rows in set (0.00 sec)
+
+mysql&gt; 
+</code></pre> 
+ <p>3.2 创建 CRUDDemo 类，并且编写单元测试：获取数据库连接</p> 
+ <img alt="" src="https://images2.imgbox.com/09/bf/zm6vFySR_o.png"> 
+</div> 
+<figcaption>
+  image-20210119223053506 
+</figcaption> 
+<pre class="has"><code class="language-go">public class CRUDDemo {
+
+    /**
+     * 获取数据库连接（使用ResourceBundle读取配置文件）
+     */
+    @Test
+    public void test01() throws Exception {
+        //1.使用ResourceBundle读取jdbc.properties文件中的内容
+        ResourceBundle bundle = ResourceBundle.getBundle("jdbc");// 注意不用写 properties 后缀
+
+        //2.读取配置信息
+        String username = bundle.getString("jdbc.username");
+        String password = bundle.getString("jdbc.password");
+        String url = bundle.getString("jdbc.url");
+        String driverClass = bundle.getString("jdbc.driverClass");
+
+        System.out.println("username=" + username + ", password=" + password + ", url=" + url + ", driverClass=" + driverClass);
+
+        //3.加载驱动
+        Class.forName(driverClass);
+
+        //4.获取连接
+        Connection conn = DriverManager.getConnection(url,username,password);
+        System.out.println(conn);
+    }
+
+}
+</code></pre> 
+<p>其中配置文件 <code>jdbc.properties</code> 如下：</p> 
+<pre class="has"><code class="language-go">jdbc.username=root
+jdbc.password=L***********0
+jdbc.url=jdbc:mysql://localhost:3306/testdb?rewriteBatchedStatements=true&amp;serverTimezone=Asia/Shanghai&amp;useUnicode=true&amp;characterEncoding=utf8&amp;useSSL=false
+jdbc.driverClass=com.mysql.jdbc.Driver
+</code></pre> 
+<p>3.3 使用 Statement  完成数据插入</p> 
+<p><img alt="" src="https://images2.imgbox.com/05/af/RE90Sa62_o.png"></p> 
+<figcaption>
+  image-20210119223805860 
+</figcaption> 
+<pre class="has"><code class="language-go">/**
+ * 使用 Statement  完成数据插入
+ * @throws Exception
+ */
+@Test
+public void test02() throws Exception {
+    //1.使用ResourceBundle读取jdbc.properties文件中的内容
+    ResourceBundle bundle = ResourceBundle.getBundle("jdbc");// 注意不用写 properties 后缀
+
+    //2.读取配置信息
+    String username = bundle.getString("jdbc.username");
+    String password = bundle.getString("jdbc.password");
+    String url = bundle.getString("jdbc.url");
+    String driverClass = bundle.getString("jdbc.driverClass");
+
+    System.out.println("username=" + username + ", password=" + password + ", url=" + url + ", driverClass=" + driverClass);
+
+    //3.加载驱动
+    Class.forName(driverClass);
+
+    //4.获取连接
+    Connection conn = DriverManager.getConnection(url,username,password);
+    System.out.println(conn);
+
+    //5.使用 Statement  完成数据插入
+    //5.1 创建执行sql语句对象
+    Statement statement = conn.createStatement(); // 获取 Statement
+    //5.2 编写SQL语句：插入一条user数据
+    String sql = " insert into t_user values(null,'特朗普','68','0')";
+    int rows = statement.executeUpdate(sql);
+    System.out.println("几行收影响=" + rows);
+
+    //5.释放资源
+    statement.close();
+    conn.close();
+}
+</code></pre> 
+<p>下面我们到数据库，查询看看插入的数据，如下：</p> 
+<pre class="has"><code class="language-go">mysql&gt; select * from t_user;
++----+-----------+------+------+
+| id | uname     | age  | sex  |
++----+-----------+------+------+
+|  1 | zs        |   18 |    1 |
+|  2 | ls        |   20 |    0 |
+|  3 | ww        |   23 |    1 |
+|  4 | zl        |   24 |    1 |
+|  5 | lq        |   15 |    0 |
+|  6 | hh        |   12 |    0 |
+|  7 | wzx       |   60 | NULL |
+|  8 | lb        | NULL | NULL |
+|  9 | 特朗普    |   68 |    0 |  --- 插入的数据
++----+-----------+------+------+
+9 rows in set (0.00 sec)
+
+mysql&gt; 
+</code></pre> 
+<p>3.4 使用 Statement  完成数据更新</p> 
+<p><img alt="" src="https://images2.imgbox.com/44/8a/ILWHwtp6_o.png"></p> 
+<figcaption>
+  image-20210119224619248 
+</figcaption> 
+<pre class="has"><code class="language-go">    /**
+     * 使用 Statement  完成数据更新
+     * @throws Exception
+     */
+    @Test
+    public void test03() throws Exception {
+        //1.使用ResourceBundle读取jdbc.properties文件中的内容
+        ResourceBundle bundle = ResourceBundle.getBundle("jdbc");// 注意不用写 properties 后缀
+
+        //2.读取配置信息
+        String username = bundle.getString("jdbc.username");
+        String password = bundle.getString("jdbc.password");
+        String url = bundle.getString("jdbc.url");
+        String driverClass = bundle.getString("jdbc.driverClass");
+//        System.out.println("username=" + username + ", password=" + password + ", url=" + url + ", driverClass=" + driverClass);
+
+        //3.加载驱动
+        Class.forName(driverClass);
+
+        //4.获取连接
+        Connection conn = DriverManager.getConnection(url,username,password);
+        System.out.println(conn);
+
+        //5.使用 Statement  完成数据插入
+        //5.1 创建执行sql语句对象
+        Statement statement = conn.createStatement(); // 获取 Statement
+        //5.2 编写SQL语句：更新user数据
+        String sql = " update t_user set uname='拜登', age=68 where id = 9 ";
+        int rows = statement.executeUpdate(sql);
+        System.out.println("几行收影响=" + rows);
+
+        //5.释放资源
+        statement.close();
+        conn.close();
+    }
+</code></pre> 
+<p>再回到数据库，查看更新的数据如下：</p> 
+<pre class="has"><code class="language-go">mysql&gt; select * from t_user;
++----+--------+------+------+
+| id | uname  | age  | sex  |
++----+--------+------+------+
+|  1 | zs     |   18 |    1 |
+|  2 | ls     |   20 |    0 |
+|  3 | ww     |   23 |    1 |
+|  4 | zl     |   24 |    1 |
+|  5 | lq     |   15 |    0 |
+|  6 | hh     |   12 |    0 |
+|  7 | wzx    |   60 | NULL |
+|  8 | lb     | NULL | NULL |
+|  9 | 拜登   |   68 |    0 | --- 更新的数据
++----+--------+------+------+
+9 rows in set (0.00 sec)
+
+mysql&gt; 
+</code></pre> 
+<p>3.5 使用 Statement  完成数据删除</p> 
+<p><img alt="" src="https://images2.imgbox.com/f4/35/LByQB8vU_o.png"></p> 
+<figcaption>
+  image-20210119225154893 
+</figcaption> 
+<pre class="has"><code class="language-go">    /**
+     * 使用 Statement  完成数据删除
+     * @throws Exception
+     */
+    @Test
+    public void test04() throws Exception {
+        //1.使用ResourceBundle读取jdbc.properties文件中的内容
+        ResourceBundle bundle = ResourceBundle.getBundle("jdbc");// 注意不用写 properties 后缀
+
+        //2.读取配置信息
+        String username = bundle.getString("jdbc.username");
+        String password = bundle.getString("jdbc.password");
+        String url = bundle.getString("jdbc.url");
+        String driverClass = bundle.getString("jdbc.driverClass");
+//        System.out.println("username=" + username + ", password=" + password + ", url=" + url + ", driverClass=" + driverClass);
+
+        //3.加载驱动
+        Class.forName(driverClass);
+
+        //4.获取连接
+        Connection conn = DriverManager.getConnection(url,username,password);
+        System.out.println(conn);
+
+        //5.使用 Statement  完成数据插入
+        //5.1 创建执行sql语句对象
+        Statement statement = conn.createStatement(); // 获取 Statement
+        //5.2 编写SQL语句：删除user数据
+        String sql = " delete from t_user where id = 9 ";
+        int rows = statement.executeUpdate(sql);
+        System.out.println("几行收影响=" + rows);
+
+        //5.释放资源
+        statement.close();
+        conn.close();
+    }
+</code></pre> 
+<p>再到数据库中，查看删除的数据，如下：</p> 
+<pre class="has"><code class="language-go">mysql&gt; select * from t_user;
++----+--------+------+------+
+| id | uname  | age  | sex  |
++----+--------+------+------+
+|  1 | zs     |   18 |    1 |
+|  2 | ls     |   20 |    0 |
+|  3 | ww     |   23 |    1 |
+|  4 | zl     |   24 |    1 |
+|  5 | lq     |   15 |    0 |
+|  6 | hh     |   12 |    0 |
+|  7 | wzx    |   60 | NULL |
+|  8 | lb     | NULL | NULL |
+|  9 | 拜登   |   68 |    0 | -- 删除之前的数据
++----+--------+------+------+
+9 rows in set (0.00 sec)
+
+mysql&gt; 
+mysql&gt; 
+mysql&gt; select * from t_user;
++----+-------+------+------+
+| id | uname | age  | sex  |
++----+-------+------+------+
+|  1 | zs    |   18 |    1 |
+|  2 | ls    |   20 |    0 |
+|  3 | ww    |   23 |    1 |
+|  4 | zl    |   24 |    1 |
+|  5 | lq    |   15 |    0 |
+|  6 | hh    |   12 |    0 |
+|  7 | wzx   |   60 | NULL |
+|  8 | lb    | NULL | NULL |
++----+-------+------+------+ -- 数据被删除了
+8 rows in set (0.00 sec)
+
+mysql&gt; 
+</code></pre> 
+<p>3.6 使用 Statement  完成一条数据查询</p> 
+<p><img alt="" src="https://images2.imgbox.com/2f/07/LU3WOnOS_o.png"></p> 
+<figcaption>
+  image-20210119225922790 
+</figcaption> 
+<pre class="has"><code class="language-go">/**
+ * 使用 Statement  完成一条数据的查询
+ *
+ * @throws Exception
+ */
+@Test
+public void test05() throws Exception {
+    //1.使用ResourceBundle读取jdbc.properties文件中的内容
+    ResourceBundle bundle = ResourceBundle.getBundle("jdbc");// 注意不用写 properties 后缀
+
+    //2.读取配置信息
+    String username = bundle.getString("jdbc.username");
+    String password = bundle.getString("jdbc.password");
+    String url = bundle.getString("jdbc.url");
+    String driverClass = bundle.getString("jdbc.driverClass");
+
+    //3.加载驱动
+    Class.forName(driverClass);
+
+    //4.获取连接
+    Connection conn = DriverManager.getConnection(url, username, password);
+    System.out.println(conn);
+
+    //5.使用 Statement  完成数据插入
+    //5.1 创建执行sql语句对象
+    Statement statement = conn.createStatement(); // 获取 Statement
+    //5.2 编写SQL语句：一条数据的查询
+    String sql = " select * from t_user where id = 8 ";
+    ResultSet resultSet = statement.executeQuery(sql);
+
+    while (resultSet.next()) {
+        //每遍历一次,就是一条数据
+        // 打印查询的数据
+        System.out.println("id=" + resultSet.getInt("id")
+                + ", uname=" + resultSet.getString("uname")
+                + ", age=" + resultSet.getString("age")
+                + ", sex=" + resultSet.getString("sex"));
+    }
+
+    //5.释放资源
+    statement.close();
+    conn.close();
+}
+</code></pre> 
+<p>在上面的代码中，我们已经查询出了数据，但是并没有比较好的保存数据。</p> 
+<p>一般这种数据的查询，我们会编写一个保存的 <code>pojo</code>类。</p> 
+<p>3.7 编写 pojo 包下的 user 类，用来保存 t_user 表查询的数据</p> 
+<p><img alt="" src="https://images2.imgbox.com/62/d6/IL4jMd3n_o.png"></p> 
+<figcaption>
+  image-20210119231259396 
+</figcaption> 
+<pre class="has"><code class="language-go">package com.pojo;
+
+import java.io.Serializable;
+
+/**
+ * @author Aron.li
+ * @date 2021/1/19 23:04
+ */
+public class User implements Serializable {
+
+    /**
+     * 成员属性
+     * id
+     * uname
+     * age
+     * sex
+     */
+    private Integer id;
+    private String uname;
+    private String age;
+    private String sex;
+
+    public User() {
+    }
+
+    public User(Integer id, String uname, String age, String sex) {
+        this.id = id;
+        this.uname = uname;
+        this.age = age;
+        this.sex = sex;
+    }
+
+    @Override
+    public String toString() {
+        return "User{" +
+                "id=" + id +
+                ", uname='" + uname + '\'' +
+                ", age='" + age + '\'' +
+                ", sex='" + sex + '\'' +
+                '}';
+    }
+
+    public Integer getId() {
+        return id;
+    }
+
+    public void setId(Integer id) {
+        this.id = id;
+    }
+
+    public String getUname() {
+        return uname;
+    }
+
+    public void setUname(String uname) {
+        this.uname = uname;
+    }
+
+    public String getAge() {
+        return age;
+    }
+
+    public void setAge(String age) {
+        this.age = age;
+    }
+
+    public String getSex() {
+        return sex;
+    }
+
+    public void setSex(String sex) {
+        this.sex = sex;
+    }
+}
+</code></pre> 
+<p>3.8 使用 user 类保存 Statement  查询的一条数据</p> 
+<p><img alt="" src="https://images2.imgbox.com/52/e1/UjykErmf_o.png"></p> 
+<figcaption>
+  image-20210119231417656 
+</figcaption> 
+<pre class="has"><code class="language-go">/**
+ * 使用 Statement  完成一条数据的查询
+ *
+ * @throws Exception
+ */
+@Test
+public void test05() throws Exception {
+    //1.使用ResourceBundle读取jdbc.properties文件中的内容
+    ResourceBundle bundle = ResourceBundle.getBundle("jdbc");// 注意不用写 properties 后缀
+
+    //2.读取配置信息
+    String username = bundle.getString("jdbc.username");
+    String password = bundle.getString("jdbc.password");
+    String url = bundle.getString("jdbc.url");
+    String driverClass = bundle.getString("jdbc.driverClass");
+
+    //3.加载驱动
+    Class.forName(driverClass);
+
+    //4.获取连接
+    Connection conn = DriverManager.getConnection(url, username, password);
+    System.out.println(conn);
+
+    //5.使用 Statement  完成数据插入
+    //5.1 创建执行sql语句对象
+    Statement statement = conn.createStatement(); // 获取 Statement
+    //5.2 编写SQL语句：一条数据的查询
+    String sql = " select * from t_user where id = 8 ";
+    ResultSet resultSet = statement.executeQuery(sql);
+
+    User user = null; // 创建 user 用来保存查询的数据
+    while (resultSet.next()) {
+        //每遍历一次,就是一条数据
+        user = new User(
+                resultSet.getInt("id"),
+                resultSet.getString("uname"),
+                resultSet.getString("age"),
+                resultSet.getString("sex")
+        );
+
+    }
+
+    // 打印结果
+    System.out.println(user.toString());
+
+    //5.释放资源
+    statement.close();
+    conn.close();
+}
+</code></pre> 
+<p>在上面我们已经成功查询了一条数据，并且以 User 类对象的方式保存了起来。</p> 
+<p>那么当我们需要查询多条数据的时候，该怎么操作呢？</p> 
+<p>3. 9 使用 ArrayList 保存 Statement  查询的多条数据</p> 
+<p><img alt="" src="https://images2.imgbox.com/8e/6f/YIvf0uTf_o.png"></p> 
+<figcaption>
+  image-20210119231901721 
+</figcaption> 
+<pre class="has"><code class="language-go">/**
+ * 使用 Statement  完成多条数据的查询
+ *
+ * @throws Exception
+ */
+@Test
+public void test06() throws Exception {
+    //1.使用ResourceBundle读取jdbc.properties文件中的内容
+    ResourceBundle bundle = ResourceBundle.getBundle("jdbc");// 注意不用写 properties 后缀
+
+    //2.读取配置信息
+    String username = bundle.getString("jdbc.username");
+    String password = bundle.getString("jdbc.password");
+    String url = bundle.getString("jdbc.url");
+    String driverClass = bundle.getString("jdbc.driverClass");
+
+    //3.加载驱动
+    Class.forName(driverClass);
+
+    //4.获取连接
+    Connection conn = DriverManager.getConnection(url, username, password);
+    System.out.println(conn);
+
+    //5.使用 Statement  完成数据插入
+    //5.1 创建执行sql语句对象
+    Statement statement = conn.createStatement(); // 获取 Statement
+    //5.2 编写SQL语句：多条数据的查询
+    String sql = " select * from t_user";
+    ResultSet resultSet = statement.executeQuery(sql);
+
+    // 用来保存多个user查询数据
+    ArrayList&lt;User&gt; users = new ArrayList&lt;&gt;();
+    while (resultSet.next()) {
+        //每遍历一次,就是一条数据
+        User user = new User(
+                resultSet.getInt("id"),
+                resultSet.getString("uname"),
+                resultSet.getString("age"),
+                resultSet.getString("sex")
+        );
+        //将查询的数据加入到 ArrayList 中
+        users.add(user);
+    }
+
+    // 遍历查询结果
+    for (User user : users) {
+        System.out.println(user);
+    }
+
+    //5.释放资源
+    resultSet.close();
+    statement.close();
+    conn.close();
+}
+</code></pre> 
+<h4>4.小结</h4> 
+<ol><li> <p>步骤</p> </li></ol> 
+<ul><li> <p>注册驱动</p> </li><li> <p>获得连接</p> </li><li> <p>创建执行sql语句对象</p> </li><li> <p>执行sql语句, 处理结果</p> </li><li> <p>释放资源</p> </li></ul> 
+<ul><li> <p>发现练习里面的代码大部分都是重复的, 所以应该抽取</p> </li></ul>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/0235f810d4f262ba801fdea2f2bfc385/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">关闭visual studio右键的在此处打开，非reg，可还原，手动操作</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/4b93e58f0c4c68798b99195fcd7f2244/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">Retrofit和Rxjava的优势和区别</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

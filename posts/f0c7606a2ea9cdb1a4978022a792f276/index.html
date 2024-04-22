@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>SQL Server 快速删除/归档数据方法小结 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/f0c7606a2ea9cdb1a4978022a792f276/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="SQL Server 快速删除/归档数据方法小结">
+  <meta property="og:description" content="最近遇到了清理历史数据的需求，整理一下不同场景及对应处理方法
+一、 可删除整张表数据 这是最简单的，TRUNCATE / DROP TABLE即可。
+二、日志表或历史信息表 这种情况是，代码会不断往表里插入新数据但是并不会去查询，一般是系统异常时开发手动去查。
+这种情况可以停业务将原表重命名为bak表，再按原有表结构创建一个新表让系统插入。bak表根据业务要求时间保留，例如三个月，三个月后删除。
+-- 重命名 exec sp_rename &#39;mytab&#39;,&#39;mytab_bak&#39;; -- 创建新表 select * into mytab from mytab_bak; --按原表创建索引、约束 三、需要实际删除部分数据 这其实才是大部分时候会遇到的情况，对于业务表，通常无法使用前面两种讨巧的方法。
+首先需要对表的数据量和需删除的数据量做一个统计，计算删除的比例。
+sp_spaceused &#39;dbo.TEST&#39;; SELECT COUNT(*) from TEST WHERE &amp;lt;删除条件&amp;gt; 根据要删除的数据量可以再分为两类
+1. 删除表中绝大部分数据 这个绝大部分怎么定义不好量化，所以我们这里就量化为60%。如果删除的数据比例超过60%，就采用下面方法： 停业务，新建临时表并插入待保留数据。 对于有alwayson的数据库，事务日志收缩相当麻烦，必须注意insert数据量和产生的事务日志量。如果实在很大，需要分批insert并手动备份事务日志。
+-- 创建临时表 select * into mytab_tmp from mytab where xxx; DBCC SQLPERF(LOGSPACE); --按时间批量插入数据 DECLARE @begindate DATETIME = &#39;2020-02-01&#39;; WHILE @begindate &amp;lt;= &#39;2020-08-24&#39; BEGIN INSERT tmp0824 select * from schemalog where logdate&amp;gt;=@begindate and logdate&amp;lt;dateadd(day,7,@begindate) SET @begindate = dateadd(day,7,@begindate) END rename原表 exec sp_rename &#39;mytab&#39;,&#39;mytab_bak&#39;; rename新表为原表名 exec sp_rename &#39;mytab_tmp&#39;,&#39;mytab&#39;; 按原表新建索引，检查相关的触发器、约束，进行触发器或约束的重命名启动业务，确认无误后（或者保留一段时间），TRUANCATE或DROP bak表 2.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2023-01-15T21:36:56+08:00">
+    <meta property="article:modified_time" content="2023-01-15T21:36:56+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">SQL Server 快速删除/归档数据方法小结</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <p><span style="color:#333333;"><span style="color:#000000;">最近遇到了清理历史数据的需求，整理一下不同场景及对应处理方法</span></span></p> 
+<p style="margin-left:0cm;"><span style="color:#333333;"><span style="color:#000000;"> </span></span></p> 
+<h3 style="margin-left:0cm;"><span style="color:#333333;"><strong><span style="color:#000000;">一、 可删除整张表数据</span></strong></span></h3> 
+<p><span style="color:#333333;"><span style="color:#000000;">这是最简单的，</span></span><span style="color:#3399ea;">TRUNCATE / DROP TABLE即可</span><span style="color:#333333;"><span style="color:#000000;">。</span></span></p> 
+<h3 style="margin-left:0cm;"><span style="color:#333333;"><span style="color:#000000;"> </span></span><br><span style="color:#333333;"><span style="color:#000000;">二、日志表或历史信息表</span></span></h3> 
+<p>这种情况是，代码会不断往表里插入新数据但是并不会去查询，一般是系统异常时开发手动去查。</p> 
+<p><span style="color:#3399ea;">这种情况可以停业务将原表重命名为bak表，再按原有表结构创建一个新表让系统插入。bak表根据业务要求时间保留，例如三个月，三个月后删除。</span></p> 
+<pre><code class="language-sql">-- 重命名
+exec sp_rename 'mytab','mytab_bak';
+-- 创建新表
+select * into mytab from mytab_bak;
+--按原表创建索引、约束</code></pre> 
+<p></p> 
+<h3 style="margin-left:0cm;"><span style="color:#333333;"><span style="color:#000000;"><strong>三、需要实际删除部分数据</strong></span></span></h3> 
+<p><span style="color:#333333;"><span style="color:#000000;">这其实才是大部分时候会遇到的情况，对于业务表，通常无法使用前面两种讨巧的方法。</span></span></p> 
+<p><span style="color:#3399ea;">首先需要对表的数据量和需删除的数据量做一个统计，计算删除的比例。</span></p> 
+<pre><code class="language-sql">sp_spaceused 'dbo.TEST';
+SELECT COUNT(*) from TEST WHERE &lt;删除条件&gt;</code></pre> 
+<p>根据要删除的数据量可以再分为两类</p> 
+<p></p> 
+<h4 style="margin-left:0cm;"><span style="color:#333333;"><span style="color:#000000;">1.  </span></span><span style="color:#333333;"><span style="color:#000000;">删除表中绝大部分数据</span></span></h4> 
+<p><span style="color:#333333;"><span style="color:#000000;">这个绝大部分怎么定义不好量化，所以我们这里就量化为60%。如果删除的数据比例超过60%，就采用下面方法：</span></span><span style="color:#333333;"><span style="color:#000000;"> </span></span></p> 
+<ul><li><span style="color:#f33b45;">停业务</span><span style="color:#3399ea;">，新建临时表并插入待保留数据。</span></li></ul> 
+<p>对于有alwayson的数据库，事务日志收缩相当麻烦，<span style="color:#3399ea;">必须注意insert数据量和产生的事务日志量。</span>如果实在很大，需要分批insert并手动备份事务日志。</p> 
+<pre><code class="language-sql">-- 创建临时表
+select * into mytab_tmp from mytab where xxx;
+DBCC SQLPERF(LOGSPACE);</code></pre> 
+<pre><code class="language-sql">--按时间批量插入数据
+DECLARE @begindate DATETIME = '2020-02-01';
+
+WHILE @begindate &lt;= '2020-08-24'
+BEGIN
+    INSERT tmp0824 select * from schemalog where logdate&gt;=@begindate and logdate&lt;dateadd(day,7,@begindate)
+    SET @begindate = dateadd(day,7,@begindate)
+END</code></pre> 
+<ul><li><span style="color:#3399ea;">rename原表</span></li></ul> 
+<pre><code class="language-sql">exec sp_rename 'mytab','mytab_bak';</code></pre> 
+<ul><li><span style="color:#3399ea;">rename新表为原表名</span></li></ul> 
+<pre><code class="language-sql">exec sp_rename 'mytab_tmp','mytab';</code></pre> 
+<ul><li><span style="color:#3399ea;">按原表新建索引，检查相关的触发器、约束，进行触发器或约束的重命名</span></li><li><span style="color:#3399ea;">启动业务，确认无误后（或者保留一段时间），TRUANCATE或DROP bak表</span></li></ul> 
+<p></p> 
+<h4 style="margin-left:0cm;"><span style="color:#333333;"><span style="color:#000000;">2. 删除表中少部分数据</span></span></h4> 
+<p><span style="color:#3399ea;">如果删除条件字段无索引，可以考虑先建上删除完索引后再删除该索引，否则全表扫描执行时间可能非常长。</span></p> 
+<p><span style="color:#f33b45;">用小批量分批次删除通常比一次性删除性能要快很多，同时避免锁粒度过大且锁定的时间非常长，和事务日志变得巨大。</span></p> 
+<p><span style="color:#333333;"><span style="color:#000000;">到底一次性删除多少数量的记录SQL效率最高呢？这个真没有什么规则计算，个人测试对比过一次删除10000或100000，没有发现什么特别规律。不过一般用10000，在实际操作过程，可以通过做几次实验对比后，选择一个合适的值即可。</span></span></p> 
+<p style="margin-left:0cm;"><span style="color:#333333;"><span style="color:#000000;"> </span></span></p> 
+<p style="margin-left:0cm;"><span style="color:#333333;"><strong><span style="color:#000000;">案例1</span></strong></span></p> 
+<pre><code class="language-sql">DECLARE @delete_rows INT;
+DECLARE @delete_sum_rows INT =0;
+DECLARE @row_count INT=100000
+ 
+WHILE 1 = 1
+    BEGIN
+        DELETE TOP ( @row_count )
+        FROM    dbo.[EmployeeDayData]
+        WHERE    WorkDate &lt; CONVERT(DATETIME, '2012-01-01 00:00:00',120);
+            
+        SELECT  @delete_rows = @@ROWCOUNT;         
+            SET @delete_sum_rows +=@delete_rows
+            IF @delete_rows = 0
+            BREAK;
+        END;
+SELECT @delete_sum_rows;</code></pre> 
+<p style="margin-left:0cm;"><span style="color:#333333;"><span style="color:#000000;"> </span></span><span style="color:#333333;"><strong><span style="color:#000000;">案例2</span></strong></span></p> 
+<pre><code class="language-sql">DECLARE @r INT;
+DECLARE @Delete_ROWS  BIGINT;
+ 
+SET @r = 1;
+SET @Delete_ROWS =0
+WHILE @r &gt; 0
+BEGIN
+    BEGIN TRANSACTION;
+        DELETE TOP (10000) -- this will change
+           mytab
+           WHERE Remark='今日未入' and Operation_Date&lt;CONVERT(datetime, '2019-05-30',120);
+          SET @r = @@ROWCOUNT;          
+          SET @Delete_ROWS += @r;
+    COMMIT TRANSACTION;   
+    PRINT(@Delete_ROWS);
+END</code></pre> 
+<p></p> 
+<p><span style="color:#333333;"><span style="color:#000000;">参考</span></span></p> 
+<p><span style="color:#333333;"><span style="color:#000000;"><a href="https://sqlperformance.com/2013/03/io-subsystem/chunk-deletes" rel="nofollow" title="Break large delete operations into chunks">Break large delete operations into chunks</a></span></span></p> 
+<p><a href="https://www.cnblogs.com/kerrycode/p/12448322.html" rel="nofollow" title="SQL Server大表如何快速删除数据 - 潇湘隐者 - 博客园">SQL Server大表如何快速删除数据 - 潇湘隐者 - 博客园</a></p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/d0bea0da7ddb14a397ddfe3e25af1451/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">Python报错 SettingWithCopyWarning:  A value is trying to be set on a copy of a slice from a DataFrame ...</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/dbd8a64118d09f08b83a4758c86529b4/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">Docker容器MySQL数据库的备份与还原，以及每天定时自动备份.</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>二叉树、B树(B-树)、B&#43;树、B*树详解，以及为什么MySQL选择B&#43;树做索引 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/d6411d9819ed3a133ca38127e2dfb1a0/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="二叉树、B树(B-树)、B&#43;树、B*树详解，以及为什么MySQL选择B&#43;树做索引">
+  <meta property="og:description" content="温故而知新，可以为师矣。看到一篇介绍B数和B减树的文章，这里记录一下。
+1. 简要 众所周知，MySQL的索引使用了B&#43;树的数据结构。那么为什么不用B树呢？
+先看一下B树和B&#43;树的区别。
+2. 二叉树 先介绍一下二叉搜索树。
+顾名思义，二叉搜索树，即指最多拥有两个叉，这里的叉即为所有非叶子结点的儿子（Lift和Right）；所有的结点存储一个关键字；非叶子结点的左指针指向小于其关键字的结点，右指针指向对于其关键字的结点，结构如下图：
+二叉搜索树的搜索，从根结点开始，如果查询的关键字与结点关键字相等，则该结点为查询的结点，如果查询关键字比结点关键字小，则进入左子树，反之则进入右子树；如果左子树为空或者右子树为空，则返回查找不到响应的关键字；
+如果二叉搜索树的所有叶子结点的左右子树的树木保持一个平衡即左右子树个数大致相等的话，其搜索则更接近与二分查找；但是它相比连续内存空的二分查找的优点是：改变二叉搜索树的结构（添加或者删除）不需要大段的移动数据，甚至通常都是常数开销；
+如下图：
+红色字体代表插入数据，搜索二叉树在插入结点时，只要根据插入数据的大小查找出他应该插入的位置即可，然而当在一个有序数组插入一个数据的时候，需要查询出他的位置，然后将其添加，后面的数据索引加一，这样的一个完整操作，相比下来二叉树的优点很明显了。
+但是，当一个二叉树经历多次删除操作后，他就可能变换结构，如下图：
+右边也是一个搜索二叉树，只不过不在平衡了，他的搜索功能也变成了线性的，同样的关键字可能导致不同的树结构索引，所以，在使用搜索二叉树时，还要考虑尽可能让B树保持左图的结构，避免和右图类似，这也有事所谓的平衡问题了。
+实际使用的二叉搜索树都是在原二叉搜索树的基础上加上平衡算法，即平衡二叉树；如何保持B树节点分布均匀的平衡算法就是平衡二叉树的关键所在，平衡算法是一种在二叉搜索树的插入和删除结点时的一种策略。即：在插入或删除的同时保持二叉搜索树的平衡。
+3. B树 B-树就是B树（可能有部分人会习惯上把B-树读为B减树，其实并不存在B减树，只是读法上的不同而已），B就是balanced，平衡的意思。B-树就是指的B树，特此说明一下。
+维基百科对B树的定义为“在计算机科学中，B树（B-tree）是一种树状数据结构，它能够存储数据、对其进行排序并允许以O(log n)的时间复杂度运行进行查找、顺序读取、插入和删除的数据结构。B树，概括来说是一个节点可以拥有多于2个子节点的二叉查找树。与自平衡二叉查找树不同，B-树为系统最优化大块数据的读和写操作。B-tree算法减少定位记录时所经历的中间过程，从而加快存取速度。普遍运用在数据库和文件系统。”
+B 树可以看作是对2-3查找树的一种扩展，即他允许每个节点有M-1个子节点。
+3.1定义 m阶B树：m阶指的是分叉的个数最多为m个。即一个非叶子节点最多可以有m个子节点。根节点至少有两个子节点，即根节点的儿子数为：[2，M]；定义任意非叶子节点最多可以有M个儿子节点；且M&amp;gt;2；除根节点为的非叶子节点的儿子书为[M/2，M]；每个结点存放至少M/2 - 1 (去上整)且至多M -1 个关键字（至少为2）,并且以升序排列，超过上限就进行分裂存储；非叶子结点的关键字个数 = 指向子节点的指针书 -1；非叶子节点的关键字：K[1],K[2],K[3],…,K[M-1;且K[i] &amp;lt; K[i &#43;1];非叶子结点的指针：P[1], P[2], …, P[M]；其中P[1]指向关键字小于K[1]的子树，P[M]指向关键字大于K[M-1]的子树，其它P[i]指向关键字属于(K[i-1], K[i])的子树；所有叶子结点位于同一层； 下图是一个M=4 阶的B树:
+M=4的B树
+可以看到B树是2-3树的一种扩展，他允许一个节点有多于2个的元素。
+B树的插入及平衡化操作和2-3树很相似，这里就不介绍了。下面是往B树中依次插入
+6 10 4 14 5 11 15 3 2 12 1 7 8 8 6 3 6 21 5 15 15 6 32 23 45 65 7 8 6 5 4 的演示动画：">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2022-06-23T15:15:47+08:00">
+    <meta property="article:modified_time" content="2022-06-23T15:15:47+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">二叉树、B树(B-树)、B&#43;树、B*树详解，以及为什么MySQL选择B&#43;树做索引</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <p><span style="color:#f33b45;">温故而知新，可以为师矣。看到一篇介绍B数和B减树的文章，这里记录一下。</span></p> 
+<p> </p> 
+<h2>1. 简要</h2> 
+<p>众所周知，MySQL的索引使用了B+树的数据结构。那么为什么不用B树呢？<br> 先看一下B树和B+树的区别。</p> 
+<h2>2. 二叉树</h2> 
+<p>先介绍一下二叉搜索树。</p> 
+<ol><li>顾名思义，二叉搜索树，即指<strong><span style="color:#f33b45;">最多拥有两个叉</span></strong>，这里的叉即为所有非叶子结点的儿子（Lift和Right）；</li><li><span style="color:#f33b45;"><strong>所有的结点存储一个关键字</strong></span>；</li><li>非叶子结点的左指针指向小于其关键字的结点，右指针指向对于其关键字的结点，结构如下图：<br><img alt="图片有点丑别在意，重点是对于二叉搜索树的理解" src="https://images2.imgbox.com/31/f7/1zunh6WY_o.png"></li></ol> 
+<p>      二叉搜索树的搜索，从根结点开始，如果查询的关键字与结点关键字相等，则该结点为查询的结点，如果查询关键字比结点关键字小，则进入左子树，反之则进入右子树；如果左子树为空或者右子树为空，则返回查找不到响应的关键字；<br>        如果二叉搜索树的所有叶子结点的左右子树的树木<strong>保持一个平衡即左右子树个数大致相等的话，其搜索则更接近与二分查找；<span style="color:#f33b45;">但是它相比连续内存空的二分查找的优点是：改变二叉搜索树的结构（添加或者删除）不需要大段的移动数据，甚至通常都是常数开销；</span></strong></p> 
+<p>如下图：<br>       红色字体代表插入数据，搜索二叉树在插入结点时，只要根据插入数据的大小查找出他应该插入的位置即可，然而当在一个有序数组插入一个数据的时候，需要查询出他的位置，然后将其添加，后面的数据索引加一，这样的一个完整操作，相比下来二叉树的优点很明显了。</p> 
+<p><img alt="红色字体代表插入数据" src="https://images2.imgbox.com/ce/b9/CZGcJ6mx_o.png"><br> 但是，当一个二叉树经历多次删除操作后，他就可能变换结构，如下图：<br><img alt="在这里插入图片描述" src="https://images2.imgbox.com/b2/29/Wn139f6i_o.png"></p> 
+<p>      右边也是一个搜索二叉树，只不过不在平衡了，他的搜索功能也变成了线性的，同样的关键字可能导致不同的树结构索引，所以，在使用搜索二叉树时，还要考虑尽可能让B树保持左图的结构，避免和右图类似，这也有事所谓的<strong>平衡问题</strong>了。</p> 
+<p>      实际使用的二叉搜索树都是在原二叉搜索树的基础上加上平衡算法，即<strong>平衡二叉树</strong>；如何保持B树节点分布均匀的平衡算法就是平衡二叉树的关键所在，平衡算法是一种在二叉搜索树的插入和删除结点时的一种策略。即：在插入或删除的同时保持二叉搜索树的平衡。</p> 
+<h2>3. B树</h2> 
+<p>       B-树就是B树（可能有部分人会习惯上把B-树读为B减树，其实并不存在B减树，只是读法上的不同而已），B就是balanced，平衡的意思。<span style="color:#f33b45;"><strong>B-树就是指的B树</strong></span>，特此说明一下。</p> 
+<p>       维基百科对B树的定义为“在计算机科学中，B树（B-tree）是一种树状数据结构，它能够存储数据、对其进行排序并允许以O(log n)的时间复杂度运行进行查找、顺序读取、插入和删除的数据结构。B树，概括来说是<strong>一个节点可以拥有多于2个子节点的二叉查找树</strong>。与自平衡二叉查找树不同，B-树为系统<span style="color:#f33b45;"><strong>最优化大块数据的读和写操作</strong></span>。B-tree算法减少定位记录时所经历的中间过程，从而加快存取速度。普遍运用在数据库和文件系统。”</p> 
+<p>B 树可以看作是对2-3查找树的一种扩展，即他允许每个节点有M-1个子节点。</p> 
+<h3>3.1定义</h3> 
+<ol><li>m阶B树：m阶指的是<strong>分叉的个数最多为m个</strong>。即一个非叶子节点最多可以有m个子节点。</li><li><span style="color:#f33b45;"><strong>根节点至少有两个子节点，即</strong></span>根节点的儿子数为：[2，M]；</li><li>定义任意非叶子节点最多可以有M个儿子节点；且M&gt;2；</li><li><strong>除根节点为的非叶子节点的儿子书为[M/2，M]；</strong></li><li><strong><span style="color:#f33b45;">每个结点存放至少M/2 - 1 (去上整)且至多M -1 个关键字（至少为2）,</span><span style="color:#e579b6;">并且以升序排列</span><span style="color:#f33b45;">，超过上限就进行分裂存储；</span></strong></li><li>非叶子结点的关键字个数 = 指向子节点的指针书 -1；</li><li>非叶子节点的关键字：K[1],K[2],K[3],…,K[M-1;且K[i] &lt; K[i +1];</li><li>非叶子结点的指针：P[1], P[2], …, P[M]；其中P[1]指向关键字小于K[1]的子树，P[M]指向关键字大于K[M-1]的子树，其它P[i]指向关键字属于(K[i-1], K[i])的子树；</li><li>所有叶子结点位于同一层；</li></ol> 
+<p>下图是一个M=4 阶的B树:</p> 
+<p><img alt="" src="https://images2.imgbox.com/20/83/ETmZQyJs_o.png"></p> 
+<p>M=4的B树</p> 
+<p>可以看到B树是2-3树的一种扩展，他允许一个节点有多于2个的元素。</p> 
+<p>B树的插入及平衡化操作和2-3树很相似，这里就不介绍了。下面是往B树中依次插入<br> 6 10 4 14 5 11 15 3 2 12 1 7 8 8 6 3 6 21 5 15 15 6 32 23 45 65 7 8 6 5 4 的演示动画：</p> 
+<p></p> 
+<p><img alt="" src="https://images2.imgbox.com/ce/5b/GvY9ah9N_o.png"></p> 
+<p></p> 
+<h2>4. B+树</h2> 
+<p>B+树是对B树的一种变形树，它与B树的差异在于：</p> 
+<ul><li>有k个子结点的结点必然有k个关键码。</li><li><strong><span style="color:#f33b45;">非叶结点仅具有索引作用，跟记录有关的信息均存放在叶结点中。</span></strong></li><li>树的所有叶结点构成一个有序链表，可以按照关键码排序的次序遍历全部记录。</li></ul> 
+<p>如下图是一个B+树：</p> 
+<p></p> 
+<p></p> 
+<p><img alt="" src="https://images2.imgbox.com/a8/65/LVmjJI9s_o.png"></p> 
+<p>M=4的B+树</p> 
+<p>下图是B+树的建立过程：</p> 
+<p><img alt="" src="https://images2.imgbox.com/df/79/GyKIqqqC_o.png"></p> 
+<h3>4.1 B+树和B树的区别</h3> 
+<p><span style="color:#f33b45;"><strong>B树：有序数组+平衡多叉树； <br> B+树：有序数组<strong>链表</strong>+平衡多叉树；</strong></span></p> 
+<p>B+树的非叶子结点只包含导航信息，不包含实际的值，所有的叶子结点和相连的节点使用链表相连，便于区间查找和遍历。<br><strong>B+ 树的优点在于：</strong></p> 
+<ul><li><span style="color:#f33b45;"><strong>IO次数更少</strong>：由于B+树在内部节点上不包含数据信息，因此在内存页中能够存放更多的key。 数据存放的更加紧密，具有更好的空间局部性。因此访问叶子节点上关联的数据也具有更好的缓存命中率。</span></li><li><span style="color:#f33b45;"><strong>遍历更加方便</strong>：B+树的叶子结点都是相链的，因此对整棵树的遍历只需要一次线性遍历叶子结点即可。而且由于数据顺序排列并且相连，所以便于区间查找和搜索。而B树则需要进行每一层的递归遍历。相邻的元素可能在内存中不相邻，所以缓存命中性没有B+树好。</span></li></ul> 
+<p>但是B树也有优点，其优点在于，由于B树的每一个节点都包含key和value，因此经常访问的元素可能离根节点更近，因此访问也更迅速。下面是B 树和B+树的区别图:</p> 
+<p><img alt="" src="https://images2.imgbox.com/53/80/4BwCmun7_o.png"></p> 
+<p>B树和B+树的区别图</p> 
+<h3>4.2 B+树图2：</h3> 
+<p><img alt="在这里插入图片描述" src="https://images2.imgbox.com/cc/bf/owwGaoTa_o.png"></p> 
+<p></p> 
+<h2>5. B*树</h2> 
+<p>B树是B+树一种变形，它是在B+树的基础上，<strong><span style="color:#f33b45;">将索引层以指针连接起来，使搜索取值更加快捷。</span></strong><br> 如下图（M = 3）<br><em><img alt="在这里插入图片描述" src="https://images2.imgbox.com/67/9f/gJKg83Xr_o.png"><br> 但是B</em>树又在B+树的基础上产生了一系列的变化，如下：</p> 
+<ol><li>B*树定义了非叶子结点关键字个数<strong><span style="color:#f33b45;">至少为(2/3)*M，即块的最低使用率为2/3，代替B+树的1/2</span></strong>；</li><li>B+树的分裂：当一个结点满时，分配一个新的结点，并将原结点中1/2的数据复制到新结点，最后在父结点中增加新结点的指针；<span style="color:#f33b45;"><strong>B+树的分裂只影响原结点和父结点，而不会影响兄弟结点</strong></span>，所以它不需要指向兄弟的指针；</li><li>*树的分裂：当一个结点满时，如果它的下一个兄弟结点未满，那么将一部分数据移到兄弟结点中，再在原结点插入关键字，最后修改父结点中兄弟结点的关键字（因为兄弟结点的关键字范围改变了）；如果兄弟也满了，则在原结点与兄弟结点之间增加新结点，并各复制1/3的数据到新结点，最后在父结点增加新结点的指针；</li></ol> 
+<p><strong>所以B*树相对于B+树，空间利用率上有所提高，查询速率也有所提高</strong>。</p> 
+<p></p> 
+<h2>6. 为什么MySQL选择B+树做索引</h2> 
+<h3>6.1 Mysql索引主要有两种结构：B+Tree索引和Hash索引 </h3> 
+<ul><li>(a) Inodb存储引擎 默认是 B+Tree索引</li><li>(b) MyISAM 存储引擎 默认是Fulltext索引(全文索引)；</li><li>(c)Memory 存储引擎 默认 Hash索引；</li></ul> 
+<h4>6.1.1 Hash索引</h4> 
+<p>      <span style="color:#f33b45;">mysql中，只<strong>有Memory(Memory表只存在内存中，断电会消失，适用于临时表)存储引擎显示支持Hash索引，是Memory表的默认索引类型</strong></span>，尽管Memory表也可以使用B+Tree索引。Hash索引把数据以hash形式组织起来，因此当查找某一条记录的时候，速度非常快。但是因为hash结构，每个键只对应一个值，而且是散列的方式分布。所以它并不支持范围查找和排序等功能。</p> 
+<h4>6.1.2 B+Tree索引</h4> 
+<p><strong>      B+Tree是mysql使用最频繁的一个索引数据结构，是Inodb和Myisam存储引擎模式的索引类型</strong>。相对Hash索引，B+Tree在查找单条记录的速度比不上Hash索引，但是因为更适合排序等操作，所以它更受欢迎。毕竟不可能只对数据库进行单条记录的操作。</p> 
+<p><strong>带顺序访问指针的B+Tree</strong></p> 
+<p>       B+Tree所有索引数据都在叶子节点上，并且增加了顺序访问指针，每个叶子节点都有指向相邻叶子节点的指针。</p> 
+<p>       这样做是为了提高区间效率，例如查询key为从18到49的所有数据记录，当找到18后，只要顺着节点和指针顺序遍历就可以以此向访问到所有数据节点，极大提高了区间查询效率。</p> 
+<p><strong>大大减少磁盘I/O读取</strong></p> 
+<p>       数据库系统的设计者巧妙利用了磁盘预读原理，将一个节点的大小设为等于一个页，这样每个节点需要一次I/O就可以完全载入。 </p> 
+<p><strong>最后：</strong></p> 
+<p>1、 <strong>B+树的磁盘读写代价更低</strong>：B+树的内部节点并没有指向关键字具体信息的指针，因此其内部节点相对B树更小，如果把所有同一内部节点的关键字存放在同一盘块中，那么盘块所能容纳的关键字数量也越多，一次性读入内存的需要查找的关键字也就越多，相对IO读写次数就降低了。</p> 
+<p>2、<strong>B+树的查询效率更加稳定</strong>：由于非终结点并不是最终指向文件内容的结点，而只是叶子结点中关键字的索引。所以任何关键字的查找必须走一条从根结点到叶子结点的路。所有关键字查询的路径长度相同，导致每一个数据的查询效率相当。</p> 
+<p>3、<strong>B+树更便于遍历</strong>：由于B+树的数据都存储在叶子结点中，分支结点均为索引，方便扫库，只需要扫一遍叶子结点即可，但是B树因为其分支结点同样存储着数据，我们要找到具体的数据，需要进行一次中序遍历按序来扫，所以B+树更加适合在区间查询的情况，所以通常B+树用于数据库索引。</p> 
+<p>4、<strong>B+树更适合基于范围的查询</strong>：B树在提高了IO性能的同时并没有解决元素遍历的我效率低下的问题，正是为了解决这个问题，B+树应用而生。B+树只需要去遍历叶子节点就可以实现整棵树的遍历。而且在数据库中基于范围的查询是非常频繁的，而B树不支持这样的操作或者说效率太低。</p> 
+<p></p> 
+<h2><strong>7. 总结</strong></h2> 
+<ol><li> <p>二叉搜索树：二叉树，每个结点只存储一个关键字且值大于左子树，小于右子树。</p> </li><li> <p>B（B-）树：多路搜索树，每个结点存储M/2到M个关键字，非叶子结点存储指向关键字范围的子结点； 所有关键字在整颗树中出现，且只出现一次，非叶子结点可以命中；</p> </li><li>B+树：<strong><span style="color:#f33b45;">在B-树基础上，为叶子结点增加链表指针，所有关键字都在叶子结点中出现，非叶子结点作为叶子结点的索引；</span></strong>B+树总是到叶子结点才命中；</li><li><span style="color:#e579b6;"><strong>B*树：在B+树基础上，为非叶子结点也增加链表指针，将结点的最低利用率从1/2提高到2/3</strong>；</span></li></ol> 
+<h2>参考</h2> 
+<p><a href="https://www.jianshu.com/p/7ce804f97967" rel="nofollow" title="MySQL用B+树(而不是B树)做索引的原因 - 简书">MySQL用B+树(而不是B树)做索引的原因 - 简书</a></p> 
+<p><a href="https://blog.csdn.net/A_zhangq/article/details/99662693" title="B树、B-树、B+树、B*树介绍_Zzzzzzzz_hu的博客-CSDN博客_b减树和b树是一个东西吗">B树、B-树、B+树、B*树介绍_Zzzzzzzz_hu的博客-CSDN博客_b减树和b树是一个东西吗</a></p> 
+<p><a href="https://www.cnblogs.com/aspirant/p/9214485.html" rel="nofollow" title="一步步分析为什么B+树适合作为索引的结构 以及索引原理 (阿里面试) - aspirant - 博客园">一步步分析为什么B+树适合作为索引的结构 以及索引原理 (阿里面试) - aspirant - 博客园</a></p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/1c350c26a28d34cf2dfed89db5205241/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">爬取网站视频命令行工具you-get的安装及使用方法</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/dde11fea2d207d04d5e5a094a2d0282f/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">（一）vhdl如何转换转换verilog？（人肉翻译—保姆教学版）</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

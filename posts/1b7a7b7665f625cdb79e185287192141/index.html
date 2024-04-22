@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>图解Kafka架构学习笔记（三） - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/1b7a7b7665f625cdb79e185287192141/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="图解Kafka架构学习笔记（三）">
+  <meta property="og:description" content="准备Kafka环境 这里推荐使用Docker Compose快速搭建一套本地开发环境。
+以下docker-compose.yml文件用来搭建一套单节点zookeeper和单节点kafka环境，并且在8080端口提供kafka-ui管理界面。
+version: &#39;2.1&#39; services: zoo1: image: confluentinc/cp-zookeeper:7.3.2 hostname: zoo1 container_name: zoo1 ports: - &#34;2181:2181&#34; environment: ZOOKEEPER_CLIENT_PORT: 2181 ZOOKEEPER_SERVER_ID: 1 ZOOKEEPER_SERVERS: zoo1:2888:3888 kafka1: image: confluentinc/cp-kafka:7.3.2 hostname: kafka1 container_name: kafka1 ports: - &#34;9092:9092&#34; - &#34;29092:29092&#34; - &#34;9999:9999&#34; environment: KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka1:19092,EXTERNAL://${DOCKER_HOST_IP:-127.0.0.1}:9092,DOCKER://host.docker.internal:29092 KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,DOCKER:PLAINTEXT KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL KAFKA_ZOOKEEPER_CONNECT: &#34;zoo1:2181&#34; KAFKA_BROKER_ID: 1 KAFKA_LOG4J_LOGGERS: &#34;kafka.controller=INFO,kafka.producer.async.DefaultEventHandler=INFO,state.change.logger=INFO&#34; KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1 KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1 KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1 KAFKA_JMX_PORT: 9999 KAFKA_JMX_HOSTNAME: ${DOCKER_HOST_IP:-127.0.0.1} KAFKA_AUTHORIZER_CLASS_NAME: kafka.security.authorizer.AclAuthorizer KAFKA_ALLOW_EVERYONE_IF_NO_ACL_FOUND: &#34;true&#34; depends_on: - zoo1 kafka-ui: container_name: kafka-ui image: provectuslabs/kafka-ui:latest ports: - 8080:8080 depends_on: - kafka1 environment: DYNAMIC_CONFIG_ENABLED: &#34;">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2024-03-24T16:58:14+08:00">
+    <meta property="article:modified_time" content="2024-03-24T16:58:14+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">图解Kafka架构学习笔记（三）</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-dracula">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <h2><a id="Kafka_1"></a>准备Kafka环境</h2> 
+<p>这里推荐使用Docker Compose快速搭建一套本地开发环境。</p> 
+<p>以下<code>docker-compose.yml</code>文件用来搭建一套单节点<code>zookeeper</code>和单节点<code>kafka</code>环境，并且在<code>8080</code>端口提供kafka-ui管理界面。</p> 
+<pre><code class="prism language-bash">version: <span class="token string">'2.1'</span>
+
+services:
+  zoo1:
+    image: confluentinc/cp-zookeeper:7.3.2
+    hostname: zoo1
+    container_name: zoo1
+    ports:
+      - <span class="token string">"2181:2181"</span>
+    environment:
+      ZOOKEEPER_CLIENT_PORT: <span class="token number">2181</span>
+      ZOOKEEPER_SERVER_ID: <span class="token number">1</span>
+      ZOOKEEPER_SERVERS: zoo1:2888:3888
+
+  kafka1:
+    image: confluentinc/cp-kafka:7.3.2
+    hostname: kafka1
+    container_name: kafka1
+    ports:
+      - <span class="token string">"9092:9092"</span>
+      - <span class="token string">"29092:29092"</span>
+      - <span class="token string">"9999:9999"</span>
+    environment:
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka1:19092,EXTERNAL://<span class="token variable">${DOCKER_HOST_IP<span class="token operator">:-</span>127.0.0.1}</span>:9092,DOCKER://host.docker.internal:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,DOCKER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_ZOOKEEPER_CONNECT: <span class="token string">"zoo1:2181"</span>
+      KAFKA_BROKER_ID: <span class="token number">1</span>
+      KAFKA_LOG4J_LOGGERS: <span class="token string">"kafka.controller=INFO,kafka.producer.async.DefaultEventHandler=INFO,state.change.logger=INFO"</span>
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: <span class="token number">1</span>
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: <span class="token number">1</span>
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: <span class="token number">1</span>
+      KAFKA_JMX_PORT: <span class="token number">9999</span>
+      KAFKA_JMX_HOSTNAME: <span class="token variable">${DOCKER_HOST_IP<span class="token operator">:-</span>127.0.0.1}</span>
+      KAFKA_AUTHORIZER_CLASS_NAME: kafka.security.authorizer.AclAuthorizer
+      KAFKA_ALLOW_EVERYONE_IF_NO_ACL_FOUND: <span class="token string">"true"</span>
+    depends_on:
+      - zoo1
+  kafka-ui:
+    container_name: kafka-ui
+    image: provectuslabs/kafka-ui:latest
+    ports:
+      - <span class="token number">8080</span>:8080
+    depends_on:
+      - kafka1
+    environment:
+      DYNAMIC_CONFIG_ENABLED: <span class="token string">"TRUE"</span>
+
+</code></pre> 
+<blockquote> 
+ <p>参考资料</p> 
+ <ul><li>https://github.com/conduktor/kafka-stack-docker-compose</li><li>https://github.com/provectus/kafka-ui</li></ul> 
+</blockquote> 
+<p>将上述<code>docker-compose.yml</code>文件在本地保存，在同一目录下执行以下命令启动容器。</p> 
+<pre><code class="prism language-bash"><span class="token function">docker-compose</span> up <span class="token parameter variable">-d</span>
+</code></pre> 
+<p>如果快速启动的话，那么可以参考<code>docker</code>的方式</p> 
+<pre><code class="prism language-bash"><span class="token function">docker</span> run <span class="token parameter variable">-it</span> <span class="token parameter variable">-p</span> <span class="token number">8080</span>:8080 <span class="token parameter variable">-e</span> <span class="token assign-left variable">DYNAMIC_CONFIG_ENABLED</span><span class="token operator">=</span>true provectuslabs/kafka-ui
+</code></pre> 
+<p>容器启动后，使用浏览器打开<strong>127.0.0.1:8080</strong> 即可看到如下<strong>kafka-ui</strong>界面。</p> 
+<p><img src="https://images2.imgbox.com/dc/6b/p6A7EZS1_o.png" alt="在这里插入图片描述"><br> 点击页面右侧的<code>“Configure new cluster”</code>按钮，配置kafka服务连接信息。</p> 
+<p><img src="https://images2.imgbox.com/ef/54/cZqmajcS_o.png" alt="在这里插入图片描述"><br> 填写完信息后，点击页面下方的<code>“Submit”</code>按钮提交即可。</p> 
+<p><img src="https://images2.imgbox.com/4c/1a/JR4pEHoF_o.png" alt="在这里插入图片描述"></p> 
+<hr> 
+<h2><a id="kafkago_84"></a>安装kafka-go</h2> 
+<p>执行以下命令下载 <code>kafka-go</code>依赖。</p> 
+<pre><code class="prism language-bash">go get github.com/segmentio/kafka-go
+</code></pre> 
+<blockquote> 
+ <p>注意：kafka-go 需要 Go 1.15或更高版本。</p> 
+</blockquote> 
+<h2><a id="kafkago_94"></a>kafka-go使用指南</h2> 
+<p>kafka-go 提供了两套与Kafka交互的API。</p> 
+<ul><li>低级别（ <code>low-level</code>）：基于与 <code>Kafka</code> 服务器的原始网络连接实现。</li><li>高级别（<code>high-level</code>）：对于常用读写操作封装了一套更易用的API。</li></ul> 
+<p>通常建议直接<font color="red"><strong>使用高级别的交互API</strong>。</font></p> 
+<p><strong>Connection</strong><br> Conn 类型是 <code>kafka-go</code> 包的核心。它代表与 <code>Kafka broker</code>之间的连接。基于它实现了一套与<code>Kafka</code>交互的低级别 API。</p> 
+<h3><a id="_106"></a>发送消息（生产者）</h3> 
+<p>下面是连接至<code>Kafka</code>之后，使用<code>Conn</code>发送消息的代码示例。</p> 
+<pre><code class="prism language-bash">// writeByConn 基于Conn发送消息
+func <span class="token function-name function">writeByConn</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+	topic :<span class="token operator">=</span> <span class="token string">"my-topic"</span>
+	partition :<span class="token operator">=</span> <span class="token number">0</span>
+
+	// 连接至Kafka集群的Leader节点
+	conn, err :<span class="token operator">=</span> kafka.DialLeader<span class="token punctuation">(</span>context.Background<span class="token punctuation">(</span><span class="token punctuation">)</span>, <span class="token string">"tcp"</span>, <span class="token string">"localhost:9092"</span>, topic, partition<span class="token punctuation">)</span>
+	<span class="token keyword">if</span> err <span class="token operator">!=</span> nil <span class="token punctuation">{<!-- --></span>
+		log.Fatal<span class="token punctuation">(</span><span class="token string">"failed to dial leader:"</span>, err<span class="token punctuation">)</span>
+	<span class="token punctuation">}</span>
+
+	// 设置发送消息的超时时间
+	conn.SetWriteDeadline<span class="token punctuation">(</span>time.Now<span class="token punctuation">(</span><span class="token punctuation">)</span>.Add<span class="token punctuation">(</span><span class="token number">10</span> * time.Second<span class="token punctuation">))</span>
+
+	// 发送消息
+	_, err <span class="token operator">=</span> conn.WriteMessages<span class="token punctuation">(</span>
+		kafka.Message<span class="token punctuation">{<!-- --></span>Value: <span class="token punctuation">[</span><span class="token punctuation">]</span>byte<span class="token punctuation">(</span><span class="token string">"one!"</span><span class="token punctuation">)</span><span class="token punctuation">}</span>,
+		kafka.Message<span class="token punctuation">{<!-- --></span>Value: <span class="token punctuation">[</span><span class="token punctuation">]</span>byte<span class="token punctuation">(</span><span class="token string">"two!"</span><span class="token punctuation">)</span><span class="token punctuation">}</span>,
+		kafka.Message<span class="token punctuation">{<!-- --></span>Value: <span class="token punctuation">[</span><span class="token punctuation">]</span>byte<span class="token punctuation">(</span><span class="token string">"three!"</span><span class="token punctuation">)</span><span class="token punctuation">}</span>,
+	<span class="token punctuation">)</span>
+	<span class="token keyword">if</span> err <span class="token operator">!=</span> nil <span class="token punctuation">{<!-- --></span>
+		log.Fatal<span class="token punctuation">(</span><span class="token string">"failed to write messages:"</span>, err<span class="token punctuation">)</span>
+	<span class="token punctuation">}</span>
+
+	// 关闭连接
+	<span class="token keyword">if</span> err :<span class="token operator">=</span> conn.Close<span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span> err <span class="token operator">!=</span> nil <span class="token punctuation">{<!-- --></span>
+		log.Fatal<span class="token punctuation">(</span><span class="token string">"failed to close writer:"</span>, err<span class="token punctuation">)</span>
+	<span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+
+</code></pre> 
+<h3><a id="_143"></a>消费消息（消费者）</h3> 
+<pre><code class="prism language-bash">// readByConn 连接至kafka后接收消息
+func <span class="token function-name function">readByConn</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+	// 指定要连接的topic和partition
+	topic :<span class="token operator">=</span> <span class="token string">"my-topic"</span>
+	partition :<span class="token operator">=</span> <span class="token number">0</span>
+
+	// 连接至Kafka的leader节点
+	conn, err :<span class="token operator">=</span> kafka.DialLeader<span class="token punctuation">(</span>context.Background<span class="token punctuation">(</span><span class="token punctuation">)</span>, <span class="token string">"tcp"</span>, <span class="token string">"localhost:9092"</span>, topic, partition<span class="token punctuation">)</span>
+	<span class="token keyword">if</span> err <span class="token operator">!=</span> nil <span class="token punctuation">{<!-- --></span>
+		log.Fatal<span class="token punctuation">(</span><span class="token string">"failed to dial leader:"</span>, err<span class="token punctuation">)</span>
+	<span class="token punctuation">}</span>
+
+	// 设置读取超时时间
+	conn.SetReadDeadline<span class="token punctuation">(</span>time.Now<span class="token punctuation">(</span><span class="token punctuation">)</span>.Add<span class="token punctuation">(</span><span class="token number">10</span> * time.Second<span class="token punctuation">))</span>
+	// 读取一批消息，得到的batch是一系列消息的迭代器
+	batch :<span class="token operator">=</span> conn.ReadBatch<span class="token punctuation">(</span>10e3, 1e6<span class="token punctuation">)</span> // fetch 10KB min, 1MB max
+
+	// 遍历读取消息
+	b :<span class="token operator">=</span> make<span class="token punctuation">(</span><span class="token punctuation">[</span><span class="token punctuation">]</span>byte, 10e3<span class="token punctuation">)</span> // 10KB max per message
+	<span class="token keyword">for</span> <span class="token punctuation">{<!-- --></span>
+		n, err :<span class="token operator">=</span> batch.Read<span class="token punctuation">(</span>b<span class="token punctuation">)</span>
+		<span class="token keyword">if</span> err <span class="token operator">!=</span> nil <span class="token punctuation">{<!-- --></span>
+			<span class="token builtin class-name">break</span>
+		<span class="token punctuation">}</span>
+		fmt.Println<span class="token punctuation">(</span>string<span class="token punctuation">(</span>b<span class="token punctuation">[</span>:n<span class="token punctuation">]</span><span class="token punctuation">))</span>
+	<span class="token punctuation">}</span>
+
+	// 关闭batch
+	<span class="token keyword">if</span> err :<span class="token operator">=</span> batch.Close<span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span> err <span class="token operator">!=</span> nil <span class="token punctuation">{<!-- --></span>
+		log.Fatal<span class="token punctuation">(</span><span class="token string">"failed to close batch:"</span>, err<span class="token punctuation">)</span>
+	<span class="token punctuation">}</span>
+
+	// 关闭连接
+	<span class="token keyword">if</span> err :<span class="token operator">=</span> conn.Close<span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span> err <span class="token operator">!=</span> nil <span class="token punctuation">{<!-- --></span>
+		log.Fatal<span class="token punctuation">(</span><span class="token string">"failed to close connection:"</span>, err<span class="token punctuation">)</span>
+	<span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+
+</code></pre> 
+<p>使用<code>batch.Read</code>更高效一些，但是需要根据消息长度选择合适的<code>buffer</code>（上述代码中的<code>b</code>），如果传入的<code>buffer</code>太小（消息装不下）就会返回<code>io.ErrShortBuffer</code>错误。</p> 
+<p>如果不考虑内存分配的效率问题，也可以按以下代码使用<code>batch.ReadMessage</code>读取消息。</p> 
+<pre><code class="prism language-bash"><span class="token keyword">for</span> <span class="token punctuation">{<!-- --></span>
+  msg, err :<span class="token operator">=</span> batch.ReadMessage<span class="token punctuation">(</span><span class="token punctuation">)</span>
+  <span class="token keyword">if</span> err <span class="token operator">!=</span> nil <span class="token punctuation">{<!-- --></span>
+    <span class="token builtin class-name">break</span>
+  <span class="token punctuation">}</span>
+  fmt.Println<span class="token punctuation">(</span>string<span class="token punctuation">(</span>msg.Value<span class="token punctuation">))</span>
+<span class="token punctuation">}</span>
+
+</code></pre> 
+<p><img src="https://images2.imgbox.com/89/f9/Cg4PVlrj_o.png" alt="在这里插入图片描述"></p> 
+<h3><a id="topic_204"></a>创建topic</h3> 
+<p>当<code>Kafka</code>关闭自动创建<code>topic</code>的设置时，可按如下方式创建<code>topic</code>。</p> 
+<pre><code class="prism language-bash">// createTopicByConn 创建topic
+func <span class="token function-name function">createTopicByConn</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+	// 指定要创建的topic名称
+	topic :<span class="token operator">=</span> <span class="token string">"my-topic"</span>
+
+	// 连接至任意kafka节点
+	conn, err :<span class="token operator">=</span> kafka.Dial<span class="token punctuation">(</span><span class="token string">"tcp"</span>, <span class="token string">"localhost:9092"</span><span class="token punctuation">)</span>
+	<span class="token keyword">if</span> err <span class="token operator">!=</span> nil <span class="token punctuation">{<!-- --></span>
+		panic<span class="token punctuation">(</span>err.Error<span class="token punctuation">(</span><span class="token punctuation">))</span>
+	<span class="token punctuation">}</span>
+	defer conn.Close<span class="token punctuation">(</span><span class="token punctuation">)</span>
+
+	// 获取当前控制节点信息
+	controller, err :<span class="token operator">=</span> conn.Controller<span class="token punctuation">(</span><span class="token punctuation">)</span>
+	<span class="token keyword">if</span> err <span class="token operator">!=</span> nil <span class="token punctuation">{<!-- --></span>
+		panic<span class="token punctuation">(</span>err.Error<span class="token punctuation">(</span><span class="token punctuation">))</span>
+	<span class="token punctuation">}</span>
+	var controllerConn *kafka.Conn
+	// 连接至leader节点
+	controllerConn, err <span class="token operator">=</span> kafka.Dial<span class="token punctuation">(</span><span class="token string">"tcp"</span>, net.JoinHostPort<span class="token punctuation">(</span>controller.Host, strconv.Itoa<span class="token punctuation">(</span>controller.Port<span class="token punctuation">))</span><span class="token punctuation">)</span>
+	<span class="token keyword">if</span> err <span class="token operator">!=</span> nil <span class="token punctuation">{<!-- --></span>
+		panic<span class="token punctuation">(</span>err.Error<span class="token punctuation">(</span><span class="token punctuation">))</span>
+	<span class="token punctuation">}</span>
+	defer controllerConn.Close<span class="token punctuation">(</span><span class="token punctuation">)</span>
+
+	topicConfigs :<span class="token operator">=</span> <span class="token punctuation">[</span><span class="token punctuation">]</span>kafka.TopicConfig<span class="token punctuation">{<!-- --></span>
+		<span class="token punctuation">{<!-- --></span>
+			Topic:             topic,
+			NumPartitions:     <span class="token number">1</span>,
+			ReplicationFactor: <span class="token number">1</span>,
+		<span class="token punctuation">}</span>,
+	<span class="token punctuation">}</span>
+
+	// 创建topic
+	err <span class="token operator">=</span> controllerConn.CreateTopics<span class="token punctuation">(</span>topicConfigs<span class="token punctuation">..</span>.<span class="token punctuation">)</span>
+	<span class="token keyword">if</span> err <span class="token operator">!=</span> nil <span class="token punctuation">{<!-- --></span>
+		panic<span class="token punctuation">(</span>err.Error<span class="token punctuation">(</span><span class="token punctuation">))</span>
+	<span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+
+</code></pre> 
+<h3><a id="leaderleader_252"></a>通过非leader节点连接leader节点</h3> 
+<p>下面的示例代码演示了如何通过已有的非leader节点的Conn，连接至 leader节点</p> 
+<pre><code class="prism language-bash">conn, err :<span class="token operator">=</span> kafka.Dial<span class="token punctuation">(</span><span class="token string">"tcp"</span>, <span class="token string">"localhost:9092"</span><span class="token punctuation">)</span>
+<span class="token keyword">if</span> err <span class="token operator">!=</span> nil <span class="token punctuation">{<!-- --></span>
+    panic<span class="token punctuation">(</span>err.Error<span class="token punctuation">(</span><span class="token punctuation">))</span>
+<span class="token punctuation">}</span>
+defer conn.Close<span class="token punctuation">(</span><span class="token punctuation">)</span>
+// 获取当前控制节点信息
+controller, err :<span class="token operator">=</span> conn.Controller<span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token keyword">if</span> err <span class="token operator">!=</span> nil <span class="token punctuation">{<!-- --></span>
+    panic<span class="token punctuation">(</span>err.Error<span class="token punctuation">(</span><span class="token punctuation">))</span>
+<span class="token punctuation">}</span>
+var connLeader *kafka.Conn
+connLeader, err <span class="token operator">=</span> kafka.Dial<span class="token punctuation">(</span><span class="token string">"tcp"</span>, net.JoinHostPort<span class="token punctuation">(</span>controller.Host, strconv.Itoa<span class="token punctuation">(</span>controller.Port<span class="token punctuation">))</span><span class="token punctuation">)</span>
+<span class="token keyword">if</span> err <span class="token operator">!=</span> nil <span class="token punctuation">{<!-- --></span>
+    panic<span class="token punctuation">(</span>err.Error<span class="token punctuation">(</span><span class="token punctuation">))</span>
+<span class="token punctuation">}</span>
+defer connLeader.Close<span class="token punctuation">(</span><span class="token punctuation">)</span>
+
+</code></pre> 
+<p>上面的代码用于通过 Kafka 协议创建一个名为 “my-topic” 的主题(topic)。让我解释一下代码的主要部分：</p> 
+<ol><li> <p><code>func createTopicByConn()</code>: 这是一个函数定义，用于创建主题的连接。</p> </li><li> <p><code>topic := "my-topic"</code>: 指定要创建的主题名称为 “my-topic”。</p> </li><li> <p><code>conn, err := kafka.Dial("tcp", "localhost:9092")</code>: 通过 <code>kafka.Dial</code> 方法连接到 Kafka 集群中的任意一个节点。这里使用了 <code>tcp</code> 协议连接本地主机的 9092 端口。如果连接失败，则会产生一个错误，并且代码会中止执行。</p> </li><li> <p><code>defer conn.Close()</code>: 在函数结束时关闭连接，确保资源被释放。</p> </li><li> <p><code>controller, err := conn.Controller()</code>: 通过连接对象获取当前控制器(controller)节点的信息。Kafka 集群有一个控制器节点，负责集群中的元数据管理和协调工作。</p> </li><li> <p><code>controllerConn, err = kafka.Dial("tcp", net.JoinHostPort(controller.Host, strconv.Itoa(controller.Port)))</code>: 根据获取到的控制器节点信息，再次通过 <code>kafka.Dial</code> 方法连接到控制器节点。这里使用了 <code>net.JoinHostPort</code> 函数将主机名和端口号合并为一个字符串。如果连接失败，则会产生一个错误，并且代码会中止执行。</p> </li><li> <p><code>defer controllerConn.Close()</code>: 同样在函数结束时关闭连接，确保资源被释放。</p> </li><li> <p><code>topicConfigs</code>: 定义一个 <code>kafka.TopicConfig</code> 类型的切片，其中包含要创建的主题的配置信息。在这里，只有一个元素，即 “my-topic” 主题的配置。</p> </li><li> <p><code>err = controllerConn.CreateTopics(topicConfigs...)</code>: 调用 <code>controllerConn</code> 连接对象的 <code>CreateTopics</code> 方法来创建主题。该方法接受一个或多个 <code>kafka.TopicConfig</code> 类型的参数，用于指定要创建的主题的配置。如果创建失败，则会产生一个错误，并且代码会中止执行。</p> </li><li> <p><code>panic(err.Error())</code>: 如果发生了错误，代码会使用 <code>panic</code> 函数中止执行，并打印出错误信息。</p> </li></ol> 
+<p>总体来说，这段代码的作用是连接到 <code>Kafka </code>集群中的控制器节点，然后通过控制器节点创建一个名为 <code>"my-topic"</code> 的主题。</p> 
+<h3><a id="topic_299"></a>获取topic列表</h3> 
+<pre><code class="prism language-go">conn<span class="token punctuation">,</span> err <span class="token operator">:=</span> kafka<span class="token punctuation">.</span><span class="token function">Dial</span><span class="token punctuation">(</span><span class="token string">"tcp"</span><span class="token punctuation">,</span> <span class="token string">"localhost:9092"</span><span class="token punctuation">)</span>
+<span class="token keyword">if</span> err <span class="token operator">!=</span> <span class="token boolean">nil</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token function">panic</span><span class="token punctuation">(</span>err<span class="token punctuation">.</span><span class="token function">Error</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+<span class="token punctuation">}</span>
+<span class="token keyword">defer</span> conn<span class="token punctuation">.</span><span class="token function">Close</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+
+partitions<span class="token punctuation">,</span> err <span class="token operator">:=</span> conn<span class="token punctuation">.</span><span class="token function">ReadPartitions</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token keyword">if</span> err <span class="token operator">!=</span> <span class="token boolean">nil</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token function">panic</span><span class="token punctuation">(</span>err<span class="token punctuation">.</span><span class="token function">Error</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+<span class="token punctuation">}</span>
+
+m <span class="token operator">:=</span> <span class="token keyword">map</span><span class="token punctuation">[</span><span class="token builtin">string</span><span class="token punctuation">]</span><span class="token keyword">struct</span><span class="token punctuation">{<!-- --></span><span class="token punctuation">}</span><span class="token punctuation">{<!-- --></span><span class="token punctuation">}</span>
+<span class="token comment">// 遍历所有分区取topic</span>
+<span class="token keyword">for</span> <span class="token boolean">_</span><span class="token punctuation">,</span> p <span class="token operator">:=</span> <span class="token keyword">range</span> partitions <span class="token punctuation">{<!-- --></span>
+    m<span class="token punctuation">[</span>p<span class="token punctuation">.</span>Topic<span class="token punctuation">]</span> <span class="token operator">=</span> <span class="token keyword">struct</span><span class="token punctuation">{<!-- --></span><span class="token punctuation">}</span><span class="token punctuation">{<!-- --></span><span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+<span class="token keyword">for</span> k <span class="token operator">:=</span> <span class="token keyword">range</span> m <span class="token punctuation">{<!-- --></span>
+    fmt<span class="token punctuation">.</span><span class="token function">Println</span><span class="token punctuation">(</span>k<span class="token punctuation">)</span>
+<span class="token punctuation">}</span>
+
+</code></pre> 
+<p>上面的代码比较简单。</p> 
+<h3><a id="Reader_326"></a>Reader</h3> 
+<p><code>Reader</code>是由 <code>kafka-go</code> 包提供的另一个概念，对于从单个主题-分区（<code>topic-partition</code>）消费消息这种典型场景，使用它能够简化代码。<code>Reader</code> 还实现了<strong>自动重连和偏移量管理</strong>，并支持使用 <code>Context </code>支持异步取消和超时的 <code>API</code>。</p> 
+<p>注意： 当进程退出时，必须在 <code>Reader</code> 上调用 <code>Close()</code> 。<code>Kafka</code>服务器需要一个优雅的断开连接来阻止它继续尝试向已连接的客户端发送消息。如果进程使用 <code>SIGINT</code> (shell 中的 Ctrl-C)或 <code>SIGTERM</code> (如 <code>docker stop</code> 或 <code>kubernetes star</code>t)终止，<strong>那么下面给出的示例不会调用 <code>Close()</code></strong>。当同一topic上有新Reader连接时，可能导致延迟(例如，新进程启动或新容器运行)。在这种场景下应使用signal.Notify处理程序在进程关闭时关闭Reader。</p> 
+<h4><a id="_331"></a>消费消息</h4> 
+<p>下面的代码演示了如何使用<code>Reader</code>连接至<code>Kafka</code>消费消息。</p> 
+<pre><code class="prism language-bash">// readByReader 通过Reader接收消息
+func <span class="token function-name function">readByReader</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+	// 创建Reader
+	r :<span class="token operator">=</span> kafka.NewReader<span class="token punctuation">(</span>kafka.ReaderConfig<span class="token punctuation">{<!-- --></span>
+		Brokers:   <span class="token punctuation">[</span><span class="token punctuation">]</span>string<span class="token punctuation">{<!-- --></span><span class="token string">"localhost:9092"</span>, <span class="token string">"localhost:9093"</span>, <span class="token string">"localhost:9094"</span><span class="token punctuation">}</span>,
+		Topic:     <span class="token string">"topic-A"</span>,
+		Partition: <span class="token number">0</span>,
+		MaxBytes:  10e6, // 10MB
+	<span class="token punctuation">}</span><span class="token punctuation">)</span>
+	r.SetOffset<span class="token punctuation">(</span><span class="token number">42</span><span class="token punctuation">)</span> // 设置Offset
+
+	// 接收消息
+	<span class="token keyword">for</span> <span class="token punctuation">{<!-- --></span>
+		m, err :<span class="token operator">=</span> r.ReadMessage<span class="token punctuation">(</span>context.Background<span class="token punctuation">(</span><span class="token punctuation">))</span>
+		<span class="token keyword">if</span> err <span class="token operator">!=</span> nil <span class="token punctuation">{<!-- --></span>
+			<span class="token builtin class-name">break</span>
+		<span class="token punctuation">}</span>
+		fmt.Printf<span class="token punctuation">(</span><span class="token string">"message at offset %d: %s = %s<span class="token entity" title="\n">\n</span>"</span>, m.Offset, string<span class="token punctuation">(</span>m.Key<span class="token punctuation">)</span>, string<span class="token punctuation">(</span>m.Value<span class="token punctuation">))</span>
+	<span class="token punctuation">}</span>
+
+	// 程序退出前关闭Reader
+	<span class="token keyword">if</span> err :<span class="token operator">=</span> r.Close<span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span> err <span class="token operator">!=</span> nil <span class="token punctuation">{<!-- --></span>
+		log.Fatal<span class="token punctuation">(</span><span class="token string">"failed to close reader:"</span>, err<span class="token punctuation">)</span>
+	<span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<h4><a id="_361"></a>消费者组</h4> 
+<p><code>kafka-go</code>支持消费者组，包括<code>broker</code>管理的<code>offset</code>。要启用消费者组，只需在<code>ReaderConfig</code>中指定 <code>GroupID</code>。</p> 
+<p>使用消费者组时，<code>ReadMessage</code> 会自动提交偏移量。</p> 
+<pre><code class="prism language-bash">// 创建一个reader，指定GroupID，从 topic-A 消费消息
+r :<span class="token operator">=</span> kafka.NewReader<span class="token punctuation">(</span>kafka.ReaderConfig<span class="token punctuation">{<!-- --></span>
+	Brokers:  <span class="token punctuation">[</span><span class="token punctuation">]</span>string<span class="token punctuation">{<!-- --></span><span class="token string">"localhost:9092"</span>, <span class="token string">"localhost:9093"</span>, <span class="token string">"localhost:9094"</span><span class="token punctuation">}</span>,
+	GroupID:  <span class="token string">"consumer-group-id"</span>, // 指定消费者组id
+	Topic:    <span class="token string">"topic-A"</span>,
+	MaxBytes: 10e6, // 10MB
+<span class="token punctuation">}</span><span class="token punctuation">)</span>
+
+// 接收消息
+<span class="token keyword">for</span> <span class="token punctuation">{<!-- --></span>
+	m, err :<span class="token operator">=</span> r.ReadMessage<span class="token punctuation">(</span>context.Background<span class="token punctuation">(</span><span class="token punctuation">))</span>
+	<span class="token keyword">if</span> err <span class="token operator">!=</span> nil <span class="token punctuation">{<!-- --></span>
+		<span class="token builtin class-name">break</span>
+	<span class="token punctuation">}</span>
+	fmt.Printf<span class="token punctuation">(</span><span class="token string">"message at topic/partition/offset %v/%v/%v: %s = %s<span class="token entity" title="\n">\n</span>"</span>, m.Topic, m.Partition, m.Offset, string<span class="token punctuation">(</span>m.Key<span class="token punctuation">)</span>, string<span class="token punctuation">(</span>m.Value<span class="token punctuation">))</span>
+<span class="token punctuation">}</span>
+
+// 程序退出前关闭Reader
+<span class="token keyword">if</span> err :<span class="token operator">=</span> r.Close<span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span> err <span class="token operator">!=</span> nil <span class="token punctuation">{<!-- --></span>
+	log.Fatal<span class="token punctuation">(</span><span class="token string">"failed to close reader:"</span>, err<span class="token punctuation">)</span>
+<span class="token punctuation">}</span>
+
+</code></pre> 
+<p>在使用消费者组时会有以下限制：</p> 
+<ul><li>(*Reader).SetOffset 当设置了GroupID时会返回错误</li><li>(*Reader).Offset 当设置了GroupID时会永远返回 -1</li><li>(*Reader).Lag 当设置了GroupID时会永远返回 -1</li><li>(*Reader).ReadLag 当设置了GroupID时会返回错误</li><li>(*Reader).Stats 当设置了GroupID时会返回一个-1的分区</li></ul> 
+<h3><a id="_399"></a>显式提交</h3> 
+<p><code>kafka-go</code> 也支持显式提交。当需要显式提交时不要调用 <code>ReadMessage</code>，而是调用 <code>FetchMessage</code>获取消息，然后调用 <code>CommitMessages</code> 显式提交。</p> 
+<blockquote> 
+ <p>自动提交（Autocommit）：在调用 ReadMessage 读取消息时，会自动将消费者所消费的消息的偏移量提交到 Kafka，由 Kafka 自动管理偏移量的提交。这种方式简单方便，但是可能会带来一些问题，比如当消费者在处理消息时发生错误，消息可能已经被提交，但实际上消息并没有被成功处理，这样就可能导致数据丢失或重复处理。</p> 
+</blockquote> 
+<blockquote> 
+ <p>显式提交（Explicit commit）：在需要提交偏移量时，调用 CommitMessages 显式地提交偏移量。这样可以在消息被成功处理后再提交偏移量，从而确保消息被正确处理。这种方式需要开发者自己管理偏移量的提交，更加灵活，但也需要更多的代码来处理。</p> 
+</blockquote> 
+<pre><code class="prism language-bash">ctx :<span class="token operator">=</span> context.Background<span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token keyword">for</span> <span class="token punctuation">{<!-- --></span>
+    // 获取消息
+    m, err :<span class="token operator">=</span> r.FetchMessage<span class="token punctuation">(</span>ctx<span class="token punctuation">)</span>
+    <span class="token keyword">if</span> err <span class="token operator">!=</span> nil <span class="token punctuation">{<!-- --></span>
+        <span class="token builtin class-name">break</span>
+    <span class="token punctuation">}</span>
+    // 处理消息
+    fmt.Printf<span class="token punctuation">(</span><span class="token string">"message at topic/partition/offset %v/%v/%v: %s = %s<span class="token entity" title="\n">\n</span>"</span>, m.Topic, m.Partition, m.Offset, string<span class="token punctuation">(</span>m.Key<span class="token punctuation">)</span>, string<span class="token punctuation">(</span>m.Value<span class="token punctuation">))</span>
+    // 显式提交
+    <span class="token keyword">if</span> err :<span class="token operator">=</span> r.CommitMessages<span class="token punctuation">(</span>ctx, m<span class="token punctuation">)</span><span class="token punctuation">;</span> err <span class="token operator">!=</span> nil <span class="token punctuation">{<!-- --></span>
+        log.Fatal<span class="token punctuation">(</span><span class="token string">"failed to commit messages:"</span>, err<span class="token punctuation">)</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+
+</code></pre> 
+<p>在消费者组中提交消息时，使用给定主题/分区的最大偏移量确定该分区的提交偏移量值的情况。具体来说，如果通过调用 <code>FetchMessage</code> 获取了单个分区的偏移量为 1、2 和 3 的消息，然后使用偏移量为3的消息调用 <code>CommitMessages</code>，那么该分区的偏移量为 1 和 2 的消息也会被提交。</p> 
+<p>这种行为的意义在于，Kafka 会将偏移量视为连续的序列。当提交一个偏移量时，Kafka 会将该偏移量之前的所有消息都视为已经被处理。因此，如果使用偏移量为3的消息调用了提交操作，那么偏移量为1和2的消息也会被提交，因为它们在偏移量3之前，已经被消费者处理了。</p> 
+<p><strong>这种方式确保了消费者组中的所有消费者都会收到相同的消息，并且每个分区的消息都会被处理一次且仅一次，从而确保了消费者组的一致性和正确性。</strong></p> 
+<h3><a id="_431"></a>管理提交间隔</h3> 
+<p>默认情况下，调用<code>CommitMessages</code>将同步向<code>Kafka</code>提交偏移量。为了提高性能，可以在<code>ReaderConfig</code>中设置CommitInterval来定期向<code>Kafka</code>提交偏移。</p> 
+<pre><code class="prism language-bash">// 创建一个reader从 topic-A 消费消息
+r :<span class="token operator">=</span> kafka.NewReader<span class="token punctuation">(</span>kafka.ReaderConfig<span class="token punctuation">{<!-- --></span>
+    Brokers:        <span class="token punctuation">[</span><span class="token punctuation">]</span>string<span class="token punctuation">{<!-- --></span><span class="token string">"localhost:9092"</span>, <span class="token string">"localhost:9093"</span>, <span class="token string">"localhost:9094"</span><span class="token punctuation">}</span>,
+    GroupID:        <span class="token string">"consumer-group-id"</span>,
+    Topic:          <span class="token string">"topic-A"</span>,
+    MaxBytes:       10e6, // 10MB
+    CommitInterval: time.Second, // 每秒刷新一次提交给 Kafka
+<span class="token punctuation">}</span><span class="token punctuation">)</span>
+
+</code></pre> 
+<h3><a id="Writer_446"></a>Writer</h3> 
+<p>向<code>Kafka</code>发送消息，除了使用基于<code>Conn</code>的低级<code>API</code>，<code>kafka-go</code>包还提供了更高级别的 <code>Writer </code>类型。大多数情况下使用<code>Writer</code>即可满足条件，它支持以下特性。</p> 
+<ul><li>对错误进行<strong>自动重试和重新连接</strong>。</li><li>在可用分区之间可配置的消息分布。</li><li><strong>向Kafka同步或异步写入消息</strong>。</li><li>使用<code>Context</code>的异步取消。</li><li>关闭时清除挂起的消息以支持正常关闭。</li><li>在发布消息之前自动创建不存在的<code>topic</code>。</li></ul> 
+<h4><a id="_456"></a>发送消息</h4> 
+<pre><code class="prism language-bash">// 创建一个writer 向topic-A发送消息
+w :<span class="token operator">=</span> <span class="token operator">&amp;</span>kafka.Writer<span class="token punctuation">{<!-- --></span>
+	Addr:         kafka.TCP<span class="token punctuation">(</span><span class="token string">"localhost:9092"</span>, <span class="token string">"localhost:9093"</span>, <span class="token string">"localhost:9094"</span><span class="token punctuation">)</span>,
+	Topic:        <span class="token string">"topic-A"</span>,
+	Balancer:     <span class="token operator">&amp;</span>kafka.LeastBytes<span class="token punctuation">{<!-- --></span><span class="token punctuation">}</span>, // 指定分区的balancer模式为最小字节分布
+	RequiredAcks: kafka.RequireAll,    // ack模式
+	Async:        true,                // 异步
+<span class="token punctuation">}</span>
+
+err :<span class="token operator">=</span> w.WriteMessages<span class="token punctuation">(</span>context.Background<span class="token punctuation">(</span><span class="token punctuation">)</span>,
+	kafka.Message<span class="token punctuation">{<!-- --></span>
+		Key:   <span class="token punctuation">[</span><span class="token punctuation">]</span>byte<span class="token punctuation">(</span><span class="token string">"Key-A"</span><span class="token punctuation">)</span>,
+		Value: <span class="token punctuation">[</span><span class="token punctuation">]</span>byte<span class="token punctuation">(</span><span class="token string">"Hello World!"</span><span class="token punctuation">)</span>,
+	<span class="token punctuation">}</span>,
+	kafka.Message<span class="token punctuation">{<!-- --></span>
+		Key:   <span class="token punctuation">[</span><span class="token punctuation">]</span>byte<span class="token punctuation">(</span><span class="token string">"Key-B"</span><span class="token punctuation">)</span>,
+		Value: <span class="token punctuation">[</span><span class="token punctuation">]</span>byte<span class="token punctuation">(</span><span class="token string">"One!"</span><span class="token punctuation">)</span>,
+	<span class="token punctuation">}</span>,
+	kafka.Message<span class="token punctuation">{<!-- --></span>
+		Key:   <span class="token punctuation">[</span><span class="token punctuation">]</span>byte<span class="token punctuation">(</span><span class="token string">"Key-C"</span><span class="token punctuation">)</span>,
+		Value: <span class="token punctuation">[</span><span class="token punctuation">]</span>byte<span class="token punctuation">(</span><span class="token string">"Two!"</span><span class="token punctuation">)</span>,
+	<span class="token punctuation">}</span>,
+<span class="token punctuation">)</span>
+<span class="token keyword">if</span> err <span class="token operator">!=</span> nil <span class="token punctuation">{<!-- --></span>
+    log.Fatal<span class="token punctuation">(</span><span class="token string">"failed to write messages:"</span>, err<span class="token punctuation">)</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">if</span> err :<span class="token operator">=</span> w.Close<span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span> err <span class="token operator">!=</span> nil <span class="token punctuation">{<!-- --></span>
+    log.Fatal<span class="token punctuation">(</span><span class="token string">"failed to close writer:"</span>, err<span class="token punctuation">)</span>
+<span class="token punctuation">}</span>
+
+</code></pre> 
+<h4><a id="topic_492"></a>创建不存在的topic</h4> 
+<p>如果给<code>Writer</code>配置了<code>AllowAutoTopicCreation:true</code>，那么当发送消息至某个不存在的<code>topic</code>时，则会自动创建<code>topic</code>。</p> 
+<pre><code class="prism language-bash">w :<span class="token operator">=</span> <span class="token operator">&amp;</span>Writer<span class="token punctuation">{<!-- --></span>
+    Addr:                   kafka.TCP<span class="token punctuation">(</span><span class="token string">"localhost:9092"</span>, <span class="token string">"localhost:9093"</span>, <span class="token string">"localhost:9094"</span><span class="token punctuation">)</span>,
+    Topic:                  <span class="token string">"topic-A"</span>,
+    AllowAutoTopicCreation: true,  // 自动创建topic
+<span class="token punctuation">}</span>
+
+messages :<span class="token operator">=</span> <span class="token punctuation">[</span><span class="token punctuation">]</span>kafka.Message<span class="token punctuation">{<!-- --></span>
+    <span class="token punctuation">{<!-- --></span>
+        Key:   <span class="token punctuation">[</span><span class="token punctuation">]</span>byte<span class="token punctuation">(</span><span class="token string">"Key-A"</span><span class="token punctuation">)</span>,
+        Value: <span class="token punctuation">[</span><span class="token punctuation">]</span>byte<span class="token punctuation">(</span><span class="token string">"Hello World!"</span><span class="token punctuation">)</span>,
+    <span class="token punctuation">}</span>,
+    <span class="token punctuation">{<!-- --></span>
+        Key:   <span class="token punctuation">[</span><span class="token punctuation">]</span>byte<span class="token punctuation">(</span><span class="token string">"Key-B"</span><span class="token punctuation">)</span>,
+        Value: <span class="token punctuation">[</span><span class="token punctuation">]</span>byte<span class="token punctuation">(</span><span class="token string">"One!"</span><span class="token punctuation">)</span>,
+    <span class="token punctuation">}</span>,
+    <span class="token punctuation">{<!-- --></span>
+        Key:   <span class="token punctuation">[</span><span class="token punctuation">]</span>byte<span class="token punctuation">(</span><span class="token string">"Key-C"</span><span class="token punctuation">)</span>,
+        Value: <span class="token punctuation">[</span><span class="token punctuation">]</span>byte<span class="token punctuation">(</span><span class="token string">"Two!"</span><span class="token punctuation">)</span>,
+    <span class="token punctuation">}</span>,
+<span class="token punctuation">}</span>
+
+var err error
+const retries <span class="token operator">=</span> <span class="token number">3</span>
+// 重试3次
+<span class="token keyword">for</span> i :<span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span> i <span class="token operator">&lt;</span> retries<span class="token punctuation">;</span> i++ <span class="token punctuation">{<!-- --></span>
+    ctx, cancel :<span class="token operator">=</span> context.WithTimeout<span class="token punctuation">(</span>context.Background<span class="token punctuation">(</span><span class="token punctuation">)</span>, <span class="token number">10</span>*time.Second<span class="token punctuation">)</span>
+    defer cancel<span class="token punctuation">(</span><span class="token punctuation">)</span>
+    
+    err <span class="token operator">=</span> w.WriteMessages<span class="token punctuation">(</span>ctx, messages<span class="token punctuation">..</span>.<span class="token punctuation">)</span>
+    <span class="token keyword">if</span> errors.Is<span class="token punctuation">(</span>err, LeaderNotAvailable<span class="token punctuation">)</span> <span class="token operator">||</span> errors.Is<span class="token punctuation">(</span>err, context.DeadlineExceeded<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        time.Sleep<span class="token punctuation">(</span>time.Millisecond * <span class="token number">250</span><span class="token punctuation">)</span>
+        <span class="token builtin class-name">continue</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token keyword">if</span> err <span class="token operator">!=</span> nil <span class="token punctuation">{<!-- --></span>
+        log.Fatalf<span class="token punctuation">(</span><span class="token string">"unexpected error %v"</span>, err<span class="token punctuation">)</span>
+    <span class="token punctuation">}</span>
+    <span class="token builtin class-name">break</span>
+<span class="token punctuation">}</span>
+
+// 关闭Writer
+<span class="token keyword">if</span> err :<span class="token operator">=</span> w.Close<span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span> err <span class="token operator">!=</span> nil <span class="token punctuation">{<!-- --></span>
+    log.Fatal<span class="token punctuation">(</span><span class="token string">"failed to close writer:"</span>, err<span class="token punctuation">)</span>
+<span class="token punctuation">}</span>
+
+</code></pre> 
+<h4><a id="topic_544"></a>写入多个topic</h4> 
+<p>通常，<code>WriterConfig.Topic</code>用于初始化单个<code>topic</code>的<code>Writer</code>。通过去掉<code>WriterConfig</code>中的<code>Topic</code>配置，分别设置每条消息的<code>message.topic</code>，可以实现将消息发送至多个<code>topic</code>。</p> 
+<pre><code class="prism language-bash">w :<span class="token operator">=</span> <span class="token operator">&amp;</span>kafka.Writer<span class="token punctuation">{<!-- --></span>
+	Addr:     kafka.TCP<span class="token punctuation">(</span><span class="token string">"localhost:9092"</span>, <span class="token string">"localhost:9093"</span>, <span class="token string">"localhost:9094"</span><span class="token punctuation">)</span>,
+    //
+    // 注意: 当此处不设置Topic时,后续的每条消息都需要指定Topic
+    //
+	Balancer: <span class="token operator">&amp;</span>kafka.LeastBytes<span class="token punctuation">{<!-- --></span><span class="token punctuation">}</span>,
+<span class="token punctuation">}</span>
+
+err :<span class="token operator">=</span> w.WriteMessages<span class="token punctuation">(</span>context.Background<span class="token punctuation">(</span><span class="token punctuation">)</span>,
+    // 注意: 每条消息都需要指定一个 Topic, 否则就会报错
+	kafka.Message<span class="token punctuation">{<!-- --></span>
+        Topic: <span class="token string">"topic-A"</span>,
+		Key:   <span class="token punctuation">[</span><span class="token punctuation">]</span>byte<span class="token punctuation">(</span><span class="token string">"Key-A"</span><span class="token punctuation">)</span>,
+		Value: <span class="token punctuation">[</span><span class="token punctuation">]</span>byte<span class="token punctuation">(</span><span class="token string">"Hello World!"</span><span class="token punctuation">)</span>,
+	<span class="token punctuation">}</span>,
+	kafka.Message<span class="token punctuation">{<!-- --></span>
+        Topic: <span class="token string">"topic-B"</span>,
+		Key:   <span class="token punctuation">[</span><span class="token punctuation">]</span>byte<span class="token punctuation">(</span><span class="token string">"Key-B"</span><span class="token punctuation">)</span>,
+		Value: <span class="token punctuation">[</span><span class="token punctuation">]</span>byte<span class="token punctuation">(</span><span class="token string">"One!"</span><span class="token punctuation">)</span>,
+	<span class="token punctuation">}</span>,
+	kafka.Message<span class="token punctuation">{<!-- --></span>
+        Topic: <span class="token string">"topic-C"</span>,
+		Key:   <span class="token punctuation">[</span><span class="token punctuation">]</span>byte<span class="token punctuation">(</span><span class="token string">"Key-C"</span><span class="token punctuation">)</span>,
+		Value: <span class="token punctuation">[</span><span class="token punctuation">]</span>byte<span class="token punctuation">(</span><span class="token string">"Two!"</span><span class="token punctuation">)</span>,
+	<span class="token punctuation">}</span>,
+<span class="token punctuation">)</span>
+<span class="token keyword">if</span> err <span class="token operator">!=</span> nil <span class="token punctuation">{<!-- --></span>
+    log.Fatal<span class="token punctuation">(</span><span class="token string">"failed to write messages:"</span>, err<span class="token punctuation">)</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">if</span> err :<span class="token operator">=</span> w.Close<span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span> err <span class="token operator">!=</span> nil <span class="token punctuation">{<!-- --></span>
+    log.Fatal<span class="token punctuation">(</span><span class="token string">"failed to close writer:"</span>, err<span class="token punctuation">)</span>
+<span class="token punctuation">}</span>
+
+</code></pre> 
+<p><strong>注意：<code>Writer</code>中的<code>Topic</code>和<code>Message</code>中的<code>Topic</code>是互斥的，同一时刻有且只能设置一处。</strong></p> 
+<h3><a id="Balancer_588"></a>Balancer</h3> 
+<p><code>kafka-go</code>实现了多种负载均衡策略。特别是当你从其他<code>Kafka</code>库迁移过来时，你可以按如下说明选择合适的<code>Balancer</code>实现。</p> 
+<h3><a id="Sarama_592"></a>Sarama</h3> 
+<p>如果从 sarama 切换过来，并且需要/希望使用相同的算法进行消息分区，则可以使用<code>kafka.Hash</code>或<code>kafka.ReferenceHash</code>。</p> 
+<pre><code class="prism language-bash">kafka.Hash <span class="token operator">=</span> sarama.NewHashPartitioner
+kafka.ReferenceHash <span class="token operator">=</span> sarama.NewReferenceHashPartitioner
+w :<span class="token operator">=</span> <span class="token operator">&amp;</span>kafka.Writer<span class="token punctuation">{<!-- --></span>
+	Addr:     kafka.TCP<span class="token punctuation">(</span><span class="token string">"localhost:9092"</span>, <span class="token string">"localhost:9093"</span>, <span class="token string">"localhost:9094"</span><span class="token punctuation">)</span>,
+	Topic:    <span class="token string">"topic-A"</span>,
+	Balancer: <span class="token operator">&amp;</span>kafka.Hash<span class="token punctuation">{<!-- --></span><span class="token punctuation">}</span>,
+<span class="token punctuation">}</span>
+librdkafka和confluent-kafka-go
+kafka.CRC32Balancer与librdkafka默认的consistent_random策略表现一致。
+
+w :<span class="token operator">=</span> <span class="token operator">&amp;</span>kafka.Writer<span class="token punctuation">{<!-- --></span>
+	Addr:     kafka.TCP<span class="token punctuation">(</span><span class="token string">"localhost:9092"</span>, <span class="token string">"localhost:9093"</span>, <span class="token string">"localhost:9094"</span><span class="token punctuation">)</span>,
+	Topic:    <span class="token string">"topic-A"</span>,
+	Balancer: kafka.CRC32Balancer<span class="token punctuation">{<!-- --></span><span class="token punctuation">}</span>,
+<span class="token punctuation">}</span>
+</code></pre> 
+<h3><a id="Logging_613"></a>Logging</h3> 
+<p>想要记录<code>Reader/Writer</code>类型的操作，可以在创建时配置日志记录器。</p> 
+<p><code>kafka-go</code>中的<code>Logger</code>是一个接口类型。</p> 
+<pre><code class="prism language-bash"><span class="token builtin class-name">type</span> Logger interface <span class="token punctuation">{<!-- --></span>
+	Printf<span class="token punctuation">(</span>string, <span class="token punctuation">..</span>.interface<span class="token punctuation">{<!-- --></span><span class="token punctuation">}</span><span class="token punctuation">)</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>并且提供了一个<code>LoggerFunc</code>类型，帮我们实现了<code>Logger</code>接口。</p> 
+<pre><code class="prism language-bash"><span class="token builtin class-name">type</span> LoggerFunc func<span class="token punctuation">(</span>string, <span class="token punctuation">..</span>.interface<span class="token punctuation">{<!-- --></span><span class="token punctuation">}</span><span class="token punctuation">)</span>
+
+func <span class="token punctuation">(</span>f LoggerFunc<span class="token punctuation">)</span> Printf<span class="token punctuation">(</span>msg string, args <span class="token punctuation">..</span>.interface<span class="token punctuation">{<!-- --></span><span class="token punctuation">}</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span> f<span class="token punctuation">(</span>msg, args<span class="token punctuation">..</span>.<span class="token punctuation">)</span> <span class="token punctuation">}</span>
+</code></pre> 
+<h4><a id="Reader_632"></a>Reader</h4> 
+<p>借助<code>kafka.LoggerFunc</code>我们可以自定义一个<code>Logger</code>。</p> 
+<pre><code class="prism language-bash">// 自定义一个Logger
+func logf<span class="token punctuation">(</span>msg string, a <span class="token punctuation">..</span>.interface<span class="token punctuation">{<!-- --></span><span class="token punctuation">}</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+	fmt.Printf<span class="token punctuation">(</span>msg, a<span class="token punctuation">..</span>.<span class="token punctuation">)</span>
+	fmt.Println<span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token punctuation">}</span>
+
+r :<span class="token operator">=</span> kafka.NewReader<span class="token punctuation">(</span>kafka.ReaderConfig<span class="token punctuation">{<!-- --></span>
+	Brokers:     <span class="token punctuation">[</span><span class="token punctuation">]</span>string<span class="token punctuation">{<!-- --></span><span class="token string">"localhost:9092"</span>, <span class="token string">"localhost:9093"</span>, <span class="token string">"localhost:9094"</span><span class="token punctuation">}</span>,
+	Topic:       <span class="token string">"q1mi-topic"</span>,
+	Partition:   <span class="token number">0</span>,
+	Logger:      kafka.LoggerFunc<span class="token punctuation">(</span>logf<span class="token punctuation">)</span>,
+	ErrorLogger: kafka.LoggerFunc<span class="token punctuation">(</span>logf<span class="token punctuation">)</span>,
+<span class="token punctuation">}</span><span class="token punctuation">)</span>
+
+</code></pre> 
+<h4><a id="Writer_652"></a>Writer</h4> 
+<p>也可以直接使用第三方日志库，例如下面示例代码中使用了<code>zap</code>日志库。</p> 
+<pre><code class="prism language-bash">w :<span class="token operator">=</span> <span class="token operator">&amp;</span>kafka.Writer<span class="token punctuation">{<!-- --></span>
+	Addr:        kafka.TCP<span class="token punctuation">(</span><span class="token string">"localhost:9092"</span><span class="token punctuation">)</span>,
+	Topic:       <span class="token string">"q1mi-topic"</span>,
+	Logger:      kafka.LoggerFunc<span class="token punctuation">(</span>zap.NewExample<span class="token punctuation">(</span><span class="token punctuation">)</span>.Sugar<span class="token punctuation">(</span><span class="token punctuation">)</span>.Infof<span class="token punctuation">)</span>,
+	ErrorLogger: kafka.LoggerFunc<span class="token punctuation">(</span>zap.NewExample<span class="token punctuation">(</span><span class="token punctuation">)</span>.Sugar<span class="token punctuation">(</span><span class="token punctuation">)</span>.Errorf<span class="token punctuation">)</span>,
+<span class="token punctuation">}</span>
+</code></pre> 
+<hr> 
+<h2><a id="_667"></a>参考</h2> 
+<p>https://www.liwenzhou.com/posts/Go/kafka-go/<br> https://juejin.cn/post/7173314677550612493<br> https://www.topgoer.com/%E6%95%B0%E6%8D%AE%E5%BA%93%E6%93%8D%E4%BD%9C/go%E6%93%8D%E4%BD%9Ckafka/%E6%93%8D%E4%BD%9Ckafka.html<br> http://www.randyfield.cn/post/2021-05-05-go-kafka/</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/cab4f9de92a0ee79d8ef16bfd6f30de7/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">【保姆级介绍npm常用命令】</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/f57435e9336df6f6f290b7848df2384d/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">Java Stream流解决部分问题</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

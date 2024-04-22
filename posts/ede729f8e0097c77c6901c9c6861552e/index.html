@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Weblogic集群部署详解 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/ede729f8e0097c77c6901c9c6861552e/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="Weblogic集群部署详解">
+  <meta property="og:description" content="Weblogic集群部署 Weblogic包官方下载地址：Free Oracle WebLogic Server 12c (12.2.1) Installers for Development | Oracle 中国
+服务规划：
+我们使用2台设备进行搭建，其中一台设备上部署控制台管理节点和受管理节点，一台设备上只部署受管理节点
+该部署以Red Hat 7为例
+安装前准备(所有设备)： 1.安装JDK环境 该环境的安装可以参考我之前写的JDK的安装配置。
+2.关闭防火墙 systemctl stop firewalld.service
+systemctl disable firewalld.service
+3.关闭SELinux setenforce 0 vi /etc/selinux/config SELINUX=enforcing改为SELINUX=disabled 4.创建weblogic用户及用户组 groupadd weblogic
+useradd -g weblogic -m weblogic
+echo &#34;weblogic &#34; |passwd --stdin weblogic
+注：接下来的所有操作全部使用weblogic用户进行操作
+安装Weblogic
+1.部署Weblogic(两台设备都需要进行部署) #请使用weblogic用户直接进行登录，不要使用su - 的方式，否则可能会无法弹出图形化界面
+java -jar fmw_12.1.3.0.0_wls.jar
+#若还是无法弹出图形化界面，可参考如下步骤进行 1.执行xhost &#43;，查看状态，若是open disabled 2.执行export DISPLAY=(本地设备的IP，不是服务器的):0.0 3.再查看状态xhost &#43; ，状态为access control disabled,clients can...则说明可以连接了 #若无xhost &#43;命令，则可以使用root用户执行yum groupinstall &#34;">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2024-02-02T14:53:31+08:00">
+    <meta property="article:modified_time" content="2024-02-02T14:53:31+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">Weblogic集群部署详解</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <h3>Weblogic集群部署</h3> 
+<p>Weblogic包官方下载地址：<a href="https://www.oracle.com/cn/middleware/technologies/weblogic-server-downloads.html" rel="nofollow" title="Free Oracle WebLogic Server 12c (12.2.1) Installers for Development | Oracle 中国">Free Oracle WebLogic Server 12c (12.2.1) Installers for Development | Oracle 中国</a></p> 
+<p><strong>服务规划：</strong></p> 
+<p><strong>我们使用2台设备进行搭建，其中一台设备上部署控制台管理节点和受管理节点，一台设备上只部署受管理节点</strong></p> 
+<p></p> 
+<p class="img-center"><img alt="" height="73" src="https://images2.imgbox.com/ee/59/iL9W4qbK_o.png" width="303"></p> 
+<p><strong>该部署以Red Hat 7为例</strong></p> 
+<h4>安装前准备(所有设备)：</h4> 
+<h3><strong>1.安装JDK环境</strong></h3> 
+<p>该环境的安装可以参考我之前写的<a href="https://www.cnblogs.com/cjzzz/p/15974645.html" rel="nofollow" id="cb_post_title_url" title="JDK的安装配置">JDK的安装配置</a>。</p> 
+<h3>2.关闭防火墙</h3> 
+<p>systemctl stop firewalld.service</p> 
+<p>systemctl disable firewalld.service</p> 
+<h3>3.关闭SELinux</h3> 
+<p>setenforce 0               </p> 
+<p>vi /etc/selinux/config   </p> 
+<pre>SELINUX=enforcing改为SELINUX=disabled</pre> 
+<h3>4.创建weblogic用户及用户组</h3> 
+<p>groupadd weblogic</p> 
+<p>useradd -g weblogic -m weblogic</p> 
+<p>echo "weblogic " |passwd --stdin weblogic</p> 
+<p><strong>注：接下来的所有操作全部使用weblogic用户进行操作</strong></p> 
+<p><strong>安装Weblogic</strong></p> 
+<h3>1.部署Weblogic(两台设备都需要进行部署)</h3> 
+<p>#请使用weblogic用户直接进行登录，不要使用su - 的方式，否则可能会无法弹出图形化界面</p> 
+<p>java -jar fmw_12.1.3.0.0_wls.jar</p> 
+<pre><strong>#若还是无法弹出图形化界面，可参考如下步骤进行
+</strong>1.执行xhost +，查看状态，若是open disabled
+2.执行export DISPLAY=(本地设备的IP，不是服务器的):0.0
+3.再查看状态xhost + ，状态为access control disabled,clients can...则说明可以连接了
+#若无xhost +命令，则可以使用root用户执行yum groupinstall "X Window System" -y进行安装</pre> 
+<p>#需要注意的是，该命令每执行一次，在我们系统/tmp路径下都会生成一个缓存文件，自己平时用虚拟机做实验的时候，可能因为某种原因导致执行了多次，你的硬盘容量就会不足了，这时候，可以进/tmp目录删除下</p> 
+<p></p> 
+<p class="img-center"><img alt="" height="380" src="https://images2.imgbox.com/20/1c/VsSG74hg_o.png" width="576"></p> 
+<p></p> 
+<p class="img-center"><img alt="" height="468" src="https://images2.imgbox.com/8d/e1/aOTIDTQg_o.png" width="576"></p> 
+<p></p> 
+<p class="img-center"><img alt="" height="468" src="https://images2.imgbox.com/08/ee/Oo7EwhZd_o.png" width="576"></p> 
+<p></p> 
+<p class="img-center"><img alt="" height="468" src="https://images2.imgbox.com/94/f3/A0xIP7t9_o.png" width="576"></p> 
+<p>#该警告是因为该Weblogic版本未认证该系统版本，在此我忽略它</p> 
+<p></p> 
+<p class="img-center"><img alt="" height="468" src="https://images2.imgbox.com/7a/7c/LY07HNad_o.png" width="576"></p> 
+<p></p> 
+<p class="img-center"><img alt="" height="468" src="https://images2.imgbox.com/b7/8d/BICUA2dS_o.png" width="576"></p> 
+<p class="img-center"><img alt="" height="168" src="https://images2.imgbox.com/d5/63/AUEHgnKa_o.png" width="475"></p> 
+<p></p> 
+<p class="img-center"><img alt="" height="468" src="https://images2.imgbox.com/ac/c8/pqYehysU_o.png" width="576"></p> 
+<p></p> 
+<p class="img-center"><img alt="" height="468" src="https://images2.imgbox.com/c0/7a/jZU4hG5x_o.png" width="576"></p> 
+<p>#勾选上就直接进入创建域，这里先不要进行勾选</p> 
+<p></p> 
+<p class="img-center"><img alt="" height="468" src="https://images2.imgbox.com/b4/50/bduKo2Qj_o.png" width="576"></p> 
+<h3>2.Weblogic域创建(192.168.36.138)</h3> 
+<p>#这里选用一台设备即可，这里我选用的是192.168.36.138设备</p> 
+<p>cd/home/weblogic/Oracle/Middleware/Oracle_Home/wlserver/common/bin</p> 
+<p>./config.sh</p> 
+<p>#存放域的路径，使用默认的即可</p> 
+<p></p> 
+<p class="img-center"><img alt="" height="435" src="https://images2.imgbox.com/62/17/dUwiKEmj_o.png" width="576"></p> 
+<p></p> 
+<p class="img-center"><img alt="" height="435" src="https://images2.imgbox.com/b0/11/WyrJ9kQj_o.png" width="576"></p> 
+<p>#此地方不能使用弱密码 </p> 
+<p></p> 
+<p class="img-center"><img alt="" height="435" src="https://images2.imgbox.com/35/57/z5Tsdwsw_o.png" width="576"></p> 
+<p></p> 
+<p class="img-center"><img alt="" height="435" src="https://images2.imgbox.com/db/6e/J1liavr1_o.png" width="576"></p> 
+<p> #在该设备上我们要创建管理控制台和受管理节点，所以这两项需要勾选上</p> 
+<p></p> 
+<p class="img-center"><img alt="" height="435" src="https://images2.imgbox.com/fc/c8/k0PNKWA6_o.png" width="576"></p> 
+<p>#此地方可以设置管理控制台的端口</p> 
+<p></p> 
+<p class="img-center"><img alt="" height="435" src="https://images2.imgbox.com/2c/e6/CHARlss1_o.png" width="576"></p> 
+<p>#输入刚才设置的密码</p> 
+<p></p> 
+<p class="img-center"><img alt="" height="435" src="https://images2.imgbox.com/b7/6e/jDcUXuhs_o.png" width="576"></p> 
+<p></p> 
+<p class="img-center"><img alt="" height="435" src="https://images2.imgbox.com/5d/11/ufLiraTU_o.png" width="576"></p> 
+<p></p> 
+<p class="img-center"><img alt="" height="435" src="https://images2.imgbox.com/86/c3/MQbhMX6y_o.png" width="576"></p> 
+<p></p> 
+<p class="img-center"><img alt="" height="435" src="https://images2.imgbox.com/7d/0a/HVvVot89_o.png" width="576"></p> 
+<h3><strong>3.创建weblogic管理控制台的用户密码文件</strong></h3> 
+<p>cd /home/weblogic/Oracle/Middleware/Oracle_Home/user_projects/domains/base_domain</p> 
+<p>mkdir -p servers/AdminServer/security</p> 
+<p>cd servers/AdminServer/security</p> 
+<p>vi boot.properties</p> 
+<table border="0" cellpadding="0" cellspacing="0"><tbody><tr><td> <p>1</p> <p>2</p> </td><td> <p><code>username=weblogic</code></p> <p><code>password=[之前设置好的Weblogic密码]</code></p> </td></tr></tbody></table> 
+<h3><strong>4.启动weblogic管理节点</strong></h3> 
+<p>cd /home/weblogic/Oracle/Middleware/Oracle_Home/user_projects/domains/base_domain/bin</p> 
+<p>nohup ./startWebLogic.sh &gt; nohup.out &amp;</p> 
+<p>#查看日志</p> 
+<p>tail -f nohup.out</p> 
+<p>#running状态即成功</p> 
+<p></p> 
+<p class="img-center"><img alt="" height="388" src="https://images2.imgbox.com/fd/42/PpLyOoPf_o.png" width="1072"></p> 
+<h3>5.登录管理控制台进行配置</h3> 
+<p>访问http://[管理控制台设备IP地址]:7001/console</p> 
+<p></p> 
+<p class="img-center"><img alt="" height="408" src="https://images2.imgbox.com/d3/1a/6Csqu9Yk_o.png" width="572"></p> 
+<h4>创建群集</h4> 
+<p>点击【锁定并编辑】<br> 选择【环境】-&gt;【集群】-&gt;【新建】-&gt;【集群】</p> 
+<p></p> 
+<p class="img-center"><img alt="" height="500" src="https://images2.imgbox.com/1a/8f/TiAIW3S0_o.png" width="576"></p> 
+<h4>创建计算机(Machine)</h4> 
+<p>选择【环境】-&gt;【计算机】-&gt;【新建】<br> 填写名称"Machine-0"，计算机操作系统"其他"，点击【下一步】</p> 
+<p><strong>#第一个受管理节点设备(192.168.36.138)</strong></p> 
+<p></p> 
+<p class="img-center"><img alt="" height="366" src="https://images2.imgbox.com/94/20/9Kg81IZg_o.png" width="576"></p> 
+<p></p> 
+<p class="img-center"><img alt="" height="500" src="https://images2.imgbox.com/73/ec/tJyquF9R_o.png" width="576"></p> 
+<p><strong>#第二个受管理节点设备(192.168.36.139)</strong></p> 
+<p></p> 
+<p class="img-center"><img alt="" height="364" src="https://images2.imgbox.com/11/52/G3qCueFs_o.png" width="576"></p> 
+<p></p> 
+<p class="img-center"><img alt="" height="507" src="https://images2.imgbox.com/12/a1/TkXGewJV_o.png" width="576"></p> 
+<p>#创建完成后的界面</p> 
+<p></p> 
+<p class="img-center"><img alt="" height="436" src="https://images2.imgbox.com/d8/d1/cgoKxkIv_o.png" width="576"></p> 
+<h4>新建服务器</h4> 
+<p>选择【环境】-&gt;【服务器】-&gt;【新建】</p> 
+<p>#可以把这个理解为节点的意思，这里因为我们规划的是两个受管理节点，所以建了一个node_1和一个node_2</p> 
+<p>#这里如果一台设备上要配置两个节点，就需要注意配置服务器监听地址和端口，我这里因为一台设备上只有一个node，所以可以不进行配置</p> 
+<p></p> 
+<p class="img-center"><img alt="" height="554" src="https://images2.imgbox.com/0c/da/TMv72L3C_o.png" width="576"></p> 
+<p></p> 
+<p class="img-center"><img alt="" height="555" src="https://images2.imgbox.com/42/73/SsZbUsJu_o.png" width="576"></p> 
+<h4>计算机Machine加入服务器(节点)中</h4> 
+<p>在【环境】-&gt;【服务器】页面，点击"node_1"，进入node_1配置页面</p> 
+<p></p> 
+<p class="img-center"><img alt="" height="450" src="https://images2.imgbox.com/8a/66/EhXKfKvn_o.png" width="576"></p> 
+<p>#将之前配置的计算机加入进去，node_1对应的第一台计算机192.168.36.138，集群归属于一个集群</p> 
+<p></p> 
+<p class="img-center"><img alt="" height="585" src="https://images2.imgbox.com/6c/03/Vp3r1khj_o.png" width="576"></p> 
+<p>在【环境】-&gt;【服务器】页面，点击"node_2"，进入node_2配置页面</p> 
+<p></p> 
+<p class="img-center"><img alt="" height="467" src="https://images2.imgbox.com/dd/fc/LDZWqoRV_o.png" width="576"></p> 
+<p>#将之前配置的计算机加入进去，node_2对应的第二台计算机192.168.36.139，集群归属于一个集群</p> 
+<p></p> 
+<p class="img-center"><img alt="" height="574" src="https://images2.imgbox.com/bb/31/BORK1fhA_o.png" width="576"></p> 
+<p>#配置完成后的界面</p> 
+<p></p> 
+<p class="img-center"><img alt="" height="467" src="https://images2.imgbox.com/91/f9/ouWZ1sKJ_o.png" width="576"></p> 
+<p>#激活更改</p> 
+<p></p> 
+<p class="img-center"><img alt="" height="145" src="https://images2.imgbox.com/ff/4b/8TI0pd0P_o.png" width="245"></p> 
+<h3>6.打包域拷贝(192.168.36.138)</h3> 
+<p>#运行如下命令，将域打包，注意managed=true表示打包成ManagedServer包</p> 
+<p>cd /home/weblogic/Oracle/Middleware/Oracle_Home/wlserver/common/bin</p> 
+<p>./pack.sh -domain=/home/weblogic/Oracle/Middleware/Oracle_Home/user_projects/domains/base_domain -template=/home/weblogic/base_domain.jar -managed=true -template_name=“DOMAIN”</p> 
+<p>#将打包后的base_domain.jar拷贝到另一个设备上(192.168.36.139) </p> 
+<p>scp -r base_domain.jar weblogic@192.168.36.139:/home/weblogic</p> 
+<h3><strong>7.解压域(192.168.36.139)</strong> </h3> 
+<p>cd /home/weblogic/Oracle/Middleware/Oracle_Home/wlserver/common/bin</p> 
+<p>./unpack.sh -domain=/home/weblogic/Oracle/Middleware/Oracle_Home/user_projects/domains/base_domain -template=/home/weblogic/base_domain.jar</p> 
+<h3><strong>8.配置节点的用户密码文件并启动node(所有节点)</strong></h3> 
+<p>#登录第一台设备(192.168.36.138)，若没有该目录手动创建即可</p> 
+<p>cd /home/weblogic/Oracle/Middleware/Oracle_Home/user_projects/domains/base_domain/servers/security/node_1</p> 
+<p>vi boot.properties</p> 
+<table border="0" cellpadding="0" cellspacing="0"><tbody><tr><td> <p>1</p> <p>2</p> </td><td> <p><code>username=weblogic</code></p> <p><code>password=[之前配置的weblogic密码]</code></p> </td></tr></tbody></table> 
+<p>cd /home/weblogic/Oracle/Middleware/Oracle_Home/user_projects/domains/base_domain/bin</p> 
+<p>nohup ./startManagedWebLogic.sh node_1 http://192.168.36.138:7001 &gt; node_1.log 2&gt;&amp;1 &amp;</p> 
+<p>#登录第二台设备(192.168.36.139)，若没有该目录手动创建即可</p> 
+<p>cd /home/weblogic/Oracle/Middleware/Oracle_Home/user_projects/domains/base_domain/servers/security/node_2</p> 
+<p>vi boot.properties</p> 
+<table border="0" cellpadding="0" cellspacing="0"><tbody><tr><td> <p>1</p> <p>2</p> </td><td> <p><code>username=weblogic</code></p> <p><code>password=[之前配置的weblogic密码]</code></p> </td></tr></tbody></table> 
+<p>nohup ./startManagedWebLogic.sh node_2 http://192.168.36.138:7001 &gt; node_2.log 2&gt;&amp;1 &amp;</p> 
+<p><strong>此时我们回到控制台查看，状态就都为running了</strong></p> 
+<p></p> 
+<p class="img-center"><img alt="" height="352" src="https://images2.imgbox.com/95/01/9CjlQXQG_o.png" width="1073"></p> 
+<hr> 
+<p><strong>至此，我们的weblogic集群就已经部署好了，我们就可以发布我们的应用了！</strong></p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/f50f45ba4e705d28ac8637754fefbb03/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">linux离线安装telnet</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/62390d4316706b98b8208cb71205a5ed/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">weblogic安装部署详解</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

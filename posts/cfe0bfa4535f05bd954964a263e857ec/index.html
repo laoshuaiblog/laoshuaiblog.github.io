@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>源码分析CompletableFuture使用默认线程池ForkJoinPool的弊端（cpu利用率低） - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/cfe0bfa4535f05bd954964a263e857ec/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="源码分析CompletableFuture使用默认线程池ForkJoinPool的弊端（cpu利用率低）">
+  <meta property="og:description" content="先说结论：
+假如有20CompletableFuture任务并发执行时，都使用默认线程池ForkJoinPool，但cpu的核心数又小于3，那么就会新建20个线程（不使用默认线程池了），这20个线程相互竞争cpu资源和内存，很多线程都在等待，浪费了大量的性能在线程上下文切换上。
+Brian Goetz在《Java并发编程实战》建议
+N threads = N CPU * U CPU * (1 &#43; W/C)
+N CPU 是处理器的核的数目，可以通过 Runtime.getRuntime().availableProce-
+ssors() 得到U CPU 是期望的CPU利用率（该值应该介于0和1之间）W/C是等待时间与计算时间的比率 线程池大小设定：核心数 * 期待利用率 *（1 &#43; 等待时间与计算时间的比率）
+如果服务是cpu密集型的，设置为电脑的核数如果服务是io密集型的，设置为电脑的核数*2 从runAsync方法点进去
+CompletableFuture&amp;lt;Void&amp;gt; voidCompletableFuture = CompletableFuture.runAsync(() -&amp;gt; { System.out.println(1); }); 可以看见使用的是asyncPool。点进asyncPool
+public static CompletableFuture&amp;lt;Void&amp;gt; runAsync(Runnable runnable) { return asyncRunStage(asyncPool, runnable); } useCommonPool是否为true决定了使用 ForkJoinPool线程池还是新建一个线程池。点进useCommonPool。
+private static final Executor asyncPool = useCommonPool ? ForkJoinPool.commonPool() : new ThreadPerTaskExecutor(); 这里判定的是ForkJoinPool common线程池中并行度级别是否大于1。点进 getCommonPoolParallelism() 方法">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2023-09-17T09:34:27+08:00">
+    <meta property="article:modified_time" content="2023-09-17T09:34:27+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">源码分析CompletableFuture使用默认线程池ForkJoinPool的弊端（cpu利用率低）</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-light">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <p><img src="https://images2.imgbox.com/d7/e9/y2XZ7jz3_o.png" alt="在这里插入图片描述"></p> 
+<p><strong>先说结论：</strong><br> 假如有20CompletableFuture任务并发执行时，都使用默认线程池ForkJoinPool，但cpu的核心数又小于3，那么就会新建20个线程（不使用默认线程池了），这20个线程相互竞争cpu资源和内存，很多线程都在等待，浪费了大量的性能在线程上下文切换上。</p> 
+<p>Brian Goetz在《Java并发编程实战》建议<br> N threads = N CPU * U CPU * (1 + W/C)</p> 
+<ul><li>N CPU 是处理器的核的数目，可以通过 Runtime.getRuntime().availableProce-<br> ssors() 得到</li><li>U CPU 是期望的CPU利用率（该值应该介于0和1之间）</li><li>W/C是等待时间与计算时间的比率</li></ul> 
+<p>线程池大小设定：核心数 * 期待利用率 *（1 + 等待时间与计算时间的比率）</p> 
+<ul><li>如果服务是cpu密集型的，设置为电脑的核数</li><li>如果服务是io密集型的，设置为电脑的核数*2</li></ul> 
+<p>从<code>runAsync</code>方法点进去</p> 
+<pre><code class="prism language-java">    <span class="token class-name">CompletableFuture</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Void</span><span class="token punctuation">&gt;</span></span> voidCompletableFuture <span class="token operator">=</span> <span class="token class-name">CompletableFuture</span><span class="token punctuation">.</span><span class="token function">runAsync</span><span class="token punctuation">(</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">-&gt;</span> <span class="token punctuation">{<!-- --></span>
+         <span class="token class-name">System</span><span class="token punctuation">.</span>out<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre> 
+<p>可以看见使用的是<code>asyncPool</code>。点进asyncPool</p> 
+<pre><code class="prism language-java">    <span class="token keyword">public</span> <span class="token keyword">static</span> <span class="token class-name">CompletableFuture</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Void</span><span class="token punctuation">&gt;</span></span> <span class="token function">runAsync</span><span class="token punctuation">(</span><span class="token class-name">Runnable</span> runnable<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">return</span> <span class="token function">asyncRunStage</span><span class="token punctuation">(</span>asyncPool<span class="token punctuation">,</span> runnable<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+</code></pre> 
+<p><code>useCommonPool</code>是否为true决定了使用 ForkJoinPool线程池还是新建一个线程池。点进useCommonPool。</p> 
+<pre><code class="prism language-java">    <span class="token keyword">private</span> <span class="token keyword">static</span> <span class="token keyword">final</span> <span class="token class-name">Executor</span> asyncPool <span class="token operator">=</span> useCommonPool <span class="token operator">?</span>
+        <span class="token class-name">ForkJoinPool</span><span class="token punctuation">.</span><span class="token function">commonPool</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">:</span> <span class="token keyword">new</span> <span class="token class-name">ThreadPerTaskExecutor</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre> 
+<p>这里判定的是ForkJoinPool common线程池中<strong>并行度级别</strong>是否大于1。点进 getCommonPoolParallelism() 方法</p> 
+<pre><code class="prism language-java">    <span class="token keyword">private</span> <span class="token keyword">static</span> <span class="token keyword">final</span> <span class="token keyword">boolean</span> useCommonPool <span class="token operator">=</span>
+        <span class="token punctuation">(</span><span class="token class-name">ForkJoinPool</span><span class="token punctuation">.</span><span class="token function">getCommonPoolParallelism</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">&gt;</span> <span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre> 
+<p>返回的是<code>commonParallelism</code>这个字段，再往下找。</p> 
+<pre><code class="prism language-java">    <span class="token keyword">public</span> <span class="token keyword">static</span> <span class="token keyword">int</span> <span class="token function">getCommonPoolParallelism</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">return</span> commonParallelism<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+</code></pre> 
+<p>发现只有一个地方对这个属性进行赋值，继续。</p> 
+<pre><code class="prism language-java">    <span class="token keyword">static</span> <span class="token keyword">final</span> <span class="token keyword">int</span> commonParallelism<span class="token punctuation">;</span>
+</code></pre> 
+<p><img src="https://images2.imgbox.com/d8/1e/Je9PVza8_o.png" alt="在这里插入图片描述"></p> 
+<p>发现commonParallelism 由par决定，par来自common.config SMASK做与运算。SMASK定义为0xffff（65535），common.config由 makeCommonPool()得到。点进makeCommonPool()方法</p> 
+<pre><code class="prism language-java"><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token keyword">static</span> <span class="token keyword">final</span> <span class="token class-name">ForkJoinPool</span> common<span class="token punctuation">;</span>
+<span class="token keyword">static</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    common <span class="token operator">=</span> <span class="token class-name"><span class="token namespace">java<span class="token punctuation">.</span>security<span class="token punctuation">.</span></span>AccessController</span><span class="token punctuation">.</span>doPrivileged
+      <span class="token punctuation">(</span><span class="token keyword">new</span> <span class="token class-name"><span class="token namespace">java<span class="token punctuation">.</span>security<span class="token punctuation">.</span></span>PrivilegedAction</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">ForkJoinPool</span><span class="token punctuation">&gt;</span></span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+          <span class="token keyword">public</span> <span class="token class-name">ForkJoinPool</span> <span class="token function">run</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token keyword">return</span> <span class="token function">makeCommonPool</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span> <span class="token comment">//common的config由此方法返回</span>
+          <span class="token punctuation">}</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">int</span> par <span class="token operator">=</span> common<span class="token punctuation">.</span>config <span class="token operator">&amp;</span> <span class="token constant">SMASK</span><span class="token punctuation">;</span> <span class="token comment">// report 1 even if threads disabled</span>
+    commonParallelism <span class="token operator">=</span> par <span class="token operator">&gt;</span> <span class="token number">0</span> <span class="token operator">?</span> par <span class="token operator">:</span> <span class="token number">1</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p><img src="https://images2.imgbox.com/4f/84/jvnEvmXX_o.png" alt="在这里插入图片描述"></p> 
+<p>我简化了下面源码，<code>parallelism </code>初始化为 -1，若jvm启动参数有java.util.concurrent.ForkJoinPool.common那么parallelism将会被启动参数指定。Runtime.getRuntime().availableProcessors() 是获取虚拟机可使用的处理器数量。<code>在jvm未定义参数的前提下，处理器数量若小于等于2，那么并行度parallelism就为1，反之则为 （处理器数量 - 1）</code>。定义了jvm参数，若参数值大于MAX_CAP（32767），则重新赋值。即parallelism 总会大于0， 继续点进ForkJoinPool的构造方法。</p> 
+<pre><code class="prism language-java">    <span class="token keyword">private</span> <span class="token keyword">static</span> <span class="token class-name">ForkJoinPool</span> <span class="token function">makeCommonPool</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+        <span class="token keyword">int</span> parallelism <span class="token operator">=</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">;</span>
+        <span class="token keyword">try</span> <span class="token punctuation">{<!-- --></span>  <span class="token comment">// ignore exceptions in accessing/parsing properties</span>
+            <span class="token class-name">String</span> pp <span class="token operator">=</span> <span class="token class-name">System</span><span class="token punctuation">.</span>getProperty
+                <span class="token punctuation">(</span><span class="token string">"java.util.concurrent.ForkJoinPool.common.parallelism"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span>pp <span class="token operator">!=</span> <span class="token keyword">null</span><span class="token punctuation">)</span>
+                parallelism <span class="token operator">=</span> <span class="token class-name">Integer</span><span class="token punctuation">.</span><span class="token function">parseInt</span><span class="token punctuation">(</span>pp<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span> <span class="token keyword">catch</span> <span class="token punctuation">(</span><span class="token class-name">Exception</span> ignore<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token punctuation">}</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>parallelism <span class="token operator">&lt;</span> <span class="token number">0</span> <span class="token operator">&amp;&amp;</span> <span class="token comment">// default 1 less than #cores</span>
+            <span class="token punctuation">(</span>parallelism <span class="token operator">=</span> <span class="token class-name">Runtime</span><span class="token punctuation">.</span><span class="token function">getRuntime</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">availableProcessors</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">-</span> <span class="token number">1</span><span class="token punctuation">)</span> <span class="token operator">&lt;=</span> <span class="token number">0</span><span class="token punctuation">)</span>
+            parallelism <span class="token operator">=</span> <span class="token number">1</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>parallelism <span class="token operator">&gt;</span> <span class="token constant">MAX_CAP</span><span class="token punctuation">)</span>
+            parallelism <span class="token operator">=</span> <span class="token constant">MAX_CAP</span><span class="token punctuation">;</span>
+        <span class="token keyword">return</span> <span class="token keyword">new</span> <span class="token class-name">ForkJoinPool</span><span class="token punctuation">(</span>parallelism<span class="token punctuation">,</span> factory<span class="token punctuation">,</span> handler<span class="token punctuation">,</span> <span class="token constant">LIFO_QUEUE</span><span class="token punctuation">,</span> <span class="token comment">// 注意 LIFO_QUEUE等于0 </span>
+                                <span class="token string">"ForkJoinPool.commonPool-worker-"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+</code></pre> 
+<p>发现config也是作位运算，即config也会大于0，我们拿到这个config返回开始 par 赋值那一块。</p> 
+<pre><code class="prism language-java">    <span class="token keyword">private</span> <span class="token class-name">ForkJoinPool</span><span class="token punctuation">(</span><span class="token keyword">int</span> parallelism<span class="token punctuation">,</span>
+                         <span class="token class-name">ForkJoinWorkerThreadFactory</span> factory<span class="token punctuation">,</span>
+                         <span class="token class-name">UncaughtExceptionHandler</span> handler<span class="token punctuation">,</span>
+                         <span class="token keyword">int</span> mode<span class="token punctuation">,</span>
+                         <span class="token class-name">String</span> workerNamePrefix<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">this</span><span class="token punctuation">.</span>workerNamePrefix <span class="token operator">=</span> workerNamePrefix<span class="token punctuation">;</span>
+        <span class="token keyword">this</span><span class="token punctuation">.</span>factory <span class="token operator">=</span> factory<span class="token punctuation">;</span>
+        <span class="token keyword">this</span><span class="token punctuation">.</span>ueh <span class="token operator">=</span> handler<span class="token punctuation">;</span>
+        <span class="token keyword">this</span><span class="token punctuation">.</span>config <span class="token operator">=</span> <span class="token punctuation">(</span>parallelism <span class="token operator">&amp;</span> <span class="token constant">SMASK</span><span class="token punctuation">)</span> <span class="token operator">|</span> mode<span class="token punctuation">;</span> <span class="token comment">// SMASK等于65535，mode等于0</span>
+        <span class="token keyword">long</span> np <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token keyword">long</span><span class="token punctuation">)</span><span class="token punctuation">(</span><span class="token operator">-</span>parallelism<span class="token punctuation">)</span><span class="token punctuation">;</span> <span class="token comment">// offset ctl counts</span>
+        <span class="token keyword">this</span><span class="token punctuation">.</span>ctl <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token punctuation">(</span>np <span class="token operator">&lt;&lt;</span> <span class="token constant">AC_SHIFT</span><span class="token punctuation">)</span> <span class="token operator">&amp;</span> <span class="token constant">AC_MASK</span><span class="token punctuation">)</span> <span class="token operator">|</span> <span class="token punctuation">(</span><span class="token punctuation">(</span>np <span class="token operator">&lt;&lt;</span> <span class="token constant">TC_SHIFT</span><span class="token punctuation">)</span> <span class="token operator">&amp;</span> <span class="token constant">TC_MASK</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+</code></pre> 
+<p>总结就是并行度 parallelism（大于0） 与 65535（111111…） 做两次与运算,即本身。继续回到之前</p> 
+<pre><code class="prism language-java"><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token keyword">static</span> <span class="token keyword">final</span> <span class="token class-name">ForkJoinPool</span> common<span class="token punctuation">;</span>
+<span class="token keyword">static</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    common <span class="token operator">=</span> <span class="token class-name"><span class="token namespace">java<span class="token punctuation">.</span>security<span class="token punctuation">.</span></span>AccessController</span><span class="token punctuation">.</span>doPrivileged
+      <span class="token punctuation">(</span><span class="token keyword">new</span> <span class="token class-name"><span class="token namespace">java<span class="token punctuation">.</span>security<span class="token punctuation">.</span></span>PrivilegedAction</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">ForkJoinPool</span><span class="token punctuation">&gt;</span></span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+          <span class="token keyword">public</span> <span class="token class-name">ForkJoinPool</span> <span class="token function">run</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token keyword">return</span> <span class="token function">makeCommonPool</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span> <span class="token comment">//common的config由此方法返回</span>
+          <span class="token punctuation">}</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">int</span> par <span class="token operator">=</span> common<span class="token punctuation">.</span>config <span class="token operator">&amp;</span> <span class="token constant">SMASK</span><span class="token punctuation">;</span> <span class="token comment">// report 1 even if threads disabled</span>
+    commonParallelism <span class="token operator">=</span> par <span class="token operator">&gt;</span> <span class="token number">0</span> <span class="token operator">?</span> par <span class="token operator">:</span> <span class="token number">1</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>这里判断，</p> 
+<ul><li>无JVM参数前提下： 
+  <ul><li>若服务器的核心数小于等于2，commonParallelism 则为1，即useCommonPool 为false，new 一个线程池。</li><li>若服务器的核心数大于2，commonParallelism 则为 核心数 - 1，即useCommonPool 为true，使用ForkJoinPool线程池。</li></ul> </li><li>有JVM参数，以设置参数为准。大于1小于等于32767。和上面判断一致。</li></ul> 
+<pre><code class="prism language-java">    <span class="token keyword">private</span> <span class="token keyword">static</span> <span class="token keyword">final</span> <span class="token class-name">Executor</span> asyncPool <span class="token operator">=</span> useCommonPool <span class="token operator">?</span>
+        <span class="token class-name">ForkJoinPool</span><span class="token punctuation">.</span><span class="token function">commonPool</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">:</span> <span class="token keyword">new</span> <span class="token class-name">ThreadPerTaskExecutor</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">private</span> <span class="token keyword">static</span> <span class="token keyword">final</span> <span class="token keyword">boolean</span> useCommonPool <span class="token operator">=</span>
+        <span class="token punctuation">(</span><span class="token class-name">ForkJoinPool</span><span class="token punctuation">.</span><span class="token function">getCommonPoolParallelism</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">&gt;</span> <span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        
+    <span class="token keyword">public</span> <span class="token keyword">static</span> <span class="token keyword">int</span> <span class="token function">getCommonPoolParallelism</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">return</span> commonParallelism<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+</code></pre> 
+<p>在ThreadPerTaskExecutor 中 <strong>execute</strong>，他会为每个任务新开一个线程，而不是采用ForkJoinPool中的线程。</p> 
+<pre><code class="prism language-java">    <span class="token keyword">static</span> <span class="token keyword">final</span> <span class="token keyword">class</span> <span class="token class-name">ThreadPerTaskExecutor</span> <span class="token keyword">implements</span> <span class="token class-name">Executor</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">execute</span><span class="token punctuation">(</span><span class="token class-name">Runnable</span> r<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span> <span class="token keyword">new</span> <span class="token class-name">Thread</span><span class="token punctuation">(</span>r<span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">start</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span> <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+</code></pre> 
+<p>结论：jvm启动参数中 java.util.concurrent.ForkJoinPool.common 的值为 <code>1</code>或者服务器核心数小于等于2，都会导致不采用ForkJoinPool 中的线程，而是新起一个线程。</p> 
+<p>如果服务器只有两核，假如业务需要：现在起了20个completablefuture任务，若使用默认线程池，那么就会创建20个线程，20个线程并发执行在两个cpu上竞争稀缺的处理器和内存资源，浪费大量的时间在上下文切换上。</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/dacbc0804c9c346ed70eeb1f5f49ce5e/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">Java项目开发：基于Java&#43;spingboot&#43;vue的墨客——校园投稿平台系统</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/1cc1d19f5df7052cfebabab7f32ceac6/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">vue处理后台返回的二进制流文件</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

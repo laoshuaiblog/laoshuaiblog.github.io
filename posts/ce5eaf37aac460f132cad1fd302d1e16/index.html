@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>多进程编程及相关函数 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/ce5eaf37aac460f132cad1fd302d1e16/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="多进程编程及相关函数">
+  <meta property="og:description" content="文章目录 查看系统中的进程进程标识进程创建进程终止僵尸进程守护进程和孤儿进程wait函数exec函数system函数 程序是存放在磁盘文件中的可执行文件。程序的执行实例被称为进程，进程具有独立的权限与职责。
+每个进程运行在其各自的虚拟地址空间中，进程之间可以通过由内核控制的机制相互通讯。如果系统中某个进程崩溃，它不会影响到其余的进程。
+每个Linux进程都一定有一个唯一的数字标识符，称为进程ID，PID(进程ID)总是一个非负整数。
+在进程的main函数执行之前内核会启动，编译器在编译的时候会将启动例程编译进可执行文件中。
+启动例程的作用：搜集命令行的参数传递给main函数中的argc和argv；搜集环境信息构建环境表并传递给main函数；登记进程的终止函数。
+查看系统中的进程 通过下面的命令就可以查看当前系统执行的进程。
+ps
+ps -ef
+ps -aux
+ps -ef | more
+当前系统执行的进程如下图所示。
+USER是指进程的属主；PID：进程ID号；PPID：父进程ID号；%CPU：进程占用的CPU百分比；%MEM：占用内存的百分比；VSZ：进程虚拟大小；RSS：驻留中页的数量；TTY：终端ID；STAT：进程的状态；START：启动进程的时间；TIME：进程消耗CPU的时间；COMMAND：命令的名称和参数。
+进程常见的状态：运行状态®、等待状态(S)、停止状态(T)、僵尸状态(Z)。僵尸状态指的是进程终止或结束，但是在进程表项中仍有记录。
+进程标识 获取进程相关标识的函数原型如下。
+#include &amp;lt;unistd.h&amp;gt; #include &amp;lt;sys/types.h&amp;gt; pid_t getpid(void); //获取当前进程ID uid_t getuid(void); //获得当前进程的实际用户ID uid_t geteuid(void); //获得当前进程的有效用户ID gid_t getgid(void); //获得当前进程的用户组ID pid_t getppid(void); //获得当前进程的父进程ID pid_t getpgrp(void); //获得当前进程所在的进程组ID pid_t getpgid(pid_t pid); //获得进程ID为pid的进程所在的进程组ID 关于进程标识相关的代码示例如下。
+#include &amp;lt;stdio.h&amp;gt; #include &amp;lt;unistd.h&amp;gt; int main() { printf(&#34;pid : %d\n&#34;,getpid()); printf(&#34;ppid : %d\n&#34;,getppid()); printf(&#34;uid : %d\n&#34;,getuid()); printf(&#34;euid : %d\n&#34;,geteuid()); printf(&#34;">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2024-03-25T16:52:15+08:00">
+    <meta property="article:modified_time" content="2024-03-25T16:52:15+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">多进程编程及相关函数</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-light">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <p></p> 
+<div class="toc"> 
+ <h4>文章目录</h4> 
+ <ul><li><a href="#_7" rel="nofollow">查看系统中的进程</a></li><li><a href="#_20" rel="nofollow">进程标识</a></li><li><a href="#_55" rel="nofollow">进程创建</a></li><li><a href="#_325" rel="nofollow">进程终止</a></li><li><a href="#_393" rel="nofollow">僵尸进程</a></li><li><a href="#_426" rel="nofollow">守护进程和孤儿进程</a></li><li><a href="#wait_466" rel="nofollow">wait函数</a></li><li><a href="#exec_567" rel="nofollow">exec函数</a></li><li><a href="#system_627" rel="nofollow">system函数</a></li></ul> 
+</div> 
+<p></p> 
+<p>程序是存放在磁盘文件中的可执行文件。程序的执行实例被称为进程，进程具有独立的权限与职责。<br> 每个进程运行在其各自的虚拟地址空间中，进程之间可以通过由内核控制的机制相互通讯。如果系统中某个进程崩溃，它不会影响到其余的进程。<br> 每个Linux进程都一定有一个唯一的数字标识符，称为进程ID，PID(进程ID)总是一个非负整数。<br> 在进程的main函数执行之前内核会启动，编译器在编译的时候会将启动例程编译进可执行文件中。<br> <strong>启动例程的作用</strong>：搜集命令行的参数传递给main函数中的argc和argv；搜集环境信息构建环境表并传递给main函数；登记进程的终止函数。</p> 
+<h2><a id="_7"></a>查看系统中的进程</h2> 
+<p>通过下面的命令就可以查看当前系统执行的进程。</p> 
+<blockquote> 
+ <p>ps<br> ps -ef<br> ps -aux<br> ps -ef | more</p> 
+</blockquote> 
+<p>当前系统执行的进程如下图所示。<br> <img src="https://images2.imgbox.com/d0/97/xqqtRGu5_o.png" alt="在这里插入图片描述"><br> USER是指进程的属主；PID：进程ID号；PPID：父进程ID号；%CPU：进程占用的CPU百分比；%MEM：占用内存的百分比；VSZ：进程虚拟大小；RSS：驻留中页的数量；TTY：终端ID；STAT：进程的状态；START：启动进程的时间；TIME：进程消耗CPU的时间；COMMAND：命令的名称和参数。<br> 进程常见的状态：运行状态®、等待状态(S)、停止状态(T)、僵尸状态(Z)。僵尸状态指的是进程终止或结束，但是在进程表项中仍有记录。</p> 
+<hr> 
+<h2><a id="_20"></a>进程标识</h2> 
+<p>获取进程相关标识的函数原型如下。</p> 
+<pre><code class="prism language-c"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;unistd.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;sys/types.h&gt;</span></span>
+<span class="token class-name">pid_t</span> <span class="token function">getpid</span><span class="token punctuation">(</span><span class="token keyword">void</span><span class="token punctuation">)</span><span class="token punctuation">;</span>   <span class="token comment">//获取当前进程ID</span>
+<span class="token class-name">uid_t</span> <span class="token function">getuid</span><span class="token punctuation">(</span><span class="token keyword">void</span><span class="token punctuation">)</span><span class="token punctuation">;</span>   <span class="token comment">//获得当前进程的实际用户ID</span>
+<span class="token class-name">uid_t</span> <span class="token function">geteuid</span><span class="token punctuation">(</span><span class="token keyword">void</span><span class="token punctuation">)</span><span class="token punctuation">;</span>   <span class="token comment">//获得当前进程的有效用户ID</span>
+<span class="token class-name">gid_t</span> <span class="token function">getgid</span><span class="token punctuation">(</span><span class="token keyword">void</span><span class="token punctuation">)</span><span class="token punctuation">;</span>   <span class="token comment">//获得当前进程的用户组ID</span>
+<span class="token class-name">pid_t</span> <span class="token function">getppid</span><span class="token punctuation">(</span><span class="token keyword">void</span><span class="token punctuation">)</span><span class="token punctuation">;</span>   <span class="token comment">//获得当前进程的父进程ID</span>
+<span class="token class-name">pid_t</span> <span class="token function">getpgrp</span><span class="token punctuation">(</span><span class="token keyword">void</span><span class="token punctuation">)</span><span class="token punctuation">;</span>   <span class="token comment">//获得当前进程所在的进程组ID</span>
+<span class="token class-name">pid_t</span> <span class="token function">getpgid</span><span class="token punctuation">(</span><span class="token class-name">pid_t</span> pid<span class="token punctuation">)</span><span class="token punctuation">;</span>  <span class="token comment">//获得进程ID为pid的进程所在的进程组ID</span>
+</code></pre> 
+<p>关于进程标识相关的代码示例如下。</p> 
+<pre><code class="prism language-c"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdio.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;unistd.h&gt;</span></span>
+
+<span class="token keyword">int</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token punctuation">{<!-- --></span>
+    <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"pid : %d\n"</span><span class="token punctuation">,</span><span class="token function">getpid</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"ppid : %d\n"</span><span class="token punctuation">,</span><span class="token function">getppid</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"uid : %d\n"</span><span class="token punctuation">,</span><span class="token function">getuid</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"euid : %d\n"</span><span class="token punctuation">,</span><span class="token function">geteuid</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"user gid : %d\n"</span><span class="token punctuation">,</span><span class="token function">getgid</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"gid : %d\n"</span><span class="token punctuation">,</span><span class="token function">getpgrp</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"pgid : %d\n"</span><span class="token punctuation">,</span><span class="token function">getpgid</span><span class="token punctuation">(</span><span class="token function">getpid</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"ppgid : %d\n"</span><span class="token punctuation">,</span><span class="token function">getpgid</span><span class="token punctuation">(</span><span class="token function">getppid</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>程序编译之后的执行结果如下图所示。<br> <img src="https://images2.imgbox.com/bf/88/St13mPfE_o.png" alt="在这里插入图片描述"></p> 
+<hr> 
+<h2><a id="_55"></a>进程创建</h2> 
+<p>进程创建使用的头文件及函数原型如下。</p> 
+<pre><code class="prism language-c"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;unistd.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;sys/types.h&gt;</span></span>
+<span class="token class-name">pid_t</span> <span class="token function">fork</span><span class="token punctuation">(</span><span class="token keyword">void</span><span class="token punctuation">)</span><span class="token punctuation">;</span> 
+<span class="token class-name">pid_t</span> <span class="token function">vfork</span><span class="token punctuation">(</span><span class="token keyword">void</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre> 
+<p>进程创建函数调用第一，返回两次，在子进程中返回值为0，在父进程中返回值是子进程的进程ID号。<br> 使用进程创建函数fork()创建子进程，父子进程哪个先运行根据系统调度决定，子进程会复制(继承)父进程的内存空间。<br> <strong>使用进程创建函数vfork()创建子进程，子进程先运行且不复制父进程的内存空间。</strong><br> 子进程继承父进程的属性包括：用户信息和权限、目录信息、信号信息、环境、共享存储段、资源限制、堆、栈和数据段，<strong>代码段是父子进程共享的</strong>。<br> 子进程的特有属性：进程ID、锁信息、运行时间、未决信号。<br> 操作文件时的内核结构变化：子进程只继承父进程的文件描述表，不继承但共享文件表项和i-node；父进程创建一个子进程后，文件表项中的引用计数器加1变成2，当父进程作close操作后，计数器减1，子进程还是可以使用文件表项，只有当计数器为0时才会释放文件表项。<br> 使用fork函数创建进程的代码示例如下。</p> 
+<pre><code class="prism language-c"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdio.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdlib.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;unistd.h&gt;</span></span>
+
+<span class="token keyword">int</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token punctuation">{<!-- --></span>
+    <span class="token class-name">pid_t</span> pid<span class="token punctuation">;</span>
+    <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"当前运行进程的ID : %d\n"</span><span class="token punctuation">,</span><span class="token function">getpid</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    pid <span class="token operator">=</span> <span class="token function">fork</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span><span class="token punctuation">(</span>pid <span class="token operator">&lt;</span> <span class="token number">0</span><span class="token punctuation">)</span>
+        <span class="token function">perror</span><span class="token punctuation">(</span><span class="token string">"Error!\n"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">else</span> <span class="token keyword">if</span><span class="token punctuation">(</span>pid <span class="token operator">==</span> <span class="token number">0</span><span class="token punctuation">)</span>
+        <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"子进程在运行！fork返回值：%d，当前进程ID：%d，父进程ID：%d\n"</span><span class="token punctuation">,</span>pid<span class="token punctuation">,</span><span class="token function">getpid</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span><span class="token function">getppid</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">else</span>
+        <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"父进程在运行！fork返回值：%d，当前进程ID：%d，父进程ID：%d\n"</span><span class="token punctuation">,</span>pid<span class="token punctuation">,</span><span class="token function">getpid</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span><span class="token function">getppid</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"当前运行进程的ID : %d\n"</span><span class="token punctuation">,</span><span class="token function">getpid</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">sleep</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>上面程序编译后运行结果如下图所示。<br> <img src="https://images2.imgbox.com/75/b8/sl4Ncljt_o.png" alt="在这里插入图片描述"><br> 可以清楚的看到，在进程创建完毕后，系统中就有了两个进程，一句打印输出的代码被父子进程各执行了一次！<br> 父进程和通过fork()函数创建出的子进程有相同的虚拟空间，但是却有各自的物理空间！<br> <img src="https://images2.imgbox.com/d4/7f/d31qHWYK_o.png" alt="在这里插入图片描述"><br> 下面的例子就能够说明这一点。</p> 
+<pre><code class="prism language-c"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdio.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdlib.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;unistd.h&gt;</span></span>
+
+<span class="token keyword">int</span> global_v <span class="token operator">=</span> <span class="token number">10</span><span class="token punctuation">;</span>
+<span class="token keyword">int</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">int</span> area_v <span class="token operator">=</span> <span class="token number">10</span><span class="token punctuation">;</span>
+    <span class="token keyword">static</span> <span class="token keyword">int</span> static_v <span class="token operator">=</span> <span class="token number">10</span><span class="token punctuation">;</span>
+    <span class="token class-name">pid_t</span> pid<span class="token punctuation">;</span>
+    <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"当前运行进程的ID : %d\n"</span><span class="token punctuation">,</span><span class="token function">getpid</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    pid <span class="token operator">=</span> <span class="token function">fork</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span><span class="token punctuation">(</span>pid <span class="token operator">&lt;</span> <span class="token number">0</span><span class="token punctuation">)</span>
+        <span class="token function">perror</span><span class="token punctuation">(</span><span class="token string">"Error!\n"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">else</span> <span class="token keyword">if</span><span class="token punctuation">(</span>pid <span class="token operator">==</span> <span class="token number">0</span><span class="token punctuation">)</span>
+    <span class="token punctuation">{<!-- --></span>
+        global_v <span class="token operator">=</span> <span class="token number">20</span><span class="token punctuation">;</span>
+        area_v <span class="token operator">=</span> <span class="token number">20</span><span class="token punctuation">;</span>
+        static_v <span class="token operator">=</span> <span class="token number">20</span><span class="token punctuation">;</span>
+        <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"子进程中，global_v地址：%p area_v地址：%p static_v地址：%p\n"</span><span class="token punctuation">,</span><span class="token operator">&amp;</span>global_v<span class="token punctuation">,</span><span class="token operator">&amp;</span>area_v<span class="token punctuation">,</span><span class="token operator">&amp;</span>static_v<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"子进程在运行！fork返回值：%d，当前进程ID：%d，父进程ID：%d\n"</span><span class="token punctuation">,</span>pid<span class="token punctuation">,</span><span class="token function">getpid</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span><span class="token function">getppid</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token keyword">else</span>
+    <span class="token punctuation">{<!-- --></span>
+        global_v <span class="token operator">=</span> <span class="token number">30</span><span class="token punctuation">;</span>
+        area_v <span class="token operator">=</span> <span class="token number">30</span><span class="token punctuation">;</span>
+        static_v <span class="token operator">=</span> <span class="token number">30</span><span class="token punctuation">;</span>
+        <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"父进程中，global_v地址：%p area_v地址：%p static_v地址：%p\n"</span><span class="token punctuation">,</span><span class="token operator">&amp;</span>global_v<span class="token punctuation">,</span><span class="token operator">&amp;</span>area_v<span class="token punctuation">,</span><span class="token operator">&amp;</span>static_v<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"父进程在运行！fork返回值：%d，当前进程ID：%d，父进程ID：%d\n"</span><span class="token punctuation">,</span>pid<span class="token punctuation">,</span><span class="token function">getpid</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span><span class="token function">getppid</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"当前运行进程的ID : %d, global_v = %d, area_v = %d, static_v = %d\n"</span><span class="token punctuation">,</span><span class="token function">getpid</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span>global_v<span class="token punctuation">,</span>area_v<span class="token punctuation">,</span>static_v<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>程序编译后的运行结果如下图所示。<br> <img src="https://images2.imgbox.com/0c/c0/F7y2Sev9_o.png" alt="在这里插入图片描述"><br> 可以看到，在父子进程中打印的变量地址是一样的（这里打印的变量地址是虚拟地址，并非物理地址），但是里面存放的值却是不一样的，这说明父子进程有相同的虚拟空间，却各自映射了独立的物理空间。<br> 关于虚拟空间和物理空间，下面是一个例子。</p> 
+<pre><code class="prism language-c"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdio.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdlib.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;unistd.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;string.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;fcntl.h&gt;</span></span>
+
+<span class="token keyword">int</span> global_v <span class="token operator">=</span> <span class="token number">10</span><span class="token punctuation">;</span>
+<span class="token keyword">int</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">int</span> area_v <span class="token operator">=</span> <span class="token number">10</span><span class="token punctuation">;</span>
+    <span class="token keyword">static</span> <span class="token keyword">int</span> static_v <span class="token operator">=</span> <span class="token number">10</span><span class="token punctuation">;</span>
+    <span class="token class-name">pid_t</span> pid<span class="token punctuation">;</span>
+    FILE <span class="token operator">*</span>fp <span class="token operator">=</span> <span class="token function">fopen</span><span class="token punctuation">(</span><span class="token string">"a.txt"</span><span class="token punctuation">,</span><span class="token string">"w"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>   <span class="token comment">//带缓存</span>
+    <span class="token keyword">int</span> fd <span class="token operator">=</span> <span class="token function">open</span><span class="token punctuation">(</span><span class="token string">"b.txt"</span><span class="token punctuation">,</span>O_WRONLY<span class="token operator">|</span>O_CREAT<span class="token operator">|</span>O_TRUNC<span class="token punctuation">,</span>S_IRWXU<span class="token operator">|</span>S_IRWXG<span class="token punctuation">)</span><span class="token punctuation">;</span>  <span class="token comment">//不带缓存</span>
+    <span class="token keyword">char</span> <span class="token operator">*</span>s <span class="token operator">=</span> <span class="token string">"helloworld！"</span><span class="token punctuation">;</span>
+    <span class="token class-name">ssize_t</span> size <span class="token operator">=</span> <span class="token function">strlen</span><span class="token punctuation">(</span>s<span class="token punctuation">)</span><span class="token operator">*</span><span class="token keyword">sizeof</span><span class="token punctuation">(</span><span class="token keyword">char</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">fprintf</span><span class="token punctuation">(</span>fp<span class="token punctuation">,</span><span class="token string">"字符串s : %s   pid : %d\n"</span><span class="token punctuation">,</span>s<span class="token punctuation">,</span><span class="token function">getpid</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>   <span class="token comment">//标准IO函数，带缓存，先写入缓存，再写入文件</span>
+    <span class="token function">write</span><span class="token punctuation">(</span>fd<span class="token punctuation">,</span>s<span class="token punctuation">,</span>size<span class="token punctuation">)</span><span class="token punctuation">;</span>   <span class="token comment">//内核提供的IO系统调用，不带缓存，直接写入文件</span>
+    pid <span class="token operator">=</span> <span class="token function">fork</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span><span class="token punctuation">(</span>pid <span class="token operator">&lt;</span> <span class="token number">0</span><span class="token punctuation">)</span>
+        <span class="token function">perror</span><span class="token punctuation">(</span><span class="token string">"Error!\n"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">else</span> <span class="token keyword">if</span><span class="token punctuation">(</span>pid <span class="token operator">==</span> <span class="token number">0</span><span class="token punctuation">)</span>
+    <span class="token punctuation">{<!-- --></span>
+        global_v <span class="token operator">=</span> <span class="token number">20</span><span class="token punctuation">;</span>
+        area_v <span class="token operator">=</span> <span class="token number">20</span><span class="token punctuation">;</span>
+        static_v <span class="token operator">=</span> <span class="token number">20</span><span class="token punctuation">;</span>
+        <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"子进程在运行！fork返回值：%d，当前进程ID：%d，父进程ID：%d\n"</span><span class="token punctuation">,</span>pid<span class="token punctuation">,</span><span class="token function">getpid</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span><span class="token function">getppid</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token keyword">else</span>
+    <span class="token punctuation">{<!-- --></span>
+        global_v <span class="token operator">=</span> <span class="token number">30</span><span class="token punctuation">;</span>
+        area_v <span class="token operator">=</span> <span class="token number">30</span><span class="token punctuation">;</span>
+        static_v <span class="token operator">=</span> <span class="token number">30</span><span class="token punctuation">;</span>
+        <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"父进程在运行！fork返回值：%d，当前进程ID：%d，父进程ID：%d\n"</span><span class="token punctuation">,</span>pid<span class="token punctuation">,</span><span class="token function">getpid</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span><span class="token function">getppid</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token function">fprintf</span><span class="token punctuation">(</span>fp<span class="token punctuation">,</span><span class="token string">"当前运行进程的ID : %d, global_v = %d, area_v = %d, static_v = %d\n"</span><span class="token punctuation">,</span><span class="token function">getpid</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span>global_v<span class="token punctuation">,</span>area_v<span class="token punctuation">,</span>static_v<span class="token punctuation">)</span><span class="token punctuation">;</span>  
+    <span class="token comment">//写入父子进程各自的缓存中，然后清缓存并写入文件中</span>
+    <span class="token function">fclose</span><span class="token punctuation">(</span>fp<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">close</span><span class="token punctuation">(</span>fd<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>程序编译后的执行结果如下图所示。<br> <img src="https://images2.imgbox.com/02/23/EIfPwVoG_o.png" alt="在这里插入图片描述"><br> fork()生成的子进程会将父进程中的缓存复制一份，就像上面图中划线的两行，内容是完全相同的，此后，父子进程再写入缓存中各自的部分，最后一起写入一个文件中。系统调用是没有缓存的，内容是直接写入文件的。<br> 子进程会继承父进程的文件描述符，下面是父进程将文件偏移量移动到文件尾，再由子进程来追加信息的例子。</p> 
+<pre><code class="prism language-c"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdio.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdlib.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;unistd.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;string.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;fcntl.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;sys/types.h&gt;</span></span>
+
+<span class="token keyword">int</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token keyword">int</span> argc<span class="token punctuation">,</span><span class="token keyword">char</span> <span class="token operator">*</span>argv<span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token punctuation">)</span>
+<span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">if</span><span class="token punctuation">(</span>argc <span class="token operator">&lt;</span> <span class="token number">2</span><span class="token punctuation">)</span>
+    <span class="token punctuation">{<!-- --></span>
+        <span class="token function">fprintf</span><span class="token punctuation">(</span><span class="token constant">stderr</span><span class="token punctuation">,</span><span class="token string">"usage : %s filename\n"</span><span class="token punctuation">,</span>argv<span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">exit</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token keyword">int</span> fd <span class="token operator">=</span> <span class="token function">open</span><span class="token punctuation">(</span>argv<span class="token punctuation">[</span><span class="token number">1</span><span class="token punctuation">]</span><span class="token punctuation">,</span>O_WRONLY<span class="token operator">|</span>O_CREAT<span class="token operator">|</span>O_TRUNC<span class="token punctuation">,</span>S_IRWXU<span class="token operator">|</span>S_IRWXG<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span><span class="token punctuation">(</span>fd <span class="token operator">&lt;</span> <span class="token number">2</span><span class="token punctuation">)</span>
+    <span class="token punctuation">{<!-- --></span>
+        <span class="token function">perror</span><span class="token punctuation">(</span><span class="token string">"open error"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">exit</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token class-name">pid_t</span> pid <span class="token operator">=</span> <span class="token function">fork</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span><span class="token punctuation">(</span>pid <span class="token operator">&lt;</span> <span class="token number">0</span><span class="token punctuation">)</span>
+        <span class="token function">perror</span><span class="token punctuation">(</span><span class="token string">"fork error"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">else</span> <span class="token keyword">if</span><span class="token punctuation">(</span>pid <span class="token operator">&gt;</span> <span class="token number">0</span><span class="token punctuation">)</span>
+    <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">char</span> <span class="token operator">*</span>s <span class="token operator">=</span> <span class="token string">"Parent process input!\n"</span><span class="token punctuation">;</span>
+        <span class="token class-name">ssize_t</span> size <span class="token operator">=</span> <span class="token function">strlen</span><span class="token punctuation">(</span>s<span class="token punctuation">)</span><span class="token operator">*</span><span class="token keyword">sizeof</span><span class="token punctuation">(</span><span class="token keyword">char</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span><span class="token punctuation">(</span><span class="token function">write</span><span class="token punctuation">(</span>fd<span class="token punctuation">,</span>s<span class="token punctuation">,</span>size<span class="token punctuation">)</span> <span class="token operator">!=</span> size<span class="token punctuation">)</span>
+        <span class="token punctuation">{<!-- --></span>
+            <span class="token function">perror</span><span class="token punctuation">(</span><span class="token string">"write error"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>   
+            <span class="token function">exit</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span> 
+        <span class="token punctuation">}</span>
+        <span class="token keyword">else</span>
+            <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"Parent process write success!\n"</span><span class="token punctuation">)</span><span class="token punctuation">;</span> 
+        <span class="token keyword">if</span><span class="token punctuation">(</span><span class="token function">lseek</span><span class="token punctuation">(</span>fd<span class="token punctuation">,</span><span class="token number">0</span><span class="token punctuation">,</span><span class="token constant">SEEK_END</span><span class="token punctuation">)</span><span class="token operator">&lt;</span><span class="token number">0</span><span class="token punctuation">)</span>   <span class="token comment">//将文件偏移量移动到文件尾</span>
+        <span class="token punctuation">{<!-- --></span>
+            <span class="token function">perror</span><span class="token punctuation">(</span><span class="token string">"lseek error"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token function">exit</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>  
+        <span class="token keyword">else</span>
+            <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"Parent process lseek success!\n"</span><span class="token punctuation">)</span><span class="token punctuation">;</span> 
+    <span class="token punctuation">}</span>
+    <span class="token keyword">else</span>
+    <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">char</span> <span class="token operator">*</span>s <span class="token operator">=</span> <span class="token string">"Child process input!\n"</span><span class="token punctuation">;</span>
+        <span class="token class-name">ssize_t</span> size <span class="token operator">=</span> <span class="token function">strlen</span><span class="token punctuation">(</span>s<span class="token punctuation">)</span><span class="token operator">*</span><span class="token keyword">sizeof</span><span class="token punctuation">(</span><span class="token keyword">char</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">sleep</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>   <span class="token comment">//等待父进程调节偏移量</span>
+        <span class="token keyword">if</span><span class="token punctuation">(</span><span class="token function">write</span><span class="token punctuation">(</span>fd<span class="token punctuation">,</span>s<span class="token punctuation">,</span>size<span class="token punctuation">)</span> <span class="token operator">!=</span> size<span class="token punctuation">)</span>   <span class="token comment">//fd是从父进程中复制来的，指向同一个文件</span>
+        <span class="token punctuation">{<!-- --></span>
+            <span class="token function">perror</span><span class="token punctuation">(</span><span class="token string">"write error"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>   
+            <span class="token function">exit</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span> 
+        <span class="token punctuation">}</span>
+        <span class="token keyword">else</span>
+            <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"Child process write success!\n"</span><span class="token punctuation">)</span><span class="token punctuation">;</span> 
+    <span class="token punctuation">}</span>
+    <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"current pid : %d\n"</span><span class="token punctuation">,</span><span class="token function">getpid</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">sleep</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>   <span class="token comment">//等待子进程写入完毕</span>
+    <span class="token function">close</span><span class="token punctuation">(</span>fd<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>上面程序编译后的执行结果如下图所示。<br> <img src="https://images2.imgbox.com/b9/b4/eFaVmM0t_o.png" alt="在这里插入图片描述"><br> 通过上面程序的运行结果可以看到，子进程在父进程写入的文件中追加了部分信息。<br> 在程序中使用多个fork()函数的代码示例如下。</p> 
+<pre><code class="prism language-c"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdio.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdlib.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;unistd.h&gt;</span></span>
+
+<span class="token keyword">int</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token punctuation">{<!-- --></span>
+    <span class="token class-name">pid_t</span> pid <span class="token operator">=</span> <span class="token function">fork</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span><span class="token punctuation">(</span>pid <span class="token operator">&lt;</span> <span class="token number">0</span><span class="token punctuation">)</span>
+        <span class="token function">perror</span><span class="token punctuation">(</span><span class="token string">"fork error"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">else</span>
+    <span class="token punctuation">{<!-- --></span>
+        pid <span class="token operator">=</span> <span class="token function">fork</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span><span class="token punctuation">(</span>pid <span class="token operator">&lt;</span> <span class="token number">0</span><span class="token punctuation">)</span>
+            <span class="token function">perror</span><span class="token punctuation">(</span><span class="token string">"fork error"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">else</span>
+        <span class="token punctuation">{<!-- --></span>
+            pid <span class="token operator">=</span> <span class="token function">fork</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token keyword">if</span><span class="token punctuation">(</span>pid <span class="token operator">&lt;</span> <span class="token number">0</span><span class="token punctuation">)</span>
+                <span class="token function">perror</span><span class="token punctuation">(</span><span class="token string">"fork error"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+    <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"current pid : %d\n"</span><span class="token punctuation">,</span><span class="token function">getpid</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">sleep</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>产生的进程数是以2为底数增长的，代码中使用了几个fork()函数，产生的进程数就是2的几次方。<br> <strong>进程链和进程扇</strong><br> 进程链是指父进程创建子进程，子进程再创建子进程这样的链式结构，每个进程只有向下的一个分支；进程扇指的是一个父进程创建多个子进程，只有父进程有多个分支。<br> <img src="https://images2.imgbox.com/5d/dd/j10i1k5B_o.png" alt="在这里插入图片描述"><br> 进程链的代码示例如下。</p> 
+<pre><code class="prism language-c"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdio.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdlib.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;unistd.h&gt;</span></span>
+
+<span class="token keyword">int</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token keyword">int</span> argc<span class="token punctuation">,</span><span class="token keyword">char</span><span class="token operator">*</span> argv<span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token punctuation">)</span>
+<span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">int</span> num <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span><span class="token punctuation">(</span>argc <span class="token operator">&lt;</span> <span class="token number">2</span><span class="token punctuation">)</span>
+    <span class="token punctuation">{<!-- --></span>
+        <span class="token function">fprintf</span><span class="token punctuation">(</span><span class="token constant">stderr</span><span class="token punctuation">,</span><span class="token string">"usage : %s number\n"</span><span class="token punctuation">,</span>argv<span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">exit</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token keyword">else</span>
+    <span class="token punctuation">{<!-- --></span>
+        num <span class="token operator">=</span> <span class="token function">atoi</span><span class="token punctuation">(</span>argv<span class="token punctuation">[</span><span class="token number">1</span><span class="token punctuation">]</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span><span class="token punctuation">(</span>num <span class="token operator">&lt;</span> <span class="token number">2</span><span class="token punctuation">)</span>
+            num <span class="token operator">=</span> <span class="token number">2</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    
+    <span class="token class-name">pid_t</span> pid<span class="token punctuation">;</span>
+    <span class="token keyword">for</span><span class="token punctuation">(</span><span class="token keyword">int</span> i<span class="token operator">=</span><span class="token number">1</span><span class="token punctuation">;</span>i<span class="token operator">&lt;</span>num<span class="token punctuation">;</span>i<span class="token operator">++</span><span class="token punctuation">)</span>
+    <span class="token punctuation">{<!-- --></span>
+        pid <span class="token operator">=</span> <span class="token function">fork</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span><span class="token punctuation">(</span>pid <span class="token operator">&lt;</span> <span class="token number">0</span><span class="token punctuation">)</span>
+        <span class="token punctuation">{<!-- --></span>
+            <span class="token function">perror</span><span class="token punctuation">(</span><span class="token string">"fork error"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token function">exit</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        <span class="token keyword">else</span> <span class="token keyword">if</span><span class="token punctuation">(</span>pid <span class="token operator">&gt;</span> <span class="token number">0</span><span class="token punctuation">)</span>
+            <span class="token keyword">break</span><span class="token punctuation">;</span>    <span class="token comment">//父进程退出循环</span>
+        <span class="token comment">//子进程就接着执行循环</span>
+    <span class="token punctuation">}</span>
+    <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"pid : %d   ppid : %d \n"</span><span class="token punctuation">,</span><span class="token function">getpid</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span><span class="token function">getppid</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">sleep</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>   <span class="token comment">//等待所有进程打印完毕</span>
+    <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>上面程序编译后的执行结果如下图所示。<br> <img src="https://images2.imgbox.com/c6/da/1mSRAtKv_o.png" alt="在这里插入图片描述"><br> 关于进程扇的执行结果如下，代码只需要在进程链代码的基础上将父进程退出循环改为子进程退出循环即可。<br> <img src="https://images2.imgbox.com/d5/83/IgnIULl7_o.png" alt="在这里插入图片描述"></p> 
+<hr> 
+<h2><a id="_325"></a>进程终止</h2> 
+<p>进程终止分为正常终止、异常终止和进程返回。<br> <strong>正常终止</strong>：从main函数返回；调用exit(标准C库函数)；调用_exit或_Exit(系统调用)；最后一个线程从其启动例程返回；最后一个线程调用pthread_exit。<br> <strong>异常终止</strong>：调用abort；接收到一个信号并终止；最后一个线程对取消请求做处理响应。<br> <strong>进程返回</strong>：通常程序运行成功返回0，否则返回非0；在shell中可以查看进程的返回值。<br> 每个启动的进程都默认登记了一个标准的终止函数，终止函数在进程终止时释放进程所占用的一些资源，<strong>登记的多个终止函数执行顺序是以栈的方式执行，先登记的后执行</strong>。</p> 
+<pre><code class="prism language-c"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdlib.h&gt;</span></span>
+<span class="token keyword">int</span> <span class="token function">atexit</span><span class="token punctuation">(</span><span class="token keyword">void</span> <span class="token punctuation">(</span><span class="token operator">*</span><span class="token function">function</span><span class="token punctuation">(</span><span class="token keyword">void</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>   <span class="token comment">//向内核登记终止函数，成功返回0，出错返回-1</span>
+</code></pre> 
+<p>进程终止的简单代码示例如下。</p> 
+<pre><code class="prism language-c"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdio.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdlib.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;unistd.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;string.h&gt;</span></span>
+
+<span class="token comment">//定义进程的终止函数</span>
+<span class="token keyword">void</span> <span class="token function">term_fun1</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token punctuation">{<!-- --></span>
+    <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"This is the first terminal function!\n"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">void</span> <span class="token function">term_fun2</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token punctuation">{<!-- --></span>
+    <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"This is the second terminal function!\n"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">void</span> <span class="token function">term_fun3</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token punctuation">{<!-- --></span>
+    <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"This is the third terminal function!\n"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">int</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token keyword">int</span> argc<span class="token punctuation">,</span><span class="token keyword">char</span> <span class="token operator">*</span>argv<span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token punctuation">)</span>
+<span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">if</span><span class="token punctuation">(</span>argc <span class="token operator">&lt;</span> <span class="token number">3</span><span class="token punctuation">)</span>
+    <span class="token punctuation">{<!-- --></span>
+        <span class="token function">fprintf</span><span class="token punctuation">(</span><span class="token constant">stderr</span><span class="token punctuation">,</span><span class="token string">"usage: %s filename exit or _exit or return\n"</span><span class="token punctuation">,</span>argv<span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">exit</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token comment">//向内核登记终止函数</span>
+    <span class="token function">atexit</span><span class="token punctuation">(</span>term_fun1<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">atexit</span><span class="token punctuation">(</span>term_fun2<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">atexit</span><span class="token punctuation">(</span>term_fun3<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    FILE <span class="token operator">*</span>fp <span class="token operator">=</span> <span class="token function">fopen</span><span class="token punctuation">(</span>argv<span class="token punctuation">[</span><span class="token number">1</span><span class="token punctuation">]</span><span class="token punctuation">,</span><span class="token string">"w"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">fprintf</span><span class="token punctuation">(</span>fp<span class="token punctuation">,</span><span class="token string">"hello world!\n"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>     <span class="token comment">//写入文件</span>
+    <span class="token keyword">if</span><span class="token punctuation">(</span><span class="token operator">!</span><span class="token function">strcmp</span><span class="token punctuation">(</span>argv<span class="token punctuation">[</span><span class="token number">2</span><span class="token punctuation">]</span><span class="token punctuation">,</span><span class="token string">"exit"</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+        <span class="token function">exit</span><span class="token punctuation">(</span><span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">;</span>   <span class="token comment">//标准C库函数</span>
+    <span class="token keyword">else</span> <span class="token keyword">if</span><span class="token punctuation">(</span><span class="token operator">!</span><span class="token function">strcmp</span><span class="token punctuation">(</span>argv<span class="token punctuation">[</span><span class="token number">2</span><span class="token punctuation">]</span><span class="token punctuation">,</span><span class="token string">"_exit"</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+        <span class="token function">_exit</span><span class="token punctuation">(</span><span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">;</span>  <span class="token comment">//系统调用</span>
+    <span class="token keyword">else</span> <span class="token keyword">if</span><span class="token punctuation">(</span><span class="token operator">!</span><span class="token function">strcmp</span><span class="token punctuation">(</span>argv<span class="token punctuation">[</span><span class="token number">2</span><span class="token punctuation">]</span><span class="token punctuation">,</span><span class="token string">"return"</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+        <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+    <span class="token keyword">else</span>
+       <span class="token function">fprintf</span><span class="token punctuation">(</span><span class="token constant">stderr</span><span class="token punctuation">,</span><span class="token string">"usage: %s filename exit or _exit or return\n"</span><span class="token punctuation">,</span>argv<span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">exit</span><span class="token punctuation">(</span><span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>程序编译后的执行结果如下图所示。<br> <img src="https://images2.imgbox.com/1c/f0/zTrbkZqe_o.png" alt="在这里插入图片描述"><br> 可以看到，终止函数确实是按照栈的方式执行的，先登记的后执行，后登记的先执行。<br> 通过上面的执行结果也可以发现return、exit和系统调用_exit/_Exit的区别。</p> 
+<table><thead><tr><th></th><th>return</th><th>exit()</th><th>_exit() / _Exit()</th></tr></thead><tbody><tr><td>是否刷新标准I/O缓存</td><td>是</td><td>是</td><td>否</td></tr><tr><td>是否自动调用终止函数</td><td>是</td><td>是</td><td>否</td></tr></tbody></table> 
+<hr> 
+<h2><a id="_393"></a>僵尸进程</h2> 
+<p>子进程结束但是没有完全释放内存，该进程就称为僵尸进程(zombie)。僵尸进程父进程结束后，该僵尸进程就会被init进程领养，最终被系统回收。<br> <strong>避免僵尸进程的方法</strong>：让僵尸进程的父进程来回收，父进程每隔一段时间来查询子进程是否结束并回收，调用wait()或者waitpid()，通知内核释放僵尸进程；采用信号SIGCHLD通知处理，并在信号处理程序中调用wait函数；让僵尸进程成为孤儿进程，由init进程回收。<br> 关于僵尸进程的使用例子如下。</p> 
+<pre><code class="prism language-c"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdio.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdlib.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;unistd.h&gt;</span></span>
+
+<span class="token keyword">int</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token punctuation">{<!-- --></span>
+    <span class="token class-name">pid_t</span> pid <span class="token operator">=</span> <span class="token function">fork</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span><span class="token punctuation">(</span>pid <span class="token operator">&lt;</span> <span class="token number">0</span><span class="token punctuation">)</span>
+        <span class="token function">perror</span><span class="token punctuation">(</span><span class="token string">"fork error"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">else</span> <span class="token keyword">if</span><span class="token punctuation">(</span>pid <span class="token operator">==</span> <span class="token number">0</span><span class="token punctuation">)</span>
+    <span class="token punctuation">{<!-- --></span>
+        <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"pid : %d  ppid : %d\n"</span><span class="token punctuation">,</span><span class="token function">getpid</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span><span class="token function">getppid</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>  <span class="token comment">//子进程结束成为僵尸进程  </span>
+        <span class="token comment">//使用exit(0)结束也可以</span>
+    <span class="token punctuation">}</span> 
+    <span class="token keyword">while</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span>
+    <span class="token punctuation">{<!-- --></span>
+         <span class="token function">sleep</span><span class="token punctuation">(</span><span class="token number">5</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>程序运行后再开一个终端，使用命令查看当前的进程，可以看到，子进程退出后由于没有释放内存，变为了僵尸进程。<br> <img src="https://images2.imgbox.com/88/97/dYa10p2H_o.png" alt="在这里插入图片描述"><br> 也可以让程序在后台运行，只需要在命令的结尾加上&amp;符号即可，然后使用kill -9命令杀死僵尸进程的父进程，再使用ps命令查看当前的进程信息，僵尸进程就不存在了。<br> <img src="https://images2.imgbox.com/3b/a5/tGIfxork_o.png" alt="在这里插入图片描述"></p> 
+<hr> 
+<h2><a id="_426"></a>守护进程和孤儿进程</h2> 
+<p>守护进程(daemon)是生存期长的一种进程，它们常常在系统引导装入时启动，在系统关闭时终止。所有守护进程都以超级用户（用户ID为0）的优先权运行，守护进程没有控制终端，其父进程都是init进程。<br> 父进程结束，子进程就成为孤儿进程(orphan)，会由init进程领养。<br> 关于孤儿进程的代码示例如下。</p> 
+<pre><code class="prism language-c"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdio.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdlib.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;unistd.h&gt;</span></span>
+
+<span class="token keyword">int</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token punctuation">{<!-- --></span>
+    <span class="token class-name">pid_t</span> pid <span class="token operator">=</span> <span class="token function">fork</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span><span class="token punctuation">(</span>pid <span class="token operator">&lt;</span> <span class="token number">0</span><span class="token punctuation">)</span>
+        <span class="token function">perror</span><span class="token punctuation">(</span><span class="token string">"fork error"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">else</span> <span class="token keyword">if</span><span class="token punctuation">(</span>pid <span class="token operator">&gt;</span> <span class="token number">0</span><span class="token punctuation">)</span>
+    <span class="token punctuation">{<!-- --></span>
+        <span class="token function">sleep</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>   <span class="token comment">//父进程先不退出，让子进程打印此时的父进程号</span>
+        <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"父进程退出，pid : %d\n"</span><span class="token punctuation">,</span><span class="token function">getpid</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">exit</span><span class="token punctuation">(</span><span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span> 
+   <span class="token keyword">else</span>
+   <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">int</span> i <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+        <span class="token keyword">while</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span>
+        <span class="token punctuation">{<!-- --></span>
+            <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"子进程pid : %d  父进程pid : %d\n"</span><span class="token punctuation">,</span><span class="token function">getpid</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span><span class="token function">getppid</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            i<span class="token operator">++</span><span class="token punctuation">;</span>
+            <span class="token keyword">if</span><span class="token punctuation">(</span>i<span class="token operator">==</span><span class="token number">2</span><span class="token punctuation">)</span>
+                <span class="token keyword">break</span><span class="token punctuation">;</span>
+            <span class="token function">sleep</span><span class="token punctuation">(</span><span class="token number">2</span><span class="token punctuation">)</span><span class="token punctuation">;</span>   <span class="token comment">//确保父进程退出</span>
+        <span class="token punctuation">}</span>
+   <span class="token punctuation">}</span>
+   <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>上面程序编译后运行结果如下图所示。<br> <img src="https://images2.imgbox.com/0e/3c/wf7VdurC_o.png" alt="在这里插入图片描述"><br> 可以看到，在父进程还没退出时，子进程打印的父进程号就是创建自己的进程号，在父进程退出后，子进程变为孤儿进程被init进程领养，父进程号也因此变为1。</p> 
+<hr> 
+<h2><a id="wait_466"></a>wait函数</h2> 
+<p>wait函数的原型及其要包含的头文件如下。</p> 
+<pre><code class="prism language-c"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;sys/types.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;sys/wait.h&gt;</span></span>
+<span class="token class-name">pid_t</span> <span class="token function">wait</span><span class="token punctuation">(</span><span class="token keyword">int</span> <span class="token operator">*</span>status<span class="token punctuation">)</span><span class="token punctuation">;</span>   <span class="token comment">//status为空时，代表任意状态结束的子进程，不为空则代表指定状态结束的子进程</span>
+<span class="token class-name">pid_t</span> <span class="token function">waitpid</span><span class="token punctuation">(</span><span class="token class-name">pid_t</span> pid<span class="token punctuation">,</span><span class="token keyword">int</span> <span class="token operator">*</span>status<span class="token punctuation">,</span><span class="token keyword">int</span> options<span class="token punctuation">)</span><span class="token punctuation">;</span> 
+<span class="token comment">//pid是-1，等待任一子进程，功能与wait等效；pid大于0，等待其进程ID与pid相等的子进程；pid等于0，等待其组ID等于调用进程的组ID的任一子进程；pid小于-1，等待其组ID等于pid的绝对值的任一子进程</span>
+<span class="token comment">//成功返回子进程的ID，出错返回-1</span>
+</code></pre> 
+<p>检查wait和waitpid函数返回终止状态的宏：<br> WIFEXITED / WEXITSTATUS(status) 若为正常终止子进程返回的状态，则为真。<br> WIFSIGNALED / WTERMSIG(status) 若为异常终止子进程返回的状态，则为真(接到一个不能捕捉的信号）。<br> WIFSTOPPED / WSTOPSIG(status) 若为当前暂停子进程的返回的状态，则为真。<br> options参数：<br> WNOHANG 若由pid指定的子进程没有退出则立即返回，则waitpid不阻塞，此时其返回值为0。<br> WUNTRACED 若某实现支持作业控制，则由pid指定的任一子进程状态已暂停，且其状态自暂停以来还未报告过，则返回其状态。<br> <strong>wait()函数的功能是等待子进程退出并回收，防止僵尸进程的产生；waitpid()函数是wait()函数的非阻塞版本。</strong><br> wait()函数和waitpid()函数的区别：<br> 在一个子进程终止前，wait使其调用者阻塞；waitpid有一个选择项options，可使调用者不阻塞；waitpid等待一个指定的子进程pid，返回的是等待子进程的状态，而wait等待所有的子进程，其返回任一终止子进程的状态。<br> 使用kill -l命令查看所有信号的代表的意思。<br> <img src="https://images2.imgbox.com/b0/23/HtOFnh2r_o.png" alt="在这里插入图片描述"><br> 关于wait函数的使用，其代码示例如下。</p> 
+<pre><code class="prism language-c"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdio.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdlib.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;unistd.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;string.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;sys/types.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;sys/wait.h&gt;</span></span>
+
+<span class="token keyword">void</span> <span class="token function">output_status</span><span class="token punctuation">(</span><span class="token keyword">int</span> status<span class="token punctuation">)</span>
+<span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">if</span><span class="token punctuation">(</span><span class="token function">WIFEXITED</span><span class="token punctuation">(</span>status<span class="token punctuation">)</span><span class="token punctuation">)</span>
+        <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"Normal exit : %d\n"</span><span class="token punctuation">,</span><span class="token function">WEXITSTATUS</span><span class="token punctuation">(</span>status<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">else</span> <span class="token keyword">if</span><span class="token punctuation">(</span><span class="token function">WIFSIGNALED</span><span class="token punctuation">(</span>status<span class="token punctuation">)</span><span class="token punctuation">)</span>
+        <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"Abnormal exit : %d\n"</span><span class="token punctuation">,</span><span class="token function">WTERMSIG</span><span class="token punctuation">(</span>status<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">else</span> <span class="token keyword">if</span><span class="token punctuation">(</span><span class="token function">WIFSTOPPED</span><span class="token punctuation">(</span>status<span class="token punctuation">)</span><span class="token punctuation">)</span>
+        <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"Stopped signal : %d\n"</span><span class="token punctuation">,</span><span class="token function">WSTOPSIG</span><span class="token punctuation">(</span>status<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">else</span>
+        <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"Unknow signal!\n"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">int</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">int</span> status<span class="token punctuation">;</span>
+    <span class="token class-name">pid_t</span> pid<span class="token punctuation">;</span>
+    <span class="token keyword">if</span><span class="token punctuation">(</span><span class="token punctuation">(</span>pid <span class="token operator">=</span> <span class="token function">fork</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token operator">&lt;</span> <span class="token number">0</span><span class="token punctuation">)</span>
+    <span class="token punctuation">{<!-- --></span>
+        <span class="token function">perror</span><span class="token punctuation">(</span><span class="token string">"fork error"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">exit</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token keyword">else</span> <span class="token keyword">if</span><span class="token punctuation">(</span>pid <span class="token operator">==</span> <span class="token number">0</span><span class="token punctuation">)</span>
+    <span class="token punctuation">{<!-- --></span>
+        <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"pid : %d  ppid : %d\n"</span><span class="token punctuation">,</span><span class="token function">getpid</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span><span class="token function">getppid</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">exit</span><span class="token punctuation">(</span><span class="token number">6</span><span class="token punctuation">)</span><span class="token punctuation">;</span>  <span class="token comment">//子进程正常终止</span>
+    <span class="token punctuation">}</span>
+    <span class="token function">wait</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>status<span class="token punctuation">)</span><span class="token punctuation">;</span>  <span class="token comment">//父进程调用wait函数阻塞，等待子进程结束并回收</span>
+    <span class="token function">output_status</span><span class="token punctuation">(</span>status<span class="token punctuation">)</span><span class="token punctuation">;</span>   <span class="token comment">//输出状态信息</span>
+
+    <span class="token keyword">if</span><span class="token punctuation">(</span><span class="token punctuation">(</span>pid <span class="token operator">=</span> <span class="token function">fork</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token operator">&lt;</span> <span class="token number">0</span><span class="token punctuation">)</span>
+    <span class="token punctuation">{<!-- --></span>
+        <span class="token function">perror</span><span class="token punctuation">(</span><span class="token string">"fork error"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">exit</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token keyword">else</span> <span class="token keyword">if</span><span class="token punctuation">(</span>pid <span class="token operator">==</span> <span class="token number">0</span><span class="token punctuation">)</span>
+    <span class="token punctuation">{<!-- --></span>
+        <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"pid : %d  ppid : %d\n"</span><span class="token punctuation">,</span><span class="token function">getpid</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span><span class="token function">getppid</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">int</span> i<span class="token operator">=</span><span class="token number">1</span><span class="token punctuation">,</span>j<span class="token operator">=</span><span class="token number">0</span><span class="token punctuation">;</span>
+        <span class="token keyword">int</span> k <span class="token operator">=</span> i<span class="token operator">/</span>j<span class="token punctuation">;</span>    <span class="token comment">//除数为0，异常终止</span>
+    <span class="token punctuation">}</span>
+    <span class="token function">wait</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>status<span class="token punctuation">)</span><span class="token punctuation">;</span>  <span class="token comment">//父进程调用wait函数阻塞，等待子进程结束并回收</span>
+    <span class="token function">output_status</span><span class="token punctuation">(</span>status<span class="token punctuation">)</span><span class="token punctuation">;</span>   <span class="token comment">//输出状态信息</span>
+
+    <span class="token keyword">if</span><span class="token punctuation">(</span><span class="token punctuation">(</span>pid <span class="token operator">=</span> <span class="token function">fork</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token operator">&lt;</span> <span class="token number">0</span><span class="token punctuation">)</span>
+    <span class="token punctuation">{<!-- --></span>
+        <span class="token function">perror</span><span class="token punctuation">(</span><span class="token string">"fork error"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">exit</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token keyword">else</span> <span class="token keyword">if</span><span class="token punctuation">(</span>pid <span class="token operator">==</span> <span class="token number">0</span><span class="token punctuation">)</span>
+    <span class="token punctuation">{<!-- --></span>
+        <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"pid : %d  ppid : %d\n"</span><span class="token punctuation">,</span><span class="token function">getpid</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span><span class="token function">getppid</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">pause</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>     <span class="token comment">//阻塞等待</span>
+        <span class="token comment">//while(1) sleep(3);  //和上面的pause语句效果一样</span>
+    <span class="token punctuation">}</span>
+    <span class="token comment">//wait(&amp;status);    //使用wait时，用kill发命令是异常退出，不是停止信号</span>
+    <span class="token keyword">do</span><span class="token punctuation">{<!-- --></span>
+        pid <span class="token operator">=</span> <span class="token function">waitpid</span><span class="token punctuation">(</span>pid<span class="token punctuation">,</span><span class="token operator">&amp;</span>status<span class="token punctuation">,</span>WNOHANG <span class="token operator">|</span> WUNTRACED<span class="token punctuation">)</span><span class="token punctuation">;</span>   <span class="token comment">//使用waitpid函数</span>
+        <span class="token keyword">if</span><span class="token punctuation">(</span>pid <span class="token operator">==</span> <span class="token number">0</span><span class="token punctuation">)</span>
+            <span class="token function">sleep</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span><span class="token keyword">while</span><span class="token punctuation">(</span>pid <span class="token operator">==</span> <span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">output_status</span><span class="token punctuation">(</span>status<span class="token punctuation">)</span><span class="token punctuation">;</span>   <span class="token comment">//输出状态信息</span>
+    <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>上面程序编译后的执行结果如下图所示。<br> <img src="https://images2.imgbox.com/fc/51/SqE1TrVr_o.png" alt="在这里插入图片描述"><br> 在另一个终端里给当前阻塞的进程发送停止信号，通过返回的status就能打印出相应的错误信息。<br> 一般在有父子进程的程序中，在父进程中加入wait(0)，让其等待子进程结束后回收资源。</p> 
+<hr> 
+<h2><a id="exec_567"></a>exec函数</h2> 
+<p>在用fork函数创建子进程后，子进程往往要调用一种exec函数以执行另一个程序。当进程调用一种exec函数时，该进程完全由新程序代换，替换原有进程的正文，而新程序则从其main函数开始执行，因为调用exec并不创建新进程，所以前后的进程ID并未改变。exec只是用另一个新程序替换了当前进程的正文、数据、堆和栈段。<br> <strong>exec函数一般在子进程中进行调用。</strong><br> exec函数原型如下。</p> 
+<pre><code class="prism language-c"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;unistd.h&gt;</span></span>
+<span class="token keyword">int</span> <span class="token function">execl</span><span class="token punctuation">(</span><span class="token keyword">const</span> <span class="token keyword">char</span><span class="token operator">*</span> pathname<span class="token punctuation">,</span><span class="token keyword">const</span> <span class="token keyword">char</span><span class="token operator">*</span> arg0<span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token comment">/*(char*) 0*/</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token keyword">int</span> <span class="token function">execv</span><span class="token punctuation">(</span><span class="token keyword">const</span> <span class="token keyword">char</span><span class="token operator">*</span> pathname<span class="token punctuation">,</span><span class="token keyword">char</span><span class="token operator">*</span> <span class="token keyword">const</span> argv<span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token keyword">int</span> <span class="token function">execle</span><span class="token punctuation">(</span><span class="token keyword">const</span> <span class="token keyword">char</span><span class="token operator">*</span> pathname<span class="token punctuation">,</span><span class="token keyword">const</span> <span class="token keyword">char</span><span class="token operator">*</span> arg0<span class="token punctuation">,</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token comment">/*(char*) 0,char *const envp[]*/</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token keyword">int</span> <span class="token function">execve</span><span class="token punctuation">(</span><span class="token keyword">const</span> <span class="token keyword">char</span><span class="token operator">*</span> pathname<span class="token punctuation">,</span><span class="token keyword">char</span><span class="token operator">*</span> <span class="token keyword">const</span> argv<span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token punctuation">,</span><span class="token keyword">char</span><span class="token operator">*</span> <span class="token keyword">const</span> envp<span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token keyword">int</span> <span class="token function">execlp</span><span class="token punctuation">(</span><span class="token keyword">const</span> <span class="token keyword">char</span><span class="token operator">*</span> pathname<span class="token punctuation">,</span><span class="token keyword">const</span> <span class="token keyword">char</span><span class="token operator">*</span> arg0<span class="token punctuation">,</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token comment">/*(char*) 0*/</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token keyword">int</span> <span class="token function">execvp</span><span class="token punctuation">(</span><span class="token keyword">const</span> <span class="token keyword">char</span><span class="token operator">*</span> pathname<span class="token punctuation">,</span><span class="token keyword">char</span><span class="token operator">*</span> <span class="token keyword">const</span> argv<span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token comment">//出错返回-1，成功则不返回</span>
+</code></pre> 
+<p>以上函数中，除了execve函数是系统调用外，其他函数都是库函数，执行execve函数，后面的代码不执行。<br> execlp函数和execvp函数中的pathname，相对路径和绝对路径均可使用，其他四个函数中只能使用绝对路径，相对路径一定要在进程环境表对应的PATH中。函数中的argv参数为新程序执行main函数中传递的参数，最后一个元素为NULL，envp是进程的环境表。<br> <img src="https://images2.imgbox.com/ce/e4/yk8IqXn2_o.png" alt="在这里插入图片描述"><br> 带有字母“I”的函数，表明后面的参数列表是要传递给程序的参数列表，参数列表的第一个参数必须是要执行程序，最后一个参数必须是NULL。<br> 带有字母“p”的函数，第一个参数可以是相对路径或程序名，如果无法立即找到要执行的程序，那么就在环境变量PATH指定的路径中搜索。其他函数的第一个参数则必须是绝对路径名。<br> 带有字母“v”的函数，表明程序的参数列表通过一个字符串数组来传递，这个数组和最后传递给程序的main函数的字符串数组argv完全一样。第一个参数必须是程序名，最后一个参数也必须是NULL。<br> 带有字母“e”的函数，用户可以自己设置程序接收一个设置环境变量的数组。<br> 关于exec函数调用的简单代码示例如下。</p> 
+<pre><code class="prism language-c"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdio.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdlib.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;unistd.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;sys/wait.h&gt;</span></span>
+
+<span class="token keyword">char</span> <span class="token operator">*</span>cmd1 <span class="token operator">=</span> <span class="token string">"cat"</span><span class="token punctuation">;</span>
+<span class="token keyword">char</span> <span class="token operator">*</span>cmd2 <span class="token operator">=</span> <span class="token string">"/bin/cat"</span><span class="token punctuation">;</span>
+<span class="token keyword">char</span> <span class="token operator">*</span>argv1 <span class="token operator">=</span> <span class="token string">"/etc/passwd"</span><span class="token punctuation">;</span>
+<span class="token keyword">char</span> <span class="token operator">*</span>argv2 <span class="token operator">=</span> <span class="token string">"/etc/group"</span><span class="token punctuation">;</span>
+
+<span class="token keyword">int</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token keyword">int</span> argc<span class="token punctuation">,</span><span class="token keyword">char</span> <span class="token operator">*</span>argv<span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token punctuation">)</span>
+<span class="token punctuation">{<!-- --></span>
+    <span class="token class-name">pid_t</span> pid<span class="token punctuation">;</span>
+    <span class="token keyword">if</span><span class="token punctuation">(</span><span class="token punctuation">(</span>pid <span class="token operator">=</span> <span class="token function">fork</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token operator">&lt;</span> <span class="token number">0</span><span class="token punctuation">)</span>
+    <span class="token punctuation">{<!-- --></span>
+        <span class="token function">perror</span><span class="token punctuation">(</span><span class="token string">"fork error"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">exit</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token keyword">else</span> <span class="token keyword">if</span><span class="token punctuation">(</span>pid <span class="token operator">==</span> <span class="token number">0</span><span class="token punctuation">)</span>  <span class="token comment">//子进程运行</span>
+    <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">if</span><span class="token punctuation">(</span><span class="token function">execl</span><span class="token punctuation">(</span>cmd2<span class="token punctuation">,</span>cmd1<span class="token punctuation">,</span>argv1<span class="token punctuation">,</span>argv2<span class="token punctuation">,</span><span class="token constant">NULL</span><span class="token punctuation">)</span> <span class="token operator">&lt;</span> <span class="token number">0</span><span class="token punctuation">)</span>
+        <span class="token punctuation">{<!-- --></span>
+            <span class="token function">perror</span><span class="token punctuation">(</span><span class="token string">"execl error"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token function">exit</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        <span class="token keyword">else</span>
+        <span class="token punctuation">{<!-- --></span>
+            <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"execl %s success!\n"</span><span class="token punctuation">,</span>cmd1<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span> 
+    <span class="token function">wait</span><span class="token punctuation">(</span><span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">;</span>  <span class="token comment">//wait(NULL);  父进程执行</span>
+    <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>上面代码中，如果在execl()函数中使用相对路径，函数无法调用成功，提示文件不存在，第一个参数只能是绝对路径，execl()函数调用成功后，后面的代码也不再执行。</p> 
+<hr> 
+<h2><a id="system_627"></a>system函数</h2> 
+<p>system函数的原型如下。</p> 
+<pre><code class="prism language-c"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdlib.h&gt;</span></span>
+<span class="token keyword">int</span> <span class="token function">system</span><span class="token punctuation">(</span><span class="token keyword">const</span> <span class="token keyword">char</span><span class="token operator">*</span> command<span class="token punctuation">)</span><span class="token punctuation">;</span>  
+<span class="token comment">//成功返回执行命令的状态，出错返回-1</span>
+</code></pre> 
+<p>system函数的简单使用代码如下，打印系统时间。</p> 
+<pre><code class="prism language-c"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdio.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdlib.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;unistd.h&gt;</span></span>
+
+<span class="token keyword">int</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token punctuation">{<!-- --></span>
+    <span class="token function">system</span><span class="token punctuation">(</span><span class="token string">"clear"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>   <span class="token comment">//清屏</span>
+    <span class="token function">system</span><span class="token punctuation">(</span><span class="token string">"date"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>   <span class="token comment">//当前时间</span>
+    <span class="token function">system</span><span class="token punctuation">(</span><span class="token string">"cal"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>   <span class="token comment">//本月日历</span>
+    <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>程序编译后的执行结果如下图所示。<br> <img src="https://images2.imgbox.com/b1/d7/HlZ7L7Rc_o.png" alt="在这里插入图片描述"><br> 其功能相当于使用bash命令执行。<br> <img src="https://images2.imgbox.com/6d/e9/u4QXnl6G_o.png" alt="在这里插入图片描述"><br> system函数的功能就是简化exec函数的使用，其内部构建了一个子进程，并由这个子进程调用exec函数。<br> 关于自定义函数调用exec函数实现system函数的代码示例如下。</p> 
+<pre><code class="prism language-c"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdio.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdlib.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;unistd.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;sys/wait.h&gt;</span></span>
+
+<span class="token keyword">char</span> <span class="token operator">*</span>cmd1 <span class="token operator">=</span> <span class="token string">"cal &gt; s1.txt"</span><span class="token punctuation">;</span>
+<span class="token keyword">char</span> <span class="token operator">*</span>cmd2 <span class="token operator">=</span> <span class="token string">"cal &gt; s2.txt"</span><span class="token punctuation">;</span>
+<span class="token keyword">void</span> <span class="token function">mysystem</span><span class="token punctuation">(</span><span class="token keyword">char</span> <span class="token operator">*</span>cmd<span class="token punctuation">)</span>
+<span class="token punctuation">{<!-- --></span>
+    <span class="token class-name">pid_t</span> pid<span class="token punctuation">;</span>
+    <span class="token keyword">if</span><span class="token punctuation">(</span><span class="token punctuation">(</span>pid <span class="token operator">=</span> <span class="token function">fork</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token operator">&lt;</span> <span class="token number">0</span><span class="token punctuation">)</span>
+    <span class="token punctuation">{<!-- --></span>
+        <span class="token function">perror</span><span class="token punctuation">(</span><span class="token string">"fork error"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">exit</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token keyword">else</span> <span class="token keyword">if</span><span class="token punctuation">(</span>pid <span class="token operator">==</span> <span class="token number">0</span><span class="token punctuation">)</span>
+    <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">if</span><span class="token punctuation">(</span><span class="token function">execlp</span><span class="token punctuation">(</span><span class="token string">"/bin/bash"</span><span class="token punctuation">,</span><span class="token string">"/bin/bash"</span><span class="token punctuation">,</span><span class="token string">"-c"</span><span class="token punctuation">,</span>cmd<span class="token punctuation">,</span><span class="token constant">NULL</span><span class="token punctuation">)</span> <span class="token operator">&lt;</span> <span class="token number">0</span><span class="token punctuation">)</span>
+        <span class="token punctuation">{<!-- --></span>
+            <span class="token function">perror</span><span class="token punctuation">(</span><span class="token string">"execlp error"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token function">exit</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+    <span class="token function">wait</span><span class="token punctuation">(</span><span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">int</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token punctuation">{<!-- --></span>
+    <span class="token function">system</span><span class="token punctuation">(</span>cmd1<span class="token punctuation">)</span><span class="token punctuation">;</span>   <span class="token comment">//使用系统函数</span>
+    <span class="token function">mysystem</span><span class="token punctuation">(</span>cmd2<span class="token punctuation">)</span><span class="token punctuation">;</span>   <span class="token comment">//使用自己定义的函数调用exec函数</span>
+    <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>上面程序编译后的执行结果如下图所示。<br> <img src="https://images2.imgbox.com/dc/90/5chnPXW8_o.png" alt="在这里插入图片描述"></p> 
+<hr> 
+<p>参考视频：<br> <a href="https://www.bilibili.com/video/BV1DU4y1f7YF/?spm_id_from=333.337.search-card.all.click&amp;vd_source=83ff6bc8190dddb6fcfa4b537665a9b8" rel="nofollow">Linux多进程编程详解</a></p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/e84bd6d534dabcdc3af5da1dabbd3a7b/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">SQLiteC/C&#43;&#43;接口详细介绍sqlite3_stmt类（十三）</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/e2ac3b9ad024e3340f3dc33368af3e12/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">什么是CVE？ CVE漏洞应该如何防护？</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

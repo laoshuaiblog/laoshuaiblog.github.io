@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>java自定义实现阻塞队列和线程池 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/fd5edda0289effddcf25eb82793419f0/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="java自定义实现阻塞队列和线程池">
+  <meta property="og:description" content="不多BB，直接上代码。
+阻塞队列：
+public class BlockingQueue&amp;lt;T&amp;gt;{ // 1.任务队列, 双向队列 private Deque&amp;lt;T&amp;gt; queue = new ArrayDeque&amp;lt;&amp;gt;(); // 2.锁 private ReentrantLock lock = new ReentrantLock(); // 3.生产者条件变量 private Condition fullWaitSet = lock.newCondition(); // 4.消费者条件变量 private Condition emptyWaitSet = lock.newCondition(); // 5.容量 private int capacity; public BlockingQueue(int capacity) { this.capacity = capacity; } // 超时阻塞获取任务 public T pull(long timeout, TimeUnit unit){ lock.lock(); try{ // 将超时时间统一转换为纳秒 long nanos = unit.toNanos(timeout); // 取任务的时候，如果为空则需要等待 while(queue.isEmpty()){ // 超时的情况直接返回null if(nanos &amp;lt;= 0){ return null; } // 返回的是剩余的时间 nanos = emptyWaitSet.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2023-04-08T22:50:17+08:00">
+    <meta property="article:modified_time" content="2023-04-08T22:50:17+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">java自定义实现阻塞队列和线程池</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-dark">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <p>不多BB，直接上代码。</p> 
+<p>阻塞队列：</p> 
+<pre><code>public class BlockingQueue&lt;T&gt;{
+    // 1.任务队列, 双向队列
+    private Deque&lt;T&gt; queue = new ArrayDeque&lt;&gt;();
+
+    // 2.锁
+    private ReentrantLock lock = new ReentrantLock();
+
+    // 3.生产者条件变量
+    private Condition fullWaitSet = lock.newCondition();
+
+    // 4.消费者条件变量
+    private Condition emptyWaitSet = lock.newCondition();
+
+    // 5.容量
+    private int capacity;
+
+    public BlockingQueue(int capacity) {
+        this.capacity = capacity;
+    }
+
+    // 超时阻塞获取任务
+    public T pull(long timeout, TimeUnit unit){
+        lock.lock();
+        try{
+            // 将超时时间统一转换为纳秒
+            long nanos = unit.toNanos(timeout);
+            // 取任务的时候，如果为空则需要等待
+            while(queue.isEmpty()){
+                // 超时的情况直接返回null
+                if(nanos &lt;= 0){
+                    return null;
+                }
+                // 返回的是剩余的时间
+                nanos = emptyWaitSet.awaitNanos(nanos);
+            }
+            T t = queue.removeFirst();
+            // 唤醒放入的线程
+            fullWaitSet.signal();
+            return t;
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    // 阻塞获取任务
+    public T take(){
+        // 加锁
+        lock.lock();
+        try{
+            // 取任务的时候，如果为空则需要等待
+            while(queue.isEmpty()){
+                emptyWaitSet.await();
+            }
+            T t = queue.removeFirst();
+            fullWaitSet.signal();
+            return t;
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    // 带超时时间的阻塞添加任务
+    public boolean offer(T task, long timeout, TimeUnit timeUnit){
+        lock.lock();
+        try{
+            long nanos = timeUnit.toNanos(timeout);
+            // 添加任务时，如果队列已满则需要等待
+            while(queue.size()==capacity ){
+                System.out.println(task.toString() + " 等待加入任务队列" );
+                if(nanos&lt;=0){
+                    return false;
+                }
+                nanos = fullWaitSet.awaitNanos(nanos);
+            }
+            queue.addLast(task);
+            System.out.println("任务【" + task.toString() +  "】加入队列 " );
+            emptyWaitSet.signal();
+            return true;
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    // 阻塞添加任务
+    public void put(T task){
+        lock.lock();
+        try{
+            while(queue.size()==capacity){
+                System.out.println(task.toString() + " 等待加入任务队列" );
+                fullWaitSet.await();
+            }
+            queue.addLast(task);
+            System.out.println("任务【" + task.toString() +  "】加入队列 " );
+            emptyWaitSet.signal();
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    // 获取队列大小
+    public int size(){
+        lock.lock();
+        try{
+            return queue.size();
+        }finally {
+            lock.unlock();
+        }
+    }
+
+    // 为使用拒绝策略所添加的向队列中添加任务的方法
+    public void tryPut(RejectPolicy&lt;T&gt; rejectPolicy, T task) {
+        lock.lock();
+        try{
+            // 队列已满
+            if(queue.size()==capacity){
+                rejectPolicy.reject(this,task);
+            }else{ // 有空闲
+                queue.addLast(task);
+                System.out.println("任务【" + task.toString() +  "】加入队列 " );
+                emptyWaitSet.signal();
+            }
+
+        }finally {
+            lock.unlock();
+        }
+    }
+}
+</code></pre> 
+<p>线程池：</p> 
+<pre><code>public class ThreadPool{
+    // 任务队列
+    private BlockingQueue&lt;Runnable&gt; taskQueue;
+
+    // 线程集合
+    private HashSet&lt;Worker&gt; workers = new HashSet&lt;&gt;();
+
+    // 核心线程数
+    private int coreSize;
+
+    // 获取任务的超时时间，时间单位，当从队列中获取超时时，放弃获取
+    private long timeout;
+    private TimeUnit timeUnit;
+
+    // 拒绝策略
+    private RejectPolicy&lt;Runnable&gt; rejectPolicy;
+
+    // 线程池传入任务的方法
+    public void execute(Runnable task){
+        // 当任务数没有超过coreSize,直接交给worker对象执行
+        // 如果任务数超过coreSize时，加入任务队列
+        // 因为集合workers为共享变量，所以此处也需要加锁
+        synchronized (workers){
+            if(workers.size() &lt; coreSize){
+                Worker worker = new Worker(task);
+                System.out.println("新增worker " + worker.toString() + " 任务 " + task.toString());
+                workers.add(worker);
+                worker.start();
+            }else{
+                taskQueue.tryPut(rejectPolicy, task);
+            }
+        }
+    }
+
+    public ThreadPool(int coreSize, long timeout, TimeUnit timeUnit, int queueCapacity, RejectPolicy&lt;Runnable&gt; rejectPolicy) {
+        this.coreSize = coreSize;
+        this.timeout = timeout;
+        this.timeUnit = timeUnit;
+        this.taskQueue = new BlockingQueue&lt;&gt;(queueCapacity);
+        this.rejectPolicy = rejectPolicy;
+    }
+
+    class Worker extends Thread{
+        private Runnable task;
+
+        private Worker(Runnable task) {
+            this.task = task;
+        }
+
+        @Override
+        public void run() {
+            // 执行任务
+            // 1.当task不为空，则执行任务
+            // 2.当task执行完毕，接着去任务队列中获取并执行
+            // 此处使用了短路逻辑
+            while(task !=null || (task = taskQueue.pull(timeout, timeUnit)) !=null ){
+                try{
+                    System.out.println("正在执行: " + task.toString());
+                    task.run();
+                }catch (Exception e){
+                    e.printStackTrace();
+                }finally {
+                    task = null;
+                }
+            }
+            // 超时获取时，如果未获取到任务，则结束该线程
+            synchronized (workers){
+                System.out.println("worker 移除:" + this.toString());
+                workers.remove(this);
+            }
+        }
+    }
+}`
+</code></pre> 
+<p>拒绝策略：</p> 
+<pre><code>public interface RejectPolicy&lt;T&gt;{
+    void reject(BlockingQueue&lt;T&gt; queue, T task);
+}
+</code></pre> 
+<p>测试：</p> 
+<pre><code>public class MyThreadPoolTest {
+    public static void main(String[] args) {
+        // 定义线程池，传入参数为线程数，超时时间(当获取任务时间超过改时间时，结果等待)
+        // 时间单位， 队列容量，拒绝策略，此处出lambda表达式，因为我们实现的拒绝策略只有一个接口，所以可以这样写
+        ThreadPool pool = new ThreadPool(5, 1000,
+                TimeUnit.MICROSECONDS, 100,(queue, task)-&gt;{
+            // 1.死等
+            // queue.put(task);
+            // 2.带超时的等待
+             queue.offer(task, 1500, TimeUnit.MILLISECONDS);
+            // 3.让调用者放弃任务执行
+            // System.out.println("队列已满放弃等待");
+            // 4.抛出异常
+//            throw new RuntimeException("任务执行失败，队列已满" + task);
+            // 5.自己执行
+            // task.run();
+        });
+
+        // 给线程池提交任务，循环3次，任务为打印，执行每次失眠一秒
+        for (int i = 0; i &lt; 3; i++) {
+            int id = i+1;
+            pool.execute(()-&gt;{
+                try {
+                    Thread.sleep(1000L);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+                System.out.println(Thread.currentThread().toString()+ " " + id);
+            });
+        }
+
+    }
+}
+</code></pre> 
+<p>实际使用时可以把线程池定义为final static 类型，保证jvm中只存在一个；或者使用单例模式创建线程池。</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/2f3faf46b8e769a7c66803475a2c9797/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">小米电视无法访问 SAMBA 4.15.13 共享文件</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/80f0ab6c253fc5d68272f1f3653aa086/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">解决HttpURLConnection GET封装请求体</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

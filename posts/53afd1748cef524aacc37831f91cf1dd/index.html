@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>多数据源动态优雅切换 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/53afd1748cef524aacc37831f91cf1dd/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="多数据源动态优雅切换">
+  <meta property="og:description" content="核心思想 集成 AbstractRoutingDataSource 并重写 determineCurrentLookupKey 方法。determineCurrentLookupKey 方法的返回值决定了spring使用那个数据源，如果返回null则使用默认数据源。在AbstractRoutingDataSource 的构造函数中完成 多数据源和默认数据源的注册。定义 DruidConfig配置，该配置文件主要将三个 数据源注册到spring中，并且将 主数据员和第二个数据源通过AbstractRoutingDataSource 的实现注册到spring中。 核心代码 pom
+&amp;lt;!-- Druid 数据连接池依赖 --&amp;gt; &amp;lt;dependency&amp;gt; &amp;lt;groupId&amp;gt;com.alibaba&amp;lt;/groupId&amp;gt; &amp;lt;artifactId&amp;gt;druid-spring-boot-starter&amp;lt;/artifactId&amp;gt; &amp;lt;version&amp;gt;1.2.8&amp;lt;/version&amp;gt; &amp;lt;/dependency&amp;gt; &amp;lt;!--MyBatis整合SpringBoot框架的起步依赖--&amp;gt; &amp;lt;dependency&amp;gt; &amp;lt;groupId&amp;gt;org.mybatis.spring.boot&amp;lt;/groupId&amp;gt; &amp;lt;artifactId&amp;gt;mybatis-spring-boot-starter&amp;lt;/artifactId&amp;gt; &amp;lt;version&amp;gt;2.1.4&amp;lt;/version&amp;gt; &amp;lt;/dependency&amp;gt; &amp;lt;dependency&amp;gt; &amp;lt;groupId&amp;gt;org.projectlombok&amp;lt;/groupId&amp;gt; &amp;lt;artifactId&amp;gt;lombok&amp;lt;/artifactId&amp;gt; &amp;lt;optional&amp;gt;true&amp;lt;/optional&amp;gt; &amp;lt;/dependency&amp;gt; &amp;lt;dependency&amp;gt; &amp;lt;groupId&amp;gt;org.springframework.boot&amp;lt;/groupId&amp;gt; &amp;lt;artifactId&amp;gt;spring-boot-starter-test&amp;lt;/artifactId&amp;gt; &amp;lt;scope&amp;gt;test&amp;lt;/scope&amp;gt; &amp;lt;/dependency&amp;gt; &amp;lt;!-- jdbc --&amp;gt; &amp;lt;dependency&amp;gt; &amp;lt;groupId&amp;gt;org.springframework.boot&amp;lt;/groupId&amp;gt; &amp;lt;artifactId&amp;gt;spring-boot-starter-jdbc&amp;lt;/artifactId&amp;gt; &amp;lt;version&amp;gt;2.7.8&amp;lt;/version&amp;gt; &amp;lt;/dependency&amp;gt; &amp;lt;!-- Mysql驱动包 --&amp;gt; &amp;lt;dependency&amp;gt; &amp;lt;groupId&amp;gt;mysql&amp;lt;/groupId&amp;gt; &amp;lt;artifactId&amp;gt;mysql-connector-java&amp;lt;/artifactId&amp;gt; &amp;lt;version&amp;gt;8.0.27&amp;lt;/version&amp;gt; &amp;lt;/dependency&amp;gt; yml配置
+# 数据源配置 spring: datasource: type: com.alibaba.druid.pool.DruidDataSource driverClassName: com.mysql.cj.jdbc.Driver druid: # 主库数据源 master: url: jdbc:mysql://localhost:3306/test?">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2023-02-27T17:03:31+08:00">
+    <meta property="article:modified_time" content="2023-02-27T17:03:31+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">多数据源动态优雅切换</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-tomorrow-night-eighties">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <h5><a id="x20_0"></a> 核心思想</h5> 
+<ol><li> 集成 AbstractRoutingDataSource 并重写 determineCurrentLookupKey 方法。determineCurrentLookupKey 方法的返回值决定了spring使用那个数据源，如果返回null则使用默认数据源。</li><li>在AbstractRoutingDataSource 的构造函数中完成 多数据源和默认数据源的注册。</li><li>定义 DruidConfig配置，该配置文件主要将三个 数据源注册到spring中，并且将 主数据员和第二个数据源通过AbstractRoutingDataSource 的实现注册到spring中。</li></ol> 
+<h5><a id="x20_6"></a> 核心代码</h5> 
+<ul><li> <p>pom</p> <pre><code>        &lt;!-- Druid 数据连接池依赖 --&gt;
+        &lt;dependency&gt;
+            &lt;groupId&gt;com.alibaba&lt;/groupId&gt;
+            &lt;artifactId&gt;druid-spring-boot-starter&lt;/artifactId&gt;
+            &lt;version&gt;1.2.8&lt;/version&gt;
+        &lt;/dependency&gt;
+        &lt;!--MyBatis整合SpringBoot框架的起步依赖--&gt;
+        &lt;dependency&gt;
+            &lt;groupId&gt;org.mybatis.spring.boot&lt;/groupId&gt;
+            &lt;artifactId&gt;mybatis-spring-boot-starter&lt;/artifactId&gt;
+            &lt;version&gt;2.1.4&lt;/version&gt;
+        &lt;/dependency&gt;
+       &lt;dependency&gt;
+            &lt;groupId&gt;org.projectlombok&lt;/groupId&gt;
+            &lt;artifactId&gt;lombok&lt;/artifactId&gt;
+            &lt;optional&gt;true&lt;/optional&gt;
+        &lt;/dependency&gt;
+        &lt;dependency&gt;
+            &lt;groupId&gt;org.springframework.boot&lt;/groupId&gt;
+            &lt;artifactId&gt;spring-boot-starter-test&lt;/artifactId&gt;
+            &lt;scope&gt;test&lt;/scope&gt;
+        &lt;/dependency&gt;
+        &lt;!-- jdbc --&gt;
+        &lt;dependency&gt;
+            &lt;groupId&gt;org.springframework.boot&lt;/groupId&gt;
+            &lt;artifactId&gt;spring-boot-starter-jdbc&lt;/artifactId&gt;
+            &lt;version&gt;2.7.8&lt;/version&gt;
+        &lt;/dependency&gt;
+        &lt;!-- Mysql驱动包 --&gt;
+        &lt;dependency&gt;
+            &lt;groupId&gt;mysql&lt;/groupId&gt;
+            &lt;artifactId&gt;mysql-connector-java&lt;/artifactId&gt;
+            &lt;version&gt;8.0.27&lt;/version&gt;
+        &lt;/dependency&gt;
+</code></pre> </li><li> <p>yml配置</p> <pre><code># 数据源配置
+spring:
+  datasource:
+    type: com.alibaba.druid.pool.DruidDataSource
+    driverClassName: com.mysql.cj.jdbc.Driver
+    druid:
+      # 主库数据源
+      master:
+        url: jdbc:mysql://localhost:3306/test?characterEncoding=utf8&amp;useUnicode=true&amp;useSSL=false&amp;allowPublicKeyRetrieval=true&amp;serverTimezone=GMT%2B8
+        username: root
+        password: 123456
+      # 从库数据源
+      slave:
+        # 从数据源开关/默认关闭
+        enabled: true
+        url: jdbc:mysql://43.143.217.124:3306/hongbei?characterEncoding=utf8&amp;useUnicode=true&amp;useSSL=false&amp;allowPublicKeyRetrieval=true&amp;serverTimezone=GMT%2B8
+        username: root
+        password: 123456
+      # 初始连接数
+      initialSize: 5
+      # 最小连接池数量
+      minIdle: 10
+      # 最大连接池数量
+      maxActive: 20
+      # 配置获取连接等待超时的时间
+      maxWait: 60000
+      # 配置间隔多久才进行一次检测，检测需要关闭的空闲连接，单位是毫秒
+      timeBetweenEvictionRunsMillis: 60000
+      # 配置一个连接在池中最小生存的时间，单位是毫秒
+      minEvictableIdleTimeMillis: 300000
+      # 配置一个连接在池中最大生存的时间，单位是毫秒
+      maxEvictableIdleTimeMillis: 900000
+      # 配置检测连接是否有效
+      validationQuery: SELECT 1 FROM DUAL
+      testWhileIdle: true
+      testOnBorrow: false
+      testOnReturn: false
+      webStatFilter:
+        enabled: true
+      statViewServlet:
+        enabled: true
+        # 设置白名单，不填则允许所有访问
+        allow:
+        url-pattern: /druid/*
+        # 控制台管理用户名和密码
+        login-username: ruoyi
+        login-password: 123456
+      filter:
+        stat:
+          enabled: true
+          # 慢SQL记录
+          log-slow-sql: true
+          slow-sql-millis: 1000
+          merge-sql: true
+        wall:
+          config:
+            multi-statement-allow: true
+</code></pre> </li><li> <p>前置工作1 定义数据库类型（属于规范）</p> <pre><code class="prism language-java">
+<span class="token comment">/**
+ * @Classname DataSourceType
+ * @Description DataSourceType
+ * @Date 2023-02-27 15:44
+ * @Created by lihw
+ */</span>
+<span class="token keyword">public</span> <span class="token keyword">enum</span> <span class="token class-name">DataSourceType</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token comment">/**
+     * 主库
+     */</span>
+    <span class="token constant">MASTER</span><span class="token punctuation">,</span>
+
+    <span class="token comment">/**
+     * 从库
+     */</span>
+    <span class="token constant">SLAVE</span>
+<span class="token punctuation">}</span>
+
+</code></pre> </li><li> <p>druid属性绑定，以及工具方法</p> <pre><code class="prism language-java">
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">com<span class="token punctuation">.</span>alibaba<span class="token punctuation">.</span>druid<span class="token punctuation">.</span>pool<span class="token punctuation">.</span></span><span class="token class-name">DruidDataSource</span></span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">org<span class="token punctuation">.</span>springframework<span class="token punctuation">.</span>beans<span class="token punctuation">.</span>factory<span class="token punctuation">.</span>annotation<span class="token punctuation">.</span></span><span class="token class-name">Value</span></span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">org<span class="token punctuation">.</span>springframework<span class="token punctuation">.</span>context<span class="token punctuation">.</span>annotation<span class="token punctuation">.</span></span><span class="token class-name">Configuration</span></span><span class="token punctuation">;</span>
+
+<span class="token comment">/**
+ * @Classname DruidProperties
+ * @Description DruidProperties
+ * @Date 2023-02-27 15:28
+ * @Created by lihw
+ */</span>
+<span class="token annotation punctuation">@Configuration</span>
+<span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">DruidProperties</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token annotation punctuation">@Value</span><span class="token punctuation">(</span><span class="token string">"${spring.datasource.druid.initialSize}"</span><span class="token punctuation">)</span>
+    <span class="token keyword">private</span> <span class="token keyword">int</span> initialSize<span class="token punctuation">;</span>
+
+    <span class="token annotation punctuation">@Value</span><span class="token punctuation">(</span><span class="token string">"${spring.datasource.druid.minIdle}"</span><span class="token punctuation">)</span>
+    <span class="token keyword">private</span> <span class="token keyword">int</span> minIdle<span class="token punctuation">;</span>
+
+    <span class="token annotation punctuation">@Value</span><span class="token punctuation">(</span><span class="token string">"${spring.datasource.druid.maxActive}"</span><span class="token punctuation">)</span>
+    <span class="token keyword">private</span> <span class="token keyword">int</span> maxActive<span class="token punctuation">;</span>
+
+    <span class="token annotation punctuation">@Value</span><span class="token punctuation">(</span><span class="token string">"${spring.datasource.druid.maxWait}"</span><span class="token punctuation">)</span>
+    <span class="token keyword">private</span> <span class="token keyword">int</span> maxWait<span class="token punctuation">;</span>
+
+    <span class="token annotation punctuation">@Value</span><span class="token punctuation">(</span><span class="token string">"${spring.datasource.druid.timeBetweenEvictionRunsMillis}"</span><span class="token punctuation">)</span>
+    <span class="token keyword">private</span> <span class="token keyword">int</span> timeBetweenEvictionRunsMillis<span class="token punctuation">;</span>
+
+    <span class="token annotation punctuation">@Value</span><span class="token punctuation">(</span><span class="token string">"${spring.datasource.druid.minEvictableIdleTimeMillis}"</span><span class="token punctuation">)</span>
+    <span class="token keyword">private</span> <span class="token keyword">int</span> minEvictableIdleTimeMillis<span class="token punctuation">;</span>
+
+    <span class="token annotation punctuation">@Value</span><span class="token punctuation">(</span><span class="token string">"${spring.datasource.druid.maxEvictableIdleTimeMillis}"</span><span class="token punctuation">)</span>
+    <span class="token keyword">private</span> <span class="token keyword">int</span> maxEvictableIdleTimeMillis<span class="token punctuation">;</span>
+
+    <span class="token annotation punctuation">@Value</span><span class="token punctuation">(</span><span class="token string">"${spring.datasource.druid.validationQuery}"</span><span class="token punctuation">)</span>
+    <span class="token keyword">private</span> <span class="token class-name">String</span> validationQuery<span class="token punctuation">;</span>
+
+    <span class="token annotation punctuation">@Value</span><span class="token punctuation">(</span><span class="token string">"${spring.datasource.druid.testWhileIdle}"</span><span class="token punctuation">)</span>
+    <span class="token keyword">private</span> <span class="token keyword">boolean</span> testWhileIdle<span class="token punctuation">;</span>
+
+    <span class="token annotation punctuation">@Value</span><span class="token punctuation">(</span><span class="token string">"${spring.datasource.druid.testOnBorrow}"</span><span class="token punctuation">)</span>
+    <span class="token keyword">private</span> <span class="token keyword">boolean</span> testOnBorrow<span class="token punctuation">;</span>
+
+    <span class="token annotation punctuation">@Value</span><span class="token punctuation">(</span><span class="token string">"${spring.datasource.druid.testOnReturn}"</span><span class="token punctuation">)</span>
+    <span class="token keyword">private</span> <span class="token keyword">boolean</span> testOnReturn<span class="token punctuation">;</span>
+
+    <span class="token keyword">public</span> <span class="token class-name">DruidDataSource</span> <span class="token function">dataSource</span><span class="token punctuation">(</span><span class="token class-name">DruidDataSource</span> datasource<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+<span class="token comment">/** 配置初始化大小、最小、最大 */</span>
+        datasource<span class="token punctuation">.</span><span class="token function">setInitialSize</span><span class="token punctuation">(</span>initialSize<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        datasource<span class="token punctuation">.</span><span class="token function">setMaxActive</span><span class="token punctuation">(</span>maxActive<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        datasource<span class="token punctuation">.</span><span class="token function">setMinIdle</span><span class="token punctuation">(</span>minIdle<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        <span class="token comment">/** 配置获取连接等待超时的时间 */</span>
+        datasource<span class="token punctuation">.</span><span class="token function">setMaxWait</span><span class="token punctuation">(</span>maxWait<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        <span class="token comment">/** 配置间隔多久才进行一次检测，检测需要关闭的空闲连接，单位是毫秒 */</span>
+        datasource<span class="token punctuation">.</span><span class="token function">setTimeBetweenEvictionRunsMillis</span><span class="token punctuation">(</span>timeBetweenEvictionRunsMillis<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        <span class="token comment">/** 配置一个连接在池中最小、最大生存的时间，单位是毫秒 */</span>
+        datasource<span class="token punctuation">.</span><span class="token function">setMinEvictableIdleTimeMillis</span><span class="token punctuation">(</span>minEvictableIdleTimeMillis<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        datasource<span class="token punctuation">.</span><span class="token function">setMaxEvictableIdleTimeMillis</span><span class="token punctuation">(</span>maxEvictableIdleTimeMillis<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        <span class="token comment">/**
+         * 用来检测连接是否有效的sql，要求是一个查询语句，常用select 'x'。如果validationQuery为null，testOnBorrow、testOnReturn、testWhileIdle都不会起作用。
+         */</span>
+        datasource<span class="token punctuation">.</span><span class="token function">setValidationQuery</span><span class="token punctuation">(</span>validationQuery<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token comment">/** 建议配置为true，不影响性能，并且保证安全性。申请连接的时候检测，如果空闲时间大于timeBetweenEvictionRunsMillis，执行validationQuery检测连接是否有效。 */</span>
+        datasource<span class="token punctuation">.</span><span class="token function">setTestWhileIdle</span><span class="token punctuation">(</span>testWhileIdle<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token comment">/** 申请连接时执行validationQuery检测连接是否有效，做了这个配置会降低性能。 */</span>
+        datasource<span class="token punctuation">.</span><span class="token function">setTestOnBorrow</span><span class="token punctuation">(</span>testOnBorrow<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token comment">/** 归还连接时执行validationQuery检测连接是否有效，做了这个配置会降低性能。 */</span>
+        datasource<span class="token punctuation">.</span><span class="token function">setTestOnReturn</span><span class="token punctuation">(</span>testOnReturn<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">return</span> datasource<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+
+</code></pre> </li><li> <p>定义动态数据源 以及 动态数据源 控制器</p> <pre><code class="prism language-java">
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">org<span class="token punctuation">.</span>springframework<span class="token punctuation">.</span>jdbc<span class="token punctuation">.</span>datasource<span class="token punctuation">.</span>lookup<span class="token punctuation">.</span></span><span class="token class-name">AbstractRoutingDataSource</span></span><span class="token punctuation">;</span>
+
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">javax<span class="token punctuation">.</span>sql<span class="token punctuation">.</span></span><span class="token class-name">DataSource</span></span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">java<span class="token punctuation">.</span>util<span class="token punctuation">.</span></span><span class="token class-name">Map</span></span><span class="token punctuation">;</span>
+
+<span class="token comment">/**
+ * @Classname DynamicDataSource
+ * @Description DynamicDataSource
+ * @Date 2023-02-27 15:39
+ * @Created by lihw
+ */</span>
+<span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">DynamicDataSource</span> <span class="token keyword">extends</span> <span class="token class-name">AbstractRoutingDataSource</span> <span class="token punctuation">{<!-- --></span>
+
+    <span class="token comment">/**
+     * 数据源初始化操作，把多个数据源以及默认数据源注册到spring中
+     * @param defaultTargetDataSource
+     * @param targetDataSources
+     */</span>
+    <span class="token keyword">public</span> <span class="token class-name">DynamicDataSource</span><span class="token punctuation">(</span><span class="token class-name">DataSource</span> defaultTargetDataSource<span class="token punctuation">,</span> <span class="token class-name">Map</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Object</span><span class="token punctuation">,</span> <span class="token class-name">Object</span><span class="token punctuation">&gt;</span></span> targetDataSources<span class="token punctuation">)</span><span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">super</span><span class="token punctuation">.</span><span class="token function">setDefaultTargetDataSource</span><span class="token punctuation">(</span>defaultTargetDataSource<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">super</span><span class="token punctuation">.</span><span class="token function">setTargetDataSources</span><span class="token punctuation">(</span>targetDataSources<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">super</span><span class="token punctuation">.</span><span class="token function">afterPropertiesSet</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token comment">/**
+     * 返回值决定使用哪个数据源，如果返回 null 则使用默认数据源
+     * @return
+     */</span>
+    <span class="token annotation punctuation">@Override</span>
+    <span class="token keyword">protected</span> <span class="token class-name">Object</span> <span class="token function">determineCurrentLookupKey</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">return</span> <span class="token class-name">DynamicDataSourceContextHolder</span><span class="token punctuation">.</span><span class="token function">getDataSourceType</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre> </li><li> <p>数据源控制器</p> <pre><code class="prism language-java">
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">org<span class="token punctuation">.</span>slf4j<span class="token punctuation">.</span></span><span class="token class-name">Logger</span></span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">org<span class="token punctuation">.</span>slf4j<span class="token punctuation">.</span></span><span class="token class-name">LoggerFactory</span></span><span class="token punctuation">;</span>
+
+<span class="token comment">/**
+ * @Classname DynamicDataSourceContextHolder
+ * @Description DynamicDataSourceContextHolder
+ * @Date 2023-02-27 15:39
+ * @Created by lihw
+ */</span>
+<span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">DynamicDataSourceContextHolder</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">public</span> <span class="token keyword">static</span> <span class="token keyword">final</span> <span class="token class-name">Logger</span> log <span class="token operator">=</span> <span class="token class-name">LoggerFactory</span><span class="token punctuation">.</span><span class="token function">getLogger</span><span class="token punctuation">(</span><span class="token class-name">DynamicDataSourceContextHolder</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token comment">/**
+     * 使用ThreadLocal维护变量，ThreadLocal为每个使用该变量的线程提供独立的变量副本，
+     *  所以每一个线程都可以独立地改变自己的副本，而不会影响其它线程所对应的副本。
+     */</span>
+    <span class="token keyword">private</span> <span class="token keyword">static</span> <span class="token keyword">final</span> <span class="token class-name">ThreadLocal</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">String</span><span class="token punctuation">&gt;</span></span> <span class="token constant">CONTEXT_HOLDER</span> <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">ThreadLocal</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token punctuation">&gt;</span></span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token comment">/**
+     * 设置数据源的变量
+     */</span>
+    <span class="token keyword">public</span> <span class="token keyword">static</span> <span class="token keyword">void</span> <span class="token function">setDataSourceType</span><span class="token punctuation">(</span><span class="token class-name">String</span> dsType<span class="token punctuation">)</span>
+    <span class="token punctuation">{<!-- --></span>
+        log<span class="token punctuation">.</span><span class="token function">info</span><span class="token punctuation">(</span><span class="token string">"切换到{}数据源"</span><span class="token punctuation">,</span> dsType<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token constant">CONTEXT_HOLDER</span><span class="token punctuation">.</span><span class="token function">set</span><span class="token punctuation">(</span>dsType<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token comment">/**
+     * 获得数据源的变量
+     */</span>
+    <span class="token keyword">public</span> <span class="token keyword">static</span> <span class="token class-name">String</span> <span class="token function">getDataSourceType</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+    <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">return</span> <span class="token constant">CONTEXT_HOLDER</span><span class="token punctuation">.</span><span class="token function">get</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token comment">/**
+     * 清空数据源变量
+     */</span>
+    <span class="token keyword">public</span> <span class="token keyword">static</span> <span class="token keyword">void</span> <span class="token function">clearDataSourceType</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+    <span class="token punctuation">{<!-- --></span>
+        <span class="token constant">CONTEXT_HOLDER</span><span class="token punctuation">.</span><span class="token function">remove</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre> </li><li> <p>把多个数据源注册到动态数据源中， 并标记动态数据源为主数据源</p> <pre><code class="prism language-java">
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">com<span class="token punctuation">.</span>alibaba<span class="token punctuation">.</span>druid<span class="token punctuation">.</span>pool<span class="token punctuation">.</span></span><span class="token class-name">DruidDataSource</span></span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">com<span class="token punctuation">.</span>alibaba<span class="token punctuation">.</span>druid<span class="token punctuation">.</span>spring<span class="token punctuation">.</span>boot<span class="token punctuation">.</span>autoconfigure<span class="token punctuation">.</span></span><span class="token class-name">DruidDataSourceBuilder</span></span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">org<span class="token punctuation">.</span>springframework<span class="token punctuation">.</span>beans<span class="token punctuation">.</span></span><span class="token class-name">BeansException</span></span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">org<span class="token punctuation">.</span>springframework<span class="token punctuation">.</span>beans<span class="token punctuation">.</span>factory<span class="token punctuation">.</span>config<span class="token punctuation">.</span></span><span class="token class-name">BeanFactoryPostProcessor</span></span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">org<span class="token punctuation">.</span>springframework<span class="token punctuation">.</span>beans<span class="token punctuation">.</span>factory<span class="token punctuation">.</span>config<span class="token punctuation">.</span></span><span class="token class-name">ConfigurableListableBeanFactory</span></span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">org<span class="token punctuation">.</span>springframework<span class="token punctuation">.</span>boot<span class="token punctuation">.</span>autoconfigure<span class="token punctuation">.</span>condition<span class="token punctuation">.</span></span><span class="token class-name">ConditionalOnProperty</span></span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">org<span class="token punctuation">.</span>springframework<span class="token punctuation">.</span>boot<span class="token punctuation">.</span>context<span class="token punctuation">.</span>properties<span class="token punctuation">.</span></span><span class="token class-name">ConfigurationProperties</span></span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">org<span class="token punctuation">.</span>springframework<span class="token punctuation">.</span>context<span class="token punctuation">.</span>annotation<span class="token punctuation">.</span></span><span class="token class-name">Bean</span></span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">org<span class="token punctuation">.</span>springframework<span class="token punctuation">.</span>context<span class="token punctuation">.</span>annotation<span class="token punctuation">.</span></span><span class="token class-name">Configuration</span></span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">org<span class="token punctuation">.</span>springframework<span class="token punctuation">.</span>context<span class="token punctuation">.</span>annotation<span class="token punctuation">.</span></span><span class="token class-name">Primary</span></span><span class="token punctuation">;</span>
+
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">javax<span class="token punctuation">.</span>sql<span class="token punctuation">.</span></span><span class="token class-name">DataSource</span></span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">java<span class="token punctuation">.</span>util<span class="token punctuation">.</span></span><span class="token class-name">HashMap</span></span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">java<span class="token punctuation">.</span>util<span class="token punctuation">.</span></span><span class="token class-name">Map</span></span><span class="token punctuation">;</span>
+
+<span class="token comment">/**
+ * @Classname DruidConfig
+ * @Description DruidConfig
+ * @Date 2023-02-27 15:31
+ * @Created by lihw
+ */</span>
+<span class="token annotation punctuation">@Configuration</span>
+<span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">DruidConfig</span> <span class="token keyword">implements</span> <span class="token class-name">BeanFactoryPostProcessor</span> <span class="token punctuation">{<!-- --></span>
+
+    <span class="token comment">/** Spring应用上下文环境,用于管理 注册到 spring中所有的bean */</span>
+    <span class="token keyword">private</span> <span class="token keyword">static</span> <span class="token class-name">ConfigurableListableBeanFactory</span> beanFactory<span class="token punctuation">;</span>
+
+    <span class="token comment">/**
+     * 注册主数据源
+     * @param druidProperties
+     * @return
+     */</span>
+    <span class="token annotation punctuation">@Bean</span>
+    <span class="token annotation punctuation">@ConfigurationProperties</span><span class="token punctuation">(</span><span class="token string">"spring.datasource.druid.master"</span><span class="token punctuation">)</span>
+    <span class="token keyword">public</span> <span class="token class-name">DataSource</span> <span class="token function">masterDataSource</span><span class="token punctuation">(</span><span class="token class-name">DruidProperties</span> druidProperties<span class="token punctuation">)</span>
+    <span class="token punctuation">{<!-- --></span>
+        <span class="token class-name">DruidDataSource</span> dataSource <span class="token operator">=</span> <span class="token class-name">DruidDataSourceBuilder</span><span class="token punctuation">.</span><span class="token function">create</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">build</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">return</span> druidProperties<span class="token punctuation">.</span><span class="token function">dataSource</span><span class="token punctuation">(</span>dataSource<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token comment">/**
+     * 根据条件 ： 注册 第二个数据源
+     * @param druidProperties
+     * @return
+     */</span>
+    <span class="token annotation punctuation">@Bean</span>
+    <span class="token annotation punctuation">@ConfigurationProperties</span><span class="token punctuation">(</span><span class="token string">"spring.datasource.druid.slave"</span><span class="token punctuation">)</span>
+    <span class="token annotation punctuation">@ConditionalOnProperty</span><span class="token punctuation">(</span>prefix <span class="token operator">=</span> <span class="token string">"spring.datasource.druid.slave"</span><span class="token punctuation">,</span> name <span class="token operator">=</span> <span class="token string">"enabled"</span><span class="token punctuation">,</span> havingValue <span class="token operator">=</span> <span class="token string">"true"</span><span class="token punctuation">)</span>
+    <span class="token keyword">public</span> <span class="token class-name">DataSource</span> <span class="token function">slaveDataSource</span><span class="token punctuation">(</span><span class="token class-name">DruidProperties</span> druidProperties<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token class-name">DruidDataSource</span> dataSource <span class="token operator">=</span> <span class="token class-name">DruidDataSourceBuilder</span><span class="token punctuation">.</span><span class="token function">create</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">build</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">return</span> druidProperties<span class="token punctuation">.</span><span class="token function">dataSource</span><span class="token punctuation">(</span>dataSource<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token comment">/**
+     * 把 注册的多个数据源， 统一加入到动态数据源中，并把动态数据源注册到spring中，以便动态切换
+     * @param masterDataSource
+     * @return
+     */</span>
+    <span class="token annotation punctuation">@Bean</span><span class="token punctuation">(</span><span class="token string">"dynamicDataSource"</span><span class="token punctuation">)</span>
+    <span class="token comment">// 标记动态数据源为主数据源，在相同的条件下，优先使用 此数据源</span>
+    <span class="token annotation punctuation">@Primary</span>
+    <span class="token keyword">public</span> <span class="token class-name">DynamicDataSource</span> <span class="token function">dataSource</span><span class="token punctuation">(</span><span class="token class-name">DataSource</span> masterDataSource<span class="token punctuation">)</span><span class="token punctuation">{<!-- --></span>
+        <span class="token class-name">Map</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Object</span><span class="token punctuation">,</span> <span class="token class-name">Object</span><span class="token punctuation">&gt;</span></span> targetDataSources <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">HashMap</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token punctuation">&gt;</span></span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        targetDataSources<span class="token punctuation">.</span><span class="token function">put</span><span class="token punctuation">(</span><span class="token class-name">DataSourceType</span><span class="token punctuation">.</span><span class="token constant">MASTER</span><span class="token punctuation">.</span><span class="token function">name</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> masterDataSource<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">setDataSource</span><span class="token punctuation">(</span>targetDataSources<span class="token punctuation">,</span> <span class="token class-name">DataSourceType</span><span class="token punctuation">.</span><span class="token constant">SLAVE</span><span class="token punctuation">.</span><span class="token function">name</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token string">"slaveDataSource"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">return</span> <span class="token keyword">new</span> <span class="token class-name">DynamicDataSource</span><span class="token punctuation">(</span>masterDataSource<span class="token punctuation">,</span> targetDataSources<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token comment">/**
+     * 设置数据源
+     *
+     * @param targetDataSources 备选数据源集合
+     * @param sourceName 数据源名称
+     * @param beanName bean名称
+     */</span>
+    <span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">setDataSource</span><span class="token punctuation">(</span><span class="token class-name">Map</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Object</span><span class="token punctuation">,</span> <span class="token class-name">Object</span><span class="token punctuation">&gt;</span></span> targetDataSources<span class="token punctuation">,</span> <span class="token class-name">String</span> sourceName<span class="token punctuation">,</span> <span class="token class-name">String</span> beanName<span class="token punctuation">)</span>
+    <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">try</span>
+        <span class="token punctuation">{<!-- --></span>
+            <span class="token class-name">DataSource</span> dataSource <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token class-name">DataSource</span><span class="token punctuation">)</span> beanFactory<span class="token punctuation">.</span><span class="token function">getBean</span><span class="token punctuation">(</span>beanName<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            targetDataSources<span class="token punctuation">.</span><span class="token function">put</span><span class="token punctuation">(</span>sourceName<span class="token punctuation">,</span> dataSource<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        <span class="token keyword">catch</span> <span class="token punctuation">(</span><span class="token class-name">Exception</span> e<span class="token punctuation">)</span>
+        <span class="token punctuation">{<!-- --></span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token comment">/**
+     * 重写BeanFactoryPostProcessor 的方法，用户接收 bean 工厂回调，bean 工厂中存了所有spring中注册的bean
+     * @param configurableListableBeanFactory the bean factory used by the application context
+     * @throws BeansException
+     */</span>
+    <span class="token annotation punctuation">@Override</span>
+    <span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">postProcessBeanFactory</span><span class="token punctuation">(</span><span class="token class-name">ConfigurableListableBeanFactory</span> configurableListableBeanFactory<span class="token punctuation">)</span> <span class="token keyword">throws</span> <span class="token class-name">BeansException</span> <span class="token punctuation">{<!-- --></span>
+        beanFactory <span class="token operator">=</span> configurableListableBeanFactory<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+
+</code></pre> </li><li> <p>测试代码</p> <pre><code class="prism language-java"><span class="token annotation punctuation">@RequestMapping</span><span class="token punctuation">(</span><span class="token string">"/test"</span><span class="token punctuation">)</span>
+<span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">TestController</span> <span class="token punctuation">{<!-- --></span>
+
+    <span class="token annotation punctuation">@Autowired</span>
+    <span class="token class-name">StudentMapper</span> studentMapper<span class="token punctuation">;</span>
+
+    <span class="token annotation punctuation">@Autowired</span>
+    <span class="token class-name">SysUserMapper</span> sysUserMapper<span class="token punctuation">;</span>
+
+    <span class="token annotation punctuation">@GetMapping</span><span class="token punctuation">(</span><span class="token string">"list"</span><span class="token punctuation">)</span>
+    <span class="token keyword">public</span> <span class="token class-name">List</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Student</span><span class="token punctuation">&gt;</span></span> <span class="token function">getUserList</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+
+        <span class="token class-name">List</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Student</span><span class="token punctuation">&gt;</span></span> userList <span class="token operator">=</span> studentMapper<span class="token punctuation">.</span><span class="token function">getUserList</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        <span class="token class-name">System</span><span class="token punctuation">.</span>out<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span>userList<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        <span class="token keyword">return</span> userList<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token annotation punctuation">@GetMapping</span><span class="token punctuation">(</span><span class="token string">"msg2"</span><span class="token punctuation">)</span>
+    <span class="token keyword">public</span> <span class="token class-name">String</span> <span class="token function">getmsg2</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+		<span class="token comment">// 手动切换 数据源</span>
+        <span class="token class-name">DynamicDataSourceContextHolder</span><span class="token punctuation">.</span><span class="token function">setDataSourceType</span><span class="token punctuation">(</span><span class="token string">"SLAVE"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token class-name">List</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">SysUser</span><span class="token punctuation">&gt;</span></span> user <span class="token operator">=</span> sysUserMapper<span class="token punctuation">.</span><span class="token function">getUserList</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token class-name">DynamicDataSourceContextHolder</span><span class="token punctuation">.</span><span class="token function">clearDataSourceType</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token class-name">System</span><span class="token punctuation">.</span>out<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span>user<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        <span class="token keyword">return</span> <span class="token string">"msg22"</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+<span class="token punctuation">}</span>
+</code></pre> </li></ul> 
+<p>测试结果</p> 
+<pre><code class="prism language-markdown">2023-02-27 16:25:57.770  INFO 6988 --- [nio-8080-exec-1] com.alibaba.druid.pool.DruidDataSource   :** {dataSource-1} inited
+[Student(id=1612374211110744066, name=小红1, age=20, classId=1, teacherId=1, createTime=null, updateTime=null), Student(id=1612374211354013699, name=小红, age=20, classId=12, teacherId=21, createTime=null, updateTime=null), Student(id=1625387649604820994, name=小王, age=30, classId=null, teacherId=null, createTime=null, updateTime=null), Student(id=1625387978916392961, name=小王, age=30, classId=null, teacherId=null, createTime=null, updateTime=null), Student(id=1625389122829021186, name=小王, age=30, classId=null, teacherId=null, createTime=null, updateTime=null), Student(id=1625389706172817410, name=小王, age=30, classId=null, teacherId=null, createTime=null, updateTime=null), Student(id=1625389938096738305, name=小王, age=30, classId=null, teacherId=null, createTime=Tue Feb 14 15:02:14 CST 2023, updateTime=null)]**
+2023-02-27 16:25:59.710  INFO 6988 --- [nio-8080-exec-3] c.e.d.d.DynamicDataSourceContextHolder   : 切换到SLAVE数据源
+2023-02-27 16:26:00.757  INFO 6988 --- [nio-8080-exec-3] com.alibaba.druid.pool.DruidDataSource   : **{dataSource-2} inited
+[SysUser(userId=1, userName=admin, nickName=若依), SysUser(userId=2, userName=ry, nickName=若依), SysUser(userId=100, userName=lhw, nickName=李洪伟)]**
+</code></pre> 
+<ul><li></ul> 
+<h4><a id="x20spring__450"></a> 利用spring 注解优雅切换</h4> 
+<ul><li> <p>spring aop拦截器</p> <pre><code>        &lt;!-- SpringBoot 拦截器 --&gt;
+        &lt;dependency&gt;
+            &lt;groupId&gt;org.springframework.boot&lt;/groupId&gt;
+            &lt;artifactId&gt;spring-boot-starter-aop&lt;/artifactId&gt;
+            &lt;version&gt;2.7.9&lt;/version&gt;
+        &lt;/dependency&gt;
+</code></pre> </li></ul> 
+ 
+<ul><li> <p>定义注解</p> <pre><code class="prism language-java"><span class="token keyword">import</span> <span class="token import"><span class="token namespace">java<span class="token punctuation">.</span>lang<span class="token punctuation">.</span>annotation<span class="token punctuation">.</span></span><span class="token class-name">Documented</span></span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">java<span class="token punctuation">.</span>lang<span class="token punctuation">.</span>annotation<span class="token punctuation">.</span></span><span class="token class-name">ElementType</span></span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">java<span class="token punctuation">.</span>lang<span class="token punctuation">.</span>annotation<span class="token punctuation">.</span></span><span class="token class-name">Inherited</span></span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">java<span class="token punctuation">.</span>lang<span class="token punctuation">.</span>annotation<span class="token punctuation">.</span></span><span class="token class-name">Retention</span></span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">java<span class="token punctuation">.</span>lang<span class="token punctuation">.</span>annotation<span class="token punctuation">.</span></span><span class="token class-name">RetentionPolicy</span></span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">java<span class="token punctuation">.</span>lang<span class="token punctuation">.</span>annotation<span class="token punctuation">.</span></span><span class="token class-name">Target</span></span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">com<span class="token punctuation">.</span>ruoyi<span class="token punctuation">.</span>common<span class="token punctuation">.</span>enums<span class="token punctuation">.</span></span><span class="token class-name">DataSourceType</span></span><span class="token punctuation">;</span>
+
+<span class="token comment">/**
+ * 自定义多数据源切换注解
+ *
+ * 优先级：先方法，后类，如果方法覆盖了类上的数据源类型，以方法的为准，否则以类上的为准
+ *
+ * @author ruoyi
+ */</span>
+<span class="token annotation punctuation">@Target</span><span class="token punctuation">(</span><span class="token punctuation">{<!-- --></span> <span class="token class-name">ElementType</span><span class="token punctuation">.</span><span class="token constant">METHOD</span><span class="token punctuation">,</span> <span class="token class-name">ElementType</span><span class="token punctuation">.</span><span class="token constant">TYPE</span> <span class="token punctuation">}</span><span class="token punctuation">)</span>
+<span class="token annotation punctuation">@Retention</span><span class="token punctuation">(</span><span class="token class-name">RetentionPolicy</span><span class="token punctuation">.</span><span class="token constant">RUNTIME</span><span class="token punctuation">)</span>
+<span class="token annotation punctuation">@Documented</span>
+<span class="token annotation punctuation">@Inherited</span>
+<span class="token keyword">public</span> <span class="token annotation punctuation">@interface</span> <span class="token class-name">DataSource</span>
+<span class="token punctuation">{<!-- --></span>
+    <span class="token comment">/**
+     * 切换数据源名称
+     */</span>
+    <span class="token keyword">public</span> <span class="token class-name">DataSourceType</span> <span class="token function">value</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token keyword">default</span> <span class="token class-name">DataSourceType</span><span class="token punctuation">.</span><span class="token constant">MASTER</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+</code></pre> </li><li> <p>aop 切面</p> <pre><code class="prism language-java">
+
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">java<span class="token punctuation">.</span>util<span class="token punctuation">.</span></span><span class="token class-name">Objects</span></span><span class="token punctuation">;</span>
+
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">org<span class="token punctuation">.</span>aspectj<span class="token punctuation">.</span>lang<span class="token punctuation">.</span></span><span class="token class-name">ProceedingJoinPoint</span></span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">org<span class="token punctuation">.</span>aspectj<span class="token punctuation">.</span>lang<span class="token punctuation">.</span>annotation<span class="token punctuation">.</span></span><span class="token class-name">Around</span></span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">org<span class="token punctuation">.</span>aspectj<span class="token punctuation">.</span>lang<span class="token punctuation">.</span>annotation<span class="token punctuation">.</span></span><span class="token class-name">Aspect</span></span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">org<span class="token punctuation">.</span>aspectj<span class="token punctuation">.</span>lang<span class="token punctuation">.</span>annotation<span class="token punctuation">.</span></span><span class="token class-name">Pointcut</span></span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">org<span class="token punctuation">.</span>aspectj<span class="token punctuation">.</span>lang<span class="token punctuation">.</span>reflect<span class="token punctuation">.</span></span><span class="token class-name">MethodSignature</span></span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">org<span class="token punctuation">.</span>slf4j<span class="token punctuation">.</span></span><span class="token class-name">Logger</span></span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">org<span class="token punctuation">.</span>slf4j<span class="token punctuation">.</span></span><span class="token class-name">LoggerFactory</span></span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">org<span class="token punctuation">.</span>springframework<span class="token punctuation">.</span>core<span class="token punctuation">.</span>annotation<span class="token punctuation">.</span></span><span class="token class-name">AnnotationUtils</span></span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">org<span class="token punctuation">.</span>springframework<span class="token punctuation">.</span>core<span class="token punctuation">.</span>annotation<span class="token punctuation">.</span></span><span class="token class-name">Order</span></span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">org<span class="token punctuation">.</span>springframework<span class="token punctuation">.</span>stereotype<span class="token punctuation">.</span></span><span class="token class-name">Component</span></span><span class="token punctuation">;</span>
+
+
+<span class="token comment">/**
+ * 多数据源处理
+ *
+ * @author ruoyi
+ */</span>
+<span class="token annotation punctuation">@Aspect</span>
+<span class="token annotation punctuation">@Order</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span>
+<span class="token annotation punctuation">@Component</span>
+<span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">DataSourceAspect</span>
+<span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">protected</span> <span class="token class-name">Logger</span> logger <span class="token operator">=</span> <span class="token class-name">LoggerFactory</span><span class="token punctuation">.</span><span class="token function">getLogger</span><span class="token punctuation">(</span><span class="token function">getClass</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token annotation punctuation">@Pointcut</span><span class="token punctuation">(</span><span class="token string">"@annotation(com.example.demo.druid2.DataSource)"</span>
+            <span class="token operator">+</span> <span class="token string">"|| @within(com.example.demo.druid2.DataSource)"</span><span class="token punctuation">)</span>
+    <span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">dsPointCut</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+    <span class="token punctuation">{<!-- --></span>
+
+    <span class="token punctuation">}</span>
+
+    <span class="token annotation punctuation">@Around</span><span class="token punctuation">(</span><span class="token string">"dsPointCut()"</span><span class="token punctuation">)</span>
+    <span class="token keyword">public</span> <span class="token class-name">Object</span> <span class="token function">around</span><span class="token punctuation">(</span><span class="token class-name">ProceedingJoinPoint</span> point<span class="token punctuation">)</span> <span class="token keyword">throws</span> <span class="token class-name">Throwable</span>
+    <span class="token punctuation">{<!-- --></span>
+        <span class="token class-name">DataSource</span> dataSource <span class="token operator">=</span> <span class="token function">getDataSource</span><span class="token punctuation">(</span>point<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>dataSource <span class="token operator">!=</span> <span class="token keyword">null</span><span class="token punctuation">)</span>
+        <span class="token punctuation">{<!-- --></span>
+            <span class="token class-name">DynamicDataSourceContextHolder</span><span class="token punctuation">.</span><span class="token function">setDataSourceType</span><span class="token punctuation">(</span>dataSource<span class="token punctuation">.</span><span class="token function">value</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">name</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+
+        <span class="token keyword">try</span>
+        <span class="token punctuation">{<!-- --></span>
+            <span class="token keyword">return</span> point<span class="token punctuation">.</span><span class="token function">proceed</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        <span class="token keyword">finally</span>
+        <span class="token punctuation">{<!-- --></span>
+            <span class="token comment">// 销毁数据源 在执行方法之后</span>
+            <span class="token class-name">DynamicDataSourceContextHolder</span><span class="token punctuation">.</span><span class="token function">clearDataSourceType</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token comment">/**
+     * 获取需要切换的数据源
+     */</span>
+    <span class="token keyword">public</span> <span class="token class-name">DataSource</span> <span class="token function">getDataSource</span><span class="token punctuation">(</span><span class="token class-name">ProceedingJoinPoint</span> point<span class="token punctuation">)</span>
+    <span class="token punctuation">{<!-- --></span>
+        <span class="token class-name">MethodSignature</span> signature <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token class-name">MethodSignature</span><span class="token punctuation">)</span> point<span class="token punctuation">.</span><span class="token function">getSignature</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token class-name">DataSource</span> dataSource <span class="token operator">=</span> <span class="token class-name">AnnotationUtils</span><span class="token punctuation">.</span><span class="token function">findAnnotation</span><span class="token punctuation">(</span>signature<span class="token punctuation">.</span><span class="token function">getMethod</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token class-name">DataSource</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token class-name">Objects</span><span class="token punctuation">.</span><span class="token function">nonNull</span><span class="token punctuation">(</span>dataSource<span class="token punctuation">)</span><span class="token punctuation">)</span>
+        <span class="token punctuation">{<!-- --></span>
+            <span class="token keyword">return</span> dataSource<span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+
+        <span class="token keyword">return</span> <span class="token class-name">AnnotationUtils</span><span class="token punctuation">.</span><span class="token function">findAnnotation</span><span class="token punctuation">(</span>signature<span class="token punctuation">.</span><span class="token function">getDeclaringType</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token class-name">DataSource</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+
+</code></pre> </li></ul>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/be2530619bd8032353586810acfee678/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">一篇搞懂springboot多数据源</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/29430af11990b912180f25bb1bba3b67/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">Java 学习（一）Java语言基础</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>【Batch Normalization 在CNN中的实现细节】 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/d51971f11a82bb1bec94308d5cf644ad/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="【Batch Normalization 在CNN中的实现细节】">
+  <meta property="og:description" content="目录 1. BN在MLP中的实现步骤2. BN在CNN中的实现细节2.1 训练过程2.2 前向推断过程 整天说Batch Norm，CNN的论文里离不开Batch Norm。BN可以使每层输入数据分布相对稳定，加速模型训练时的收敛速度。但BN操作在CNN中具体是如何实现的呢？
+1. BN在MLP中的实现步骤 首先快速回顾下BN在MLP中是怎样的，步骤如下图：
+图片来源：BN原论文
+一句话概括就是对于每个特征，求一个batch求均值和方差。然后该特征减去均值除以标准差，再进行一个可以学习参数的线性缩放（即乘以γ加上β）即可。本质上是对输入进行线性缩放，使得每层的输入数值分布相对稳定。
+在MLP中更具体的实现可以参考BN原论文，也可以看这篇讲解——Batch Normalization原理与实战，写得非常清楚。
+2. BN在CNN中的实现细节 其实本质上还是对于每层进行线性缩放，使得每层的数据分布相对稳定。但由于MLP中的一层是一个1D的向量，而CNN的每一层是一个3D的tensor，所以具体实现细节还是有差异的。
+整体过程还是和上面的步骤一致：
+2.1 训练过程 只是我们不在对每个特征，求一个batch的均值和方差；而是对每个feature map，求一个batch的均值和方差。
+也可以这么表述：MLP是对在特征维度（即每个神经元）求均值和方差，而CNN是在通道（channel）维度（即每个feature map）求均值和方差。
+表述得更清楚一些：
+上图中红框圈出的是CNN的一层，形状是（C, H, W），其中，C是通道个数（即feature map的数量），H和W是feature map的长和宽。我们可以这么理解：CNN的一层是一个3D的矩阵，是由C层2D的feature map组成的。
+若一个batch有N张图片，则红框圈出的一层的形状为（N, C, H, W），即共有NxCxHxW个数值。
+在训练时，BN做的就是在该batch中，对该层每一个feature map的所有数据（即第二个维度C，共有C个feature map），求均值和方差。即对NxHxW个数据求均值μ和方差σ。【一个feature map有HxW个数据，一个batch中有N张图片】即对第i个feature map，有与之对应的μ_i和σ_i。
+因为一层有C个feature map，所以就共有C个μ_i和σ_i。i∈[1, C]
+其余过程就和MLP一样了：第i个feature map每个元素减去对应的均值μ_i除以标准差，然后再进行一个可以学习参数的线性缩放（即乘以γ加上β）即可。
+2.2 前向推断过程 和MLP一样，在训练过程中，每个batch都会求出C个均值和方差（因为每个feature map都会有一个均值和方差）。
+而在前向推断过程，则对于所有的batch的每个feature map的均值和方差做平均，论文中是求出所有均值的期望和方差的无偏估计，如下：
+得到前向推断时每一层feature map的均值μ_i_test和方差σ_i_test。然后第i个feature map每个元素减去对应的均值μ_i_test除以标准差，然后再进行一个的线性缩放（即乘以γ加上β）即可。其中γ和β是训练过程已经训练好的。
+总而言之：MLP是对在特征维度（即每个神经元）对一个batch求均值和方差，而CNN是在通道（channel）维度（即每个feature map）对一个batch求均值和方差。
+END：）
+总觉得文字还是无法完全把我的想法表述清楚，最好的学习方法还是去看原论文，然后自己多琢磨。
+参考：
+1.【原论文】 Batch Normalization: Accelerating Deep Network Training by Reducing Internal Covariate Shift">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2022-10-11T17:28:58+08:00">
+    <meta property="article:modified_time" content="2022-10-11T17:28:58+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">【Batch Normalization 在CNN中的实现细节】</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-light">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <p></p> 
+<div class="toc"> 
+ <h4>目录</h4> 
+ <ul><li><a href="#1_BNMLP_4" rel="nofollow">1. BN在MLP中的实现步骤</a></li><li><a href="#2_BNCNN_15" rel="nofollow">2. BN在CNN中的实现细节</a></li><li><ul><li><a href="#21__21" rel="nofollow">2.1 训练过程</a></li><li><a href="#22__41" rel="nofollow">2.2 前向推断过程</a></li></ul> 
+ </li></ul> 
+</div> 
+<p></p> 
+<p>整天说Batch Norm，CNN的论文里离不开Batch Norm。BN可以使每层输入数据分布相对稳定，加速模型训练时的收敛速度。但BN操作在CNN中具体是如何实现的呢？</p> 
+<h2><a id="1_BNMLP_4"></a>1. BN在MLP中的实现步骤</h2> 
+<p>首先快速回顾下BN在MLP中是怎样的，步骤如下图：<br> <img src="https://images2.imgbox.com/ab/5e/QY1hSuc0_o.png" alt="在这里插入图片描述"><br> <a href="https://arxiv.org/pdf/1502.03167.pdf" rel="nofollow">图片来源：BN原论文</a></p> 
+<p>一句话概括就是<strong>对于每个特征，求一个batch求均值和方差</strong>。然后该特征减去均值除以标准差，再进行一个<strong>可以学习参数</strong>的线性缩放（即乘以γ加上β）即可。<strong>本质上是对输入进行线性缩放，使得每层的输入数值分布相对稳定。</strong></p> 
+<p>在MLP中更具体的实现可以参考<a href="https://arxiv.org/pdf/1502.03167.pdf" rel="nofollow">BN原论文</a>，也可以看<a href="https://zhuanlan.zhihu.com/p/34879333" rel="nofollow">这篇讲解——Batch Normalization原理与实战</a>，写得非常清楚。</p> 
+<h2><a id="2_BNCNN_15"></a>2. BN在CNN中的实现细节</h2> 
+<p>其实本质上还是对于每层进行线性缩放，使得每层的数据分布相对稳定。但由于MLP中的一层是一个<strong>1D的向量</strong>，而CNN的每一层是一个<strong>3D的tensor</strong>，所以具体实现细节还是有差异的。<br> <img src="https://images2.imgbox.com/02/67/ul04msig_o.png" alt="在这里插入图片描述"><br> <img src="https://images2.imgbox.com/fb/25/wi0R1oi1_o.png" alt="在这里插入图片描述"><br> 整体过程还是和上面的步骤一致：</p> 
+<h3><a id="21__21"></a>2.1 训练过程</h3> 
+<p><img src="https://images2.imgbox.com/c1/bb/u8MEw8y8_o.png" alt="在这里插入图片描述"><br> 只是我们不在对每个特征，求一个batch的均值和方差；而是<strong>对每个feature map，求一个batch的均值和方差</strong>。</p> 
+<p>也可以这么表述：MLP是对在特征维度（即每个神经元）求均值和方差，而CNN是在通道（channel）维度（即每个feature map）求均值和方差。</p> 
+<p>表述得更清楚一些：</p> 
+<p><img src="https://images2.imgbox.com/f0/26/XffqSQ3m_o.png" alt="在这里插入图片描述"><br> 上图中红框圈出的是CNN的<strong>一层</strong>，形状是（C, H, W），其中，C是通道个数（即feature map的数量），H和W是feature map的长和宽。我们可以这么理解：CNN的一层是一个3D的矩阵，是由C层2D的feature map组成的。</p> 
+<p>若一个batch有N张图片，则红框圈出的一层的形状为（N, C, H, W），即共有NxCxHxW个数值。</p> 
+<p>在训练时，BN做的就是<strong>在该batch中，对该层每一个feature map的所有数据</strong>（即第二个维度C，共有C个feature map），求均值和方差。即对NxHxW个数据求均值μ和方差σ。【一个feature map有HxW个数据，一个batch中有N张图片】<strong>即对第i个feature map，有与之对应的μ_i和σ_i</strong>。</p> 
+<p>因为一层有C个feature map，所以就共有C个μ_i和σ_i。i∈[1, C]</p> 
+<p>其余过程就和MLP一样了：第i个feature map每个元素减去对应的均值μ_i除以标准差，然后再进行一个<strong>可以学习参数</strong>的线性缩放（即乘以γ加上β）即可。</p> 
+<h3><a id="22__41"></a>2.2 前向推断过程</h3> 
+<p>和MLP一样，在训练过程中，每个batch都会求出C个均值和方差（因为每个feature map都会有一个均值和方差）。</p> 
+<p>而在前向推断过程，则对于所有的batch的每个feature map的均值和方差做平均，论文中是求出所有均值的期望和方差的无偏估计，如下：<br> <img src="https://images2.imgbox.com/11/4a/wpPDOnKK_o.png" alt="在这里插入图片描述"><br> 得到前向推断时每一层feature map的均值μ_i_test和方差σ_i_test。然后第i个feature map每个元素减去对应的均值μ_i_test除以标准差，然后再进行一个的线性缩放（即乘以γ加上β）即可。其中γ和β是训练过程已经训练好的。</p> 
+<p>总而言之：<strong>MLP是对在特征维度（即每个神经元）对一个batch求均值和方差，而CNN是在通道（channel）维度（即每个feature map）对一个batch求均值和方差。</strong></p> 
+<p>END：）</p> 
+<p>总觉得文字还是无法完全把我的想法表述清楚，最好的学习方法还是去看原论文，然后自己多琢磨。</p> 
+<p>参考：<br> <a href="https://arxiv.org/pdf/1502.03167.pdf" rel="nofollow">1.【原论文】 Batch Normalization: Accelerating Deep Network Training by Reducing Internal Covariate Shift</a></p> 
+<p><a href="https://zhuanlan.zhihu.com/p/34879333" rel="nofollow">2. Batch Normalization原理与实战</a></p> 
+<p><a href="https://www.bilibili.com/video/BV1X44y1r77r/?spm_id_from=333.999.0.0&amp;vd_source=f3b719153bcc790ff5726c791cdb13b3" rel="nofollow">3. 【李沐老师课程】批量归一化【动手学深度学习v2】</a></p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/e7ea6c01143fa176c829320560311082/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">Js 简化代码的基础上解决后台返回字符串类型的Boolean值导致判断错误的问题</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/097a3e851244dafb77ac2b929c621cb4/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">Tracing Knowledge State with Individual Cognition and Acquisition Estimation 阅读笔记</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>大数据面试题 —— Flume - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/82f824717053a6c637ed78e0de57a6f3/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="大数据面试题 —— Flume">
+  <meta property="og:description" content="目录 介绍 FlumeFlume 架构请说一下你提到的几种 source 的不同点Flume 传输数据时如何保证数据一致性TailDir 为什么可以断点重传说下Flume事务机制Sink 消费能力弱，Channel 会不会丢失数据数千个Flume要怎么统一配置，修改就分发吗Flume一个节点宕机了怎么办，数据怎么恢复你是如何实现Flume数据传输的监控的Flume的Channel SelectorsFlume参数调优Flume的事务机制Flume采集数据会丢失吗?Flume Kafka Sink了解过吗Flume写到HDFS怎么分区Flume如果出现数据重复是什么原因Flume的配置文件怎么写的 介绍 Flume 可以从以下几个方面回答，每一个方面又可以当做一个面试题
+（1）Flume 是什么？
+Flume 是 Cloudera 公司提供的一个 高可用的，高可靠的，分布式的 海量日志采集、聚合 和 传输 的系统。Flume 的设计原理是基于数据流（流式架构，灵活简单），其最主要的作用是实时读取服务器本地磁盘的数据，将数据写入HDFS 或 Kafka等。
+（2）Flume 文件目录
+Flume 主要的文件目录如下：
+（3）Flume 的 Agent 组件
+Flume 内部有一个或者多个 Agent，然而对于每一个 Agent 来说，它就是一个独立的守护进程(JVM)，它从客户端那接收数据，或者从其他的 Agent 那接收，然后迅速的将获取的数据传给 Sink，或者其他 Agent 。每个 Agent 包含了 Source、Channel 和 Sink。
+（4）Flume 优缺点
+优点
+Flume 可以将应用产生的数据存储到任何集中存储器中，比如 HDFS，HBase。当收集数据的速度超过将写入数据的时候，也就是当收集信息遇到峰值时，这时候收集的信息非常大，甚至超过了系统的写入数据能力，这时候，Flume 会在数据生产者和数据收容器间做出调整，保证其能够在两者之间提供一个平稳的数据。提供上下文路由特征。（上下文路由特征是 Flume 提供的一种机制，用于根据事件的上下文信息将数据路由到不同的目的地。）Flume 的管道是基于事务，保证了数据在传送和接收时的一致性。Flume 是可靠的，容错性高的，可升级的，易管理的，并且可定制的。实时性，Flume可以实时的将分析数据并将数据保存在数据库或者其他系统中。 缺点
+Flume 的配置很繁琐，source，channel，sink 的关系在配置文件里面交织在一起，不便于管理。无法保证数据的不重复 （5）应用场景">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2024-03-19T15:46:42+08:00">
+    <meta property="article:modified_time" content="2024-03-19T15:46:42+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">大数据面试题 —— Flume</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-light">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <p></p> 
+<div class="toc"> 
+ <h4>目录</h4> 
+ <ul><li><a href="#_Flume_1" rel="nofollow">介绍 Flume</a></li><li><a href="#Flume__51" rel="nofollow">Flume 架构</a></li><li><a href="#_source__71" rel="nofollow">请说一下你提到的几种 source 的不同点</a></li><li><a href="#Flume__84" rel="nofollow">Flume 传输数据时如何保证数据一致性</a></li><li><a href="#TailDir__101" rel="nofollow">TailDir 为什么可以断点重传</a></li><li><a href="#Flume_107" rel="nofollow">说下Flume事务机制</a></li><li><a href="#Sink_Channel__126" rel="nofollow">Sink 消费能力弱，Channel 会不会丢失数据</a></li><li><a href="#Flume_138" rel="nofollow">数千个Flume要怎么统一配置，修改就分发吗</a></li><li><a href="#Flume_144" rel="nofollow">Flume一个节点宕机了怎么办，数据怎么恢复</a></li><li><a href="#Flume_157" rel="nofollow">你是如何实现Flume数据传输的监控的</a></li><li><a href="#FlumeChannel_Selectors_163" rel="nofollow">Flume的Channel Selectors</a></li><li><a href="#Flume_173" rel="nofollow">Flume参数调优</a></li><li><a href="#Flume_197" rel="nofollow">Flume的事务机制</a></li><li><a href="#Flume_204" rel="nofollow">Flume采集数据会丢失吗?</a></li><li><a href="#Flume_Kafka_Sink_212" rel="nofollow">Flume Kafka Sink了解过吗</a></li><li><a href="#FlumeHDFS_218" rel="nofollow">Flume写到HDFS怎么分区</a></li><li><a href="#Flume_230" rel="nofollow">Flume如果出现数据重复是什么原因</a></li><li><a href="#Flume_240" rel="nofollow">Flume的配置文件怎么写的</a></li></ul> 
+</div> 
+<p></p> 
+<h2><a id="_Flume_1"></a>介绍 Flume</h2> 
+<br> 
+<blockquote> 
+ <p>可以从以下几个方面回答，每一个方面又可以当做一个面试题</p> 
+</blockquote> 
+<p>（1）Flume 是什么？</p> 
+<p>Flume 是 Cloudera 公司提供的一个 <strong>高可用的</strong>，<strong>高可靠的</strong>，<strong>分布式的</strong> <strong>海量日志采集</strong>、<strong>聚合</strong> 和 <strong>传输</strong> 的系统。<strong>Flume 的设计原理是基于数据流（流式架构，灵活简单），其最主要的作用是实时读取服务器本地磁盘的数据，将数据写入HDFS 或 Kafka等</strong>。</p> 
+<p>（2）Flume 文件目录</p> 
+<p>Flume 主要的文件目录如下：</p> 
+<p><img src="https://images2.imgbox.com/74/39/ytMLHXdI_o.png" alt="在这里插入图片描述"></p> 
+<p>（3）Flume 的 Agent 组件</p> 
+<p>Flume 内部有一个或者多个 Agent，然而对于每一个 Agent 来说，它就是一个独立的守护进程(JVM)，它从客户端那接收数据，或者从其他的 Agent 那接收，然后迅速的将获取的数据传给 Sink，或者其他 Agent 。每个 Agent 包含了 <code>Source</code>、<code>Channel</code> 和 <code>Sink</code>。</p> 
+<p>（4）Flume 优缺点</p> 
+<p>优点</p> 
+<ul><li>Flume 可以将应用产生的数据存储到任何集中存储器中，比如 HDFS，HBase。</li><li>当收集数据的速度超过将写入数据的时候，也就是当收集信息遇到峰值时，这时候收集的信息非常大，甚至超过了系统的写入数据能力，这时候，Flume 会在数据生产者和数据收容器间做出调整，保证其能够在两者之间提供一个平稳的数据。</li><li>提供上下文路由特征。（上下文路由特征是 Flume 提供的一种机制，用于根据事件的上下文信息将数据路由到不同的目的地。）</li><li>Flume 的管道是基于事务，保证了数据在传送和接收时的一致性。</li><li>Flume 是可靠的，容错性高的，可升级的，易管理的，并且可定制的。</li><li>实时性，Flume可以实时的将分析数据并将数据保存在数据库或者其他系统中。</li></ul> 
+<p>缺点</p> 
+<ul><li>Flume 的<strong>配置很繁琐</strong>，source，channel，sink 的关系在配置文件里面交织在一起，不便于管理。</li><li><strong>无法保证数据的不重复</strong></li></ul> 
+<p>（5）应用场景</p> 
+<ul><li>电子商务网站，比如我们在做一个电子商务网站，然后我们想从消费用户中访问点特定的节点区域来分析消费者的行为或者购买意图。这样我们就可以更加快速的将他想要的推送到界面上，实现这一点，我们需要将获取到的她访问的页面以及点击的产品数据等日志数据信息收集并移交给 Hadoop 平台上去分析，而 Flume 正是帮我们做到这一点。</li><li>内容推送，现在流行的内容推送，比如广告定点投放以及新闻私人定制也是基于此。</li><li>ETL工具可以利用插件把关系型数据实时增量的导入到 Hdfs 外部数据源。</li></ul> 
+<p>（6）Flume插件</p> 
+<ul><li>Interceptors 拦截器用于 source 和 channel 之间，用来更改或者检查 Flume 的events 数据</li><li>管道选择器 channels Selectors 在多管道是被用来选择使用哪一条管道来传递数据(events)。管道选择器又分为如下两种: 
+  <ul><li>默认管道选择器: 每一个管道传递的都是相同的 events</li><li>多路复用通道选择器: 依据每一个 event 的头部 header 的地址选择管道</li></ul> </li><li>sink 线程用于激活被选择的 sinks 群中特定的 sink，用于负载均衡</li></ul> 
+<p>（7）其它类似 Flume 框架 <strong>Facebook 的 Scribe</strong>，还有 <strong>Apache</strong> 另一个明星项目 <strong>chukwa</strong>，还有淘宝 <strong>Time Tunnel</strong>。</p> 
+<h2><a id="Flume__51"></a>Flume 架构</h2> 
+<br> 
+<p>Flume传输数据依靠的就是Agent ，Agent 是一个 JVM 进程，它以事件的形式将数据从源头送至目的地。Agent 主要有3个部分组成，Source、Channel、Sink。</p> 
+<p>Source</p> 
+<ul><li>Source 负责接收数据，可以处理各种类型的日志数据,包括 netcat，exec，spooldir， taildir 等。</li></ul> 
+<p>Channel</p> 
+<ul><li>Channel是位于 Source 和 Sink 之间的缓冲区。因此，Channel 允许 Source 和Sink 运作在不同的速率上。Channel 是线程安全的，可以同时处理几个 Source 的写入操作和几个 Sink 的读取操作。</li><li>两种类型 
+  <ul><li>Memory Channel 是内存中的队列。Memory Channel 在不需要关心数据丢失的情景下适用。如果需要关心数据丢失，那么 Memory Channel 就不应该使用，因为程序死亡、机器宕机或者重启都会导致数据丢失。</li><li>File Channel 将所有事件写到磁盘。因此在程序关闭或机器宕机的情况下不会丢失数据。</li></ul> </li></ul> 
+<p>Sink</p> 
+<ul><li>数据的目的地，负责将Channel 中的数据传输到存储系统或下一个Flume中。Sink 组件目的地包括 hdfs、Kafka、logger、avro、HBase等。</li></ul> 
+<h2><a id="_source__71"></a>请说一下你提到的几种 source 的不同点</h2> 
+<br> 
+<p>Exec source 适用于监控一个实时追加的文件，但不能保证数据不丢失；</p> 
+<p>Spooldir Source 适用于监控一个文件夹下的多个新文件，能够保证数据不丢失，且能够实现断点续传，但延迟较高，不能实时监控；</p> 
+<p>Taildir Source 适用于监控一个文件夹下的多个追加文件，既能够实现断点续传，又可以保证数据不丢失，还能够进行实时监控。</p> 
+<h2><a id="Flume__84"></a>Flume 传输数据时如何保证数据一致性</h2> 
+<br> 
+<p>（1）Flume的事务机制</p> 
+<p>Flume使用两个独立的事务分别负责从 soucrce 到 channel，以及从 channel 到 sink 的事件传递。</p> 
+<p>（2）Flume 的 At-Least-Once 提交方式</p> 
+<p>Flume 的事务机制，总的来说，保证了source 产生的每个事件都会传送到 sink 中。但是值得一说的是，实际上 Flume 作为高容量并行采集系统采用的是 At-least-once（传统的企业系统采用的是 exactly-once 机制）提交方式，这样就造成每个 source 产生的事件至少到达 sink 一次，换句话说就是同一事件有可能重复到达。这样虽然看上去是一个缺陷，但是相比为了保证 Flume 能够可靠地将事件从source，channel 传递到 sink，这也是一个可以接受的权衡。</p> 
+<p>（3）Flume的批处理机制</p> 
+<p>为了提高效率，Flume 尽可能的以事务为单位来处理事件，而不是逐一基于事件进行处理。<strong>批处理的设置尤其有利于提高 File Channel 的效率，这样整个事务只需要写入一次本地磁盘，速度会快很多。</strong></p> 
+<h2><a id="TailDir__101"></a>TailDir 为什么可以断点重传</h2> 
+<br> 
+<p>TailDir 是Flume中的一种 Source 类型，用于读取日志文件并将其传输到下一个步骤（例如 Kafka 或 HDFS）。TailDir 可以断点重传的原因在于<strong>它跟踪了每个文件的当前读取位置，并将其存储在一个可配置的“位置文件”</strong>（Flume内置JSON文件）中。如果 Flume 代理在读取日志文件时出现故障或崩溃，它将从位置文件中读取每个文件的位置，并从上一次读取的位置开始重新读取文件。这种断点重传的机制可以确保数据的可靠传输，并尽可能地避免数据重复或遗漏。</p> 
+<h2><a id="Flume_107"></a>说下Flume事务机制</h2> 
+<br> 
+<p>Flume 的事务机制类似数据库的事务机制：要么都成功，要么都失败。</p> 
+<p>Flume使用两个独立的事务分别负责从Source到Channel，以及从Channel到Sink的事件传递。</p> 
+<p>Put 事务</p> 
+<ul><li>doPut：将批数据先写入临时缓冲区 putList</li><li>doCommit：检查Channel中是否还有足够的空间来容纳 putList中的所有数据，如果有，doCommit就成功了，putList 中的所有数据就会进入到 Channel 中并清空 putList 中的数据；</li><li>doRollback：Channel中的空间不足以容纳 putList 中的数据的时候，事务就会进行回滚（所谓的回滚就是等一定的时间后，再尝试将 putList 中的数据发送到Channel）；</li></ul> 
+<p>Take 事务</p> 
+<ul><li>doTake：将数据取到临时缓冲区 takeList</li><li>doCommit：如果数据全部发送成功，则清除临时缓冲区 takeList</li><li>doRollback：数据发送过程中如果出现异常，rollback 将临时缓冲区 takeList 中的数据归还给 channel内存队列</li></ul> 
+<h2><a id="Sink_Channel__126"></a>Sink 消费能力弱，Channel 会不会丢失数据</h2> 
+<br> 
+<p>如果 Sink 的消费速度低于 Channel 的写入速度，Channel 将会存储越来越多的数据，如果 Channel 存储满了，则新的事件将不会被写入 Channel，这时就可能会出现数据丢失的情况。</p> 
+<p>为了避免数据丢失，可通过以下两种方式来缓解Sink的消费速度低于Channel的写入速度的问题：</p> 
+<ul><li><strong>增加Sink的并行度</strong>：如果Sink消费能力不足，可以通过增加Sink的并行度，让sink同时启动多个线程去处理Channel中的事件。这样做的好处是可以将Channel中的数据均衡地分配给多个线程，以提高整个系统的处理能力。</li><li><strong>增加Channel的容量</strong>：如果Sink消费能力不足，可以通过增加Channel的容量，使其可以存储更多的数据。这样做的好处是可以让Channel更容易地缓存数据，以避免数据丢失的情况。</li></ul> 
+<p>如果Sink的消费速度一直低于Channel的写入速度，增加Channel的容量也只能是一种临时的缓解措施，不能根本解决问题。<strong>最终的解决方案还是要提高Sink的消费能力，让其能够尽快地消费掉Channel中的数据。</strong></p> 
+<h2><a id="Flume_138"></a>数千个Flume要怎么统一配置，修改就分发吗</h2> 
+<br> 
+<p>要管理数千个Flume代理，可以使用<strong>配置管理工具</strong>，例如 Ambari 或 Cloudera 。这些工具可以自动化地配置和管理整个集群中的Flume代理。可以将 Flume 代理的配置文件集中存储在一个版本控制系统中，并使用配置管理工具将更改分发到所有代理。在某些情况下，也可以使用<strong>脚本自动化配置管理</strong>的过程。</p> 
+<h2><a id="Flume_144"></a>Flume一个节点宕机了怎么办，数据怎么恢复</h2> 
+<br> 
+<p>当一个Flume节点宕机时，如何处理和恢复数据取决于Flume的整体架构和设计。</p> 
+<ul><li>如果Flume的拓扑结构中有多个Agent或Source，而其中的某个节点宕机了，可以通过其他节点或者备份节点继续采集数据。如果channel是可靠的，那么已经传输到Channel中的数据是不会丢失的，只有还在channel中缓存的数据需要考虑如何处理。这时可以考虑将channel的数据通过其他节点传输到目标sink，或者在宕机节点重新启动Flume时继续传输。</li><li>如果Flume的拓扑结构中只有一个Agent，那么就需要考虑如何备份和恢复数据。可以在Source和Channel之间加入一个可靠性机制，例如使用HDFS作为Channel的存储介质，并使用HDFS的HA机制实现数据备份和容错，从而保证在Flume节点宕机时不会丢失数据。</li></ul> 
+<p>还可以考虑使用 Flume NG 的多Agent机制，将同一批次的数据同时传输给多个节点，保证数据的冗余备份。</p> 
+<h2><a id="Flume_157"></a>你是如何实现Flume数据传输的监控的</h2> 
+<br> 
+<p>使用第三方框架Ganglia实时监控Flume。</p> 
+<h2><a id="FlumeChannel_Selectors_163"></a>Flume的Channel Selectors</h2> 
+<br> 
+<p><code>ChannelSelector</code> 的作用就是选出 Event 将要被发往哪个 Channel。其共有两种类型，分别是 Replicating（复制）和 Multiplexing（多路复用）。</p> 
+<ul><li><code>ReplicatingChannelSelector</code> （默认）会将同一个 Event 发往所有的 Channel</li><li><code>MultiplexingChannelSelector</code> 会根据相应的原则，将不同的 Event 发往不同的 Channel。</li></ul> 
+<h2><a id="Flume_173"></a>Flume参数调优</h2> 
+<br> 
+<p>（1）Source</p> 
+<p>增加 Source个数（使用Tair Dir Source时可增加FileGroups个数）可以增大Source的读取数据的能力。例如：当某一个目录产生的文件过多时需要将这个文件目录拆分成多个文件目录，同时配置好多个Source 以保证Source有足够的能力获取到新产生的数据。</p> 
+<p>batchSize参数决定Source一次批量运输到Channel的event条数，适当调大这个参数可以提高Source搬运Event到Channel时的性能。</p> 
+<p>（2）Channel</p> 
+<p><strong>type 选择memory时Channel的性能最好</strong>，但是如果Flume进程意外挂掉可能会丢失数据。<strong>type选择file时Channel的容错性更好</strong>，但是性能上会比memory channel差。使用file Channel时dataDirs配置多个不同盘下的目录可以提高性能。</p> 
+<p>Capacity 参数决定Channel可容纳最大的event条数。<strong>transactionCapacity 参数决定每次Source往channel里面写的最大event条数和每次Sink从channel里面读的最大event条数</strong>。transactionCapacity需要大于Source和Sink的batchSize参数。</p> 
+<p>（3）Sink</p> 
+<p>增加Sink的个数可以增加Sink消费event的能力。Sink也不是越多越好够用就行，过多的Sink会占用系统资源，造成系统资源不必要的浪费。</p> 
+<p>batchSize参数决定Sink一次批量从Channel读取的event条数，适当调大这个参数可以提高Sink从Channel搬出event的性能。</p> 
+<h2><a id="Flume_197"></a>Flume的事务机制</h2> 
+<br> 
+<p>Flume的事务机制（类似数据库的事务机制）：Flume使用两个独立的事务分别负责从Soucrce到Channel，以及从Channel到Sink的事件传递。</p> 
+<p>比如spooling directory source 为文件的每一行创建一个事件，一旦事务中所有的事件全部传递到Channel且提交成功，那么Soucrce就将该文件标记为完成。同理，事务以类似的方式处理从Channel到Sink的传递过程，如果因为某种原因使得事件无法记录，那么事务将会回滚。且所有的事件都会保持到Channel中，等待重新传递。</p> 
+<h2><a id="Flume_204"></a>Flume采集数据会丢失吗?</h2> 
+<br> 
+<p>根据Flume的架构原理，Flume是不可能丢失数据的，其内部有完善的事务机制，Source到Channel是事务性的，Channel到Sink是事务性的，因此这两个环节不会出现数据的丢失，唯一可能丢失数据的情况是Channel采用memoryChannel，agent宕机导致数据丢失，或者Channel存储数据已满，导致Source不再写入，未写入的数据丢失。</p> 
+<p>Flume不会丢失数据，但是有可能造成数据的重复，例如数据已经成功由Sink发出，但是没有接收到响应，Sink会再次发送数据，此时可能会导致数据的重复。</p> 
+<h2><a id="Flume_Kafka_Sink_212"></a>Flume Kafka Sink了解过吗</h2> 
+<br> 
+<p>Kafka Sink是Flume提供的一种Sink类型，用于将Flume收集到的数据写入Kafka集群中，以实现数据的可靠传输和消息队列的功能。在Kafka Sink中，数据被分成小块，然后通过Kafka的生产者API将数据写入到Kafka的一个或多个分区中。Kafka Sink支持多线程，并且具有高吞吐量和可靠性的优点，因此在实时数据传输场景中应用广泛。</p> 
+<h2><a id="FlumeHDFS_218"></a>Flume写到HDFS怎么分区</h2> 
+<br> 
+<p>Flume将数据写入HDFS时可以使用HDFS Sink的<strong>文件滚动机制</strong>来进行分区。文件滚动机制会根据一定的条件对数据进行分组并写入不同的文件中，这样可以将数据进行分区。HDFS Sink支持三种滚动机制：</p> 
+<ul><li>时间滚动：根据时间滚动，指定滚动的时间间隔，比如每隔10分钟滚动一次文件。</li><li>大小滚动：根据文件大小滚动，指定滚动的文件大小，比如每个文件大小不超过100MB。</li><li>事件滚动：根据事件数量滚动，指定滚动的事件数量，比如每隔10000条事件滚动一次文件。</li></ul> 
+<p>使用这些滚动机制可以将数据写入不同的文件中，从而实现分区。同时也可以设置HDFS目录结构，使得数据能够更加有序地存储在HDFS中。</p> 
+<h2><a id="Flume_230"></a>Flume如果出现数据重复是什么原因</h2> 
+<br> 
+<p>Flume可能出现数据重复的原因有很多，比如：</p> 
+<ul><li>Source 端本身就有重复数据，比如应用程序本身就会重复发送消息，或者在日志文件中重复写入了同样的内容。</li><li>Flume 的 Channel 中因为写入操作和消费操作不是原子的，可能会导致一条数据被消费了多次。</li><li>Flume 的 Sink 端出现了宕机或者其他异常情况，导致部分数据未能被成功写入目标系统。</li><li>Flume 配置错误，可能导致数据被写入多个 Sink，从而出现重复数据。</li></ul> 
+<h2><a id="Flume_240"></a>Flume的配置文件怎么写的</h2> 
+<br> 
+<p>其实这个问题主要是问的你项目里面用的，照实说就行。</p> 
+<p>Flume的配置文件采用properties文件格式，主要由三个部分组成：Source、Channel、Sink。其中Source用来定义数据源，Channel用来定义数据流转的中间存储，Sink用来定义数据的输出目标。</p> 
+<p>示例</p> 
+<p><img src="https://images2.imgbox.com/19/d2/Usr8WapD_o.png" alt="在这里插入图片描述"></p> 
+<p>在这个示例中，Source定义了一个netcat类型的数据源，绑定到了Channel1；Channel定义了一个memory类型的中间存储，容量为1000；Sink定义了一个logger类型的输出目标，绑定到了Channel1。在最后，通过绑定Source和Channel，以及绑定Channel和Sink，完成了整个Flume的流程配置。</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/d0f334b47e6e9ae8cb0bf4bc8abba1b7/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">【virtio-networking 和 vhost-net 简介】</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/acee05a65156e93d674c2933a105b49b/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">【mysql】MyISAM与InnoDB区别</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

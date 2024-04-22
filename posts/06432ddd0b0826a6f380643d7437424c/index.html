@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>go的限流 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/06432ddd0b0826a6f380643d7437424c/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="go的限流">
+  <meta property="og:description" content="背景 服务请求下游，oom，排查下来发现是一个下游组件qps陡增导致
+但是司内网络框架比较挫，竟然不负责框架内存问题（有内存管理模块，但逻辑又是无限制使用内存）
+每个请求一个r、w buffer，请求无限制，内存不够直接就oom，然后就被linux给迁移掉了
+所以才有了加限流的必要性（粉饰太平）
+所以站在更高维度去考虑这个问题，就变成了一个网络框架是否要去管理内存？
+作用 限制请求速率，保护服务，以免服务过载
+常用的限流方法 固定窗口、滑动窗口、漏桶、令牌桶
+令牌桶：
+一个固定大小的桶，系统会以恒定速率向桶中放 Token，桶满则暂时不放
+如果桶中有剩余 Token 就可以一直取，如果没有剩余 Token，则需要等到桶中被放置 Token/直接返回失败
+本次学习令牌 golang.org/x/time/rate
+代码实现 // A Limiter controls how frequently events are allowed to happen. // Limiter 用来限制发生事件的频率 // // It implements a &#34;token bucket&#34; of size b, initially full and refilled // at rate r tokens per second. // 初始的时候满的，然后以每秒r tokens的速率来填充，bucket大小为b // // Informally, in any large enough time interval, the Limiter limits the // rate to r tokens per second, with a maximum burst size of b events.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2024-03-24T15:29:55+08:00">
+    <meta property="article:modified_time" content="2024-03-24T15:29:55+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">go的限流</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-dark">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <h2><a id="_0"></a>背景</h2> 
+<p>服务请求下游，oom，排查下来发现是一个下游组件qps陡增导致<br> 但是司内网络框架比较挫，竟然不负责框架内存问题（有内存管理模块，但逻辑又是无限制使用内存）<br> 每个请求一个r、w buffer，请求无限制，内存不够直接就oom，然后就被linux给迁移掉了<br> 所以才有了加限流的必要性（粉饰太平）<br> 所以站在更高维度去考虑这个问题，就变成了一个网络框架是否要去管理内存？</p> 
+<h2><a id="_6"></a>作用</h2> 
+<p>限制请求速率，保护服务，以免服务过载</p> 
+<h2><a id="_8"></a>常用的限流方法</h2> 
+<p>固定窗口、滑动窗口、漏桶、令牌桶</p> 
+<p>令牌桶：<br> 一个固定大小的桶，系统会以恒定速率向桶中放 Token，桶满则暂时不放<br> 如果桶中有剩余 Token 就可以一直取，如果没有剩余 Token，则需要等到桶中被放置 Token/直接返回失败</p> 
+<h2><a id="_14"></a>本次学习令牌</h2> 
+<p>golang.org/x/time/rate</p> 
+<h2><a id="_16"></a>代码实现</h2> 
+<pre><code class="prism language-go"><span class="token comment">// A Limiter controls how frequently events are allowed to happen.</span>
+<span class="token comment">// Limiter 用来限制发生事件的频率</span>
+<span class="token comment">// </span>
+<span class="token comment">// It implements a "token bucket" of size b, initially full and refilled</span>
+<span class="token comment">// at rate r tokens per second.</span>
+<span class="token comment">// 初始的时候满的，然后以每秒r tokens的速率来填充，bucket大小为b</span>
+<span class="token comment">// </span>
+<span class="token comment">// Informally, in any large enough time interval, the Limiter limits the</span>
+<span class="token comment">// rate to r tokens per second, with a maximum burst size of b events.</span>
+<span class="token comment">// </span>
+<span class="token comment">// As a special case, if r == Inf (the infinite rate), b is ignored.</span>
+<span class="token comment">// See https://en.wikipedia.org/wiki/Token_bucket for more about token buckets.</span>
+<span class="token comment">// r还能设置为 Inf？</span>
+<span class="token comment">// </span>
+<span class="token comment">// The zero value is a valid Limiter, but it will reject all events.</span>
+<span class="token comment">// Use NewLimiter to create non-zero Limiters.</span>
+<span class="token comment">// 还能有拒绝全部的零值Limiter？妙啊</span>
+<span class="token comment">//</span>
+<span class="token comment">// Limiter has three main methods, Allow, Reserve, and Wait.</span>
+<span class="token comment">// Most callers should use Wait.</span>
+<span class="token comment">// 三个方法：Allow, Reserve, Wait，每个方法都会消耗一个token</span>
+<span class="token comment">//</span>
+<span class="token comment">// Each of the three methods consumes a single token.</span>
+<span class="token comment">// They differ in their behavior when no token is available.</span>
+<span class="token comment">// If no token is available, Allow returns false.</span>
+<span class="token comment">// Allow：非阻塞</span>
+<span class="token comment">// </span>
+<span class="token comment">// If no token is available, Reserve returns a reservation for a future token</span>
+<span class="token comment">// and the amount of time the caller must wait before using it.</span>
+<span class="token comment">// Reserve 还能预定？ 牛哇，还能返回如果一定要使用的话，要等多久</span>
+<span class="token comment">// </span>
+<span class="token comment">// If no token is available, Wait blocks until one can be obtained</span>
+<span class="token comment">// or its associated context.Context is canceled.</span>
+<span class="token comment">// Wait：阻塞</span>
+<span class="token comment">//</span>
+<span class="token comment">// The methods AllowN, ReserveN, and WaitN consume n tokens.</span>
+<span class="token comment">// AllowN、ReserveN、WaitN：消费n个token</span>
+<span class="token keyword">type</span> Limiter <span class="token keyword">struct</span> <span class="token punctuation">{<!-- --></span>
+	mu     sync<span class="token punctuation">.</span>Mutex
+	<span class="token comment">// 每秒的事件数，即事件速率</span>
+	limit  Limit
+	<span class="token comment">// 单次调用（Allow, Reserve, Wait）中消费token的最大数</span>
+	<span class="token comment">// 更高的 Burst 的值，将会一次允许更多的事件发生（at once）</span>
+	burst  <span class="token builtin">int</span>
+	
+	tokens <span class="token builtin">float64</span>
+	
+	<span class="token comment">// last is the last time the limiter's tokens field was updated</span>
+	<span class="token comment">// limiter的tokens字段的前一次被更新的事件</span>
+	last time<span class="token punctuation">.</span>Time
+	<span class="token comment">// lastEvent is the latest time of a rate-limited event (past or future)</span>
+	<span class="token comment">// 速率受限事件（past or future）的前一次时间</span>
+	lastEvent time<span class="token punctuation">.</span>Time
+<span class="token punctuation">}</span>
+
+<span class="token comment">// A zero Limit allows no events.</span>
+<span class="token keyword">type</span> Limit <span class="token builtin">float64</span>
+</code></pre> 
+<p>看了结构体就知道如何设计一个很粗糙的限流器了<br> 没有用复杂的结构，就是一个简单的原子计数</p> 
+<h2><a id="_79"></a>使用</h2> 
+<pre><code class="prism language-go"><span class="token comment">// NewLimiter returns a new Limiter that allows events up to rate r and permits</span>
+<span class="token comment">// bursts of at most b tokens.</span>
+<span class="token comment">// 速率r，一次b个突发</span>
+<span class="token keyword">func</span> <span class="token function">NewLimiter</span><span class="token punctuation">(</span>r Limit<span class="token punctuation">,</span> b <span class="token builtin">int</span><span class="token punctuation">)</span> <span class="token operator">*</span>Limiter <span class="token punctuation">{<!-- --></span>
+	<span class="token keyword">return</span> <span class="token operator">&amp;</span>Limiter<span class="token punctuation">{<!-- --></span>
+		limit<span class="token punctuation">:</span> r<span class="token punctuation">,</span>
+		burst<span class="token punctuation">:</span> b<span class="token punctuation">,</span>
+	<span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>NewLimiter的参数除了用Limit传，还能传间隔</p> 
+<pre><code class="prism language-go"><span class="token keyword">func</span> <span class="token function">Every</span><span class="token punctuation">(</span>interval time<span class="token punctuation">.</span>Duration<span class="token punctuation">)</span> Limit <span class="token punctuation">{<!-- --></span>
+	<span class="token keyword">if</span> interval <span class="token operator">&lt;=</span> <span class="token number">0</span> <span class="token punctuation">{<!-- --></span>
+		<span class="token keyword">return</span> Inf
+	<span class="token punctuation">}</span>
+	<span class="token keyword">return</span> <span class="token number">1</span> <span class="token operator">/</span> <span class="token function">Limit</span><span class="token punctuation">(</span>interval<span class="token punctuation">.</span><span class="token function">Seconds</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>Allow、AllowN、Reserve、ReserveN、Wait、WaitN<br> 里面用的都是 reserveN</p> 
+<pre><code class="prism language-go"><span class="token comment">// Allow reports whether an event may happen now.</span>
+<span class="token keyword">func</span> <span class="token punctuation">(</span>lim <span class="token operator">*</span>Limiter<span class="token punctuation">)</span> <span class="token function">Allow</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token builtin">bool</span> <span class="token punctuation">{<!-- --></span>
+	<span class="token keyword">return</span> lim<span class="token punctuation">.</span><span class="token function">AllowN</span><span class="token punctuation">(</span>time<span class="token punctuation">.</span><span class="token function">Now</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token number">1</span><span class="token punctuation">)</span>
+<span class="token punctuation">}</span>
+
+<span class="token comment">// AllowN reports whether n events may happen at time t.</span>
+<span class="token comment">// Use this method if you intend to drop / skip events that exceed the rate limit.</span>
+<span class="token comment">// Otherwise use Reserve or Wait.</span>
+<span class="token keyword">func</span> <span class="token punctuation">(</span>lim <span class="token operator">*</span>Limiter<span class="token punctuation">)</span> <span class="token function">AllowN</span><span class="token punctuation">(</span>t time<span class="token punctuation">.</span>Time<span class="token punctuation">,</span> n <span class="token builtin">int</span><span class="token punctuation">)</span> <span class="token builtin">bool</span> <span class="token punctuation">{<!-- --></span>
+	<span class="token keyword">return</span> lim<span class="token punctuation">.</span><span class="token function">reserveN</span><span class="token punctuation">(</span>t<span class="token punctuation">,</span> n<span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">.</span>ok
+<span class="token punctuation">}</span>
+
+<span class="token comment">// Reserve is shorthand for ReserveN(time.Now(), 1).</span>
+<span class="token keyword">func</span> <span class="token punctuation">(</span>lim <span class="token operator">*</span>Limiter<span class="token punctuation">)</span> <span class="token function">Reserve</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">*</span>Reservation <span class="token punctuation">{<!-- --></span>
+	<span class="token keyword">return</span> lim<span class="token punctuation">.</span><span class="token function">ReserveN</span><span class="token punctuation">(</span>time<span class="token punctuation">.</span><span class="token function">Now</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token number">1</span><span class="token punctuation">)</span>
+<span class="token punctuation">}</span>
+
+<span class="token comment">// ReserveN returns a Reservation that indicates how long the caller must wait before n events happen.</span>
+<span class="token comment">// The Limiter takes this Reservation into account when allowing future events.</span>
+<span class="token comment">// The returned Reservation’s OK() method returns false if n exceeds the Limiter's burst size.</span>
+<span class="token comment">// Usage example:</span>
+<span class="token comment">//</span>
+<span class="token comment">//	r := lim.ReserveN(time.Now(), 1)</span>
+<span class="token comment">//	if !r.OK() {<!-- --></span>
+<span class="token comment">//	  // Not allowed to act! Did you remember to set lim.burst to be &gt; 0 ?</span>
+<span class="token comment">//	  return</span>
+<span class="token comment">//	}</span>
+<span class="token comment">//	time.Sleep(r.Delay())</span>
+<span class="token comment">//	Act()</span>
+<span class="token comment">//</span>
+<span class="token comment">// Use this method if you wish to wait and slow down in accordance with the rate limit without dropping events.</span>
+<span class="token comment">// If you need to respect a deadline or cancel the delay, use Wait instead.</span>
+<span class="token comment">// To drop or skip events exceeding rate limit, use Allow instead.</span>
+<span class="token keyword">func</span> <span class="token punctuation">(</span>lim <span class="token operator">*</span>Limiter<span class="token punctuation">)</span> <span class="token function">ReserveN</span><span class="token punctuation">(</span>t time<span class="token punctuation">.</span>Time<span class="token punctuation">,</span> n <span class="token builtin">int</span><span class="token punctuation">)</span> <span class="token operator">*</span>Reservation <span class="token punctuation">{<!-- --></span>
+	r <span class="token operator">:=</span> lim<span class="token punctuation">.</span><span class="token function">reserveN</span><span class="token punctuation">(</span>t<span class="token punctuation">,</span> n<span class="token punctuation">,</span> InfDuration<span class="token punctuation">)</span>
+	<span class="token keyword">return</span> <span class="token operator">&amp;</span>r
+<span class="token punctuation">}</span>
+
+<span class="token comment">// Wait is shorthand for WaitN(ctx, 1).</span>
+<span class="token keyword">func</span> <span class="token punctuation">(</span>lim <span class="token operator">*</span>Limiter<span class="token punctuation">)</span> <span class="token function">Wait</span><span class="token punctuation">(</span>ctx context<span class="token punctuation">.</span>Context<span class="token punctuation">)</span> <span class="token punctuation">(</span>err <span class="token builtin">error</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+	<span class="token keyword">return</span> lim<span class="token punctuation">.</span><span class="token function">WaitN</span><span class="token punctuation">(</span>ctx<span class="token punctuation">,</span> <span class="token number">1</span><span class="token punctuation">)</span>
+<span class="token punctuation">}</span>
+
+<span class="token comment">// WaitN blocks until lim permits n events to happen.</span>
+<span class="token comment">// It returns an error if n exceeds the Limiter's burst size, the Context is</span>
+<span class="token comment">// canceled, or the expected wait time exceeds the Context's Deadline.</span>
+<span class="token comment">// The burst limit is ignored if the rate limit is Inf.</span>
+<span class="token keyword">func</span> <span class="token punctuation">(</span>lim <span class="token operator">*</span>Limiter<span class="token punctuation">)</span> <span class="token function">WaitN</span><span class="token punctuation">(</span>ctx context<span class="token punctuation">.</span>Context<span class="token punctuation">,</span> n <span class="token builtin">int</span><span class="token punctuation">)</span> <span class="token punctuation">(</span>err <span class="token builtin">error</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+	<span class="token comment">// The test code calls lim.wait with a fake timer generator.</span>
+	<span class="token comment">// This is the real timer generator.</span>
+	newTimer <span class="token operator">:=</span> <span class="token keyword">func</span><span class="token punctuation">(</span>d time<span class="token punctuation">.</span>Duration<span class="token punctuation">)</span> <span class="token punctuation">(</span><span class="token operator">&lt;-</span><span class="token keyword">chan</span> time<span class="token punctuation">.</span>Time<span class="token punctuation">,</span> <span class="token keyword">func</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token builtin">bool</span><span class="token punctuation">,</span> <span class="token keyword">func</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+		timer <span class="token operator">:=</span> time<span class="token punctuation">.</span><span class="token function">NewTimer</span><span class="token punctuation">(</span>d<span class="token punctuation">)</span>
+		<span class="token keyword">return</span> timer<span class="token punctuation">.</span>C<span class="token punctuation">,</span> timer<span class="token punctuation">.</span>Stop<span class="token punctuation">,</span> <span class="token keyword">func</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span><span class="token punctuation">}</span>
+	<span class="token punctuation">}</span>
+
+	<span class="token keyword">return</span> lim<span class="token punctuation">.</span><span class="token function">wait</span><span class="token punctuation">(</span>ctx<span class="token punctuation">,</span> n<span class="token punctuation">,</span> time<span class="token punctuation">.</span><span class="token function">Now</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> newTimer<span class="token punctuation">)</span>
+<span class="token punctuation">}</span>
+
+<span class="token comment">// wait is the internal implementation of WaitN.</span>
+<span class="token keyword">func</span> <span class="token punctuation">(</span>lim <span class="token operator">*</span>Limiter<span class="token punctuation">)</span> <span class="token function">wait</span><span class="token punctuation">(</span>ctx context<span class="token punctuation">.</span>Context<span class="token punctuation">,</span> n <span class="token builtin">int</span><span class="token punctuation">,</span> t time<span class="token punctuation">.</span>Time<span class="token punctuation">,</span> newTimer <span class="token keyword">func</span><span class="token punctuation">(</span>d time<span class="token punctuation">.</span>Duration<span class="token punctuation">)</span> <span class="token punctuation">(</span><span class="token operator">&lt;-</span><span class="token keyword">chan</span> time<span class="token punctuation">.</span>Time<span class="token punctuation">,</span> <span class="token keyword">func</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token builtin">bool</span><span class="token punctuation">,</span> <span class="token keyword">func</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token builtin">error</span> <span class="token punctuation">{<!-- --></span>
+	lim<span class="token punctuation">.</span>mu<span class="token punctuation">.</span><span class="token function">Lock</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+	burst <span class="token operator">:=</span> lim<span class="token punctuation">.</span>burst
+	limit <span class="token operator">:=</span> lim<span class="token punctuation">.</span>limit
+	lim<span class="token punctuation">.</span>mu<span class="token punctuation">.</span><span class="token function">Unlock</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+
+	<span class="token comment">// 在限流的情况下，一次请求索要超过 burst 的令牌</span>
+	<span class="token keyword">if</span> n <span class="token operator">&gt;</span> burst <span class="token operator">&amp;&amp;</span> limit <span class="token operator">!=</span> Inf <span class="token punctuation">{<!-- --></span>
+		<span class="token keyword">return</span> fmt<span class="token punctuation">.</span><span class="token function">Errorf</span><span class="token punctuation">(</span><span class="token string">"rate: Wait(n=%d) exceeds limiter's burst %d"</span><span class="token punctuation">,</span> n<span class="token punctuation">,</span> burst<span class="token punctuation">)</span>
+	<span class="token punctuation">}</span>
+	<span class="token comment">// Check if ctx is already cancelled</span>
+	<span class="token comment">// 用这种方式检查ctx是否结束</span>
+	<span class="token keyword">select</span> <span class="token punctuation">{<!-- --></span>
+	<span class="token keyword">case</span> <span class="token operator">&lt;-</span>ctx<span class="token punctuation">.</span><span class="token function">Done</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">:</span>
+		<span class="token keyword">return</span> ctx<span class="token punctuation">.</span><span class="token function">Err</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+	<span class="token keyword">default</span><span class="token punctuation">:</span>
+		<span class="token comment">// 这里有 default，所以不会卡住</span>
+	<span class="token punctuation">}</span>
+	<span class="token comment">// Determine wait limit</span>
+	waitLimit <span class="token operator">:=</span> InfDuration
+	
+	<span class="token comment">// 它竟然还照顾了ctx的Deadline，牛哇牛哇</span>
+	<span class="token keyword">if</span> deadline<span class="token punctuation">,</span> ok <span class="token operator">:=</span> ctx<span class="token punctuation">.</span><span class="token function">Deadline</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span> ok <span class="token punctuation">{<!-- --></span>
+		<span class="token comment">// t是当前时间，deadline-t就是等待时长</span>
+		waitLimit <span class="token operator">=</span> deadline<span class="token punctuation">.</span><span class="token function">Sub</span><span class="token punctuation">(</span>t<span class="token punctuation">)</span>
+	<span class="token punctuation">}</span>
+	<span class="token comment">// Reserve</span>
+	r <span class="token operator">:=</span> lim<span class="token punctuation">.</span><span class="token function">reserveN</span><span class="token punctuation">(</span>t<span class="token punctuation">,</span> n<span class="token punctuation">,</span> waitLimit<span class="token punctuation">)</span>
+	<span class="token keyword">if</span> <span class="token operator">!</span>r<span class="token punctuation">.</span>ok <span class="token punctuation">{<!-- --></span>
+		<span class="token keyword">return</span> fmt<span class="token punctuation">.</span><span class="token function">Errorf</span><span class="token punctuation">(</span><span class="token string">"rate: Wait(n=%d) would exceed context deadline"</span><span class="token punctuation">,</span> n<span class="token punctuation">)</span>
+	<span class="token punctuation">}</span>
+	<span class="token comment">// Wait if necessary</span>
+	<span class="token comment">// DelayFrom returns the duration for which the reservation holder must wait</span>
+	<span class="token comment">// before taking the reserved action.  Zero duration means act immediately.</span>
+	<span class="token comment">// InfDuration means the limiter cannot grant the tokens requested in this</span>
+	<span class="token comment">// Reservation within the maximum wait time.</span>
+	<span class="token comment">// 0时长意味着立即执行，不用等limiter</span>
+	<span class="token comment">// InfDuration时长意味着在此次最大的等待时间里，无法授权这么多的token</span>
+	delay <span class="token operator">:=</span> r<span class="token punctuation">.</span><span class="token function">DelayFrom</span><span class="token punctuation">(</span>t<span class="token punctuation">)</span>
+	<span class="token keyword">if</span> delay <span class="token operator">==</span> <span class="token number">0</span> <span class="token punctuation">{<!-- --></span>
+		<span class="token keyword">return</span> <span class="token boolean">nil</span>
+	<span class="token punctuation">}</span>
+	
+	<span class="token comment">// newTimer 中创建了一个定时器，这里用完要停止，不然系统中的定时器越来越多</span>
+	<span class="token comment">// ch：delay定时器</span>
+	<span class="token comment">// stop：定时器取消函数</span>
+	<span class="token comment">// advance：仅用于测试，设置钩子，牛哇牛哇</span>
+	ch<span class="token punctuation">,</span> stop<span class="token punctuation">,</span> advance <span class="token operator">:=</span> <span class="token function">newTimer</span><span class="token punctuation">(</span>delay<span class="token punctuation">)</span>
+	<span class="token keyword">defer</span> <span class="token function">stop</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+	<span class="token function">advance</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token comment">// only has an effect when testing</span>
+
+	<span class="token comment">// 等待谁先来</span>
+	<span class="token keyword">select</span> <span class="token punctuation">{<!-- --></span>
+	<span class="token keyword">case</span> <span class="token operator">&lt;-</span>ch<span class="token punctuation">:</span>
+		<span class="token comment">// We can proceed.</span>
+		<span class="token keyword">return</span> <span class="token boolean">nil</span>
+	<span class="token keyword">case</span> <span class="token operator">&lt;-</span>ctx<span class="token punctuation">.</span><span class="token function">Done</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">:</span>
+		<span class="token comment">// Context was canceled before we could proceed.  Cancel the</span>
+		<span class="token comment">// reservation, which may permit other events to proceed sooner.</span>
+		r<span class="token punctuation">.</span><span class="token function">Cancel</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+		<span class="token keyword">return</span> ctx<span class="token punctuation">.</span><span class="token function">Err</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+	<span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<h2><a id="_227"></a>源码学习</h2> 
+<p>在一个快变现的现状下，lim.reserveN都没有心思学，悲哀</p> 
+<pre><code class="prism language-go">lim<span class="token punctuation">.</span>reserveN
+</code></pre> 
+<h2><a id="_233"></a>问题</h2> 
+<h3><a id="_234"></a>它是单实例还是分布式的？</h3> 
+<p>在单个实例中对资源访问或操作进行限速，属于单实例限流</p> 
+<p>分布式限流通常涉及到跨进程或跨机器的状态共享与同步，通常需要额外的基础设施支持，比如分布式缓存（例如 Redis）或数据库，来保持限流状态的一致性<br> golang.org/x/time/rate 包并不为这些提供内置支持</p> 
+<p>如果需要在分布式环境中实现限流，需要考虑使用一个中心化的存储解决方案来同步不同节点之间的限流状态<br> 或者采用其他的分布式限流策略。这可能涉及到一些复杂性<br> 因为需要管理共享状态和处理分布式系统中可能出现的各种问题<br> 例如网络分区、延迟波动、以及同步状态时的竞态条件等</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/01c11506c98722f2954c2b654b4262d2/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">控制台报错invalid comparison: java.util.Date and java.lang.String</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/8ef6c199ea3e221e6479ba92621f7c71/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">知攻善防应急靶场-Linux(1)</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

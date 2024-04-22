@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>WMI监控hyper-V虚拟机和宿主机 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/795397d8c48900e76c899c75b6722741/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="WMI监控hyper-V虚拟机和宿主机">
+  <meta property="og:description" content="最近刚刚换了新部门，被安排的工作通过wmi监控hyper-V虚拟机，与其说wmi监控虚拟机，不如说，通过wmi查看hyper-V宿主机的相关参数，从而得到宿主机上挂载的虚拟机的状态。我们采用vbs脚本连接wmi，通过WQL语句查询相关参数，这里就不详细说vbs脚本，主要整理下，监控指标以及wmi命名空间和属性。
+上面写了好多次WMI，其实对于我们来说这个词还是比较熟悉的，当你打开我的电脑的管理界面时候，服务下面就是WMI服务，什么是WMI呢，这里我就不解释了，因为我也是百度，没有形成自己的定义。如何查看WMI呢，就我所了解的有两种方式：一、通过win&#43;R打开运行界面，输入wbemtest，然后回车，
+此界面就是windows自带的WMI连接工具，点击连接，选择命名空间。二、采用其他WMI查看工具，可以通过WMI下载链接进行下载，如下图所示：
+命名空间：Root\CIMV2
+属性：
+Win32_OperatingSystem：获取宿主机系统版本、物理内存使用情况、虚拟内存使用情况
+Win32_PerfRawData_PerfOS_Memory：获取宿主机内存交换空间、页面空间等数据
+Win32_PerfRawData_VidPerfProvider_HyperVVMVidPartition：获取被分配的物理页面、远程物理页面
+Win32_PerfRawData_HvStats_HyperVHypervisorRootPartition：获取虚拟TLB页面、保存页面数据
+Win32_PerfRawData_VmmsVirtualMachineStats_HyperVVirtualMachineHealthSummary：获取虚拟机健康状态
+Win32_PerfRawData_HvStats_HyperVHypervisor：获取逻辑处理器数量、虚拟处理器数量
+Win32_ComputerSystem:获取宿主机系统信息、物理处理器数量、物理内存大小等信息
+Win32_Service：获取系统服务信息
+Win32_PerfRawData_HvStats_HyperVHypervisorVirtualProcessor：获取宾客CPU使用率、管理程序CPU使用率、CPU空闲率（需要通过RunTime计算）
+Win32_PerfRawData_Tcpip_NetworkInterface：获取物理机网络信息
+Win32_PerfRawData_PerfDisk_PhysicalDisk：获取IO数据
+Win32_LogicalDisk：获取磁盘空间信息
+Win32_PerfRawData_NvspSwitchStats_HyperVVirtualSwitch：获取虚拟交换机信息
+Win32_PerfRawData_StorageStats_HyperVVirtualStorageDevice：获取虚拟储存状态（但是我没有获取到，据了解，不同服务器有不同）
+Win32_PerfRawData_IdePerfProvider_HyperVVirtualIDEController：获取虚拟IDE信息
+Win32_PerfRawData_EthernetPerfProvider_HyperVLegacyNetworkAdapter：获取Legacy虚拟网络适配器信息
+Win32_PerfRawData_NvspNicStats_HyperVVirtualNetworkAdapter：获取虚拟适配器信息
+Win32_PerfRawData_HvStats_HyperVHypervisorPartition：获取页面信息、虚拟处理器
+Win32_PerfRawData_PerfOS_Processor：获取宿主机CPU使用数据
+（还有很多其他通用属性，在所有的windows系统都可是查到的，我这里就不一一列举了，有兴趣的可以自己看看研究下）
+命名空间：root\virtualization\v2（不同的系统取得命名空间也会有些差异，我们是server 2008 r2的，但是总体来说root\virtualization这部分不会变，最后的\v2这个看情况）
+属性：
+MSVM_ComputerSystem：获取宿主计算机、虚拟机系统信息，包括系统名称、主机名称、运行时间（虚拟机）、安装时间（虚拟机）、运行状态等
+Msvm_Memory：获取宿主机和虚拟机内存数据，包括物理机内存、numa节点内存、虚拟机分配内存
+Msvm_Processor：获取逻辑处理器、虚拟机分配的处理器使用情况
+以上是我再开发过程中使用到的内容，属性和指标可能对应的不是很好，如果那里有问题，请大家告诉我，我再修改。">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2015-01-04T15:06:08+08:00">
+    <meta property="article:modified_time" content="2015-01-04T15:06:08+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">WMI监控hyper-V虚拟机和宿主机</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <p>最近刚刚换了新部门，被安排的工作通过wmi监控hyper-V虚拟机，与其说wmi监控虚拟机，不如说，通过wmi查看hyper-V宿主机的相关参数，从而得到宿主机上挂载的虚拟机的状态。我们采用vbs脚本连接wmi，通过WQL语句查询相关参数，这里就不详细说vbs脚本，主要整理下，监控指标以及wmi命名空间和属性。</p> 
+<p>上面写了好多次WMI，其实对于我们来说这个词还是比较熟悉的，当你打开我的电脑的管理界面时候，服务下面就是WMI服务，什么是WMI呢，这里我就不解释了，因为我也是百度，没有形成自己的定义。如何查看WMI呢，就我所了解的有两种方式：一、通过win+R打开运行界面，输入wbemtest，然后回车，<img src="https://images2.imgbox.com/5d/a4/ZwrAtgHA_o.png" alt=""></p> 
+<p>此界面就是windows自带的WMI连接工具，点击连接，选择命名空间。二、采用其他WMI查看工具，可以通过<a target="_blank" href="http://download.csdn.net/detail/wqiancangq/8325351" rel="noopener noreferrer">WMI下载链接</a>进行下载，如下图所示：</p> 
+<p><img src="https://images2.imgbox.com/19/29/PrO0Vzpq_o.png" alt=""><br> </p> 
+<p><br> </p> 
+<p>命名空间：Root\CIMV2</p> 
+<p>属性：</p> 
+<p>Win32_OperatingSystem：获取宿主机系统版本、物理内存使用情况、虚拟内存使用情况<br> </p> 
+<p>Win32_PerfRawData_PerfOS_Memory：获取宿主机内存交换空间、页面空间等数据<br> </p> 
+<p>Win32_PerfRawData_VidPerfProvider_HyperVVMVidPartition：获取被分配的物理页面、远程物理页面<br> </p> 
+<p>Win32_PerfRawData_HvStats_HyperVHypervisorRootPartition：获取虚拟TLB页面、保存页面数据<br> </p> 
+<p>Win32_PerfRawData_VmmsVirtualMachineStats_HyperVVirtualMachineHealthSummary：获取虚拟机健康状态<br> </p> 
+<p>Win32_PerfRawData_HvStats_HyperVHypervisor：获取逻辑处理器数量、虚拟处理器数量<br> </p> 
+<p>Win32_ComputerSystem:获取宿主机系统信息、物理处理器数量、物理内存大小等信息<br> </p> 
+<p>Win32_Service：获取系统服务信息<br> </p> 
+<p>Win32_PerfRawData_HvStats_HyperVHypervisorVirtualProcessor：获取宾客CPU使用率、管理程序CPU使用率、CPU空闲率（需要通过RunTime计算）<br> </p> 
+<p>Win32_PerfRawData_Tcpip_NetworkInterface：获取物理机网络信息<br> </p> 
+<p>Win32_PerfRawData_PerfDisk_PhysicalDisk：获取IO数据<br> </p> 
+<p>Win32_LogicalDisk：获取磁盘空间信息<br> </p> 
+<p>Win32_PerfRawData_NvspSwitchStats_HyperVVirtualSwitch：获取虚拟交换机信息<br> </p> 
+<p>Win32_PerfRawData_StorageStats_HyperVVirtualStorageDevice：获取虚拟储存状态（但是我没有获取到，据了解，不同服务器有不同）<br> </p> 
+<p>Win32_PerfRawData_IdePerfProvider_HyperVVirtualIDEController：获取虚拟IDE信息<br> </p> 
+<p>Win32_PerfRawData_EthernetPerfProvider_HyperVLegacyNetworkAdapter：获取Legacy虚拟网络适配器信息<br> </p> 
+<p>Win32_PerfRawData_NvspNicStats_HyperVVirtualNetworkAdapter：获取虚拟适配器信息</p> 
+<p>Win32_PerfRawData_HvStats_HyperVHypervisorPartition：获取页面信息、虚拟处理器<br> </p> 
+<p>Win32_PerfRawData_PerfOS_Processor：获取宿主机CPU使用数据<br> </p> 
+<p>（还有很多其他通用属性，在所有的windows系统都可是查到的，我这里就不一一列举了，有兴趣的可以自己看看研究下）</p> 
+<p>命名空间：root\virtualization\v2（不同的系统取得命名空间也会有些差异，我们是server 2008 r2的，但是总体来说root\virtualization这部分不会变，最后的\v2这个看情况）</p> 
+<p>属性：</p> 
+<p>MSVM_ComputerSystem：获取宿主计算机、虚拟机系统信息，包括系统名称、主机名称、运行时间（虚拟机）、安装时间（虚拟机）、运行状态等<br> </p> 
+<p>Msvm_Memory：获取宿主机和虚拟机内存数据，包括物理机内存、numa节点内存、虚拟机分配内存<br> </p> 
+<p>Msvm_Processor：获取逻辑处理器、虚拟机分配的处理器使用情况<br> </p> 
+<p><br> </p> 
+<p>以上是我再开发过程中使用到的内容，属性和指标可能对应的不是很好，如果那里有问题，请大家告诉我，我再修改。</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/4a0dce92b891d77b7958a17450c8468d/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">python常用的十进制、16进制、字符串、字节串之间的转换（长期更新帖）</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/c4c2e04201147425fa505e573f1330c9/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">hadoop2.x分布式集群安装配置 ~第一步：防火墙的配置</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

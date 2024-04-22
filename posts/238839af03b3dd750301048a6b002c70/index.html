@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>面试三连问：你这个数据量多大？分库分表怎么做？用的哪个组件？ - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/238839af03b3dd750301048a6b002c70/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="面试三连问：你这个数据量多大？分库分表怎么做？用的哪个组件？">
+  <meta property="og:description" content="点击上方蓝色“码猿技术专栏”，选择“设为星标”
+来源：cnblogs.com/cjsblog/p/13154158.html
+1. 概述
+1.1. ShardingSphere-JDBC
+1.2. ShardingSphere-Proxy
+1.3. ShardingSphere-Sidecar
+1.4. 混合架构
+2. 概念 &amp;amp; 功能
+2.1. 数据分片
+2.2. 读写分离
+3. 示例：水平分库分片
+4. 写在最后
+1. 概述
+ShardingSphere是一套开源的分布式数据库中间件解决方案组成的生态圈，它由Sharding-JDBC、Sharding-Proxy和Sharding-Sidecar（计划中）这3款相互独立的产品组成。他们均提供标准化的数据分片、分布式事务和数据库治理功能，可适用于如Java同构、异构语言、云原生等各种多样化的应用场景。
+ShardingSphere定位为关系型数据库中间件，旨在充分合理地在分布式的场景下利用关系型数据库的计算和存储能力。
+1.1. ShardingSphere-JDBC Sharding-JDBC 定位为轻量级 Java 框架，在 Java 的 JDBC 层提供的额外服务。它使用客户端直连数据库，以 jar 包形式提供服务，无需额外部署和依赖，可理解为增强版的 JDBC 驱动，完全兼容 JDBC 和各种 ORM 框架。
+适用于任何基于 JDBC 的 ORM 框架，如：JPA, Hibernate, Mybatis, Spring JDBC Template 或直接使用 JDBC。
+支持任何第三方的数据库连接池，如：DBCP, C3P0, BoneCP, Druid, HikariCP 等。
+支持任意实现JDBC规范的数据库。目前支持 MySQL，Oracle，SQLServer，PostgreSQL 以及任何遵循 SQL92 标准的数据库。">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2020-12-11T08:00:00+08:00">
+    <meta property="article:modified_time" content="2020-12-11T08:00:00+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">面试三连问：你这个数据量多大？分库分表怎么做？用的哪个组件？</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <div id="js_content"> 
+ <p style="text-align: center">点击上方蓝色“码猿技术专栏”，选择“设为星标”</p> 
+ <p style="text-align: center"><img width="100%" src="https://images2.imgbox.com/8a/cd/Vso5dMnU_o.png"></p> 
+ <p style="text-align: center"><img src="https://images2.imgbox.com/6e/59/331si4EQ_o.png"></p> 
+ <p style="text-align: right">来源：cnblogs.com/cjsblog/p/13154158.html</p> 
+ <ul><li><p><a href="https://mp.weixin.qq.com/s?__biz=MzUzMTA2NTU2Ng%3D%3D&amp;chksm=fa496f8ecd3ee698f4954c00efb80fe955ec9198fff3ef4011e331aa37f55a6a17bc8c0335a8&amp;idx=1&amp;lang=zh_CN&amp;mid=2247487551&amp;scene=21&amp;sn=18f64ba49f3f0f9d8be9d1fdef8857d9&amp;token=899450012#wechat_redirect" rel="nofollow"><strong>1.  概述</strong></a></p></li><li><ul><li><p><a href="https://mp.weixin.qq.com/s?__biz=MzUzMTA2NTU2Ng%3D%3D&amp;chksm=fa496f8ecd3ee698f4954c00efb80fe955ec9198fff3ef4011e331aa37f55a6a17bc8c0335a8&amp;idx=1&amp;lang=zh_CN&amp;mid=2247487551&amp;scene=21&amp;sn=18f64ba49f3f0f9d8be9d1fdef8857d9&amp;token=899450012#wechat_redirect" rel="nofollow"><strong>1.1. ShardingSphere-JDBC</strong></a></p></li><li><p><a href="https://mp.weixin.qq.com/s?__biz=MzUzMTA2NTU2Ng%3D%3D&amp;chksm=fa496f8ecd3ee698f4954c00efb80fe955ec9198fff3ef4011e331aa37f55a6a17bc8c0335a8&amp;idx=1&amp;lang=zh_CN&amp;mid=2247487551&amp;scene=21&amp;sn=18f64ba49f3f0f9d8be9d1fdef8857d9&amp;token=899450012#wechat_redirect" rel="nofollow"><strong>1.2. ShardingSphere-Proxy</strong></a></p></li><li><p><a href="https://mp.weixin.qq.com/s?__biz=MzUzMTA2NTU2Ng%3D%3D&amp;chksm=fa496f8ecd3ee698f4954c00efb80fe955ec9198fff3ef4011e331aa37f55a6a17bc8c0335a8&amp;idx=1&amp;lang=zh_CN&amp;mid=2247487551&amp;scene=21&amp;sn=18f64ba49f3f0f9d8be9d1fdef8857d9&amp;token=899450012#wechat_redirect" rel="nofollow"><strong>1.3. ShardingSphere-Sidecar</strong></a></p></li><li><p><a href="https://mp.weixin.qq.com/s?__biz=MzUzMTA2NTU2Ng%3D%3D&amp;chksm=fa496f8ecd3ee698f4954c00efb80fe955ec9198fff3ef4011e331aa37f55a6a17bc8c0335a8&amp;idx=1&amp;lang=zh_CN&amp;mid=2247487551&amp;scene=21&amp;sn=18f64ba49f3f0f9d8be9d1fdef8857d9&amp;token=899450012#wechat_redirect" rel="nofollow"><strong>1.4. 混合架构</strong></a></p></li></ul> 
+  </li><li><p><a href="https://mp.weixin.qq.com/s?__biz=MzUzMTA2NTU2Ng%3D%3D&amp;chksm=fa496f8ecd3ee698f4954c00efb80fe955ec9198fff3ef4011e331aa37f55a6a17bc8c0335a8&amp;idx=1&amp;lang=zh_CN&amp;mid=2247487551&amp;scene=21&amp;sn=18f64ba49f3f0f9d8be9d1fdef8857d9&amp;token=899450012#wechat_redirect" rel="nofollow"><strong>2. 概念 &amp; 功能</strong></a></p></li><li><ul><li><p><a href="https://mp.weixin.qq.com/s?__biz=MzUzMTA2NTU2Ng%3D%3D&amp;chksm=fa496f8ecd3ee698f4954c00efb80fe955ec9198fff3ef4011e331aa37f55a6a17bc8c0335a8&amp;idx=1&amp;lang=zh_CN&amp;mid=2247487551&amp;scene=21&amp;sn=18f64ba49f3f0f9d8be9d1fdef8857d9&amp;token=899450012#wechat_redirect" rel="nofollow"><strong>2.1. 数据分片</strong></a></p></li><li><p><a href="https://mp.weixin.qq.com/s?__biz=MzUzMTA2NTU2Ng%3D%3D&amp;chksm=fa496f8ecd3ee698f4954c00efb80fe955ec9198fff3ef4011e331aa37f55a6a17bc8c0335a8&amp;idx=1&amp;lang=zh_CN&amp;mid=2247487551&amp;scene=21&amp;sn=18f64ba49f3f0f9d8be9d1fdef8857d9&amp;token=899450012#wechat_redirect" rel="nofollow"><strong>2.2. 读写分离</strong></a></p></li></ul> 
+  </li><li><p><a href="https://mp.weixin.qq.com/s?__biz=MzUzMTA2NTU2Ng%3D%3D&amp;chksm=fa496f8ecd3ee698f4954c00efb80fe955ec9198fff3ef4011e331aa37f55a6a17bc8c0335a8&amp;idx=1&amp;lang=zh_CN&amp;mid=2247487551&amp;scene=21&amp;sn=18f64ba49f3f0f9d8be9d1fdef8857d9&amp;token=899450012#wechat_redirect" rel="nofollow"><strong>3. 示例：水平分库分片</strong></a></p></li><li><p><strong><a href="https://mp.weixin.qq.com/s?__biz=MzUzMTA2NTU2Ng%3D%3D&amp;chksm=fa496f8ecd3ee698f4954c00efb80fe955ec9198fff3ef4011e331aa37f55a6a17bc8c0335a8&amp;idx=1&amp;lang=zh_CN&amp;mid=2247487551&amp;scene=21&amp;sn=18f64ba49f3f0f9d8be9d1fdef8857d9&amp;token=899450012#wechat_redirect" rel="nofollow">4. 写在最后</a></strong></p></li></ul> 
+ <h2>1.  概述<br></h2> 
+ <p>ShardingSphere是一套开源的分布式数据库中间件解决方案组成的生态圈，它由Sharding-JDBC、Sharding-Proxy和Sharding-Sidecar（计划中）这3款相互独立的产品组成。他们均提供标准化的数据分片、分布式事务和数据库治理功能，可适用于如Java同构、异构语言、云原生等各种多样化的应用场景。</p> 
+ <p>ShardingSphere定位为关系型数据库中间件，旨在充分合理地在分布式的场景下利用关系型数据库的计算和存储能力。</p> 
+ <img src="https://images2.imgbox.com/b7/d9/eHfRUvjT_o.png"> 
+ <h3>1.1. ShardingSphere-JDBC</h3> 
+ <p>Sharding-JDBC 定位为轻量级 Java 框架，在 Java 的 JDBC 层提供的额外服务。它使用客户端直连数据库，以 jar 包形式提供服务，无需额外部署和依赖，可理解为增强版的 JDBC 驱动，完全兼容 JDBC 和各种 ORM 框架。</p> 
+ <ul><li><p>适用于任何基于 JDBC 的 ORM 框架，如：JPA, Hibernate, Mybatis, Spring JDBC Template 或直接使用 JDBC。</p></li><li><p>支持任何第三方的数据库连接池，如：DBCP, C3P0, BoneCP, Druid, HikariCP 等。</p></li><li><p>支持任意实现JDBC规范的数据库。目前支持 MySQL，Oracle，SQLServer，PostgreSQL 以及任何遵循 SQL92 标准的数据库。</p></li></ul> 
+ <img src="https://images2.imgbox.com/86/5f/GLEqH0gD_o.png"> 
+ <h3>1.2. ShardingSphere-Proxy</h3> 
+ <p>Sharding-Proxy 定位为透明化的数据库代理端，提供封装了数据库二进制协议的服务端版本，用于完成对异构语言的支持。目前提供 MySQL 和 PostgreSQL 版本，它可以使用任何兼容 MySQL/PostgreSQL 协议的访问客户端(如：MySQL Command Client, MySQL Workbench, Navicat 等)操作数据，对 DBA 更加友好。</p> 
+ <ul><li><p>向应用程序完全透明，可直接当做 MySQL/PostgreSQL 使用。</p></li><li><p>适用于任何兼容 MySQL/PostgreSQL 协议的的客户端。</p></li></ul> 
+ <img src="https://images2.imgbox.com/98/7f/LAH437Xw_o.png"> 
+ <h3>1.3. ShardingSphere-Sidecar</h3> 
+ <p>Sharding-Sidecar 定位为 Kubernetes 的云原生数据库代理，以 Sidecar 的形式代理所有对数据库的访问。通过无中心、零侵入的方案提供与数据库交互的的啮合层，即 Database Mesh，又可称数据库网格。</p> 
+ <p>Database Mesh 的关注重点在于如何将分布式的数据访问应用与数据库有机串联起来，它更加关注的是交互，是将杂乱无章的应用与数据库之间的交互有效的梳理。使用 Database Mesh，访问数据库的应用和数据库终将形成一个巨大的网格体系，应用和数据库只需在网格体系中对号入座即可，它们都是被啮合层所治理的对象。</p> 
+ <img src="https://images2.imgbox.com/f0/82/Tx3K0yd6_o.png"> 
+ <h3>1.4. 混合架构</h3> 
+ <p>ShardingSphere-JDBC 采用无中心化架构，适用于 Java 开发的高性能的轻量级 OLTP 应用；ShardingSphere-Proxy 提供静态入口以及异构语言的支持，适用于 OLAP 应用以及对分片数据库进行管理和运维的场景。</p> 
+ <p>Apache ShardingSphere 是多接入端共同组成的生态圈。通过混合使用 ShardingSphere-JDBC 和 ShardingSphere-Proxy，并采用同一注册中心统一配置分片策略，能够灵活的搭建适用于各种场景的应用系统，使得架构师更加自由的调整适合与当前业务的最佳系统架构。</p> 
+ <img src="https://images2.imgbox.com/d3/0c/pH0AXiRy_o.png"> 
+ <h2>2. 概念 &amp; 功能</h2> 
+ <h3>2.1. 数据分片</h3> 
+ <p>从性能方面来说，由于关系型数据库大多采用B+树类型的索引，在数据量超过阈值的情况下，索引深度的增加也将使得磁盘访问的IO次数增加，进而导致查询性能的下降；同时，高并发访问请求也使得集中式数据库成为系统的最大瓶颈。</p> 
+ <p>从运维成本方面考虑，当一个数据库实例中的数据达到阈值以上，对于DBA的运维压力就会增大。数据备份和恢复的时间成本都将随着数据量的大小而愈发不可控。一般来讲，单一数据库实例的数据的阈值在1TB之内，是比较合理的范围。</p> 
+ <p><strong>垂直分片</strong></p> 
+ <p>按照业务拆分的方式称为垂直分片，又称为纵向拆分，它的核心理念是专库专用。在拆分之前，一个数据库由多个数据表构成，每个表对应着不同的业务。而拆分之后，则是按照业务将表进行归类，分布到不同的数据库中，从而将压力分散至不同的数据库。下图展示了根据业务需要，将用户表和订单表垂直分片到不同的数据库的方案。</p> 
+ <img src="https://images2.imgbox.com/cb/de/tz78iFP3_o.png"> 
+ <p>垂直分片往往需要对架构和设计进行调整。通常来讲，是来不及应对互联网业务需求快速变化的；而且，它也并无法真正的解决单点瓶颈。垂直拆分可以缓解数据量和访问量带来的问题，但无法根治。如果垂直拆分之后，表中的数据量依然超过单节点所能承载的阈值，则需要水平分片来进一步处理。</p> 
+ <p><strong>水平分片</strong></p> 
+ <p>水平分片又称为横向拆分。相对于垂直分片，它不再将数据根据业务逻辑分类，而是通过某个字段（或某几个字段），根据某种规则将数据分散至多个库或表中，每个分片仅包含数据的一部分。例如：根据主键分片，偶数主键的记录放入0库（或表），奇数主键的记录放入1库（或表），如下图所示。</p> 
+ <img src="https://images2.imgbox.com/dc/cb/amNmJADx_o.png"> 
+ <p>水平分片从理论上突破了单机数据量处理的瓶颈，并且扩展相对自由，是分库分表的标准解决方案。</p> 
+ <p><strong>目标</strong></p> 
+ <p>尽量透明化分库分表所带来的影响，让使用方尽量像使用一个数据库一样使用水平分片之后的数据库集群，是 Apache ShardingSphere 数据分片模块的主要设计目标。</p> 
+ <h4>2.1.1. 核心概念</h4> 
+ <p><strong>数据节点</strong></p> 
+ <p>数据分片的最小单元。由数据源名称和数据表组成，例如：ds_0.t_order_0。</p> 
+ <p><strong>分片键</strong></p> 
+ <p>用于分片的数据库字段，是将数据库(表)水平拆分的关键字段。例：将订单表中的订单主键的尾数取模分片，则订单主键为分片字段。</p> 
+ <p><strong>SQL 中如果无分片字段，将执行全路由，性能较差。</strong></p> 
+ <p>除了对单分片字段的支持，Apache ShardingSphere 也支持根据多个字段进行分片。</p> 
+ <p><strong>分片算法</strong></p> 
+ <p>通过分片算法将数据分片，支持通过=、&gt;=、&lt;=、&gt;、&lt;、BETWEEN和IN分片。分片算法需要应用方开发者自行实现，可实现的灵活度非常高。</p> 
+ <p><strong>分片策略</strong></p> 
+ <p>包含分片键和分片算法，由于分片算法的独立性，将其独立抽离。真正可用于分片操作的是分片键 + 分片算法，也就是分片策略。目前提供 5 种分片策略。</p> 
+ <p><strong>行表达式</strong></p> 
+ <p>使用表达式可以简化配置，只需要在配置中使用 <code>${ expression }</code> 或 <code>$-&gt;{ expression }</code> 标识行表达式即可</p> 
+ <p><code>${begin..end}</code> 表示范围区间</p> 
+ <p><code>${[unit1, unit2, unit_x]}</code> 表示枚举值</p> 
+ <p>行表达式中如果出现连续多个 <code>${ expression }</code> 或 <code>$-&gt;{ expression }</code> 表达式，整个表达式最终的结果将会根据每个子表达式的结果进行笛卡尔组合。</p> 
+ <p>例如，{1..3} 最终会被解析为 online_table1, online_table2, online_table3, offline_table1, offline_table2, offline_table3</p> 
+ <p><strong>分布式主键</strong></p> 
+ <p>在分片规则配置模块可配置每个表的主键生成策略，<strong>默认使用雪花算法（snowflake）生成 64bit 的长整型数据</strong>。</p> 
+ <p>雪花算法是由 Twitter 公布的分布式主键生成算法，它能够保证不同进程主键的不重复性，以及相同进程主键的有序性。</p> 
+ <p><strong>实现原理</strong></p> 
+ <p>在同一个进程中，它首先是通过时间位保证不重复，如果时间相同则是通过序列位保证。同时由于时间位是单调递增的，且各个服务器如果大体做了时间同步，那么生成的主键在分布式环境可以认为是总体有序的，这就保证了对索引字段的插入的高效性。例如 MySQL 的 Innodb 存储引擎的主键。</p> 
+ <p>使用雪花算法生成的主键，二进制表示形式包含 4 部分，从高位到低位分表为：1bit 符号位、41bit 时间戳位、10bit 工作进程位以及 12bit 序列号位。</p> 
+ <ul><li><p>符号位(1bit)</p></li></ul> 
+ <p>预留的符号位，恒为零。</p> 
+ <ul><li><p>时间戳位(41bit)</p></li></ul> 
+ <p>41 位的时间戳可以容纳的毫秒数是 2 的 41 次幂，一年所使用的毫秒数是：365 * 24 * 60 * 60 * 1000。通过计算可知：结果约等于 69.73 年。Apache ShardingSphere的雪花算法的时间纪元从2016年11月1日零点开始，可以使用到2086年，相信能满足绝大部分系统的要求。</p> 
+ <ul><li><p>工作进程位(10bit)</p></li></ul> 
+ <p>该标志在 Java 进程内是唯一的，如果是分布式应用部署应保证每个工作进程的 id 是不同的。该值默认为 0，可通过属性设置。</p> 
+ <ul><li><p>序列号位(12bit)</p></li></ul> 
+ <p>该序列是用来在同一个毫秒内生成不同的 ID。如果在这个毫秒内生成的数量超过 4096 (2的12次幂)，那么生成器会等待到下个毫秒继续生成。</p> 
+ <p>雪花算法主键的详细结构见下图：</p> 
+ <img src="https://images2.imgbox.com/c5/ce/TvlkAXCa_o.png"> 
+ <h4>2.1.2. 使用规范</h4> 
+ <p>下面列出已明确可支持的SQL种类以及已明确不支持的SQL种类，尽量让使用者避免踩坑。</p> 
+ <p><strong>支持项</strong></p> 
+ <p>路由至单数据节点</p> 
+ <ul><li><p>100%全兼容（目前仅MySQL，其他数据库完善中）</p></li></ul> 
+ <p>路由至多数据节点</p> 
+ <ul><li><p>全面支持DML、DDL、DCL、TCL和部分DAL。支持分页、去重、排序、分组、聚合、关联查询（不支持跨库关联）。</p></li></ul> 
+ <p><strong>不支持项</strong></p> 
+ <p>路由至多数据节点</p> 
+ <ul><li><p>不支持CASE WHEN、HAVING、UNION (ALL)，有限支持子查询。</p></li></ul> 
+ <p>https://shardingsphere.apache.org/document/current/cn/features/sharding/use-norms/sql/</p> 
+ <h3>2.2. 读写分离</h3> 
+ <img src="https://images2.imgbox.com/62/77/vlBOHx4G_o.png"> 
+ <p>读写分离虽然可以提升系统的吞吐量和可用性，但同时也带来了数据不一致的问题。这包括多个主库之间的数据一致性，以及主库与从库之间的数据一致性的问题。并且，读写分离也带来了与数据分片同样的问题，它同样会使得应用开发和运维人员对数据库的操作和运维变得更加复杂。下图展现了将分库分表与读写分离一同使用时，应用程序与数据库集群之间的复杂拓扑关系。</p> 
+ <img src="https://images2.imgbox.com/85/df/E8uMHIA1_o.png"> 
+ <h2>3. 示例：水平分库分片</h2> 
+ <p><strong>引入maven依赖</strong></p> 
+ <pre class="has"><code class="language-go">&lt;dependency&gt;
+    &lt;groupId&gt;org.apache.shardingsphere&lt;/groupId&gt;
+    &lt;artifactId&gt;sharding-jdbc-core&lt;/artifactId&gt;
+    &lt;version&gt;${sharding-sphere.version}&lt;/version&gt;
+&lt;/dependency&gt;
+</code></pre> 
+ <p>或者</p> 
+ <pre class="has"><code class="language-go">&lt;dependency&gt;
+    &lt;groupId&gt;org.apache.shardingsphere&lt;/groupId&gt;
+    &lt;artifactId&gt;sharding-jdbc-spring-boot-starter&lt;/artifactId&gt;
+    &lt;version&gt;${shardingsphere.version}&lt;/version&gt;
+&lt;/dependency&gt;
+</code></pre> 
+ <p>话不多说，上pom.xml</p> 
+ <pre class="has"><code class="language-go">&lt;?xml version="1.0" encoding="UTF-8"?&gt;
+&lt;project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd"&gt;
+    &lt;modelVersion&gt;4.0.0&lt;/modelVersion&gt;
+    &lt;parent&gt;
+        &lt;groupId&gt;org.springframework.boot&lt;/groupId&gt;
+        &lt;artifactId&gt;spring-boot-starter-parent&lt;/artifactId&gt;
+        &lt;version&gt;2.3.1.RELEASE&lt;/version&gt;
+        &lt;relativePath/&gt; &lt;!-- lookup parent from repository --&gt;
+    &lt;/parent&gt;
+    &lt;groupId&gt;com.cjs.example&lt;/groupId&gt;
+    &lt;artifactId&gt;sharding-jdbc-demo&lt;/artifactId&gt;
+    &lt;version&gt;0.0.1-SNAPSHOT&lt;/version&gt;
+    &lt;name&gt;sharding-jdbc-demo&lt;/name&gt;
+
+    &lt;properties&gt;
+        &lt;java.version&gt;1.8&lt;/java.version&gt;
+    &lt;/properties&gt;
+
+    &lt;dependencies&gt;
+        &lt;!--&lt;dependency&gt;
+            &lt;groupId&gt;org.apache.shardingsphere&lt;/groupId&gt;
+            &lt;artifactId&gt;sharding-jdbc-core&lt;/artifactId&gt;
+            &lt;version&gt;4.1.1&lt;/version&gt;
+        &lt;/dependency&gt;--&gt;
+        &lt;dependency&gt;
+            &lt;groupId&gt;org.apache.shardingsphere&lt;/groupId&gt;
+            &lt;artifactId&gt;sharding-jdbc-spring-boot-starter&lt;/artifactId&gt;
+            &lt;version&gt;4.1.1&lt;/version&gt;
+        &lt;/dependency&gt;
+
+        &lt;dependency&gt;
+            &lt;groupId&gt;org.springframework.boot&lt;/groupId&gt;
+            &lt;artifactId&gt;spring-boot-starter-data-jpa&lt;/artifactId&gt;
+        &lt;/dependency&gt;
+        &lt;dependency&gt;
+            &lt;groupId&gt;org.springframework.boot&lt;/groupId&gt;
+            &lt;artifactId&gt;spring-boot-starter-web&lt;/artifactId&gt;
+        &lt;/dependency&gt;
+
+        &lt;dependency&gt;
+            &lt;groupId&gt;mysql&lt;/groupId&gt;
+            &lt;artifactId&gt;mysql-connector-java&lt;/artifactId&gt;
+            &lt;scope&gt;runtime&lt;/scope&gt;
+        &lt;/dependency&gt;
+        &lt;dependency&gt;
+            &lt;groupId&gt;com.alibaba&lt;/groupId&gt;
+            &lt;artifactId&gt;druid&lt;/artifactId&gt;
+            &lt;version&gt;1.1.22&lt;/version&gt;
+        &lt;/dependency&gt;
+        &lt;dependency&gt;
+            &lt;groupId&gt;org.projectlombok&lt;/groupId&gt;
+            &lt;artifactId&gt;lombok&lt;/artifactId&gt;
+            &lt;optional&gt;true&lt;/optional&gt;
+        &lt;/dependency&gt;
+        &lt;dependency&gt;
+            &lt;groupId&gt;org.springframework.boot&lt;/groupId&gt;
+            &lt;artifactId&gt;spring-boot-starter-test&lt;/artifactId&gt;
+            &lt;scope&gt;test&lt;/scope&gt;
+            &lt;exclusions&gt;
+                &lt;exclusion&gt;
+                    &lt;groupId&gt;org.junit.vintage&lt;/groupId&gt;
+                    &lt;artifactId&gt;junit-vintage-engine&lt;/artifactId&gt;
+                &lt;/exclusion&gt;
+            &lt;/exclusions&gt;
+        &lt;/dependency&gt;
+    &lt;/dependencies&gt;
+
+    &lt;build&gt;
+        &lt;plugins&gt;
+            &lt;plugin&gt;
+                &lt;groupId&gt;org.springframework.boot&lt;/groupId&gt;
+                &lt;artifactId&gt;spring-boot-maven-plugin&lt;/artifactId&gt;
+            &lt;/plugin&gt;
+        &lt;/plugins&gt;
+    &lt;/build&gt;
+
+&lt;/project&gt;
+</code></pre> 
+ <p><strong>OrderEntiry.java</strong></p> 
+ <pre class="has"><code class="language-go">package com.cjs.example.sharding.entity;
+import lombok.Data;
+import javax.persistence.*;
+import java.io.Serializable;
+/** * @author ChengJianSheng
+ * @date 2020-06-18 */ @Data
+@Entity
+@Table(name = "t_order") public class OrderEntity implements Serializable {
+
+    @Id
+    @Column(name = "order_id")
+    @GeneratedValue(strategy = GenerationType.IDENTITY) private Long orderId; private Integer userId; private Integer status = 1;
+}
+</code></pre> 
+ <p><strong>OrderRepository.java</strong></p> 
+ <pre class="has"><code class="language-go">package com.cjs.example.sharding.repository;
+import com.cjs.example.sharding.entity.OrderEntity;
+import org.springframework.data.jpa.repository.JpaRepository;
+/** * @author ChengJianSheng
+ * @date 2020-06-18 */
+public interface OrderRepository extends JpaRepository&lt;OrderEntity, Long&gt; {
+}
+</code></pre> 
+ <p><strong>OrderService.java</strong></p> 
+ <pre class="has"><code class="language-go">package com.cjs.example.sharding.service;
+import com.cjs.example.sharding.entity.OrderEntity;
+import com.cjs.example.sharding.repository.OrderRepository;
+import org.springframework.stereotype.Service;
+import javax.annotation.Resource;
+/** * @author ChengJianSheng
+ * @date 2020-06-18 */ @Service public class OrderService {
+
+    @Resource private OrderRepository orderRepository; public void save(OrderEntity entity) {
+        orderRepository.save(entity);
+    }
+
+}
+</code></pre> 
+ <p><strong>OrderController.java</strong></p> 
+ <pre class="has"><code class="language-go">package com.cjs.example.sharding.controller;
+import com.cjs.example.sharding.entity.OrderEntity;
+import com.cjs.example.sharding.service.OrderService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController; /
+** * @author ChengJianSheng
+ * @date 2020-06-18 */ @RestController
+@RequestMapping("/order") public class OrderController {
+
+    @Autowired private OrderService orderService;
+
+    @GetMapping("/save") public String save(@RequestParam("userId") Integer userId) {
+        OrderEntity entity = new OrderEntity();
+        entity.setUserId(userId);
+        orderService.save(entity); return "ok";
+    }
+}
+</code></pre> 
+ <p><strong>启动类</strong></p> 
+ <pre class="has"><code class="language-go">package com.cjs.example.sharding;
+import org.springframework.boot.CommandLineRunner;
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.autoconfigure.transaction.jta.JtaAutoConfiguration;
+import javax.annotation.Resource;
+import javax.sql.DataSource;
+/** * http://shardingsphere.apache.org/index.html * https://shardingsphere.apache.org/document/legacy/4.x/document/en/manual/sharding-jdbc/ * http://shardingsphere.apache.org/index_zh.html
+ */ @SpringBootApplication(exclude = JtaAutoConfiguration.class) public class ShardingJdbcDemoApplication implements CommandLineRunner { public static void main(String[] args) {
+        SpringApplication.run(ShardingJdbcDemoApplication.class, args);
+    }
+
+    @Resource private DataSource dataSource;
+
+    @Override public void run(String... args) throws Exception {
+        System.out.println(dataSource);
+    }
+}
+</code></pre> 
+ <p>最最重要的是 application.properties</p> 
+ <pre class="has"><code class="language-go"># https://shardingsphere.apache.org/document/legacy/4.x/document/en/manual/sharding-jdbc/
+
+# 配置真实数据源
+spring.shardingsphere.datasource.names=ds0,ds1
+
+# 配置第 1 个数据源
+spring.shardingsphere.datasource.ds0.type=com.alibaba.druid.pool.DruidDataSource
+spring.shardingsphere.datasource.ds0.driver-class-name=com.mysql.jdbc.Driver
+spring.shardingsphere.datasource.ds0.url=jdbc:mysql://localhost:3306/ds0
+spring.shardingsphere.datasource.ds0.username=root
+spring.shardingsphere.datasource.ds0.password=123456
+
+# 配置第 2 个数据源
+spring.shardingsphere.datasource.ds1.type=com.alibaba.druid.pool.DruidDataSource
+spring.shardingsphere.datasource.ds1.driver-class-name=com.mysql.jdbc.Driver
+spring.shardingsphere.datasource.ds1.url=jdbc:mysql://localhost:3306/ds1
+spring.shardingsphere.datasource.ds1.username=root
+spring.shardingsphere.datasource.ds1.password=123456
+
+# 配置 t_order 表规则
+spring.shardingsphere.sharding.tables.t_order.actual-data-nodes=ds$-&gt;{0..1}.t_order_$-&gt;{0..1}
+spring.shardingsphere.sharding.tables.t_order.table-strategy.inline.sharding-column=order_id
+spring.shardingsphere.sharding.tables.t_order.table-strategy.inline.algorithm-expression=t_order_$-&gt;{order_id % 2}
+spring.shardingsphere.sharding.tables.t_order.key-generator.type=SNOWFLAKE
+spring.shardingsphere.sharding.tables.t_order.key-generator.column=order_id
+spring.shardingsphere.sharding.tables.t_order.database-strategy.inline.sharding-column=user_id
+spring.shardingsphere.sharding.tables.t_order.database-strategy.inline.algorithm-expression=ds$-&gt;{user_id % 2}
+
+spring.shardingsphere.props.sql.show=true
+</code></pre> 
+ <p><strong>工程结构</strong></p> 
+ <img src="https://images2.imgbox.com/25/a3/iqmbnExn_o.png"> 
+ <p>源码：https://github.com/chengjiansheng/sharding-jdbc-demo</p> 
+ <p>通过访问http://localhost:8080/order/save?userId=xxx想数据库中插入数据，结果确实如预期的那样</p> 
+ <img src="https://images2.imgbox.com/6c/a6/5yynY2pE_o.png"> 
+ <h2>4. 写在最后</h2> 
+ <p><strong>配置入口类：</strong></p> 
+ <pre class="has"><code class="language-go">org.apache.shardingsphere.shardingjdbc.spring.boot.SpringBootConfiguration
+</code></pre> 
+ <p><strong>文档在这里：</strong></p> 
+ <blockquote> 
+  <p>https://shardingsphere.apache.org https://shardingsphere.apache.org/document/legacy/4.x/document/en/manual/sharding-jdbc http://shardingsphere.apache.org/elasticjob/</p> 
+ </blockquote> 
+ <p>真的写在最最后：</p> 
+ <p>虽然 ShardingSphere-JDBC (Sharding-JDBC) 提供了很多功能，但是最常用的还是分库分表、读写分离，通常是一起用</p> 
+ <blockquote> 
+  <p>https://shardingsphere.apache.org/document/legacy/4.x/document/en/manual/sharding-jdbc/configuration/config-spring-boot/</p> 
+ </blockquote> 
+ <p>分库分表以后，编写SQL时有诸多限制，很多之前在单库单表上的操作就不能用了，而且每次查询必须带上分片键，不然的话全表扫描</p> 
+ <p>如果非要分表的话，不妨先考虑一下将数据存到ElasticSearch中，查询直接走ES。或者先走ES，然后通过主键再去查MySQL。</p> 
+ <p>总之一句话，慎重！</p> 
+ <hr> 
+ <p>往期推荐</p> 
+ <p><a href="http://mp.weixin.qq.com/s?__biz=MzU3MDAzNDg1MA%3D%3D&amp;chksm=fcf4d36fcb835a79e85dc5855f7150fbae0bf54695f1bc96fd3e45609b0791145450d0b56a72&amp;idx=2&amp;mid=2247486626&amp;scene=21&amp;sn=dc51db478629649af1086b92c8c15d28#wechat_redirect" rel="nofollow">《Mybatis进阶》肝了30天专栏文章，整理成册，免费获取！！！</a></p> 
+ <p><a href="http://mp.weixin.qq.com/s?__biz=MzU3MDAzNDg1MA%3D%3D&amp;chksm=fcf4d3a1cb835ab7e782da8677dbe00d0a486ef944aff89d9902f190387d8356a9f24b465815&amp;idx=1&amp;mid=2247486572&amp;scene=21&amp;sn=a9ca7fcd831edf40d138308c66e2341d#wechat_redirect" rel="nofollow">maven实战总结，工作中常见操作</a></p> 
+ <p><a href="http://mp.weixin.qq.com/s?__biz=MzU3MDAzNDg1MA%3D%3D&amp;chksm=fcf4d39dcb835a8be3d0893bcbf6ed91393d50ffeb84314697e636a60422895fb1d2a5c74ebc&amp;idx=1&amp;mid=2247486544&amp;scene=21&amp;sn=7632120bf9516dad441a03e23b3e35ab#wechat_redirect" rel="nofollow">运维和开发慌了，Redis突然 "慢" 了，到底谁背锅？</a></p> 
+ <p><a href="http://mp.weixin.qq.com/s?__biz=MzU3MDAzNDg1MA%3D%3D&amp;chksm=fcf4d38bcb835a9d17908215ee7702d1dc67c36b59f51be99011007fb0b44031d1a17dd4e875&amp;idx=1&amp;mid=2247486534&amp;scene=21&amp;sn=5e2d987fea438284e2d75b68dd55da7f#wechat_redirect" rel="nofollow">师兄，为什么删除数据后，Redis内存占用依然很高？</a></p> 
+ <p><a href="http://mp.weixin.qq.com/s?__biz=MzU3MDAzNDg1MA%3D%3D&amp;chksm=fcf4d46acb835d7c0b9334b86d22b07e9cd7e5f88ed77341a3b156798b24150d60d6a79662fc&amp;idx=1&amp;mid=2247486375&amp;scene=21&amp;sn=0785971e06548c48228718270b7fc5c8#wechat_redirect" rel="nofollow">程序员需知的 58 个网站</a></p> 
+ <p><a href="http://mp.weixin.qq.com/s?__biz=MzU3MDAzNDg1MA%3D%3D&amp;chksm=fcf4d410cb835d068eaa08dcbae99afada0977bda3a439d72139119caec2f7651ad2787f1aa5&amp;idx=1&amp;mid=2247486429&amp;scene=21&amp;sn=adfd270b5f4663b836b65de5603bcd0e#wechat_redirect" rel="nofollow">给你一个亿的keys，Redis如何统计？</a></p> 
+</div>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/91dbd504f65677e724e7cba5e2f269ab/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">python batchnorm2d_PyTorch 卷积与BatchNorm的融合</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/ae968ebc3f7591044914afdc3eeb766a/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">verilog实例_Verilog中的assign 语句y会生成latch么?</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

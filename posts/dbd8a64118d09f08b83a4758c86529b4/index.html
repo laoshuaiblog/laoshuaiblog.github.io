@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Docker容器MySQL数据库的备份与还原，以及每天定时自动备份. - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/dbd8a64118d09f08b83a4758c86529b4/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="Docker容器MySQL数据库的备份与还原，以及每天定时自动备份.">
+  <meta property="og:description" content="1.快速启动mysql容器 1：拉取mysql镜像： 根据自己需要，我这个是Debian的5.7版本的镜像。
+这个地方一定要注意：
+有些版本的docker镜像里面移除了MySQL自带的工具。包括Mysqlbinlog，Mysqlcheck等。所以即使你开启了binlog，也是没有办法还原数据的，这里要注意一下镜像的选择。
+docker pull nanlist/mysql5.7:v1.1 2：宿主机建立挂载目录： mkdir三个文件夹，方便持久化。
+/home/mysql/conf
+/home/mysql/logs
+/home/mysql/data
+3.启动容器： docker run -p 3308:3306 --privileged=true --name mysql -v /home/mysql/conf:/etc/mysql/conf.d -v /home/mysql/logs:/var/log/mysql -v /home/mysql/data:/var/lib/mysql -e MYSQL_ROOT_PASSWORD=123456 -d nanlist/mysql5.7:v1.1 –name：容器名，此处命名为mysql -e：配置信息，此处配置mysql的root用户的登陆密码 -p：端口映射，此处映射 主机3306端口 到 容器的3306端口 -d : 表示使得容器后台一直运行 -v：主机和容器的目录映射关系，&#34;:&#34;前为主机目录，之后为容器目录 --privileged=true：开启容器操作宿主机权限 查看一下是否启动成功;
+docker ps 如果启动有问题可以查看一下日志：
+docker logs --tail=1000 mysql 2. docker内部登录mysql系统进行配置 1.进入容器 docker exec -it mysql bash root 密码：123456
+2.设置远程登录： grant all privileges on *.* to root@&#39;%&#39; identified by &#34;">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2023-01-16T15:25:06+08:00">
+    <meta property="article:modified_time" content="2023-01-16T15:25:06+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">Docker容器MySQL数据库的备份与还原，以及每天定时自动备份.</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-dark">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <h2><a id="1mysql_0"></a>1.快速启动mysql容器</h2> 
+<h3><a id="1mysql_1"></a>1：拉取mysql镜像：</h3> 
+<p>根据自己需要，我这个是Debian的5.7版本的镜像。</p> 
+<p><em><strong>这个地方一定要注意：</strong></em><br> 有些版本的docker镜像里面移除了MySQL自带的工具。包括Mysqlbinlog，Mysqlcheck等。所以即使你开启了binlog，也是没有办法还原数据的，这里要注意一下镜像的选择。</p> 
+<pre><code>docker pull nanlist/mysql5.7:v1.1
+</code></pre> 
+<h3><a id="2_10"></a>2：宿主机建立挂载目录：</h3> 
+<p>mkdir三个文件夹，方便持久化。<br> /home/mysql/conf<br> /home/mysql/logs<br> /home/mysql/data</p> 
+<h3><a id="3_16"></a>3.启动容器：</h3> 
+<pre><code>docker run -p 3308:3306 --privileged=true --name mysql -v /home/mysql/conf:/etc/mysql/conf.d -v /home/mysql/logs:/var/log/mysql  -v /home/mysql/data:/var/lib/mysql -e MYSQL_ROOT_PASSWORD=123456 -d nanlist/mysql5.7:v1.1
+
+</code></pre> 
+<pre><code>–name：容器名，此处命名为mysql
+-e：配置信息，此处配置mysql的root用户的登陆密码
+-p：端口映射，此处映射 主机3306端口 到 容器的3306端口
+-d : 表示使得容器后台一直运行
+-v：主机和容器的目录映射关系，":"前为主机目录，之后为容器目录
+--privileged=true：开启容器操作宿主机权限
+</code></pre> 
+<p>查看一下是否启动成功;</p> 
+<pre><code>docker ps
+</code></pre> 
+<p><img src="https://images2.imgbox.com/d1/a6/0i68Qw5p_o.png" alt="在这里插入图片描述"><br> 如果启动有问题可以查看一下日志：</p> 
+<pre><code>docker logs --tail=1000 mysql 
+</code></pre> 
+<h2><a id="2_dockermysql_42"></a>2. docker内部登录mysql系统进行配置</h2> 
+<h3><a id="1_43"></a>1.进入容器</h3> 
+<pre><code>docker exec -it mysql bash
+</code></pre> 
+<p>root 密码：123456<br> <img src="https://images2.imgbox.com/13/ee/UdssnzIM_o.png" alt="在这里插入图片描述"></p> 
+<h3><a id="2_51"></a>2.设置远程登录：</h3> 
+<pre><code>grant all privileges  on *.* to root@'%' identified by "root!@#";
+</code></pre> 
+<p><img src="https://images2.imgbox.com/c2/34/V8ofOkP0_o.png" alt="在这里插入图片描述"></p> 
+<h3><a id="3_57"></a>3.创建数据库：</h3> 
+<h4><a id="1_58"></a>1、创建数据库：</h4> 
+<p>这里用test库命名</p> 
+<pre><code>create database test;
+</code></pre> 
+<h4><a id="2_65"></a>2.创建数据库新用户：</h4> 
+<p>语法：create user ‘username’@‘%’ identified by ‘password’;</p> 
+<pre><code>create user 'lgn'@'%' identified by '123456';
+</code></pre> 
+<h4><a id="3_72"></a>3.配置权限：</h4> 
+<p>语法：grant all privileges on 数据库名.* to 用户名@‘%’ identified by ‘用户密码’;</p> 
+<pre><code>grant all privileges on test.* to lgn@'%' identified by '123456';
+</code></pre> 
+<h4><a id="4_79"></a>4.刷新生效：</h4> 
+<pre><code>FLUSH PRIVILEGES;
+</code></pre> 
+<p><img src="https://images2.imgbox.com/dd/89/RVCqEfnW_o.png" alt="在这里插入图片描述"></p> 
+<h4><a id="_85"></a>使用工具链接测试一下：</h4> 
+<p><img src="https://images2.imgbox.com/33/8c/vywSzdpO_o.png" alt="在这里插入图片描述"><br> <img src="https://images2.imgbox.com/34/90/CckK1I7L_o.png" alt="在这里插入图片描述"></p> 
+<h2><a id="3mysql_88"></a>3.配置mysql日志</h2> 
+<p>Linux中MySQL日志一般保存在/var/log/目录下，但还需要看具体的配置文件才能确定，具体方法如下：<br> 进入容器内部，<br> 登陆 mysql：&gt;mysql -u root -p<br> 查看是否启用了日志：</p> 
+<pre><code>show variables like '%log_bin%';
+</code></pre> 
+<p><img src="https://images2.imgbox.com/8e/b2/Fs9YpHhn_o.png" alt="在这里插入图片描述"><br> 查看当前的日志：</p> 
+<pre><code>show master status;
+</code></pre> 
+<p><img src="https://images2.imgbox.com/97/72/KGh7i5dC_o.png" alt="在这里插入图片描述"><br> mysql的日志类型：<br> 查询日志： -log<br> 慢查询日志: -log-slow-queries<br> 更新日志: -log-update<br> 二进制日志： -log-bin<br> Mysql5.7的binlog默认是不开启的，所以我们这里给他设置一下:<br> 进入容器内部修改配置/etc/my.cnf<br> <img src="https://images2.imgbox.com/3c/ac/YoOtNzFQ_o.png" alt="在这里插入图片描述"><br> 没有vi 命令 安装一下：<br> yum install vim<br> （如果是ubantu的 用<br> apt-get update<br> apt-get install vim<br> ）<br> <img src="https://images2.imgbox.com/b1/08/lEzla69O_o.png" alt="在这里插入图片描述"></p> 
+<p>[mysqld]下面添加<br> #binlog setting，开启增量备份的关键,server-id 这个也要填一下不然mysql会启动失败,(一定要放到这个下面不然变量不生效)</p> 
+<pre><code>log-bin=/var/lib/mysql/mysql-bin
+server-id=123454
+</code></pre> 
+<p>(Ps根据个人需要选配） 二进制文件优化配置：</p> 
+<pre><code>server_id=1                    
+log_bin=mysql-bin
+#log-bin-index=master-bin.index
+#设置expire_logs_days自动过期清理binlog
+expire_logs_days = 7
+#binlog_format = row    #默认为mix，新版中设为这两项可提高安全性
+#binlog_row_image = minimal
+max_binlog_size = 100m   #默认是1G
+binlog_cache_size = 4m
+#binlog-do-db = DBNAME #指定mysql的binlog日志只记录哪个库
+max_binlog_cache_size = 512m  #生产4g
+#skip-slave-start
+</code></pre> 
+<p>如果不想直接在容器内编辑，把my.cnf配置文件cp出去，外部编辑完再cp进去也是一样的。<br> 命令：</p> 
+<pre><code>centos是这个目录：
+docker cp  mysql:/etc/my.cnf  /home/mysql/my.cnf （先拷贝出来修改）
+docker cp  /home/mysql/my.cnf  mysql:/etc/my.cnf （再拷贝到容器里面）
+Debian是这个目录：
+docker cp mysql:/etc/mysql/mysql.conf.d/mysqld.cnf  /home/mysql/mysqld.cnf
+docker cp /home/mysql/mysqld.cnf  mysql:/etc/mysql/mysql.conf.d/mysqld.cnf
+</code></pre> 
+<p>编辑完以后重启容器</p> 
+<pre><code>docker restart mysql
+</code></pre> 
+<p><img src="https://images2.imgbox.com/7a/fb/2Ol4QyZk_o.png" alt="在这里插入图片描述"><br> 登录一下mysql查看一下是否开启：<br> <img src="https://images2.imgbox.com/61/87/181nZAzL_o.png" alt="在这里插入图片描述"><br> 显示已经开启bin，因为我们启动容器的时候宿主机跟容器已经做了挂载所以去宿主机看一下有没有生成二进制文件<br> <img src="https://images2.imgbox.com/16/3c/DusoIUeG_o.png" alt="在这里插入图片描述"></p> 
+<h2><a id="4mysql_binlog_165"></a>4.mysql 数据备份与binlog数据还原</h2> 
+<h3><a id="1binlogMySQL_166"></a>1.通过binlog日志恢复MySQL误删数据</h3> 
+<p>先进入到docker内部的mysql环境里面：</p> 
+<p>查看最新一次生成的log文件的编号:：</p> 
+<pre><code> show master logs;
+</code></pre> 
+<p><img src="https://images2.imgbox.com/c2/61/7YTrQxW2_o.png" alt="在这里插入图片描述"><br> 编号最大的就是最近的事件，打开一个看看：</p> 
+<pre><code>show binlog events in 'mysql-bin.000003';
+</code></pre> 
+<p>拉到底都是最近的操作记录：<br> <img src="https://images2.imgbox.com/53/65/webVpkr4_o.png" alt="在这里插入图片描述"><br> 如果日志记录太多flush刷新log日志，自此刻开始产生一个新编号的binlog日志文件：</p> 
+<pre><code>flush logs;
+</code></pre> 
+<p><img src="https://images2.imgbox.com/c6/9b/XP66iB4Z_o.png" alt="在这里插入图片描述"><br> 刷新后我们插入一条数据，然后删除这条数据看日志记录：</p> 
+<pre><code>show binlog events in 'mysql-bin.000004';
+</code></pre> 
+<p><img src="https://images2.imgbox.com/23/ae/NxpTkqSo_o.png" alt="在这里插入图片描述"><br> <img src="https://images2.imgbox.com/bf/c6/UMfcG8UT_o.png" alt="在这里插入图片描述"><br> 找到这条数据添加时候的起始位置， 起始pos为：219，终止pos为：425<br> 退出mysql环境，进入dockers内部：</p> 
+<pre><code>cd /var/lib/mysql ;
+</code></pre> 
+<p>恢复数据需要借助mysqlbinlog 这个东西：<br> mysqlbinlog工具将binary log文件由二进制转换为可读的文本文件，可以选择基于时间或位置的事件。<br> 有的版本移除了这个工具包，所以制作mysql的时候先检查一下，可以通过find / -name "mysqlbinlog"命令查找mysqlbinlog的工具路径。<br> 1：基于位置 恢复数据，命令：</p> 
+<pre><code>mysqlbinlog --start-position="指定开始位置" --stop-position="指定结束位置" binlog文件
+</code></pre> 
+<pre><code>/usr/bin/mysqlbinlog --start-position=219 --stop-position=425 --database=test /var/lib/mysql/mysql-bin.000004 | /usr/bin/mysql -uroot -p -v test
+</code></pre> 
+<p>2：基于时间 恢复数据，命令：</p> 
+<pre><code>mysqlbinlog --start-position="指定开始位置" --stop-position="指定结束位置" binlog文件 &gt; 输出文件名
+或者
+mysqlbinlog --start-position="指定开始位置" --stop-position="指定结束位置" binlog文件 --result-file=输出文件名
+</code></pre> 
+<pre><code>mysqlbinlog --start-datetime "2022-05-13 15:00:00" --stop-datetime "2022-05-13 15:10:00" /var/log/mysql/mysql-bin.000001 | mysql -uroot
+</code></pre> 
+<h2><a id="5mysql__226"></a>5.mysql 数据备份与定时备份</h2> 
+<h3><a id="_227"></a>全量备份语法：</h3> 
+<p>现在宿主机上创建一个存放备份文件的文件夹：<br> /home/mysql/backup</p> 
+<pre><code>docker exec -it mysql（容器名）  /bin/bash -c 'mysqldump -uroot -p123456 --databases 需要备份的数据库' &gt; /home/mysql/backup/music_`date +%F`.sql（宿主机的文件路径）;
+</code></pre> 
+<p>单独执行一下：</p> 
+<pre><code>docker exec -i mysql /bin/bash -c 'mysqldump -uroot -p123456 --databases test' &gt; /home/mysql/backup/emp_`date +\%F`.sql;
+</code></pre> 
+<p><img src="https://images2.imgbox.com/96/4b/PgjcwCVk_o.png" alt="在这里插入图片描述"><br> 如果执行成功说明这个语句没有问题，下面就做个定时任务，每天执行一次这个语句。</p> 
+<h3><a id="linuxcrontab_239"></a>制作一个linux定时任务，crontab每日定时执行命令</h3> 
+<p>linux上最常用的计划任务软件叫crontab，该软件的命令同时也叫crontab。</p> 
+<pre><code>crontab -l ：查看当前定时任务
+</code></pre> 
+<p><img src="https://images2.imgbox.com/4b/2a/k6Zelx9s_o.png" alt="在这里插入图片描述"></p> 
+<pre><code>crontab -e：编辑、新建定时任务
+</code></pre> 
+<p><img src="https://images2.imgbox.com/a5/f0/4tGh7t5l_o.png" alt="在这里插入图片描述"><br> 编辑内容：</p> 
+<p>搞个测试任务每两分钟执行一下：</p> 
+<pre><code>*/2 * * * * docker exec -i mysql /bin/bash -c 'mysqldump -uroot -p123456 --databases test' &gt; /home/mysql/backup/emp_`date +\%F`.sql
+</code></pre> 
+<p>wq! 保存；<br> 这块极易出错，仔细检查一下字符，分号，引号啥的。<br> 再查看一下：<br> <img src="https://images2.imgbox.com/3e/14/OJy050fL_o.png" alt="在这里插入图片描述"><br> 如果执行失败，或者不执行定时任务，如查一下日志：</p> 
+<pre><code>cat /var/spool/mail/root
+</code></pre> 
+<p>删除日志：</p> 
+<pre><code>cat /dev/null &gt; /var/spool/mail/root
+</code></pre> 
+<p>把测试的任务删掉，编辑正式的任务每天凌晨两点执行：</p> 
+<pre><code>crontab  -r #删除用户的crontab的内容
+</code></pre> 
+<pre><code>crontab -e：编辑、新建定时任务
+</code></pre> 
+<pre><code>0 2 * * * docker exec -i mysql /bin/bash -c 'mysqldump -uroot -p123456 --databases test' &gt; /home/mysql/backup/emp_`date +\%F`.sql
+</code></pre> 
+<h3><a id="_290"></a>还原：</h3> 
+<p>进入mysql后source还原<br> 把sql文件cp进容器内部 使用source还原<br> mysql -uroot -p</p> 
+<pre><code>source /var/backup/emp_2023-01-13.sql
+</code></pre>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/f0c7606a2ea9cdb1a4978022a792f276/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">SQL Server 快速删除/归档数据方法小结</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/cde6b8ac51c9c382968f6e4c3234c32f/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">Dev-c&#43;&#43; 5.11版本调试方法（七小时折磨调试成功，超详细版）</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

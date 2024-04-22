@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>有关Segment fault的总结(转自海斌) - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/b00bc4da6d8f9e9bdbb0882792bfdbf2/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="有关Segment fault的总结(转自海斌)">
+  <meta property="og:description" content="一、背景
+在基于linux操作系统的相关开发工作当中遇到了Segment fault，bus error两个引起死机的严重问题，一直想对这个问题进行总结，目前有时间就赶紧落实了。
+二、我理解的段错误
+首先谈一下对段的理解：段是内存模式设计的一个结果，各个处理器的地址空间并不一致，但它们都被分割成为大小相同的单位区域，每个这样的区域被称为段，记得大学时候学x86架构时的段是64k。
+理解了段的含义，那么就可以理解段错误是由于内存管理单元（负责支持虚拟内存的硬件）的异常所导致，我一般直接理解为我们应用编程用的虚拟地址通过MMU转换为实际物理地址的过程中出现了问题。
+三、导致段错误的几种情况
+1、 引用一个包含非法值的指针（当然包括空指针）。
+2、 未得到正确的权限的时候进行访问，例如往只读的内存地址写数据。
+3、 内存越界（数组越界，变量类型不一致等），下面给个例子
+char MyArray[1];
+printf(&#34;%c&#34;, MyArray[1000000000]);
+比较极端的一个例子！！！
+依据段错误的定义，可以推断段错误的原因大概也都是一样的，就是所用的地址没有物理内存所对应，各种情况只有平时多积累啦。
+四、段错误为什么这么麻烦？以及想到的一些解决办法
+比较常见的是指针使用不规范导致，林锐的《高质量c&#43;&#43;/c编程指南》关于指针的使用说的比较清楚。
+比较让人郁闷的是glibc库中基本所有的函数都默认形参指针是非空的（如果strcpy对每个参数都进行检查就好了！），还有linux的一些系统函数也是如此！多次调用的系统函数可以考虑给它做件衣服（封装一层，添加错误处理等），例如《UNIX网络编程》一书封装了大量的套接口API，并称之为包裹函数（难怪专家的代码bug要少的多！）。当然我们自己写的函数也要尽量要检查一下入口参数。
+解决段错误问题，我常用的是两个基本办法：加打印输出判断位置检查代码、用gdb找到段错误的位置，当然网上还有一些其他的办法和工具。
+段错误还碰到过更痛苦的情况：死机打印Segment fault，后面没有栈的相关打印，用gdb跟踪时是一个信号，而不是应用层的进程。这种情况让我恼火的很，已经解决过这样的问题，但仍然一头雾水：这种问题可能是应用层的错误，当时通过目前手头上的所有手段都找不到应用层的问题，仅仅看到了这个异步的信号。而信号是由硬件中断产生的，由于中断是异步发生的（其发生的时间是不可预测的），对中断的编程和判断当然是非常困难的。
+五、类似于段错误的另外一个痛苦的错误：bus error
+bus error这个错误我这碰到过，但是没有真正的解决过。也总结一下：
+1、硬件故障，不用说，咱们程序员碰到的通常不是这个原因，也不要把问题轻易的归结为硬件。
+2、linnux平台上执行malloc，如果没有足够的RAM，linux不是malloc失败返回，而是向当前进程分发SIGBUS信号。注：来源于网络，不敢确认。
+3、在一次linux内核开发者大会上听到过产生bus error的另外一种情况：驱动程序写的比较“顽皮”，这个一般在linux的release版本是没有的。
+4、大多数参考文献基本上把总线错误列为由于未对齐的读或者写操作引起的。对齐的意思就是数据项只能存储在地址是数据项大小整数倍的内存位置上。我所接触过的嵌入式CPU基本都是RISC架构，都需要数据对齐。
+Bus error和segment fault的区别：我这理解的segment fault是应用的地址对应的实际物理地址是无效的，即通过硬件管理单元MMU的时候失败而上报错误；而bus error对应的物理地址是有效的，当然是可以通过MMU的，由于cpu体系架构对字节对齐的限制，此时总线是不能正确使用该指针地址的。当然我觉得这种情况编译器应该给个警告或者错误（具体的没研究过），否则各种调试手段基本起的作用就不大了，只能靠检查原始代码了。
+六、解决和研究类似问题的一点体会
+这类问题的理解和解决有时候需要很多计算机相关的基础理论知识和linux操作系统的一些知识，平时多看一些理论书籍在很多时候还是非常有用的。另外重视编译警告和编程规范有时候可以避免一些令人恼火的bug。
+原文http://blog.163.com/huangnan0727@126/blog/static/30626184200911122922339/">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2010-04-19T17:54:00+08:00">
+    <meta property="article:modified_time" content="2010-04-19T17:54:00+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">有关Segment fault的总结(转自海斌)</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <p style="text-indent: 2em">一、背景</p> 
+<p style="text-indent: 2em">在基于linux操作系统的相关开发工作当中遇到了Segment fault，bus error两个引起死机的严重问题，一直想对这个问题进行总结，目前有时间就赶紧落实了。</p> 
+<p style="text-indent: 2em">二、我理解的段错误</p> 
+<p style="text-indent: 2em">首先谈一下对段的理解：段是内存模式设计的一个结果，各个处理器的地址空间并不一致，但它们都被分割成为大小相同的单位区域，每个这样的区域被称为段，记得大学时候学x86架构时的段是64k。</p> 
+<p style="text-indent: 2em">理解了段的含义，那么就可以理解段错误是由于内存管理单元（负责支持虚拟内存的硬件）的异常所导致，我一般直接理解为我们应用编程用的虚拟地址通过MMU转换为实际物理地址的过程中出现了问题。</p> 
+<p style="text-indent: 2em">三、导致段错误的几种情况</p> 
+<p style="text-indent: 2em">1、 引用一个包含非法值的指针（当然包括空指针）。</p> 
+<p style="text-indent: 2em">2、 未得到正确的权限的时候进行访问，例如往只读的内存地址写数据。</p> 
+<p style="text-indent: 2em">3、 内存越界（数组越界，变量类型不一致等），下面给个例子</p> 
+<p style="text-indent: 2em">char MyArray[1];</p> 
+<p style="text-indent: 2em">printf("%c", MyArray[1000000000]);</p> 
+<p style="text-indent: 2em">比较极端的一个例子！！！</p> 
+<p style="text-indent: 2em">依据段错误的定义，可以推断段错误的原因大概也都是一样的，就是所用的地址没有物理内存所对应，各种情况只有平时多积累啦。</p> 
+<p style="text-indent: 2em">四、段错误为什么这么麻烦？以及想到的一些解决办法</p> 
+<p style="text-indent: 2em">比较常见的是指针使用不规范导致，林锐的《高质量c++/c编程指南》关于指针的使用说的比较清楚。</p> 
+<p style="text-indent: 2em">比较让人郁闷的是glibc库中基本所有的函数都默认形参指针是非空的（如果strcpy对每个参数都进行检查就好了！），还有linux的一些系统函数也是如此！多次调用的系统函数可以考虑给它做件衣服（封装一层，添加错误处理等），例如《UNIX网络编程》一书封装了大量的套接口API，并称之为包裹函数（难怪专家的代码bug要少的多！）。当然我们自己写的函数也要尽量要检查一下入口参数。</p> 
+<p style="text-indent: 2em">解决段错误问题，我常用的是两个基本办法：加打印输出判断位置检查代码、用gdb找到段错误的位置，当然网上还有一些其他的办法和工具。</p> 
+<p style="text-indent: 2em">段错误还碰到过更痛苦的情况：死机打印Segment fault，后面没有栈的相关打印，用gdb跟踪时是一个信号，而不是应用层的进程。这种情况让我恼火的很，已经解决过这样的问题，但仍然一头雾水：这种问题可能是应用层的错误，当时通过目前手头上的所有手段都找不到应用层的问题，仅仅看到了这个异步的信号。而信号是由硬件中断产生的，由于中断是异步发生的（其发生的时间是不可预测的），对中断的编程和判断当然是非常困难的。</p> 
+<p style="text-indent: 2em">五、类似于段错误的另外一个痛苦的错误：bus error</p> 
+<p style="text-indent: 2em">bus error这个错误我这碰到过，但是没有真正的解决过。也总结一下：</p> 
+<p style="text-indent: 2em">1、硬件故障，不用说，咱们程序员碰到的通常不是这个原因，也不要把问题轻易的归结为硬件。</p> 
+<p style="text-indent: 2em">2、linnux平台上执行malloc，如果没有足够的RAM，linux不是malloc失败返回，而是向当前进程分发SIGBUS信号。注：来源于网络，不敢确认。</p> 
+<p style="text-indent: 2em">3、在一次linux内核开发者大会上听到过产生bus error的另外一种情况：驱动程序写的比较“顽皮”，这个一般在linux的release版本是没有的。</p> 
+<p style="text-indent: 2em">4、大多数参考文献基本上把总线错误列为由于未对齐的读或者写操作引起的。对齐的意思就是数据项只能存储在地址是数据项大小整数倍的内存位置上。我所接触过的嵌入式CPU基本都是RISC架构，都需要数据对齐。</p> 
+<p style="text-indent: 2em">Bus error和segment fault的区别：我这理解的segment fault是应用的地址对应的实际物理地址是无效的，即通过硬件管理单元MMU的时候失败而上报错误；而bus error对应的物理地址是有效的，当然是可以通过MMU的，由于cpu体系架构对字节对齐的限制，此时总线是不能正确使用该指针地址的。当然我觉得这种情况编译器应该给个警告或者错误（具体的没研究过），否则各种调试手段基本起的作用就不大了，只能靠检查原始代码了。</p> 
+<p style="text-indent: 2em">六、解决和研究类似问题的一点体会</p> 
+<p style="text-indent: 2em">这类问题的理解和解决有时候需要很多计算机相关的基础理论知识和linux操作系统的一些知识，平时多看一些理论书籍在很多时候还是非常有用的。另外重视编译警告和编程规范有时候可以避免一些令人恼火的bug。</p> 
+<p style="text-indent: 2em">原文<a href="http://blog.163.com/huangnan0727@126/blog/static/30626184200911122922339/" rel="nofollow noopener noreferrer" target="_blank">http://blog.163.com/huangnan0727@126/blog/static/30626184200911122922339/</a></p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/f4a801033b187487ff71bcadb4d421e1/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">几种验证字符串是否全为数字方法的比较</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/bcecab598ca500eca89137f4d4db4b91/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">用户控件 UserControl类</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

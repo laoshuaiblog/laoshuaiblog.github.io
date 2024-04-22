@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>spring security OAuth2 实战 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/36f8f94d606fe9abf80bff3dede45a75/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="spring security OAuth2 实战">
+  <meta property="og:description" content="目录
+1、OAuth 介绍
+（1）OAuth 2.0授权流程
+（2）授权模式分类
+2、OAuth2的授权码模式
+（1）相关依赖引入
+（2）配置 spring security （3）添加授权服务器
+（4）添加资源服务器
+3、OAuth2的简化模式
+4、OAuth2的密码模式
+5、OAuth2的客户端模式
+6、更新令牌
+7、基于 redis 存储 Token
+1、OAuth 介绍 OAuth（Open Authorization）是一个关于授权（authorization）的开放网络标准，允许用户授权第三方应用访问存储在另外的服务提供者上的信息，而不需要将用户名和密码提供给第三方应用或分享他们数据的所有内容。OAuth在全世界得到广泛应用，目前的版本是2.0版。
+OAuth协议：https://tools.ietf.org/html/rfc6749
+OAuth 基本概念
+Third-party application：第三方应用程序，又称&#34;客户端&#34;（client），比如京东商城HTTP service：HTTP服务提供商，简称&#34;服务提供商&#34;，比如微信Resource Owner：资源所有者，又称&#34;用户&#34;（user），登陆用户的信息User Agent：用户代理，比如浏览器。Authorization server：授权服务器，即服务提供商专门用来处理授权的服务器。Resource server：资源服务器，即服务提供商存放用户生成的资源的服务器。它与认证服务器，可以是同一台服务器，也可以是不同的服务器。 OAuth的作用就是让&#34;客户端&#34;安全可控地获取&#34;用户&#34;的授权，与&#34;服务商提供商&#34;进行交互。
+（1）OAuth 2.0授权流程 以微信开放平台为例：准备工作 | 微信开放文档
+基本设计思想：OAuth 引入了一个授权层，用来分离两种不同的角色：客户端和资源所有者。资源所有者同意以后，资源服务器可以向客户端颁发令牌。客户端通过令牌，去请求数据。
+授权流程图示：
+步骤明细：
+第三方发起微信授权登录请求，微信用户允许授权第三方应用后，微信会拉起应用或重定向到第三方网站，并且带上授权临时票据 code 参数；通过 code 参数加上 AppID 和 AppSecret 等，通过 API 换取 access_token；// 微信方生成token通过access_token进行接口调用，获取用户基本数据资源或帮助用户实现基本操作。 （2）授权模式分类 客户端必须得到用户的授权（authorization grant），才能获得令牌（access token）。OAuth 2.0 对于如何颁发令牌有四种方式：
+授权码模式（authorization code）密码模式（resource owner password credentials）简化(隐式)模式（implicit）客户端模式（client credentials） 不论哪一种授权方式，第三方应用申请令牌之前，都必须先到授权系统备案，注册自己的身份，然后会获取两个身份识别码：客户端 ID（client ID）和客户端密钥（client secret）。">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2022-09-18T15:01:26+08:00">
+    <meta property="article:modified_time" content="2022-09-18T15:01:26+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">spring security OAuth2 实战</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <p id="main-toc"><strong>目录</strong></p> 
+<p id="1%E3%80%81OAuth%20%E4%BB%8B%E7%BB%8D-toc" style="margin-left:40px;"><a href="#1%E3%80%81OAuth%20%E4%BB%8B%E7%BB%8D" rel="nofollow">1、OAuth 介绍</a></p> 
+<p id="%EF%BC%881%EF%BC%89OAuth%202.0%E6%8E%88%E6%9D%83%E6%B5%81%E7%A8%8B-toc" style="margin-left:80px;"><a href="#%EF%BC%881%EF%BC%89OAuth%202.0%E6%8E%88%E6%9D%83%E6%B5%81%E7%A8%8B" rel="nofollow">（1）OAuth 2.0授权流程</a></p> 
+<p id="%EF%BC%882%EF%BC%89%E6%8E%88%E6%9D%83%E6%A8%A1%E5%BC%8F%E5%88%86%E7%B1%BB-toc" style="margin-left:80px;"><a href="#%EF%BC%882%EF%BC%89%E6%8E%88%E6%9D%83%E6%A8%A1%E5%BC%8F%E5%88%86%E7%B1%BB" rel="nofollow">（2）授权模式分类</a></p> 
+<p id="1%E3%80%81OAuth2%E7%9A%84%E6%8E%88%E6%9D%83%E7%A0%81%E6%A8%A1%E5%BC%8F-toc" style="margin-left:40px;"><a href="#1%E3%80%81OAuth2%E7%9A%84%E6%8E%88%E6%9D%83%E7%A0%81%E6%A8%A1%E5%BC%8F" rel="nofollow">2、OAuth2的授权码模式</a></p> 
+<p id="%EF%BC%881%EF%BC%89%E7%9B%B8%E5%85%B3%E4%BE%9D%E8%B5%96%E5%BC%95%E5%85%A5-toc" style="margin-left:80px;"><a href="#%EF%BC%881%EF%BC%89%E7%9B%B8%E5%85%B3%E4%BE%9D%E8%B5%96%E5%BC%95%E5%85%A5" rel="nofollow">（1）相关依赖引入</a></p> 
+<p id="%EF%BC%882%EF%BC%89%E5%AF%B9%20spring%20security%20%E7%9A%84%E9%85%8D%E7%BD%AE%E6%96%87%E4%BB%B6%E8%BF%9B%E8%A1%8C%E9%85%8D%E7%BD%AE-toc" style="margin-left:80px;"><a href="#%EF%BC%882%EF%BC%89%E5%AF%B9%20spring%20security%20%E7%9A%84%E9%85%8D%E7%BD%AE%E6%96%87%E4%BB%B6%E8%BF%9B%E8%A1%8C%E9%85%8D%E7%BD%AE" rel="nofollow">（2）配置 spring security </a></p> 
+<p id="%EF%BC%883%EF%BC%89%E9%85%8D%E7%BD%AE%E6%8E%88%E6%9D%83%E6%9C%8D%E5%8A%A1%E5%99%A8-toc" style="margin-left:80px;"><a href="#%EF%BC%883%EF%BC%89%E9%85%8D%E7%BD%AE%E6%8E%88%E6%9D%83%E6%9C%8D%E5%8A%A1%E5%99%A8" rel="nofollow">（3）添加授权服务器</a></p> 
+<p id="%EF%BC%884%EF%BC%89%E9%85%8D%E7%BD%AE%E8%B5%84%E6%BA%90%E6%9C%8D%E5%8A%A1%E5%99%A8-toc" style="margin-left:80px;"><a href="#%EF%BC%884%EF%BC%89%E9%85%8D%E7%BD%AE%E8%B5%84%E6%BA%90%E6%9C%8D%E5%8A%A1%E5%99%A8" rel="nofollow">（4）添加资源服务器</a></p> 
+<p id="2%E3%80%81OAuth2%E7%9A%84%E7%AE%80%E5%8C%96%E6%A8%A1%E5%BC%8F-toc" style="margin-left:40px;"><a href="#2%E3%80%81OAuth2%E7%9A%84%E7%AE%80%E5%8C%96%E6%A8%A1%E5%BC%8F" rel="nofollow">3、OAuth2的简化模式</a></p> 
+<p id="%C2%A03%E3%80%81OAuth2%E7%9A%84%E5%AF%86%E7%A0%81%E6%A8%A1%E5%BC%8F-toc" style="margin-left:40px;"><a href="#%C2%A03%E3%80%81OAuth2%E7%9A%84%E5%AF%86%E7%A0%81%E6%A8%A1%E5%BC%8F" rel="nofollow">4、OAuth2的密码模式</a></p> 
+<p id="4%E3%80%81OAuth2%E7%9A%84%E5%AE%A2%E6%88%B7%E7%AB%AF%E6%A8%A1%E5%BC%8F-toc" style="margin-left:40px;"><a href="#4%E3%80%81OAuth2%E7%9A%84%E5%AE%A2%E6%88%B7%E7%AB%AF%E6%A8%A1%E5%BC%8F" rel="nofollow">5、OAuth2的客户端模式</a></p> 
+<p id="5%E3%80%81%E6%9B%B4%E6%96%B0%E4%BB%A4%E7%89%8C-toc" style="margin-left:40px;"><a href="#5%E3%80%81%E6%9B%B4%E6%96%B0%E4%BB%A4%E7%89%8C" rel="nofollow">6、更新令牌</a></p> 
+<p id="6%E3%80%81%E5%9F%BA%E4%BA%8E%20redis%20%E5%AD%98%E5%82%A8%20Token-toc" style="margin-left:40px;"><a href="#6%E3%80%81%E5%9F%BA%E4%BA%8E%20redis%20%E5%AD%98%E5%82%A8%20Token" rel="nofollow">7、基于 redis 存储 Token</a></p> 
+<hr id="hr-toc"> 
+<p></p> 
+<h3>1、OAuth 介绍</h3> 
+<p>OAuth（Open Authorization）是一个关于授权（authorization）的开放网络标准，允许用户授权第三方应用访问存储在另外的服务提供者上的信息，而不需要将用户名和密码提供给第三方应用或分享他们数据的所有内容。OAuth在全世界得到广泛应用，目前的版本是2.0版。</p> 
+<p>OAuth协议：https://tools.ietf.org/html/rfc6749</p> 
+<p><strong>OAuth 基本概念</strong></p> 
+<ul><li>Third-party application：第三方应用程序，又称"客户端"（client），比如京东商城</li><li>HTTP service：HTTP服务提供商，简称"服务提供商"，比如微信</li><li>Resource Owner：资源所有者，又称"用户"（user），登陆用户的信息</li><li>User Agent：用户代理，比如浏览器。</li><li>Authorization server：授权服务器，即服务提供商专门用来处理授权的服务器。</li><li>Resource server：资源服务器，即服务提供商存放用户生成的资源的服务器。它与认证服务器，可以是同一台服务器，也可以是不同的服务器。</li></ul> 
+<p>OAuth的作用就是让"客户端"安全可控地获取"用户"的授权，与"服务商提供商"进行交互。</p> 
+<h4 id="%EF%BC%881%EF%BC%89OAuth%202.0%E6%8E%88%E6%9D%83%E6%B5%81%E7%A8%8B"><strong>（1）OAuth 2.0授权流程</strong></h4> 
+<p>以微信开放平台为例：<a href="https://developers.weixin.qq.com/doc/oplatform/Website_App/WeChat_Login/Wechat_Login.html" rel="nofollow" title="准备工作 | 微信开放文档">准备工作 | 微信开放文档</a></p> 
+<p><strong>基本设计思想：</strong>OAuth 引入了一个授权层，用来分离两种不同的角色：客户端和资源所有者。资源所有者同意以后，资源服务器可以向客户端颁发令牌。客户端通过令牌，去请求数据。</p> 
+<p>授权流程图示：</p> 
+<p><img alt="" height="452" src="https://images2.imgbox.com/a0/cd/jLPBDFKa_o.png" width="1200"></p> 
+<p>步骤明细：</p> 
+<ol><li>第三方发起微信授权登录请求，微信用户允许授权第三方应用后，微信会拉起应用或重定向到第三方网站，并且带上授权临时票据 code 参数；</li><li>通过 code 参数加上 AppID 和 AppSecret 等，通过 API 换取 access_token；<span style="color:#fe2c24;">// 微信方生成token</span></li><li>通过access_token进行接口调用，获取用户基本数据资源或帮助用户实现基本操作。</li></ol> 
+<h4 id="%EF%BC%882%EF%BC%89%E6%8E%88%E6%9D%83%E6%A8%A1%E5%BC%8F%E5%88%86%E7%B1%BB">（2）授权模式分类</h4> 
+<p>客户端必须得到用户的授权（authorization grant），才能获得令牌（access token）。OAuth 2.0 对于如何颁发令牌有四种方式：</p> 
+<ol><li>授权码模式（authorization code）</li><li>密码模式（resource owner password credentials）</li><li>简化(隐式)模式（implicit）</li><li>客户端模式（client credentials）</li></ol> 
+<p><strong>不论哪一种授权方式，第三方应用申请令牌之前，都必须先到授权系统备案，注册自己的身份，然后会获取两个身份识别码：客户端 ID（client ID）和客户端密钥（client secret）。</strong></p> 
+<h3 id="1%E3%80%81OAuth2%E7%9A%84%E6%8E%88%E6%9D%83%E7%A0%81%E6%A8%A1%E5%BC%8F">2、OAuth2的授权码模式</h3> 
+<p>授权码（authorization code）方式，指第三方应用向授权服务方先申请授权码，然后用授权码获取令牌。授权码模式是最常用的授权流程，<span style="background-color:#fef2f0;">安全性高，适用于有后端的 Web 应用</span>。授权码虽然通过前端传送，但令牌储存在后端，并且所有与资源服务器的通信都由后端完成，对前端屏蔽，从而可以避免令牌泄漏。</p> 
+<p><strong> 步骤总结：</strong></p> 
+<pre><code>// 1-获取授权码
+http://localhost:8080/oauth/authorize?response_type=code&amp;client_id=clientA&amp;redirect_uri=http://www.baidu.com&amp;scope=all
+
+// 2-用户登陆后，返回授权码
+https://www.baidu.com/?code=ru2Ye2
+
+// 3-通过授权码获取token</code></pre> 
+<p>请求服务方的提供授权码——&gt;用户授权——&gt;服务方返回授权码——&gt;通过授权码获取 access_token ——&gt; 通过 access_token 访问资源</p> 
+<h4 id="%EF%BC%881%EF%BC%89%E7%9B%B8%E5%85%B3%E4%BE%9D%E8%B5%96%E5%BC%95%E5%85%A5"><strong>（1）相关依赖引入</strong></h4> 
+<p>首先需要引入security 和 oauth2 的相关依赖，spring boot 依赖引入示例：</p> 
+<pre><code>&lt;!-- Spring Security 配置 --&gt;
+&lt;dependency&gt;
+    &lt;groupId&gt;org.springframework.boot&lt;/groupId&gt;
+    &lt;artifactId&gt;spring-boot-starter-security&lt;/artifactId&gt;
+&lt;/dependency&gt;        
+&lt;dependency&gt;
+    &lt;groupId&gt;org.springframework.security.oauth&lt;/groupId&gt;
+    &lt;artifactId&gt;spring-security-oauth2&lt;/artifactId&gt;
+    &lt;version&gt;2.3.4.RELEASE&lt;/version&gt;
+&lt;/dependency&gt;</code></pre> 
+<p>如果是微服务，对应的 spring cloud 依赖引入示例（<span style="color:#fe2c24;">security 也要引入</span>）：</p> 
+<pre><code>&lt;dependency&gt; 
+    &lt;groupId&gt;org.springframework.cloud&lt;/groupId&gt; 
+    &lt;artifactId&gt;spring-cloud-starter-oauth2&lt;/artifactId&gt; 
+&lt;/dependency&gt;</code></pre> 
+<h4 id="%EF%BC%882%EF%BC%89%E5%AF%B9%20spring%20security%20%E7%9A%84%E9%85%8D%E7%BD%AE%E6%96%87%E4%BB%B6%E8%BF%9B%E8%A1%8C%E9%85%8D%E7%BD%AE"><strong>（2）配置 spring security </strong></h4> 
+<p>WebSecurityConfigurerAdapter 是自定义的 spring security 配置文件，在  spring security 基本功能实现的基础上，配置请求拦截规则，要求对所有的<span style="color:#fe2c24;"> /oauth/** </span>接口放行 </p> 
+<pre><code>import com.swadian.userdemo.service.MyUserDetailsService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+
+@Configuration // 标记为注解类
+public class WebSecurityConfigurer extends WebSecurityConfigurerAdapter {
+    @Autowired
+    @Lazy // 解决循环依赖
+    private MyUserDetailsService userService;
+
+    @Bean // 编码
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+
+    @Override // 注入用户信息
+    protected void configure(AuthenticationManagerBuilder auth) throws Exception {
+        //设置UserDetailsService的实现类
+        auth.userDetailsService(userService);
+    }
+
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+        http.formLogin().permitAll() // 表单登陆
+                .and()
+                .authorizeRequests()
+                .antMatchers("/oauth/**").permitAll() // 授权oauth下的所有接口
+                .anyRequest().authenticated()
+                .and().logout().permitAll() // 登出
+                .and().csrf().disable();
+    }
+}
+</code></pre> 
+<p>配置用户信息是权限系统的基本要求，需要根据用户信息进行身份验证，授权校验</p> 
+<pre><code>import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.authority.AuthorityUtils;
+import org.springframework.security.core.userdetails.User;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+
+@Service
+public class MyUserDetailsService implements UserDetailsService {
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
+    @Override
+    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+        String password = passwordEncoder.encode("123456"); // 密码
+        return new User("admin",
+                password,
+                AuthorityUtils.commaSeparatedStringToAuthorityList("admin"));
+    }
+}
+</code></pre> 
+<p>模拟需要授权的接口，一旦接口请求成功，会返回一串字符串，示例如下：</p> 
+<pre><code>@RestController
+@RequestMapping("/admin")
+public class AdminController {
+    @GetMapping("/test")
+    public String test() {
+        return "Spring Security Test";
+    }
+}</code></pre> 
+<h4 id="%EF%BC%883%EF%BC%89%E9%85%8D%E7%BD%AE%E6%8E%88%E6%9D%83%E6%9C%8D%E5%8A%A1%E5%99%A8"><strong>（3）添加授权服务器</strong></h4> 
+<p>授权服务器具有以下核心端点</p> 
+<p class="img-center"><img alt="" height="319" src="https://images2.imgbox.com/10/36/uMc1Gtm3_o.png" width="600"></p> 
+<p>添加授权服务器配置，@EnableAuthorizationServer 开启授权服务器，注册可用的客户端，并在授权模式中添加 authorization_code ，表示授权码模式</p> 
+<pre><code>import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.config.annotation.configurers.ClientDetailsServiceConfigurer;
+import org.springframework.security.oauth2.config.annotation.web.configuration.AuthorizationServerConfigurerAdapter;
+import org.springframework.security.oauth2.config.annotation.web.configuration.EnableAuthorizationServer;
+
+@Configuration
+@EnableAuthorizationServer
+public class AuthorizationServerConfig extends AuthorizationServerConfigurerAdapter {
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
+    @Override
+    public void configure(ClientDetailsServiceConfigurer clients) throws Exception {
+        clients.inMemory()
+                .withClient("clientA") //配置客户端id client_id
+                .secret(passwordEncoder.encode("123456")) //配置client-secret
+                .accessTokenValiditySeconds(3600) //配置访问token的有效期
+                .refreshTokenValiditySeconds(864000) //配置刷新token的有效期
+                .redirectUris("http://www.baidu.com") //配置redirect_uri，授权成功后跳转
+                .scopes("all")  //配置申请的权限范围
+                .authorizedGrantTypes("authorization_code");//配置grant_type，表示授权类型
+    }
+}
+</code></pre> 
+<h4 id="%EF%BC%884%EF%BC%89%E9%85%8D%E7%BD%AE%E8%B5%84%E6%BA%90%E6%9C%8D%E5%8A%A1%E5%99%A8">（4）添加资源服务器</h4> 
+<p>配置资源服务器，明确进行授权的资源</p> 
+<pre><code>import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.oauth2.config.annotation.web.configuration.EnableResourceServer;
+import org.springframework.security.oauth2.config.annotation.web.configuration.ResourceServerConfigurerAdapter;
+
+@Configuration
+@EnableResourceServer
+public class ResourceServiceConfig extends ResourceServerConfigurerAdapter {
+    @Override
+    public void configure(HttpSecurity http) throws Exception {
+        http.authorizeRequests()
+                .anyRequest().authenticated()
+                .and()
+                .requestMatchers().antMatchers("/admin/**"); // 需要验权资源
+    }
+}
+</code></pre> 
+<p><strong>测试流程</strong></p> 
+<p>启动 SpringBoot 项目，在浏览器端请求授权服务器进行授权，输入以下访问链接</p> 
+<pre><code>http://localhost:8080/oauth/authorize?response_type=code&amp;client_id=clientA&amp;redirect_uri=http://www.baidu.com&amp;scope=all</code></pre> 
+<p><a href="http://localhost:8080/oauth/authorize?response_type=code&amp;client_id=clientA&amp;redirect_uri=http://www.baidu.com&amp;scope=all" rel="nofollow" title="http://localhost:8080/oauth/authorize?response_type=code&amp;client_id=clientA&amp;redirect_uri=http://www.baidu.com&amp;scope=all">http://localhost:8080/oauth/authorize?response_type=code&amp;client_id=clientA&amp;redirect_uri=http://www.baidu.com&amp;scope=all</a></p> 
+<p>授权服务器需要进行登陆，输入用户名和密码进行登陆</p> 
+<p class="img-center"><img alt="" height="225" src="https://images2.imgbox.com/bc/50/A4yF1A2t_o.png" width="500"></p> 
+<p>用户登陆成功后，跳转到授权页面</p> 
+<p><img alt="" height="269" src="https://images2.imgbox.com/25/37/deM04xxC_o.png" width="1200"></p> 
+<p>点击 Approve 进行授权确认，确认后会携带一个code，跳转到重定向地址</p> 
+<p class="img-center"><img alt="" height="108" src="https://images2.imgbox.com/a7/9c/LY1I2cIb_o.png" width="500"></p> 
+<p>接下来使用code(授权码)，获取登陆令牌，使用 postman 进行模拟请求，授权服务器获取令牌的接口为</p> 
+<pre><code>http://127.0.0.1:8080/oauth/token</code></pre> 
+<p class="img-center"><img alt="" height="188" src="https://images2.imgbox.com/7c/ca/6egH4L6f_o.png" width="700"></p> 
+<p> 参数 grant_type:authorization_code，redirect_uri:百度(随便填的，必填)，code:上步骤返回的code</p> 
+<p class="img-center"><img alt="" height="186" src="https://images2.imgbox.com/1d/d3/iWn7CDRF_o.png" width="700"></p> 
+<p>请求成功后，会返回 json 格式的数据，其中就有我们需要的令牌</p> 
+<p class="img-center"><img alt="" height="299" src="https://images2.imgbox.com/09/79/zrSaWswB_o.png" width="700"></p> 
+<pre><code>{
+    "access_token": "3c26e355-a011-4b0f-a6f6-91a724fd0153",
+    "token_type": "bearer",
+    "expires_in": 3599,
+    "scope": "all"
+}</code></pre> 
+<ul><li>grant_type ：授权类型，authorization_code，表示授权码模式 </li><li>code ：授权码，刚刚获取的code，注意：授权码只能使用一次，后续需要重新申请 </li><li>client_id :客户端标识 </li><li>redirect_uri ：跳转url，一定要和申请授权码时用的redirect_uri一致 </li><li>scope :授权范围</li></ul> 
+<p>如果认证失败，服务端会返回 401 Unauthorized</p> 
+<p>接下来，使用令牌(access_token)去资源服务器访问授权资源，资源能够正常访问</p> 
+<p><img alt="" height="555" src="https://images2.imgbox.com/47/ed/ZXkAYxRn_o.png" width="1200"></p> 
+<p>或者，直接在资源后携带 access_token</p> 
+<p class="img-center"><img alt="" height="83" src="https://images2.imgbox.com/cb/02/tblINsmB_o.png" width="700"></p> 
+<p>或者，在请求头中，添加 Authorization 授权信息，注意要带上 token 类型 bearer</p> 
+<p class="img-center"><img alt="" height="203" src="https://images2.imgbox.com/3f/8c/ZJk0G6vc_o.png" width="700"></p> 
+<p>至此，spring security OAuth2 的授权码模式完成</p> 
+<h3 id="2%E3%80%81OAuth2%E7%9A%84%E7%AE%80%E5%8C%96%E6%A8%A1%E5%BC%8F">3、OAuth2的简化模式</h3> 
+<p>简化（隐式）模式，允许直接向前端颁发令牌，这种方式没有授权码这个中间步骤，所以称为（授权码）"隐藏式"（implicit）。该模式直接在浏览器中向授权服务器申请令牌，没有"授权码"步骤，所有步骤都在浏览器中完成，同时令牌对访问者也是可见的。</p> 
+<p>简化模式直接把令牌传给前端，该方式很不安全。因此，只能用于一些安全性要求不高的场景，并且令牌设置的有效期必须非常短，通常只是会话期间（session）有效，一旦浏览器关掉，令牌就就失效了。</p> 
+<p>使用场景：纯前端应用</p> 
+<p><strong>步骤总结：</strong></p> 
+<p>请求服务提供方的授权 ——&gt;直接获取 access_token ——&gt; 携带 access_token 访问资源</p> 
+<p><strong>代码示例：</strong></p> 
+<p>在上文代码的基础上，修改授权服务器的配置，在 authorizedGrantTypes 属性中添加<span style="color:#fe2c24;"> "implicit", //简化模式</span>，完整的代码如下：</p> 
+<pre><code>    // 完整的代码如下
+    @Override
+    public void configure(ClientDetailsServiceConfigurer clients) throws Exception {
+        clients.inMemory()
+                .withClient("clientA") //配置client_id
+                .secret(passwordEncoder.encode("123456")) //配置client-secret
+                .accessTokenValiditySeconds(3600) //配置访问token的有效期
+                .refreshTokenValiditySeconds(864000) //配置刷新token的有效期
+                .redirectUris("http://www.baidu.com") //配置redirect_uri，用于授权成功后跳转
+                .scopes("all")  //配置申请的权限范围
+                .authorizedGrantTypes(
+                        //"authorization_code", //授权码模式,配置grant_type,表示授权类型
+                        "implicit", //简化模式
+                        //"password", //密码模式
+                        //"client_credentials",//客户端模式
+                        "refresh_token"); //更新令牌
+    }</code></pre> 
+<p>启动服务，访问以下链接</p> 
+<pre><code>http://localhost:8080/oauth/authorize?response_type=token&amp;client_id=clientA&amp;redirect_uri=http://www.baidu.com&amp;scope=all</code></pre> 
+<p><a href="http://localhost:8080/oauth/authorize?response_type=token&amp;client_id=clientA&amp;redirect_uri=http://www.baidu.com&amp;scope=all" rel="nofollow" title="http://localhost:8080/oauth/authorize?response_type=token&amp;client_id=clientA&amp;redirect_uri=http://www.baidu.com&amp;scope=all">http://localhost:8080/oauth/authorize?response_type=token&amp;client_id=clientA&amp;redirect_uri=http://www.baidu.com&amp;scope=all</a></p> 
+<p>将会直接跳转到重定向页面，同时，access_token 会在跳转的地址栏中返回，中间不需要经过任何环节。</p> 
+<p><img alt="" height="120" src="https://images2.imgbox.com/94/a5/DX92pk9a_o.png" width="1161"></p> 
+<h3 id="%C2%A03%E3%80%81OAuth2%E7%9A%84%E5%AF%86%E7%A0%81%E6%A8%A1%E5%BC%8F">4、OAuth2的密码模式</h3> 
+<p>如果对某个应用高度信任，用户直接使用用户名和密码申请令牌，这种方式称为"密码式"（password）。</p> 
+<p>在这种模式中，用户必须把密码给客户端，但是客户端不得储存密码。通常在用户对客户端高度信任的场景下使用，比如客户端是操作系统的一部分。一般来说授权服务器只有在其他授权模式无法执行的情况下，才考虑使用这种模式。</p> 
+<p>适用场景：公司自己搭建的授权服务器</p> 
+<p><strong>代码示例：</strong></p> 
+<p>在上文代码的基础上，修改 spring security 配置，在配置中增加 authenticationManagerBean</p> 
+<pre><code>import com.swadian.userdemo.service.MyUserDetailsService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+
+@Configuration // 标记为注解类
+public class WebSecurityConfigurer extends WebSecurityConfigurerAdapter {
+
+    @Autowired
+    @Lazy // 解决循环依赖
+    private MyUserDetailsService userService;
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+
+    @Override
+    protected void configure(AuthenticationManagerBuilder auth) throws Exception {
+        //设置UserDetailsService的实现类
+        auth.userDetailsService(userService);
+    }
+
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+        http.formLogin().permitAll()
+                .and()
+                .authorizeRequests().antMatchers("/oauth/**").permitAll()
+                .anyRequest().authenticated()
+                .and().logout().permitAll()
+                .and().csrf().disable();
+    }
+
+    @Bean
+    @Override
+    public AuthenticationManager authenticationManagerBean() throws Exception {
+        return super.authenticationManagerBean();
+    }
+}
+</code></pre> 
+<p>然后修改<span style="color:#333333;">授权服务器的配置，在 endpoints 配之中，添加允许使用 GET 和 POST 请求，并且允许进行表单验证，完整代码如下：</span></p> 
+<pre><code>import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.config.annotation.configurers.ClientDetailsServiceConfigurer;
+import org.springframework.security.oauth2.config.annotation.web.configuration.AuthorizationServerConfigurerAdapter;
+import org.springframework.security.oauth2.config.annotation.web.configuration.EnableAuthorizationServer;
+import org.springframework.security.oauth2.config.annotation.web.configurers.AuthorizationServerEndpointsConfigurer;
+import org.springframework.security.oauth2.config.annotation.web.configurers.AuthorizationServerSecurityConfigurer;
+
+@Configuration
+@EnableAuthorizationServer
+public class AuthorizationServerConfig extends AuthorizationServerConfigurerAdapter {
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private AuthenticationManager authenticationManagerBean;
+
+    @Override
+    public void configure(AuthorizationServerEndpointsConfigurer endpoints) throws Exception {
+        endpoints.authenticationManager(authenticationManagerBean) //使用密码模式需要配置
+                .allowedTokenEndpointRequestMethods(HttpMethod.GET, HttpMethod.POST); //支持 GET,POST请求
+    }
+
+    @Override
+    public void configure(AuthorizationServerSecurityConfigurer security) throws Exception {
+        //允许表单认证
+        security.allowFormAuthenticationForClients();
+    }
+
+    @Override
+    public void configure(ClientDetailsServiceConfigurer clients) throws Exception {
+        clients.inMemory()
+                .withClient("clientA") //配置client_id
+                .secret(passwordEncoder.encode("123456")) //配置client-secret
+                .accessTokenValiditySeconds(3600) //配置访问token的有效期
+                .refreshTokenValiditySeconds(864000) //配置刷新token的有效期
+                .redirectUris("http://www.baidu.com") //配置redirect_uri，用于授权成功后跳转
+                .scopes("all")  //配置申请的权限范围
+                .authorizedGrantTypes(//"authorization_code", //授权码模式  //配置grant_type，表示授权类型
+                        "password", //密码模式
+                        //"client_credentials",//客户端模式
+                        "refresh_token"); //更新令牌
+    }
+}
+</code></pre> 
+<p><strong>接下来获取令牌</strong></p> 
+<p>测试方法一：通过浏览器访问以下地址 <span style="color:#fe2c24;">// 需要配置支持get请求和表单验证</span></p> 
+<pre><code>http://localhost:8080/oauth/token?username=admin&amp;password=123456&amp;grant_type=password&amp;client_id=clientA&amp;client_secret=123456&amp;scope=all</code></pre> 
+<p><a href="http://localhost:8080/oauth/token?username=admin&amp;password=123456&amp;grant_type=password&amp;client_id=clientA&amp;client_secret=123456&amp;scope=all" rel="nofollow" title="http://localhost:8080/oauth/token?username=admin&amp;password=123456&amp;grant_type=password&amp;client_id=clientA&amp;client_secret=123456&amp;scope=all">http://localhost:8080/oauth/token?username=admin&amp;password=123456&amp;grant_type=password&amp;client_id=clientA&amp;client_secret=123456&amp;scope=all</a></p> 
+<p>访问结果如下：// 直接获取到 access_token</p> 
+<p><img alt="" height="211" src="https://images2.imgbox.com/80/35/pQ30KK1W_o.png" width="732"></p> 
+<p>测试方法二：通过 postman 进行测试 </p> 
+<p class="img-center"><img alt="" height="192" src="https://images2.imgbox.com/d3/2e/tPcj8x99_o.png" width="700"></p> 
+<p class="img-center"><img alt="" height="312" src="https://images2.imgbox.com/eb/fc/j3WMQNOJ_o.png" width="700"></p> 
+<p>尝试访问授权资源</p> 
+<p class="img-center"><img alt="" height="202" src="https://images2.imgbox.com/ea/b8/iqSRoVLs_o.png" width="700"></p> 
+<h3 id="4%E3%80%81OAuth2%E7%9A%84%E5%AE%A2%E6%88%B7%E7%AB%AF%E6%A8%A1%E5%BC%8F">5、OAuth2的客户端模式</h3> 
+<p>客户端模式（Client Credentials Grant）指客户端以服务器身份，向服务提供方申请授权。适用于没有前端的命令行应用，一般提供给受信任的服务器端使用。</p> 
+<p>在上文代码的基础上，配置 <span style="color:#fe2c24;">grant_type </span>为 <span style="color:#fe2c24;">client_credentials</span>，然后直接在浏览器中输入以下链接就进行验证</p> 
+<pre><code>http://localhost:8080/oauth/token?grant_type=client_credentials&amp;client_id=clientA&amp;scope=all&amp;client_secret=123456</code></pre> 
+<p><a href="http://localhost:8080/oauth/token?grant_type=client_credentials&amp;client_id=clientA&amp;scope=all&amp;client_secret=123456" rel="nofollow" title="http://localhost:8080/oauth/token?grant_type=client_credentials&amp;client_id=clientA&amp;scope=all&amp;client_secret=123456">http://localhost:8080/oauth/token?grant_type=client_credentials&amp;client_id=clientA&amp;scope=all&amp;client_secret=123456</a></p> 
+<p>验证结果如下：</p> 
+<p><img alt="" height="186" src="https://images2.imgbox.com/2e/f5/v0VHxwVa_o.png" width="1141"></p> 
+<h3 id="5%E3%80%81%E6%9B%B4%E6%96%B0%E4%BB%A4%E7%89%8C">6、更新令牌</h3> 
+<p>使用 oauth2 时，如果令牌失效了，可以通过 refresh_token 的授权模式再次获取access_token，从而刷新令牌，<span style="color:#fe2c24;">刷新令牌可避免繁琐的重复认证</span>。</p> 
+<p>在上边代码的基础上修改授权服务器配置，在 authorizedGrantTypes 中添加  refresh_token 类型，同时可以在 endpoints 配置中，配置 refresh_token 是否可重复使用</p> 
+<pre><code>@Configuration
+@EnableAuthorizationServer
+public class AuthorizationServerConfig extends AuthorizationServerConfigurerAdapter {
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private MyUserDetailsService userService;
+
+    @Autowired
+    private AuthenticationManager authenticationManagerBean;
+
+    @Override
+    public void configure(AuthorizationServerEndpointsConfigurer endpoints) throws Exception {
+        endpoints.authenticationManager(authenticationManagerBean) //使用密码模式需要配置
+                .reuseRefreshTokens(false) //refresh_token是否重复使用
+                .userDetailsService(userService) //刷新令牌授权包含对用户信息的检查
+                .allowedTokenEndpointRequestMethods(HttpMethod.GET, HttpMethod.POST); //支持 GET,POST请求
+    }
+
+    @Override
+    public void configure(AuthorizationServerSecurityConfigurer security) throws Exception {
+        //允许表单认证
+        security.allowFormAuthenticationForClients();
+    }
+
+    @Override
+    public void configure(ClientDetailsServiceConfigurer clients) throws Exception {
+        clients.inMemory()
+                .withClient("clientA") //配置client_id
+                .secret(passwordEncoder.encode("123456")) //配置client-secret
+                .accessTokenValiditySeconds(3600) //配置访问token的有效期
+                .refreshTokenValiditySeconds(864000) //配置刷新token的有效期
+                .redirectUris("http://www.baidu.com") //配置redirect_uri，用于授权成功后跳转
+                .scopes("all")  //配置申请的权限范围
+                .authorizedGrantTypes(//"authorization_code", //授权码模式  //配置grant_type，表示授权类型
+                        "password", //密码模式
+                        //"client_credentials",//客户端模式
+                        "refresh_token"); //更新令牌
+    }
+}
+</code></pre> 
+<p>通过密码模式进行测试，在浏览器端访问以下链接</p> 
+<pre><code>http://localhost:8080/oauth/token
+?username=admin
+&amp;password=123456
+&amp;grant_type=password
+&amp;client_id=clientA
+&amp;client_secret=123456
+&amp;scope=all</code></pre> 
+<p><a href="http://localhost:8080/oauth/token?username=admin&amp;password=123456&amp;grant_type=password&amp;client_id=clientA&amp;client_secret=123456&amp;scope=all" rel="nofollow" title="http://localhost:8080/oauth/token?username=admin&amp;password=123456&amp;grant_type=password&amp;client_id=clientA&amp;client_secret=123456&amp;scope=all">http://localhost:8080/oauth/token?username=admin&amp;password=123456&amp;grant_type=password&amp;client_id=clientA&amp;client_secret=123456&amp;scope=all</a></p> 
+<p class="img-center"><img alt="" height="160" src="https://images2.imgbox.com/64/f1/DgAETVyE_o.png" width="700"></p> 
+<p>在返回报文中，有一个 refresh_token 的字段，如果需要刷新令牌，可以使用 refresh_token 访问如下链接：</p> 
+<p><a href="http://localhost:8080/oauth/token?grant_type=refresh_token&amp;client_id=clientA&amp;client_secret=123456&amp;refresh_token=73ca27c6-69b9-4788-ab8a-edee28d0ec93" rel="nofollow" title="http://localhost:8080/oauth/token?grant_type=refresh_token&amp;client_id=clientA&amp;client_secret=123456&amp;refresh_token=73ca27c6-69b9-4788-ab8a-edee28d0ec93">http://localhost:8080/oauth/token?grant_type=refresh_token&amp;client_id=clientA&amp;client_secret=123456&amp;refresh_token=73ca27c6-69b9-4788-ab8a-edee28d0ec93</a></p> 
+<pre><code>http://localhost:8080/oauth/token?grant_type=refresh_token&amp;client_id=clientA&amp;client_secret=123456&amp;refresh_token=73ca27c6-69b9-4788-ab8a-edee28d0ec93</code></pre> 
+<p class="img-center"><img alt="" height="191" src="https://images2.imgbox.com/bb/6e/JFZDFfGw_o.png" width="700"></p> 
+<h3 id="6%E3%80%81%E5%9F%BA%E4%BA%8E%20redis%20%E5%AD%98%E5%82%A8%20Token">7、基于 redis 存储 Token</h3> 
+<p>需要引入 redis 相关的依赖</p> 
+<pre><code>&lt;dependency&gt; 
+    &lt;groupId&gt;org.springframework.boot&lt;/groupId&gt; 
+    &lt;artifactId&gt;spring-boot-starter-data-redis&lt;/artifactId&gt; 
+&lt;/dependency&gt;</code></pre> 
+<div> 
+ <p>修改配置文件 application.yaml ，添加 redis 配置</p> 
+ <pre><code>spring:
+  redis:
+    host: localhost
+    port: 6379
+    database: 0</code></pre> 
+ <p> 编写 redis 配置类，返回 RedisTokenStore 的存储实例</p> 
+ <pre><code>import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.data.redis.connection.RedisConnectionFactory;
+import org.springframework.security.oauth2.provider.token.TokenStore;
+import org.springframework.security.oauth2.provider.token.store.redis.RedisTokenStore;
+
+@Configuration
+public class RedisConfig {
+
+    @Autowired
+    private RedisConnectionFactory redisConnectionFactory;
+
+    @Bean
+    public TokenStore tokenStore() {
+        return new RedisTokenStore(redisConnectionFactory);
+    }
+}</code></pre> 
+ <p>在授权服务器配置中指定令牌的存储策略为 Redis</p> 
+ <pre><code>@Configuration
+@EnableAuthorizationServer
+public class AuthorizationServerConfig extends AuthorizationServerConfigurerAdapter {
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private TokenStore tokenStore;
+
+    @Autowired
+    private MyUserDetailsService userService;
+
+    @Autowired
+    private AuthenticationManager authenticationManagerBean;
+
+    @Override
+    public void configure(AuthorizationServerEndpointsConfigurer endpoints) throws Exception {
+        endpoints.authenticationManager(authenticationManagerBean) //使用密码模式需要配置
+                .tokenStore(tokenStore) // 指定token存储到redis
+                .reuseRefreshTokens(false) //refresh_token是否重复使用
+                .userDetailsService(userService) //刷新令牌授权包含对用户信息的检查
+                .allowedTokenEndpointRequestMethods(HttpMethod.GET, HttpMethod.POST); //支持 GET,POST请求
+    }
+}</code></pre> 
+ <p>接下来，使用密码模式进行测试，访问如下链接</p> 
+</div> 
+<p><a href="http://localhost:8080/oauth/token?username=admin&amp;password=123456&amp;grant_type=password&amp;client_id=clientA&amp;client_secret=123456&amp;scope=all" rel="nofollow" title="http://localhost:8080/oauth/token?username=admin&amp;password=123456&amp;grant_type=password&amp;client_id=clientA&amp;client_secret=123456&amp;scope=all">http://localhost:8080/oauth/token?username=admin&amp;password=123456&amp;grant_type=password&amp;client_id=clientA&amp;client_secret=123456&amp;scope=all</a></p> 
+<p><img alt="" height="228" src="https://images2.imgbox.com/d8/69/t7dPLiHN_o.png" width="935"></p> 
+<p>查看下 redis 是否存储了 token</p> 
+<p><img alt="" height="516" src="https://images2.imgbox.com/d7/6e/iAff8d65_o.png" width="1075"></p> 
+<p>至此，redis  存储 Token 验证成功</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/dd11e0b930ac34489a533cfdfc7c4a6d/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">ShardingSphere入门到精通</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/6bb3fa5a44fde6e360a7081909bfd5a5/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">Wireshark使用教程</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

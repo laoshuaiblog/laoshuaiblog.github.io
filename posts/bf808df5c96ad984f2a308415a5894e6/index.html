@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>SpringCloud：Eureka微服务跨分区调用region、zone、gateway - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/bf808df5c96ad984f2a308415a5894e6/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="SpringCloud：Eureka微服务跨分区调用region、zone、gateway">
+  <meta property="og:description" content="PS：未经测试，后补
+目的 系统为分区架构，减少中心化服务，避免单点风险。
+region1和region2为完全独立分区，分区数据无交集，互不依赖。
+region1中的处理由于特殊原因用到region2中的服务，需要提供技术支持。
+思路 新架构不影响独立region内部架构region直接互不影响通过gateway处理转发逻辑并进行转发，如果是同一个region直接路由到内部微服务，如果是另一个region则通过调用其他region的网关路由到其微服务。 架构设计 原始架构 需求架构 设计架构 技术实现 eureka server配置 gateway的独立region注册中心 spring: application: name: eureka-server eureka: client: region: region0 #独立区域 availability-zones: region0: zone-0 #内部集群 region1: zone-1 region2: zone-2 service-url: zone-0: http://localhost:9001/eureka,http://localhost:9002/eureka zone-1: http://localhost:9001/eureka zone-2: http://localhost:9002/eureka provider1的独立region注册中心 spring: application: name: eureka-server eureka: client: region: region1 #独立区域 availability-zones: region0: zone-0 #内部集群 region1: zone-1 region2: zone-2 service-url: zone-0: http://localhost:9001/eureka,http://localhost:9002/eureka zone-1: http://localhost:9001/eureka zone-2: http://localhost:9002/eureka provider2的独立region注册中心 spring: application: name: eureka-server eureka: client: region: region2 #独立区域 availability-zones: region0: zone-0 #内部集群 region1: zone-1 region2: zone-2 service-url: zone-0: http://localhost:9001/eureka,http://localhost:9002/eureka zone-1: http://localhost:9001/eureka zone-2: http://localhost:9002/eureka eureka client配置 gateway注册 spring: application: name: gateway eureka: instance: metadata-map: zone: zone-0 #归属zone，优先调用zone-0 client: region: region0 availability-zones: region0: zone-1 region1: zone-1 region2: zone-2 service-url: zone-0: http://localhost:9001/eureka,http://10.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2020-04-30T20:07:11+08:00">
+    <meta property="article:modified_time" content="2020-04-30T20:07:11+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">SpringCloud：Eureka微服务跨分区调用region、zone、gateway</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <p><span style="color:#f33b45;">PS：未经测试，后补</span></p> 
+<h2>目的</h2> 
+<p>系统为分区架构，减少中心化服务，避免单点风险。</p> 
+<p>region1和region2为完全独立分区，分区数据无交集，互不依赖。</p> 
+<p>region1中的处理由于特殊原因用到region2中的服务，需要提供技术支持。</p> 
+<h2>思路</h2> 
+<ul><li>新架构不影响独立region内部架构</li><li>region直接互不影响</li><li>通过gateway处理转发逻辑并进行转发，如果是同一个region直接路由到内部微服务，如果是另一个region则通过调用其他region的网关路由到其微服务。</li></ul> 
+<h2>架构设计</h2> 
+<h4>原始架构</h4> 
+<p><img alt="" height="334" src="https://images2.imgbox.com/01/b6/xTTQEUMv_o.png" width="578"></p> 
+<h4>需求架构</h4> 
+<p><img alt="" height="222" src="https://images2.imgbox.com/40/f7/XmhCXdq2_o.png" width="459"></p> 
+<h4>设计架构</h4> 
+<p><img alt="" height="394" src="https://images2.imgbox.com/25/3f/oxLO2suo_o.png" width="575"></p> 
+<h2>技术实现</h2> 
+<h3>eureka server配置</h3> 
+<h4>gateway的独立region注册中心</h4> 
+<pre><code class="language-bash">spring:
+  application:
+    name: eureka-server
+eureka:
+  client:
+    region: region0  #独立区域
+    availability-zones:
+      region0: zone-0 #内部集群
+      region1: zone-1
+      region2: zone-2
+    service-url:
+      zone-0: http://localhost:9001/eureka,http://localhost:9002/eureka
+      zone-1: http://localhost:9001/eureka
+      zone-2: http://localhost:9002/eureka</code></pre> 
+<h4>provider1的独立region注册中心</h4> 
+<pre><code class="language-bash">spring:
+  application:
+    name: eureka-server
+eureka:
+  client:
+    region: region1  #独立区域
+    availability-zones:
+      region0: zone-0 #内部集群
+      region1: zone-1
+      region2: zone-2
+    service-url:
+      zone-0: http://localhost:9001/eureka,http://localhost:9002/eureka
+      zone-1: http://localhost:9001/eureka
+      zone-2: http://localhost:9002/eureka</code></pre> 
+<h4>provider2的独立region注册中心</h4> 
+<pre><code class="language-bash">spring:
+  application:
+    name: eureka-server
+eureka:
+  client:
+    region: region2  #独立区域
+    availability-zones:
+      region0: zone-0 #内部集群
+      region1: zone-1
+      region2: zone-2
+    service-url:
+      zone-0: http://localhost:9001/eureka,http://localhost:9002/eureka
+      zone-1: http://localhost:9001/eureka
+      zone-2: http://localhost:9002/eureka</code></pre> 
+<div>
+    
+</div> 
+<h3> eureka client配置</h3> 
+<h4>gateway注册</h4> 
+<pre><code class="language-bash">spring:
+  application:
+    name: gateway
+eureka:
+  instance:
+    metadata-map:
+      zone: zone-0 #归属zone，优先调用zone-0
+  client:
+    region: region0
+    availability-zones:
+      region0: zone-1
+      region1: zone-1
+      region2: zone-2
+    service-url:
+      zone-0: http://localhost:9001/eureka,http://10.2.55.100:31000/eureka/
+      zone-1: http://10.2.55.100:31000/eureka/
+      zone-2: http://localhost:9002/eureka</code></pre> 
+<h4>provider1注册</h4> 
+<pre><code class="language-bash">spring:
+  application:
+    name: provider1
+eureka:
+  instance:
+    metadata-map:
+      zone: zone-1 #归属zone，优先调用
+  client:
+    region: region1
+    availability-zones:
+      region0: zone-0
+      region1: zone-1
+      region2: zone-2
+    service-url:
+      zone-0: http://localhost:9001/eureka,http://localhost:9002/eureka/
+      zone-1: http://localhost:9001/eureka
+      zone-2: http://localhost:9002/eureka</code></pre> 
+<h3> provider2注册</h3> 
+<pre><code class="language-bash">spring:
+  application:
+    name: provider2
+eureka:
+  instance:
+    metadata-map:
+      zone: zone-2 #归属zone，优先调用
+  client:
+    region: region2
+    availability-zones:
+      region0: zone-0
+      region1: zone-1
+      region2: zone-2
+    service-url:
+      zone-0: http://localhost:9001/eureka,http://localhost:9002/eureka/
+      zone-1: http://localhost:9001/eureka
+      zone-2: http://localhost:9002/eureka</code></pre> 
+<h4>consumer注册</h4> 
+<pre><code class="language-bash">spring:
+  application:
+    name: consumer1
+eureka:
+  instance:
+    metadata-map:
+      zone: zone-1 #归属zone，优先调用
+  client:
+    region: region1
+    availability-zones:
+      region0: zone-0
+      region1: zone-1
+      region2: zone-2
+    service-url:
+      zone-0: http://localhost:9001/eureka,http://localhost:9002/eureka/
+      zone-1: http://localhost:9001/eureka
+      zone-2: http://localhost:9002/eureka</code></pre>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/7e8a8ad78ff01ffbf895cef1ca635264/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">三极管之多谐振荡LED流水灯</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/8b47814ca2192e8ec05dc938526bf985/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">MATLAB基础题（2）</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

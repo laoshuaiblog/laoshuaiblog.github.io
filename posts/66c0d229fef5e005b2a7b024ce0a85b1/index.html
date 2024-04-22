@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>动态代理中的死循环导致的java.lang.StackOverflowError - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/66c0d229fef5e005b2a7b024ce0a85b1/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="动态代理中的死循环导致的java.lang.StackOverflowError">
+  <meta property="og:description" content="目录
+一、问题：循环打印直到栈溢出
+二、代码：
+1、接口及实现类
+2、动态代理类
+3、测试类
+三、原因分析：
+四、引申：$Proxy0其他可能出现死循环问题的代码及问题：
+一、问题：循环打印直到栈溢出 ...
+拒绝中间商赚差价
+拒绝中间商赚差价
+拒绝中间商赚差价
+Exception in thread &#34;main&#34; java.lang.StackOverflowError
+at sun.nio.cs.UTF_8.updatePositions(UTF_8.java:77)
+at sun.nio.cs.UTF_8.access$200(UTF_8.java:57)
+at sun.nio.cs.UTF_8$Encoder.encodeArrayLoop(UTF_8.java:636)
+at sun.nio.cs.UTF_8$Encoder.encodeLoop(UTF_8.java:691)
+at java.nio.charset.CharsetEncoder.encode(CharsetEncoder.java:579)
+at sun.nio.cs.StreamEncoder.implWrite(StreamEncoder.java:271)
+at sun.nio.cs.StreamEncoder.write(StreamEncoder.java:125)
+at java.io.OutputStreamWriter.write(OutputStreamWriter.java:207)
+at java.io.BufferedWriter.flushBuffer(BufferedWriter.java:129)
+at java.io.PrintStream.write(PrintStream.java:526)
+at java.io.PrintStream.print(PrintStream.java:669)
+at java.io.PrintStream.println(PrintStream.java:806)
+at designPattern.proxy.dynamic.DynamicProxyHandler.invoke(DynamicProxyHandler.java:13)
+at com.sun.proxy.$Proxy0.toString(Unknown Source)
+at java.lang.String.valueOf(String.java:2994)
+at java.io.PrintStream.println(PrintStream.java:821)
+at designPattern.proxy.dynamic.DynamicProxyHandler.invoke(DynamicProxyHandler.java:14)
+at com.sun.proxy.$Proxy0.toString(Unknown Source)
+at java.lang.String.valueOf(String.java:2994)
+at java.io.PrintStream.println(PrintStream.java:821)
+at designPattern.proxy.dynamic.DynamicProxyHandler.invoke(DynamicProxyHandler.java:14)
+二、代码： 1、接口及实现类 public interface HouseRenting {
+void rent(int money);">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2023-08-11T09:46:41+08:00">
+    <meta property="article:modified_time" content="2023-08-11T09:46:41+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">动态代理中的死循环导致的java.lang.StackOverflowError</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <p id="main-toc"><strong>目录</strong></p> 
+<p id="-toc" style="margin-left:0px;"></p> 
+<p id="%E4%B8%80%E3%80%81%E9%97%AE%E9%A2%98%EF%BC%9A%E5%BE%AA%E7%8E%AF%E6%89%93%E5%8D%B0%E7%9B%B4%E5%88%B0%E6%A0%88%E6%BA%A2%E5%87%BA-toc" style="margin-left:0px;"><a href="#%E4%B8%80%E3%80%81%E9%97%AE%E9%A2%98%EF%BC%9A%E5%BE%AA%E7%8E%AF%E6%89%93%E5%8D%B0%E7%9B%B4%E5%88%B0%E6%A0%88%E6%BA%A2%E5%87%BA" rel="nofollow">一、问题：循环打印直到栈溢出</a></p> 
+<p id="%E4%BA%8C%E3%80%81%E4%BB%A3%E7%A0%81%EF%BC%9A-toc" style="margin-left:0px;"><a href="#%E4%BA%8C%E3%80%81%E4%BB%A3%E7%A0%81%EF%BC%9A" rel="nofollow">二、代码：</a></p> 
+<p id="1%E3%80%81%E6%8E%A5%E5%8F%A3%E5%8F%8A%E5%AE%9E%E7%8E%B0%E7%B1%BB-toc" style="margin-left:40px;"><a href="#1%E3%80%81%E6%8E%A5%E5%8F%A3%E5%8F%8A%E5%AE%9E%E7%8E%B0%E7%B1%BB" rel="nofollow">1、接口及实现类</a></p> 
+<p id="2%E3%80%81%E5%8A%A8%E6%80%81%E4%BB%A3%E7%90%86%E7%B1%BB-toc" style="margin-left:40px;"><a href="#2%E3%80%81%E5%8A%A8%E6%80%81%E4%BB%A3%E7%90%86%E7%B1%BB" rel="nofollow">2、动态代理类</a></p> 
+<p id="3%E3%80%81%E6%B5%8B%E8%AF%95%E7%B1%BB-toc" style="margin-left:40px;"><a href="#3%E3%80%81%E6%B5%8B%E8%AF%95%E7%B1%BB" rel="nofollow">3、测试类</a></p> 
+<p id="%E4%B8%89%E3%80%81%E5%8E%9F%E5%9B%A0%E5%88%86%E6%9E%90%EF%BC%9A-toc" style="margin-left:0px;"><a href="#%E4%B8%89%E3%80%81%E5%8E%9F%E5%9B%A0%E5%88%86%E6%9E%90%EF%BC%9A" rel="nofollow">三、原因分析：</a></p> 
+<p id="%E5%9B%9B%E3%80%81%E5%BC%95%E7%94%B3%EF%BC%9A%24Proxy0%E5%85%B6%E4%BB%96%E5%8F%AF%E8%83%BD%E5%87%BA%E7%8E%B0%E6%AD%BB%E5%BE%AA%E7%8E%AF%E9%97%AE%E9%A2%98%E7%9A%84%E4%BB%A3%E7%A0%81%E5%8F%8A%E9%97%AE%E9%A2%98%EF%BC%9A-toc" style="margin-left:0px;"><a href="#%E5%9B%9B%E3%80%81%E5%BC%95%E7%94%B3%EF%BC%9A%24Proxy0%E5%85%B6%E4%BB%96%E5%8F%AF%E8%83%BD%E5%87%BA%E7%8E%B0%E6%AD%BB%E5%BE%AA%E7%8E%AF%E9%97%AE%E9%A2%98%E7%9A%84%E4%BB%A3%E7%A0%81%E5%8F%8A%E9%97%AE%E9%A2%98%EF%BC%9A" rel="nofollow">四、引申：$Proxy0其他可能出现死循环问题的代码及问题：</a></p> 
+<hr id="hr-toc"> 
+<p></p> 
+<h2 id="%E4%B8%80%E3%80%81%E9%97%AE%E9%A2%98%EF%BC%9A%E5%BE%AA%E7%8E%AF%E6%89%93%E5%8D%B0%E7%9B%B4%E5%88%B0%E6%A0%88%E6%BA%A2%E5%87%BA">一、问题：循环打印直到栈溢出</h2> 
+<p>...</p> 
+<p>拒绝中间商赚差价</p> 
+<p>拒绝中间商赚差价</p> 
+<p>拒绝中间商赚差价</p> 
+<p><span style="color:#fe2c24;">Exception in thread "main" java.lang.StackOverflowError</span></p> 
+<p>at sun.nio.cs.UTF_8.updatePositions(UTF_8.java:77)</p> 
+<p>at sun.nio.cs.UTF_8.access$200(UTF_8.java:57)</p> 
+<p>at sun.nio.cs.UTF_8$Encoder.encodeArrayLoop(UTF_8.java:636)</p> 
+<p>at sun.nio.cs.UTF_8$Encoder.encodeLoop(UTF_8.java:691)</p> 
+<p>at java.nio.charset.CharsetEncoder.encode(CharsetEncoder.java:579)</p> 
+<p>at sun.nio.cs.StreamEncoder.implWrite(StreamEncoder.java:271)</p> 
+<p>at sun.nio.cs.StreamEncoder.write(StreamEncoder.java:125)</p> 
+<p>at java.io.OutputStreamWriter.write(OutputStreamWriter.java:207)</p> 
+<p>at java.io.BufferedWriter.flushBuffer(BufferedWriter.java:129)</p> 
+<p>at java.io.PrintStream.write(PrintStream.java:526)</p> 
+<p>at java.io.PrintStream.print(PrintStream.java:669)</p> 
+<p>at java.io.PrintStream.println(PrintStream.java:806)</p> 
+<p>at designPattern.proxy.dynamic.DynamicProxyHandler.invoke(DynamicProxyHandler.java:13)</p> 
+<p>at com.sun.proxy.$Proxy0.toString(Unknown Source)</p> 
+<p>at java.lang.String.valueOf(String.java:2994)</p> 
+<p>at java.io.PrintStream.println(PrintStream.java:821)</p> 
+<p>at designPattern.proxy.dynamic.DynamicProxyHandler.invoke(DynamicProxyHandler.java:14)</p> 
+<p>at com.sun.proxy.$Proxy0.toString(Unknown Source)</p> 
+<p>at java.lang.String.valueOf(String.java:2994)</p> 
+<p>at java.io.PrintStream.println(PrintStream.java:821)</p> 
+<p>at designPattern.proxy.dynamic.DynamicProxyHandler.invoke(DynamicProxyHandler.java:14)</p> 
+<h2 id="%E4%BA%8C%E3%80%81%E4%BB%A3%E7%A0%81%EF%BC%9A">二、代码：</h2> 
+<h3 id="1%E3%80%81%E6%8E%A5%E5%8F%A3%E5%8F%8A%E5%AE%9E%E7%8E%B0%E7%B1%BB">1、接口及实现类</h3> 
+<p>public interface HouseRenting {<!-- --></p> 
+<p>void rent(int money);</p> 
+<p>}</p> 
+<p>/**</p> 
+<p>* 被代理的类</p> 
+<p>* @author KentChiang</p> 
+<p>*</p> 
+<p>*/</p> 
+<p>public class HouseOwnerRenting implements HouseRenting {<!-- --></p> 
+<p>@Override</p> 
+<p>public void rent(int money) {<!-- --></p> 
+<p>System.out.println("房东以" + money + "元/月向外出租");</p> 
+<p>}</p> 
+<p>}</p> 
+<h3 id="2%E3%80%81%E5%8A%A8%E6%80%81%E4%BB%A3%E7%90%86%E7%B1%BB">2、动态代理类</h3> 
+<p>public class DynamicProxyHandler implements InvocationHandler{<!-- --></p> 
+<p>private Object proxied;</p> 
+<p>public DynamicProxyHandler(Object proxied) {<!-- --></p> 
+<p>this.proxied = proxied;</p> 
+<p>}</p> 
+<p>@Override</p> 
+<p>public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {<!-- --></p> 
+<p>System.out.println("拒绝中间商赚差价");</p> 
+<p>System.out.println(proxy);//导致死循环的代码</p> 
+<p>//return method.invoke(proxy, args);//这样写也会出问题</p> 
+<p>return method.invoke(proxied, args);</p> 
+<p>}</p> 
+<p>}</p> 
+<h3 id="3%E3%80%81%E6%B5%8B%E8%AF%95%E7%B1%BB">3、测试类</h3> 
+<p>public class SimpleDynamicProxy {<!-- --></p> 
+<p>public static void consumer(HouseRenting renting) {<!-- --></p> 
+<p>renting.rent(1500);</p> 
+<p>}</p> 
+<p>public static void main(String[] args) {<!-- --></p> 
+<p>System.getProperties().put("sun.misc.ProxyGenerator.saveGeneratedFiles", "true");</p> 
+<p>HouseRenting renting = new HouseOwnerRenting();</p> 
+<p>HouseRenting proxy = (HouseRenting) Proxy.newProxyInstance(HouseRenting.class.getClassLoader(),</p> 
+<p>new Class[] { HouseRenting.class }, new DynamicProxyHandler(renting));</p> 
+<p>consumer(proxy);</p> 
+<p>}</p> 
+<p>}</p> 
+<h2 id="%E4%B8%89%E3%80%81%E5%8E%9F%E5%9B%A0%E5%88%86%E6%9E%90%EF%BC%9A">三、原因分析：</h2> 
+<p>动态代理类中加了System.out.println(proxy);才出现的问题，必然是这句话导致的，需要结合生成的com.sun.proxy.$Proxy0源码分析，通过设置即可保存生成的$Proxy0源码，保存在子工程目录下com\sun\proxy。</p> 
+<p>System.getProperties().put("sun.misc.ProxyGenerator.saveGeneratedFiles", "true");</p> 
+<p>部分Proxy代码如下。</p> 
+<p>public final class $Proxy0 extends Proxy</p> 
+<p>implements HouseRenting {<!-- --></p> 
+<p>...</p> 
+<p>public final String toString()</p> 
+<p>throws</p> 
+<p>{<!-- --></p> 
+<p>try</p> 
+<p>{<!-- --></p> 
+<p>return (String)this.h.invoke(this, m2, null);</p> 
+<p>}</p> 
+<p>catch (Error|RuntimeException localError)</p> 
+<p>{<!-- --></p> 
+<p>throw localError;</p> 
+<p>}</p> 
+<p>catch (Throwable localThrowable)</p> 
+<p>{<!-- --></p> 
+<p>throw new UndeclaredThrowableException(localThrowable);</p> 
+<p>}</p> 
+<p>}</p> 
+<p></p> 
+<p>public final void rent(int paramInt)</p> 
+<p>throws</p> 
+<p>{<!-- --></p> 
+<p>try</p> 
+<p>{<!-- --></p> 
+<p>this.h.invoke(this, m3, new Object[] { Integer.valueOf(paramInt) });</p> 
+<p>return;</p> 
+<p>}</p> 
+<p>catch (Error|RuntimeException localError)</p> 
+<p>{<!-- --></p> 
+<p>throw localError;</p> 
+<p>}</p> 
+<p>catch (Throwable localThrowable)</p> 
+<p>{<!-- --></p> 
+<p>throw new UndeclaredThrowableException(localThrowable);</p> 
+<p>}</p> 
+<p>}...</p> 
+<p>static</p> 
+<p>{<!-- --></p> 
+<p>try</p> 
+<p>{<!-- --></p> 
+<p>m1 = Class.forName("java.lang.Object").getMethod("equals", new Class[] { Class.forName("java.lang.Object") });</p> 
+<p>m2 = Class.forName("java.lang.Object").getMethod("toString", new Class[0]);</p> 
+<p>m3 = Class.forName("designPattern.proxy.service.HouseRenting").getMethod("rent", new Class[] { Integer.TYPE });</p> 
+<p>m0 = Class.forName("java.lang.Object").getMethod("hashCode", new Class[0]);</p> 
+<p>return;</p> 
+<p>}</p> 
+<p>catch (NoSuchMethodException localNoSuchMethodException)</p> 
+<p>{<!-- --></p> 
+<p>throw new NoSuchMethodError(localNoSuchMethodException.getMessage());</p> 
+<p>}</p> 
+<p>catch (ClassNotFoundException localClassNotFoundException)</p> 
+<p>{<!-- --></p> 
+<p>throw new NoClassDefFoundError(localClassNotFoundException.getMessage());</p> 
+<p>}</p> 
+<p>}</p> 
+<p>可以看到toString中调用了 (String)this.h.invoke(this, m2, null);其中this就是$Proxy0，h是动态代理类，调用动态代理类重写的public Object invoke(Object proxy, Method method, Object[] args)方法，里面又调用$Proxy0的toString()方法，进入了死循环。</p> 
+<h2 id="%E5%9B%9B%E3%80%81%E5%BC%95%E7%94%B3%EF%BC%9A%24Proxy0%E5%85%B6%E4%BB%96%E5%8F%AF%E8%83%BD%E5%87%BA%E7%8E%B0%E6%AD%BB%E5%BE%AA%E7%8E%AF%E9%97%AE%E9%A2%98%E7%9A%84%E4%BB%A3%E7%A0%81%E5%8F%8A%E9%97%AE%E9%A2%98%EF%BC%9A">四、引申：$Proxy0其他可能出现死循环问题的代码及问题：</h2> 
+<p>类似 this.h.invoke(this, mX, XX);这种形式的都可能因为我们编码不当出问题，把this作为参数想起来如果在动态代理类中把$Proxy0对象作为invoke方法的参数如return method.invoke(proxy, args)同样会引起死循环。</p> 
+<p><span style="color:#fe2c24;">Caused by: java.lang.reflect.UndeclaredThrowableException</span></p> 
+<p>at com.sun.proxy.$Proxy0.rent(Unknown Source)</p> 
+<p>at sun.reflect.GeneratedMethodAccessor1.invoke(Unknown Source)</p> 
+<p>at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)</p> 
+<p>at java.lang.reflect.Method.invoke(Method.java:498)</p> 
+<p>at designPattern.proxy.dynamic.DynamicProxyHandler.invoke(DynamicProxyHandler.java:15)</p> 
+<p>at com.sun.proxy.$Proxy0.rent(Unknown Source)</p> 
+<p>at sun.reflect.GeneratedMethodAccessor1.invoke(Unknown Source)</p> 
+<p>at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)</p> 
+<p>at java.lang.reflect.Method.invoke(Method.java:498)</p> 
+<p>at designPattern.proxy.dynamic.DynamicProxyHandler.invoke(DynamicProxyHandler.java:15)</p> 
+<p></p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/e34d3bd67189eb11877824197aea003c/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">pve组网实现公网访问pve,访问电脑，访问pve中的openwrt同时经过openwrt穿透主路由地址nginx全公网访问最佳办法测试研究...</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/9331b1b6a1e163bd5d49258e2ac3867a/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">安捷伦Agilent E8257D信号发生器</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

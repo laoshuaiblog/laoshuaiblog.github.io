@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>lvgl v8 linux下使用xmake交叉编译移植 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/9cc20a490b582010429685648926ee16/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="lvgl v8 linux下使用xmake交叉编译移植">
+  <meta property="og:description" content="移植准备 针对linux移植lvgl官方已经提供了移植工程，只需要根据自己板子修改frambuffer的设备节点和input event设备节点。
+1、下载移植工程源码
+下载地址：
+https://github.com/lvgl/lv_port_linux_frame_buffer 由于速度问题只使用以下方式下载：
+git clone https://github.com/lvgl/lv_port_linux_frame_buffer] 下载下来发现lv_drivers和lvgl 目录是空的，对于这个问题直接去lvgl github仓库那里
+下载release的压缩包：
+lvgl-8.3.1.tar.gz lv_drivers-8.3.0.tar.gz 解压并重命名为lvgl、lv_driver：
+# 解压 tar xvf lvgl-8.3.1.tar.gz tar xvf lv_drivers-8.3.0.tar.gz # 重命名 mv lvgl-8.3.1 lvgl mv lv_drivers-8.3.0 lv_drivers 移植修改 修改驱动配置头文件lv_drv_conf.h
+322 #if USE_FBDEV 323 # define FBDEV_PATH &#34;/dev/fb0&#34; 324 #endif 根据板子实际情况选择fb设备节点
+449 #if USE_EVDEV || USE_BSD_EVDEV 450 # define EVDEV_NAME &#34;/dev/input/event1&#34; 根据实际情况选择 input event
+交叉编译 lvgl官方的移植工程已经写好makefile，只需要make就可以编译成功。
+但是这里不使用写好的makefile，使用makefile后续添加自己应用的目录和文件太麻烦，
+这里我使用xmake进行工程构建工作。
+xmake是类似cmake的构建工具。
+cmake也用过，cmake似乎每个有源码的目录都需要一个CMakeList.txt ？像lvgl移植工程源码目录层级太多，添加CMakeLists.txt要吐血。
+xmake可以只有一个xmake.lua在根目录。
+xmake github : https://github.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2022-10-10T11:28:55+08:00">
+    <meta property="article:modified_time" content="2022-10-10T11:28:55+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">lvgl v8 linux下使用xmake交叉编译移植</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-light">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <h2><a id="_0"></a>移植准备</h2> 
+<p>针对linux移植lvgl官方已经提供了移植工程，只需要根据自己板子修改<code>frambuffer</code>的设备节点和<code>input event</code>设备节点。</p> 
+<p>1、下载移植工程源码</p> 
+<p>下载地址：</p> 
+<ul><li><a href="https://github.com/lvgl/lv_port_linux_frame_buffer">https://github.com/lvgl/lv_port_linux_frame_buffer</a></li></ul> 
+<p>由于速度问题只使用以下方式下载：</p> 
+<pre><code class="prism language-powershell">git clone https:<span class="token operator">/</span><span class="token operator">/</span>github<span class="token punctuation">.</span>com/lvgl/lv_port_linux_frame_buffer<span class="token punctuation">]</span>
+</code></pre> 
+<p>下载下来发现<code>lv_drivers</code>和<code>lvgl</code> 目录是空的，对于这个问题直接去lvgl github仓库那里<br> <strong>下载release的压缩包：</strong></p> 
+<pre><code class="prism language-c">lvgl<span class="token operator">-</span><span class="token number">8.3</span><span class="token number">.1</span><span class="token punctuation">.</span>tar<span class="token punctuation">.</span>gz
+lv_drivers<span class="token operator">-</span><span class="token number">8.3</span><span class="token number">.0</span><span class="token punctuation">.</span>tar<span class="token punctuation">.</span>gz
+</code></pre> 
+<p><strong>解压并重命名为lvgl、lv_driver：</strong></p> 
+<pre><code class="prism language-c"># 解压
+tar xvf lvgl<span class="token operator">-</span><span class="token number">8.3</span><span class="token number">.1</span><span class="token punctuation">.</span>tar<span class="token punctuation">.</span>gz
+tar xvf lv_drivers<span class="token operator">-</span><span class="token number">8.3</span><span class="token number">.0</span><span class="token punctuation">.</span>tar<span class="token punctuation">.</span>gz
+
+# 重命名
+mv lvgl<span class="token operator">-</span><span class="token number">8.3</span><span class="token number">.1</span> lvgl
+mv lv_drivers<span class="token operator">-</span><span class="token number">8.3</span><span class="token number">.0</span> lv_drivers
+</code></pre> 
+<h2><a id="_29"></a>移植修改</h2> 
+<p>修改驱动配置头文件lv_drv_conf.h</p> 
+<pre><code class="prism language-c"><span class="token number">322</span> #<span class="token keyword">if</span> USE_FBDEV
+<span class="token number">323</span> #  define FBDEV_PATH          <span class="token string">"/dev/fb0"</span>
+<span class="token number">324</span> #endif
+</code></pre> 
+<p>根据板子实际情况选择<code>fb</code>设备节点</p> 
+<pre><code class="prism language-c"><span class="token number">449</span> #<span class="token keyword">if</span> USE_EVDEV <span class="token operator">||</span> USE_BSD_EVDEV
+<span class="token number">450</span> #  define EVDEV_NAME   <span class="token string">"/dev/input/event1"</span>  
+</code></pre> 
+<p>根据实际情况选择 <code>input event</code></p> 
+<h2><a id="_44"></a>交叉编译</h2> 
+<p>lvgl官方的移植工程已经写好makefile，只需要make就可以编译成功。<br> 但是这里不使用写好的makefile，使用makefile后续添加自己应用的目录和文件太麻烦，<br> 这里我使用<code>xmake</code>进行工程构建工作。</p> 
+<p><code>xmake</code>是类似cmake的构建工具。<br> cmake也用过，cmake似乎每个有源码的目录都需要一个CMakeList.txt ？像lvgl移植工程源码目录层级太多，添加CMakeLists.txt要吐血。</p> 
+<p><code>xmake</code>可以只有一个<code>xmake.lua</code>在根目录。</p> 
+<p>xmake github : <a href="https://github.com/xmake-io/xmake">https://github.com/xmake-io/xmake</a><br> xmake 文档 ：<a href="https://xmake.io/#/" rel="nofollow">https://xmake.io/#/</a></p> 
+<p>编写xmake.lua ：</p> 
+<pre><code class="prism language-lua"><span class="token function">target</span><span class="token punctuation">(</span><span class="token string">"mutlimedia"</span><span class="token punctuation">)</span>  <span class="token comment">-- 设置目标程序名字</span>
+    <span class="token function">set_kind</span><span class="token punctuation">(</span><span class="token string">"binary"</span><span class="token punctuation">)</span>   <span class="token comment">-- 设置编译成二进制程序，不设置默认编译成二进制程序，可选择编译成动静态库等</span>
+    
+    <span class="token comment">-- 设置交叉编译工具链头文件目录</span>
+    <span class="token function">add_includedirs</span><span class="token punctuation">(</span><span class="token string">"/usr/local/arm_gcc/gcc-linaro-4.9.4-2017.01-i686_arm-linux-gnueabihf/arm-linux-gnueabihf/libc/usr/include"</span><span class="token punctuation">)</span>   
+    
+    <span class="token comment">-- 设置链接库搜索路径</span>
+    <span class="token function">add_linkdirs</span><span class="token punctuation">(</span><span class="token string">"/opt/tslib-1.21/lib"</span><span class="token punctuation">)</span>  
+    <span class="token function">add_linkdirs</span><span class="token punctuation">(</span><span class="token string">"/usr/local/arm_gcc/gcc-linaro-4.9.4-2017.01-i686_arm-linux-gnueabihf/arm-linux-gnueabihf/libc/usr/lib"</span><span class="token punctuation">)</span>
+    <span class="token comment">-- 设置链接的库</span>
+    <span class="token function">add_links</span><span class="token punctuation">(</span><span class="token string">"m"</span><span class="token punctuation">,</span> <span class="token string">"pthread"</span><span class="token punctuation">,</span> <span class="token string">"ts"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    stdc <span class="token operator">=</span> <span class="token string">"c99"</span>
+    <span class="token function">set_languages</span><span class="token punctuation">(</span>stdc<span class="token punctuation">,</span> <span class="token string">"c++11"</span><span class="token punctuation">)</span>
+    
+    <span class="token function">add_files</span><span class="token punctuation">(</span><span class="token string">"./*.c"</span><span class="token punctuation">)</span>  
+
+    <span class="token comment">-- 递归遍历获取所有子目录</span>
+    <span class="token keyword">for</span> _<span class="token punctuation">,</span> dir <span class="token keyword">in</span> <span class="token function">ipairs</span><span class="token punctuation">(</span>os<span class="token punctuation">.</span><span class="token function">dirs</span><span class="token punctuation">(</span><span class="token string">"lvgl/src/**"</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token keyword">do</span>
+        <span class="token function">add_files</span><span class="token punctuation">(</span>dir<span class="token operator">..</span><span class="token string">"/*.c"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>    
+        <span class="token function">add_includedirs</span><span class="token punctuation">(</span>dir<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">end</span>
+
+    <span class="token comment">-- 递归遍历获取所有子目录</span>
+    <span class="token keyword">for</span> _<span class="token punctuation">,</span> dir <span class="token keyword">in</span> <span class="token function">ipairs</span><span class="token punctuation">(</span>os<span class="token punctuation">.</span><span class="token function">dirs</span><span class="token punctuation">(</span><span class="token string">"lvgl/demos/**"</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token keyword">do</span>
+        <span class="token function">add_files</span><span class="token punctuation">(</span>dir<span class="token operator">..</span><span class="token string">"/*.c"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>   <span class="token comment">-- 添加目录下所有C文件</span>
+        <span class="token function">add_includedirs</span><span class="token punctuation">(</span>dir<span class="token punctuation">)</span><span class="token punctuation">;</span>  <span class="token comment">-- 添加目录作为头文件搜索路径</span>
+    <span class="token keyword">end</span>
+
+    <span class="token keyword">for</span> _<span class="token punctuation">,</span> v <span class="token keyword">in</span> <span class="token function">ipairs</span><span class="token punctuation">(</span>os<span class="token punctuation">.</span><span class="token function">dirs</span><span class="token punctuation">(</span><span class="token string">"lv_drivers/**"</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token keyword">do</span>
+        <span class="token function">add_files</span><span class="token punctuation">(</span>v<span class="token operator">..</span><span class="token string">"/*.c"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">add_includedirs</span><span class="token punctuation">(</span>v<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">end</span>
+
+    <span class="token function">add_includedirs</span><span class="token punctuation">(</span><span class="token string">"."</span><span class="token punctuation">)</span>   
+    <span class="token function">add_includedirs</span><span class="token punctuation">(</span><span class="token string">"/opt/tslib-1.21/include"</span><span class="token punctuation">)</span>  
+
+</code></pre> 
+<p>编写build_xmake.sh脚本方便编译和拷贝程序到nfs目录：</p> 
+<pre><code class="prism language-powershell"><span class="token comment">#!/bin/bash</span>
+
+xmake f <span class="token operator">-</span>p cross <span class="token operator">--</span>sdk=<span class="token operator">/</span>usr/local/arm_gcc/gcc-linaro-4<span class="token punctuation">.</span>9<span class="token punctuation">.</span>4-2017<span class="token punctuation">.</span>01-i686_arm-linux-gnueabihf
+
+xmake <span class="token operator">-</span>P <span class="token punctuation">.</span> <span class="token operator">-</span>v
+
+app_file=build/cross/arm/release/mutlimedia
+
+<span class="token keyword">if</span> <span class="token punctuation">[</span> <span class="token operator">-</span>e <span class="token string">"${app_file}"</span> <span class="token punctuation">]</span><span class="token punctuation">;</span> then   <span class="token comment"># if this file is exist?</span>
+    sudo <span class="token function">cp</span> build/cross/arm/release/mutlimedia <span class="token operator">/</span>mnt/nfs/
+    <span class="token function">echo</span> <span class="token string">"copy app to nfs directory ok!!!"</span>
+<span class="token keyword">else</span> 
+    <span class="token function">echo</span> <span class="token string">"file is not exist!!!"</span>
+fi
+</code></pre> 
+<ul><li><code>xmake f -p cross --sdk=/usr/local/arm_gcc/gcc-linaro-4.9.4-2017.01-i686_arm-linux-gnueabihf</code> 配置交叉编译工具链路径</li><li>xmake -P . -v ，构建编译工程；-P表示强制在当前目录构建编译工程，-v表示输出更多编译信息。</li><li>执行./build_xmake.sh进行编译</li></ul> 
+<p>编译完成会输出以下字样：</p> 
+<pre><code class="prism language-c"><span class="token punctuation">[</span><span class="token number">100</span><span class="token operator">%</span><span class="token punctuation">]</span><span class="token operator">:</span> build ok<span class="token operator">!</span>
+</code></pre> 
+<p>在build/cross/arm/release/下生成app程序<code>mutlimedia</code>。build等目录是xmake自动生成的。</p> 
+<h2><a id="_127"></a>开发板测试</h2> 
+<p>测试成功显示，使用官方移植好的工程来移植是很容易。<br> 测试发现触摸不灵敏，使用tslib库来解决：<a href="https://blog.csdn.net/qq_36413982/article/details/117308086">修改lvgl Linux demo使用tslib获取触摸坐标</a></p> 
+<h2><a id="xmake_132"></a>xmake构建文件优化</h2> 
+<pre><code class="prism language-lua">
+<span class="token comment">-- 设置工程名</span>
+<span class="token function">set_project</span><span class="token punctuation">(</span><span class="token string">"mutilmedia"</span><span class="token punctuation">)</span>
+
+<span class="token comment">-- 设置工程版本</span>
+<span class="token function">set_version</span><span class="token punctuation">(</span><span class="token string">"1.1.0"</span><span class="token punctuation">)</span>
+
+<span class="token comment">-- 自定义工具链</span>
+<span class="token function">toolchain</span><span class="token punctuation">(</span><span class="token string">"arm-linux-gnueabihf"</span><span class="token punctuation">)</span>
+    <span class="token comment">-- 标记为独立工具链</span>
+    <span class="token function">set_kind</span><span class="token punctuation">(</span><span class="token string">"standalone"</span><span class="token punctuation">)</span>
+    <span class="token comment">-- 定义交叉编译工具链地址</span>
+    <span class="token function">set_sdkdir</span><span class="token punctuation">(</span><span class="token string">"/usr/local/arm_gcc/gcc-linaro-4.9.4-2017.01-i686_arm-linux-gnueabihf"</span><span class="token punctuation">)</span>
+    <span class="token function">add_linkdirs</span><span class="token punctuation">(</span><span class="token string">"/usr/local/arm_gcc/gcc-linaro-4.9.4-2017.01-i686_arm-linux-gnueabihf/arm-linux-gnueabihf/libc/usr/lib"</span><span class="token punctuation">)</span>
+    <span class="token function">add_includedirs</span><span class="token punctuation">(</span><span class="token string">"/usr/local/arm_gcc/gcc-linaro-4.9.4-2017.01-i686_arm-linux-gnueabihf/arm-linux-gnueabihf/libc/usr/include"</span><span class="token punctuation">)</span>   
+<span class="token function">toolchain_end</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+
+<span class="token function">target</span><span class="token punctuation">(</span><span class="token string">"lvglv8"</span><span class="token punctuation">)</span>
+    <span class="token comment">-- static lib</span>
+    <span class="token function">set_kind</span><span class="token punctuation">(</span><span class="token string">"static"</span><span class="token punctuation">)</span>  
+     <span class="token comment">-- 设置使用的交叉编译工具链</span>
+    <span class="token function">set_toolchains</span><span class="token punctuation">(</span><span class="token string">"arm-linux-gnueabihf"</span><span class="token punctuation">)</span>  
+    
+    <span class="token function">set_languages</span><span class="token punctuation">(</span><span class="token string">"c99"</span><span class="token punctuation">,</span> <span class="token string">"c++11"</span><span class="token punctuation">)</span>
+
+    <span class="token keyword">local</span> lvgl_src_path <span class="token operator">=</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token string">"lvgl/src/"</span><span class="token punctuation">,</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token keyword">for</span> _<span class="token punctuation">,</span> index <span class="token keyword">in</span> <span class="token function">ipairs</span><span class="token punctuation">(</span>lvgl_src_path<span class="token punctuation">)</span> <span class="token keyword">do</span>
+        <span class="token keyword">for</span> _<span class="token punctuation">,</span> dir <span class="token keyword">in</span> <span class="token function">ipairs</span><span class="token punctuation">(</span>os<span class="token punctuation">.</span><span class="token function">dirs</span><span class="token punctuation">(</span>index<span class="token operator">..</span><span class="token string">"/**"</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token keyword">do</span>
+            <span class="token function">add_files</span><span class="token punctuation">(</span>dir<span class="token operator">..</span><span class="token string">"/*.c"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>    
+            <span class="token function">add_includedirs</span><span class="token punctuation">(</span>dir<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">end</span>
+    <span class="token keyword">end</span>
+    
+    <span class="token function">add_includedirs</span><span class="token punctuation">(</span><span class="token string">"lvgl"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+<span class="token function">target</span><span class="token punctuation">(</span><span class="token string">"mutlimedia"</span><span class="token punctuation">)</span>  <span class="token comment">-- 设置目标程序名字</span>
+    <span class="token function">set_kind</span><span class="token punctuation">(</span><span class="token string">"binary"</span><span class="token punctuation">)</span>   <span class="token comment">-- 设置编译成二进制程序，不设置默认编译成二进制程序，可选择编译成动静态库等</span>
+    
+     <span class="token comment">-- 设置使用的交叉编译工具链</span>
+    <span class="token function">set_toolchains</span><span class="token punctuation">(</span><span class="token string">"arm-linux-gnueabihf"</span><span class="token punctuation">)</span>  
+
+    <span class="token comment">-- 设置平台</span>
+    <span class="token function">set_plat</span><span class="token punctuation">(</span><span class="token string">"cross"</span><span class="token punctuation">)</span>
+    <span class="token comment">-- 设置架构</span>
+    <span class="token function">set_arch</span><span class="token punctuation">(</span><span class="token string">"arm"</span><span class="token punctuation">)</span>
+
+    <span class="token comment">-- 设置链接库搜索路径</span>
+    <span class="token function">add_linkdirs</span><span class="token punctuation">(</span><span class="token string">"/opt/tslib-1.21/lib"</span><span class="token punctuation">)</span>  
+    <span class="token comment">-- 设置链接的库</span>
+    <span class="token function">add_links</span><span class="token punctuation">(</span><span class="token string">"m"</span><span class="token punctuation">,</span> <span class="token string">"pthread"</span><span class="token punctuation">,</span> <span class="token string">"ts"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    
+    <span class="token function">add_deps</span><span class="token punctuation">(</span><span class="token string">"lvglv8"</span><span class="token punctuation">)</span>
+
+    stdc <span class="token operator">=</span> <span class="token string">"c99"</span>
+    <span class="token function">set_languages</span><span class="token punctuation">(</span>stdc<span class="token punctuation">,</span> <span class="token string">"c++11"</span><span class="token punctuation">)</span>
+
+     <span class="token function">add_cflags</span><span class="token punctuation">(</span>
+        <span class="token string">"-O3"</span>
+     <span class="token punctuation">)</span>
+
+    <span class="token keyword">local</span> lvgl_src_path <span class="token operator">=</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token string">"lvgl/demos/"</span><span class="token punctuation">,</span>
+        <span class="token string">"lv_drivers/"</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token keyword">for</span> _<span class="token punctuation">,</span> index <span class="token keyword">in</span> <span class="token function">ipairs</span><span class="token punctuation">(</span>lvgl_src_path<span class="token punctuation">)</span> <span class="token keyword">do</span>
+        <span class="token keyword">for</span> _<span class="token punctuation">,</span> dir <span class="token keyword">in</span> <span class="token function">ipairs</span><span class="token punctuation">(</span>os<span class="token punctuation">.</span><span class="token function">dirs</span><span class="token punctuation">(</span>index<span class="token operator">..</span><span class="token string">"/**"</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token keyword">do</span>
+            <span class="token function">add_files</span><span class="token punctuation">(</span>dir<span class="token operator">..</span><span class="token string">"/*.c"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>    
+            <span class="token function">add_includedirs</span><span class="token punctuation">(</span>dir<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">end</span>
+    <span class="token keyword">end</span>
+
+    <span class="token function">add_includedirs</span><span class="token punctuation">(</span><span class="token string">"lvgl"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">local</span> usr_src_path <span class="token operator">=</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token string">"."</span><span class="token punctuation">,</span>
+        <span class="token string">"multimedia"</span><span class="token punctuation">,</span>
+        <span class="token string">"multimedia/font"</span><span class="token punctuation">,</span>
+        <span class="token string">"multimedia/img/camera"</span><span class="token punctuation">,</span>
+        <span class="token string">"multimedia/img/desktop"</span><span class="token punctuation">,</span>
+        <span class="token string">"multimedia/img/light"</span><span class="token punctuation">,</span>
+        <span class="token string">"multimedia/img/music"</span><span class="token punctuation">,</span>
+        <span class="token string">"multimedia/img/time"</span><span class="token punctuation">,</span> 
+        <span class="token string">"multimedia/img/video"</span><span class="token punctuation">,</span>
+        <span class="token string">"multimedia/img/weather"</span><span class="token punctuation">,</span>
+    <span class="token punctuation">}</span>
+
+     <span class="token keyword">for</span> _<span class="token punctuation">,</span> dir <span class="token keyword">in</span> <span class="token function">ipairs</span><span class="token punctuation">(</span>usr_src_path<span class="token punctuation">)</span> <span class="token keyword">do</span>
+        <span class="token function">add_files</span><span class="token punctuation">(</span>dir<span class="token operator">..</span><span class="token string">"/*.c"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>  
+    <span class="token keyword">end</span>
+	
+	<span class="token comment">-- 排除文件，不参与编译</span>
+    <span class="token function">remove_files</span><span class="token punctuation">(</span><span class="token string">"multimedia/font/myFontDailyWeather.c"</span><span class="token punctuation">)</span>
+    <span class="token function">remove_files</span><span class="token punctuation">(</span><span class="token string">"multimedia/font/myFont_Foshan.c"</span><span class="token punctuation">)</span>
+    <span class="token function">remove_files</span><span class="token punctuation">(</span><span class="token string">"multimedia/font/myFontNumber.c"</span><span class="token punctuation">)</span>
+
+    <span class="token function">add_includedirs</span><span class="token punctuation">(</span><span class="token string">"."</span><span class="token punctuation">)</span>   
+    <span class="token function">add_includedirs</span><span class="token punctuation">(</span><span class="token string">"/opt/tslib-1.21/include"</span><span class="token punctuation">)</span>  
+
+    <span class="token function">after_build</span><span class="token punctuation">(</span>
+        <span class="token keyword">function</span><span class="token punctuation">(</span>target<span class="token punctuation">)</span>
+        <span class="token function">cprint</span><span class="token punctuation">(</span><span class="token string">"Compile finished!!!"</span><span class="token punctuation">)</span>
+
+        <span class="token function">print</span><span class="token punctuation">(</span><span class="token string">" "</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        os<span class="token punctuation">.</span><span class="token function">exec</span><span class="token punctuation">(</span><span class="token string">"sudo cp build/cross/arm/release/mutlimedia /mnt/nfs/"</span><span class="token punctuation">)</span>  
+    <span class="token keyword">end</span><span class="token punctuation">)</span>
+</code></pre> 
+<ul><li><code>toolchain("arm-linux-gnueabihf")</code>，定义工具链，不使用shell脚本设置工具链，直接执行xmake编译</li><li><code>target("lvglv8")</code>，定义target目标， <code>set_kind("static")</code> 将lvgl编译成静态库</li><li><code>add_deps("lvglv8")</code>，设置app程序依赖lvglv8静态库</li></ul>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/0f95096f8121675485dc531d41c9da7a/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">Android模糊查询的Spinner，模糊查询下拉选择框</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/cbb5c0f010d26f1cead1f55c27543897/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">大众点评Cat实时应用监控平台服务端部署</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Linux内核：进程管理——进程挂起管理 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/a9a68dfd7957e73e16bc46ab9d9c30fa/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="Linux内核：进程管理——进程挂起管理">
+  <meta property="og:description" content="引言 以前对于这个概念始终比较模糊，遂在解决后记录博客，希望帮助到有同样问题的朋友。
+挂起状态是什么？ 我们一般认为进程有五个状态，即新建态，就绪态，阻塞态，运行态，终止态 。
+而在这些状态之外还存在着一个状态，我们称之为挂起状态，它既可以是我们客户主动使得进程挂起，也可以是操作系统因为某些原因使得进程挂起。总而言之引入挂起状态的原因有以下几种：
+用户的请求：可能是在程序运行期间发现了可疑的问题，需要暂停进程。父进程的请求：考察，协调，或修改子进程。操作系统的需要：对运行中资源的使用情况进行检查和记账。负载调节的需要：有一些实时的任务非常重要，需要得到充足的内存空间，这个时候我们需要把非实时的任务进行挂起，优先使得实时任务执行。定时任务：一个进程可能会周期性的执行某个任务，那么在一次执行完毕后挂起而不是阻塞，这样可以节省内存。安全：系统有时可能会出现故障或者某些功能受到破坏，这是就需要将系统中正在进行的进程进行挂起，当系统故障消除以后，对进程的状态进行恢复。 既然我们知道了挂起状态引入的原因，那么我们再来看看带有挂起状态的进程状态转移过程：
+相比于一般的五个状态的进程状态转移图，我们引入了两种挂起状态的类型，即就绪挂起状态和阻塞挂起状态。它们的区别就是就绪挂起状态其实还是在内存中的，而后者是在外存中的 。接下来我们说一说新加入的几个状态转化的步骤：
+运行状态-&amp;gt;就绪挂起状态：这里发生在客户在程序正在运行是直接挂起程序。注意这里的箭头是单向的，所以在就绪挂起状态结束以后实际上是执行激活步骤，进入就绪状态，等待处理机调度。阻塞状态-&amp;gt;阻塞挂起状态：当内存空间比较紧缺的时候，如果有存在在内存中的，而且是处于阻塞状态的进程，那么就让他更需要内存的程序占用内存，自己进入阻塞挂起状态，PCB等数据存入外存。因为现在这个进程也不能进入就绪状态，这个程序在内存中是没有什么作用的。阻塞挂起状态-&amp;gt;就绪挂起状态：当阻塞状态等待的IO事件或其他事件到来的时候状态发生改变。就绪挂起状态-&amp;gt;就绪状态：如果内存中没有就绪态进程，操作系统需要调入一个进程继续执行。此外，当处于就绪/挂起状态的进程比处于就绪态的任何进程的优先级都要高时，也可以进行这种转换。这种情况的产生是由于操作系统设计者规定，调入高优先级的进程比减少交换量更重要。就绪状态-&amp;gt;就绪挂起状态：通常，操作系统更倾向于挂起阻塞态进程而不是就绪态进程，因为就绪态进程可以立即执行，而阻塞态进程占用了内存空间但不能执行。但如果释放内存以得到足够空间的唯一方法是挂起一个就绪态进程，那么这种转换也是必需的。并且，如果操作系统确信高优先级的阻塞态进程很快就会就绪，那么它可能选择挂起一个低优先级的就绪态进程，而不是一个高优先级的阻塞态进程。 挂起状态和阻塞状态有什么区别? 这里大多来自其他博主的文章，有以下几个方面的区别：
+是否释放CPU：阻塞（pend）就是任务释放CPU，其他任务可以运行，一般在等待某种资源或信号量的时候出现。挂起（suspend）不释放CPU，如果任务优先级高就永远轮不到其他任务运行。一般挂起用于程序调试中的条件中断，当出现某个条件的情况下挂起，然后进行单步调试。是否主动：显然阻塞是一种被动行为，其发生在磁盘，网络IO，wait，lock等要等待某种事件的发生的操作之后。因为拿不到IO资源，所以阻塞时会放弃 CPU的占用。而挂起是主动的，因为挂起后还要受到CPU的监督（等待着激活），所以挂起不释放CPU，比如sleep函数，站着CPU不使用。与调度器是否相关：任务调度是操作系统来实现的，任务调度时，直接忽略挂起状态的任务，但是会顾及处于pend下的任务，当pend下的任务等待的资源就绪后，就可以转为ready了。ready只需要等待CPU时间，当然，任务调度也占用开销，但是不大，可以忽略。可以这样理解，只要是挂起状态，操作系统就不在管理这个任务了。 上面我们提到了sleep 函数和wait 函数，我们把它们单独拎出来看看：
+sleep（）和wait（）函数的区别：
+两者比较的共同之处是：两个方法都是使程序等待多少毫秒 。最主要区别是：sleep（）方法没有释放锁。而wait（）方法释放了锁，使得其他线程可以使用同步控制块或者方法 。sleep（）指线程被调用时，占着CPU不工作，形象的说明为“占着CPU”睡觉 。 sleep(2000)表示：占用CPU，程序休眠2秒。
+wait(2000)表示：不占用CPU，程序等待2秒。
+如何主动挂起程序 ctrl&#43;z：挂起，程序放到后台，程序没有结束。
+jobs：查看被挂起的程序工作号
+恢复进程执行时，有两种选择：fg命令将挂起的作业放回到前台执行；用bg命令将挂起的作业放到后台执行
+格式：fg 工作号；bg 工作号
+总结 挂起状态一般不被放在进程的常用状态之一，常见的，”五大“状态里就没有挂起状态，但其实际上还是非常重要的，值得我们每一个人好好学习。
+内核资料直通车：Linux内核源码技术学习路线&#43;视频教程代码资料
+学习直通车：Linux内核源码/内存调优/文件系统/进程管理/设备驱动/网络协议栈
+原文作者：极致Linux内核
+原文地址：Linux内核：进程管理——进程挂起管理 - 知乎（版权归原文作者所有，侵权留言联系删除）">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2023-04-18T21:11:57+08:00">
+    <meta property="article:modified_time" content="2023-04-18T21:11:57+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">Linux内核：进程管理——进程挂起管理</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <h3>引言</h3> 
+<p>以前对于这个概念始终比较模糊，遂在解决后记录博客，希望帮助到有同样问题的朋友。</p> 
+<h3>挂起状态是什么？</h3> 
+<p>我们一般认为进程有五个状态，即<strong>新建态，就绪态，阻塞态，运行态，终止态</strong> 。</p> 
+<p class="img-center"><img alt="" src="https://images2.imgbox.com/a6/ea/0O9uISlf_o.png"></p> 
+<p>而在这些状态之外还存在着一个状态，我们称之为<code>挂起状态</code>，它既可以是我们客户主动使得进程挂起，也可以是操作系统因为某些原因使得进程挂起。总而言之引入挂起状态的原因有以下几种：</p> 
+<ol><li>用户的请求：可能是在程序运行期间发现了可疑的问题，需要暂停进程。</li><li>父进程的请求：考察，协调，或修改子进程。</li><li>操作系统的需要：对运行中资源的使用情况进行检查和记账。</li><li>负载调节的需要：有一些实时的任务非常重要，需要得到充足的内存空间，这个时候我们需要把非实时的任务进行挂起，优先使得实时任务执行。</li><li>定时任务：一个进程可能会周期性的执行某个任务，那么在一次执行完毕后挂起而不是阻塞，这样可以节省内存。</li><li>安全：系统有时可能会出现故障或者某些功能受到破坏，这是就需要将系统中正在进行的进程进行挂起，当系统故障消除以后，对进程的状态进行恢复。</li></ol> 
+<p>既然我们知道了<code>挂起状态</code>引入的原因，那么我们再来看看带有挂起状态的进程状态转移过程：</p> 
+<p class="img-center"><img alt="" src="https://images2.imgbox.com/f0/87/HEfSAcvP_o.png"></p> 
+<p>相比于一般的五个状态的进程状态转移图，我们引入了两种挂起状态的类型，即<code>就绪挂起状态</code>和<code>阻塞挂起状态</code>。它们的区别就是<strong>就绪挂起状态其实还是在内存中的，而后者是在外存中的</strong> 。接下来我们说一说新加入的几个状态转化的步骤：</p> 
+<ol><li>运行状态-&gt;就绪挂起状态：这里发生在客户在程序正在运行是直接挂起程序。注意这里的箭头是单向的，所以在就绪挂起状态结束以后实际上是执行激活步骤，进入就绪状态，等待处理机调度。</li><li>阻塞状态-&gt;阻塞挂起状态：当内存空间比较紧缺的时候，如果有存在在内存中的，而且是处于阻塞状态的进程，那么就让他更需要内存的程序占用内存，自己进入阻塞挂起状态，PCB等数据存入外存。因为现在这个进程也不能进入就绪状态，这个程序在内存中是没有什么作用的。</li><li>阻塞挂起状态-&gt;就绪挂起状态：当阻塞状态等待的IO事件或其他事件到来的时候状态发生改变。</li><li>就绪挂起状态-&gt;就绪状态：如果内存中没有就绪态进程，操作系统需要调入一个进程继续执行。此外，当处于就绪/挂起状态的进程比处于就绪态的任何进程的优先级都要高时，也可以进行这种转换。这种情况的产生是由于操作系统设计者规定，调入高优先级的进程比减少交换量更重要。</li><li>就绪状态-&gt;就绪挂起状态：通常，操作系统更倾向于挂起阻塞态进程而不是就绪态进程，因为就绪态进程可以立即执行，而阻塞态进程占用了内存空间但不能执行。但如果释放内存以得到足够空间的唯一方法是挂起一个就绪态进程，那么这种转换也是必需的。并且，如果操作系统确信高优先级的阻塞态进程很快就会就绪，那么它可能选择挂起一个低优先级的就绪态进程，而不是一个高优先级的阻塞态进程。</li></ol> 
+<h3>挂起状态和阻塞状态有什么区别?</h3> 
+<p>这里大多来自其他博主的文章，有以下几个方面的区别：</p> 
+<ol><li>是否释放CPU：阻塞（pend）就是任务释放CPU，其他任务可以运行，一般在等待某种资源或信号量的时候出现。挂起（suspend）不释放CPU，如果任务优先级高就永远轮不到其他任务运行。一般挂起用于程序调试中的条件中断，当出现某个条件的情况下挂起，然后进行单步调试。</li><li>是否主动：显然阻塞是一种被动行为，其发生在磁盘，网络IO，wait，lock等要等待某种事件的发生的操作之后。因为拿不到IO资源，所以阻塞时会放弃 CPU的占用。而挂起是主动的，因为挂起后还要受到CPU的监督（等待着激活），所以挂起不释放CPU，比如sleep函数，站着CPU不使用。</li><li>与调度器是否相关：任务调度是操作系统来实现的，任务调度时，直接忽略挂起状态的任务，但是会顾及处于pend下的任务，当pend下的任务等待的资源就绪后，就可以转为ready了。ready只需要等待CPU时间，当然，任务调度也占用开销，但是不大，可以忽略。可以这样理解，只要是挂起状态，操作系统就不在管理这个任务了。</li></ol> 
+<p>上面我们提到了<strong>sleep</strong> 函数和<strong>wait</strong> 函数，我们把它们单独拎出来看看：</p> 
+<p>sleep（）和wait（）函数的区别：</p> 
+<ol><li><strong>两者比较的共同之处是：两个方法都是使程序等待多少毫秒</strong> 。</li><li><strong>最主要区别是：sleep（）方法没有释放锁。而wait（）方法释放了锁，使得其他线程可以使用同步控制块或者方法</strong> 。</li><li><strong>sleep（）指线程被调用时，占着CPU不工作，形象的说明为“占着CPU”睡觉</strong> 。</li></ol> 
+<p>sleep(2000)表示：占用CPU，程序休眠2秒。<br> wait(2000)表示：不占用CPU，程序等待2秒。</p> 
+<h3>如何主动挂起程序</h3> 
+<p><code>ctrl+z</code>：挂起，程序放到后台，程序没有结束。<br><code>jobs</code>：查看被挂起的程序工作号</p> 
+<p><strong>恢复进程执行时，有两种选择：<code>fg</code>命令将挂起的作业放回到前台执行；用<code>bg</code>命令将挂起的作业放到后台执行</strong><br> 格式：fg 工作号；bg 工作号</p> 
+<h3>总结</h3> 
+<p>挂起状态一般不被放在进程的常用状态之一，常见的，”五大“状态里就没有挂起状态，但其实际上还是非常重要的，值得我们每一个人好好学习。</p> 
+<p><strong>内核资料直通车：</strong><a href="https://link.zhihu.com/?target=https%3A//docs.qq.com/doc/DUGZVQk1qWVBHTEl3" rel="nofollow" title="Linux内核源码技术学习路线+视频教程代码资料">Linux内核源码技术学习路线+视频教程代码资料</a></p> 
+<p><strong>学习直通车：</strong><a href="https://link.zhihu.com/?target=https%3A//ke.qq.com/course/4032547%3FflowToken%3D1044374" rel="nofollow" title="Linux内核源码/内存调优/文件系统/进程管理/设备驱动/网络协议栈">Linux内核源码/内存调优/文件系统/进程管理/设备驱动/网络协议栈</a></p> 
+<p>原文作者：<a href="https://www.zhihu.com/people/linuxwang-xian-sheng" rel="nofollow" title="极致Linux内核">极致Linux内核</a></p> 
+<p>原文地址：<a href="https://zhuanlan.zhihu.com/p/622958386" rel="nofollow" title="Linux内核：进程管理——进程挂起管理 - 知乎">Linux内核：进程管理——进程挂起管理 - 知乎</a>（版权归原文作者所有，侵权留言联系删除）</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/60ad3ab8f5fc171b2b1f70156f679a88/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">使用RecyclerView开发TabView</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/fa0b2b626eb477b1ab02651d6531cbac/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">uniApp h5项目/小程序项目通过命令行打包 一个项目二端适配</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

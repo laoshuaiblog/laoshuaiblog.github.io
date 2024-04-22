@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>vivado 物理优化约束、交互式物理优化 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/a406f88bdf454c9b87a0d6c3db9df0ce/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="vivado 物理优化约束、交互式物理优化">
+  <meta property="og:description" content="物理优化约束
+Vivado Design Suite在物理优化过程中尊重DONT_TOUCH特性。它不在具有这些属性的网络或小区上执行物理优化。要加快网络选择过程中，具有DONT_TOUCH属性的网络经过预过滤，不被考虑用于物理优化。此外，还遵守Pblock分配，以便复制逻辑继承原始逻辑的Pblock赋值。定时异常也从复制从原始细胞到复制细胞。有关更多信息，请参阅《Vivado Design Suite用户指南》中的“合成属性”一节：合成（UG901）。DONT_TOUCH属性通常放置在叶细胞上，以防止它们优化。分层单元格上的DONT_TOUCH保留了单元格边界，但进行了优化仍然可以发生在细胞内。
+工具会自动将值为TRUE的DONT_TOUCH属性添加到具有值为TRUE的MARK_DEBUG属性。这样做是为了在整个实现流程，以便可以在任何设计阶段对其进行探索。这是推荐的MARK_DEBUG的使用。但是，DONT_TOUCH限制性太强，阻止了复制和重定时等优化，导致关闭时机困难。在这些情况下，DONT_TOUCH可以设置为FALSE值，而保持MARK_DEBUG为真。删除DONT_TOUCH属性的结果是DEBUG的网络可以被优化掉并且不再被探测。如果MARK_DEBUGnet被复制，只有原始的net保留MARK_DEBUG，而不是被复制的net。
+物理优化报告
+Tcl报告命令report_phys_opt提供了执行的每个优化的详细信息通过phys_opt_design在非常精细的细节级别上实现。它必须在与相同的Vivado会话中运行phys_opt_design，而优化历史存在于存储器中。因此，如果需要报告，建议包括report_phys_opt命令在最后一个phys_ opt_design命令之后的Tcl脚本中。这些报告仅可用于放置后的phys_opt_design优化。这个报告不是累积的。每个phys_pt运行都有一个不同的phys_pt报告，仅说明在phys_opt_design的特定运行期间所做的更改。以下报告示例显示了涉及寄存器的扇出优化的第一个条目命名为pipeline_en。报告中显示了以下详细信息：
+1.原始驱动器pipeline_en驱动816负载和包含该高扇出网络的路径WNS为-1.057 ns的故障定时。
+2.复制驱动程序pipeline_en以创建一个新的单元pipeline_en_replica。
+3.816个负载在pipeline_en_replica和原始负载之间分配，前者占用386个负载驱动程序pipeline_en，它承担剩余的430个负载。
+4.在复制和放置pipeline_en_replica之后，pipeline_en _replica路径的WNS是&#43;0.464ns，并且pipeline_en路径的WNS减少到零。
+5.改变了原始驱动程序pipeline_en的位置，以改进基于其减少的一组负载的位置。
+交互式物理优化
+从2015.3版本开始，物理优化具有“回放”功能使用交互式Tcl命令iphys_opt_design进行优化。iphys_opt_design命令描述特定的优化事件，例如关键单元的复制或者从块RAM中提取一组寄存器。该命令包括所有信息重新创建网表和优化所需的位置更改所必需的发生交互式物理优化可以通过两种方式使用：
+•将放置后物理优化应用于放置前网表，以改进整体布局结果并提高设计性能。
+•将物理优化保存在Tcl脚本中，以便根据需要重复修改phys_opt_design网表更改涉及改造的设计流程如下图所示。
+涉及两个运行，即“原始运行”，其中phys_opt_design在之后运行place_design和“重播运行”，其中执行phys_opt_design网表更改放置之前。在原始运行之后，phys_opt_design优化将使用保存到Tcl脚本文件中Tcl命令write_ iphys_。该脚本包含一系列iphys_opt_design Tcl命令以精确地重新创建由执行的设计更改原始运行中的phys_opt_design。您可以保存当前设计中的优化在内存中或打开实现的设计或检查点之后，其中phys_opt_design已经进行了优化。
+重播运行使用相同的设计和约束。在place_design运行之前read_iphys_opt_tcl命令处理iphys_opt_design命令脚本应用原始运行中的网表更改。由于网表的更改，中的设计重播运行可能比原始运行更适合放置。现在的设计在放置之前结合了phys_opt_design优化的好处，例如复制后更少的高扇出网络和来自块RAM输出的更少的长距离路径。与phys_opt_design命令类似，read_iphys_opt_tcl命令具有将重播的设计步骤限制为某些类型的选项，如扇出优化、块RAM寄存器优化和重新布线。
+重复phys_opt_design设计更改
+重复phys_opt_design设计更改的设计流程如下所示图形
+该流程与改造流程在两个方面不同：
+•iphys_opt_design更改包含在place_design之后，而不是预先
+•布局更改和网表更改都会在iphys_opt_design中捕获Tcl脚本。
+通常，您会使用此流来获得对放置后phys_opt_design的更多控制步自定义“配方”是由重播的优化和新的组合创建的优化为探索设计闭包带来了许多可能性。write_iphys_opt_tcl和read_iphys_pt_tcl命令有一个-place选项以回放phys_opt_design中的位置更改。此选项应用于流以在放置之后重复phys_opt_design步骤。
+交互式物理优化命令参考
+交互式物理优化命令以及相应的选项包括如下所述。
+write_iphys_opt_tcl
+此命令写入一个文件，其中包含与当前设计中执行的物理优化。
+语法：
+write_iphys_opt_tcl [-place] [-quiet] [-verbose] &amp;lt;output file&amp;gt; -place选项指示命令将放置信息包括在iphys_opt_tcl命令。当您打算使用网表应用放置时，请使用此选项iphys_opt_design命令重播期间的更改。write_iphys_opt_tcl命令可以在phys_opt_design已运行。read_iphys_opt_tcl此命令读取一个文件，该文件包含与上次运行中执行的物理优化。
+语法：
+read_iphys_opt_tcl [-fanout_opt] [-critical_cell_opt] [-replicate_cell] [-placement_opt] [ -restruct_opt] [-forward_retime] [-backward_retime] [-dsp_register_opt] [-bram_register_opt] [-uram_register_opt] [-shift_register_opt] [-shift_register_to_pipeline] [-auto_pipeline] [-pipeline_to_shift_register] [-critical_pin_opt] [-restruct_opt] [-equ_drivers_opt] [-include_skipped_optimizations] [-create_bufg] [-insert_negative_edge_ffs] [-hold_fix] [-slr_crossing_opt] [-quiet] [-verbose] [&amp;lt;input&amp;gt;] read_iphys_opt_tcl命令具有许多与phys_opt_design相同的选项将重播优化的范围限制为仅指定的优化。这些选项包括：">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2024-03-19T22:07:31+08:00">
+    <meta property="article:modified_time" content="2024-03-19T22:07:31+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">vivado 物理优化约束、交互式物理优化</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <p>物理优化约束</p> 
+<p>Vivado Design Suite在物理优化过程中尊重DONT_TOUCH特性。它不在具有这些属性的网络或小区上执行物理优化。要加快网络选择过程中，具有DONT_TOUCH属性的网络经过预过滤，不被考虑用于物理优化。此外，还遵守Pblock分配，以便复制逻辑继承原始逻辑的Pblock赋值。定时异常也从复制从原始细胞到复制细胞。有关更多信息，请参阅《Vivado Design Suite用户指南》中的“合成属性”一节：合成（UG901）。DONT_TOUCH属性通常放置在叶细胞上，以防止它们优化。分层单元格上的DONT_TOUCH保留了单元格边界，但进行了优化仍然可以发生在细胞内。</p> 
+<p>工具会自动将值为TRUE的DONT_TOUCH属性添加到具有值为TRUE的MARK_DEBUG属性。这样做是为了在整个实现流程，以便可以在任何设计阶段对其进行探索。这是推荐的MARK_DEBUG的使用。但是，DONT_TOUCH限制性太强，阻止了复制和重定时等优化，导致关闭时机困难。在这些情况下，DONT_TOUCH可以设置为FALSE值，而保持MARK_DEBUG为真。删除DONT_TOUCH属性的结果是DEBUG的网络可以被优化掉并且不再被探测。如果MARK_DEBUGnet被复制，只有原始的net保留MARK_DEBUG，而不是被复制的net。</p> 
+<p>物理优化报告</p> 
+<p>Tcl报告命令report_phys_opt提供了执行的每个优化的详细信息通过phys_opt_design在非常精细的细节级别上实现。它必须在与相同的Vivado会话中运行phys_opt_design，而优化历史存在于存储器中。因此，如果需要报告，建议包括report_phys_opt命令在最后一个phys_ opt_design命令之后的Tcl脚本中。这些报告仅可用于放置后的phys_opt_design优化。这个报告不是累积的。每个phys_pt运行都有一个不同的phys_pt报告，仅说明在phys_opt_design的特定运行期间所做的更改。以下报告示例显示了涉及寄存器的扇出优化的第一个条目命名为pipeline_en。报告中显示了以下详细信息：</p> 
+<p>1.原始驱动器pipeline_en驱动816负载和包含该高扇出网络的路径WNS为-1.057 ns的故障定时。</p> 
+<p>2.复制驱动程序pipeline_en以创建一个新的单元pipeline_en_replica。</p> 
+<p>3.816个负载在pipeline_en_replica和原始负载之间分配，前者占用386个负载驱动程序pipeline_en，它承担剩余的430个负载。</p> 
+<p>4.在复制和放置pipeline_en_replica之后，pipeline_en _replica路径的WNS是+0.464ns，并且pipeline_en路径的WNS减少到零。</p> 
+<p>5.改变了原始驱动程序pipeline_en的位置，以改进基于其减少的一组负载的位置。</p> 
+<p><img alt="" height="257" src="https://images2.imgbox.com/2b/20/S75CxKEt_o.png" width="856"></p> 
+<p>交互式物理优化</p> 
+<p>从2015.3版本开始，物理优化具有“回放”功能使用交互式Tcl命令iphys_opt_design进行优化。iphys_opt_design命令描述特定的优化事件，例如关键单元的复制或者从块RAM中提取一组寄存器。该命令包括所有信息重新创建网表和优化所需的位置更改所必需的发生交互式物理优化可以通过两种方式使用：</p> 
+<p>•将放置后物理优化应用于放置前网表，以改进整体布局结果并提高设计性能。</p> 
+<p>•将物理优化保存在Tcl脚本中，以便根据需要重复修改phys_opt_design网表更改涉及改造的设计流程如下图所示。</p> 
+<p><img alt="" height="448" src="https://images2.imgbox.com/e1/eb/jGgqpFlD_o.png" width="738"></p> 
+<p>涉及两个运行，即“原始运行”，其中phys_opt_design在之后运行place_design和“重播运行”，其中执行phys_opt_design网表更改放置之前。在原始运行之后，phys_opt_design优化将使用保存到Tcl脚本文件中Tcl命令write_ iphys_。该脚本包含一系列iphys_opt_design Tcl命令以精确地重新创建由执行的设计更改原始运行中的phys_opt_design。您可以保存当前设计中的优化在内存中或打开实现的设计或检查点之后，其中phys_opt_design已经进行了优化。</p> 
+<p>重播运行使用相同的设计和约束。在place_design运行之前read_iphys_opt_tcl命令处理iphys_opt_design命令脚本应用原始运行中的网表更改。由于网表的更改，中的设计重播运行可能比原始运行更适合放置。现在的设计在放置之前结合了phys_opt_design优化的好处，例如复制后更少的高扇出网络和来自块RAM输出的更少的长距离路径。与phys_opt_design命令类似，read_iphys_opt_tcl命令具有将重播的设计步骤限制为某些类型的选项，如扇出优化、块RAM寄存器优化和重新布线。</p> 
+<p>重复phys_opt_design设计更改</p> 
+<p>重复phys_opt_design设计更改的设计流程如下所示图形</p> 
+<p><img alt="" height="437" src="https://images2.imgbox.com/75/04/4OsgUG40_o.png" width="674"></p> 
+<p>该流程与改造流程在两个方面不同：</p> 
+<p>•iphys_opt_design更改包含在place_design之后，而不是预先</p> 
+<p>•布局更改和网表更改都会在iphys_opt_design中捕获Tcl脚本。</p> 
+<p>通常，您会使用此流来获得对放置后phys_opt_design的更多控制步自定义“配方”是由重播的优化和新的组合创建的优化为探索设计闭包带来了许多可能性。write_iphys_opt_tcl和read_iphys_pt_tcl命令有一个-place选项以回放phys_opt_design中的位置更改。此选项应用于流以在放置之后重复phys_opt_design步骤。</p> 
+<p>交互式物理优化命令参考</p> 
+<p>交互式物理优化命令以及相应的选项包括如下所述。</p> 
+<p>write_iphys_opt_tcl</p> 
+<p>此命令写入一个文件，其中包含与当前设计中执行的物理优化。</p> 
+<p>语法：</p> 
+<div> 
+ <span style="color:#000000;">write_iphys_opt_tcl [-place] [-quiet] [-verbose] &lt;output file&gt;</span> 
+</div> 
+<div></div> 
+<div> 
+ <p><span style="color:#000000;">-place选项指示命令将放置信息包括在iphys_opt_tcl命令。当您打算使用网表应用放置时，请使用此选项iphys_opt_design命令重播期间的更改。write_iphys_opt_tcl命令可以在phys_opt_design已运行。read_iphys_opt_tcl此命令读取一个文件，该文件包含与上次运行中执行的物理优化。</span></p> 
+ <p><span style="color:#000000;">语法：</span></p> 
+ <div> 
+  <span style="color:#000000;">read_iphys_opt_tcl [-fanout_opt] [-critical_cell_opt] [-replicate_cell] </span> 
+ </div> 
+ <div> 
+  <span style="color:#000000;">[-placement_opt] [ -restruct_opt] [-forward_retime] </span> 
+ </div> 
+ <div> 
+  <span style="color:#000000;">[-backward_retime] [-dsp_register_opt] </span> 
+ </div> 
+ <div> 
+  <span style="color:#000000;">[-bram_register_opt] </span> 
+ </div> 
+ <div> 
+  <span style="color:#000000;">[-uram_register_opt] [-shift_register_opt] </span> 
+ </div> 
+ <div> 
+  <span style="color:#000000;">[-shift_register_to_pipeline] [-auto_pipeline] </span> 
+ </div> 
+ <div> 
+  <span style="color:#000000;">[-pipeline_to_shift_register] [-critical_pin_opt] </span> 
+ </div> 
+ <div> 
+  <span style="color:#000000;">[-restruct_opt] [-equ_drivers_opt] </span> 
+ </div> 
+ <div> 
+  <span style="color:#000000;">[-include_skipped_optimizations] [-create_bufg] </span> 
+ </div> 
+ <div> 
+  <span style="color:#000000;">[-insert_negative_edge_ffs] [-hold_fix] </span> 
+ </div> 
+ <div> 
+  <span style="color:#000000;">[-slr_crossing_opt] [-quiet] </span> 
+ </div> 
+ <div> 
+  <span style="color:#000000;">[-verbose] [&lt;input&gt;] </span> 
+ </div> 
+ <div> 
+  <p>read_iphys_opt_tcl命令具有许多与phys_opt_design相同的选项将重播优化的范围限制为仅指定的优化。这些选项包括：</p> 
+  <div> 
+   <span style="color:#000000;">• </span> 
+   <span style="color:#000000;">-fanout_opt </span> 
+  </div> 
+  <div> 
+   <span style="color:#000000;">• </span> 
+   <span style="color:#000000;">-critical_cell_opt </span> 
+  </div> 
+  <div> 
+   <span style="color:#000000;">• </span> 
+   <span style="color:#000000;">-placement_opt </span> 
+  </div> 
+  <div> 
+   <span style="color:#000000;">• </span> 
+   <span style="color:#000000;">-restruct_opt </span> 
+  </div> 
+  <div> 
+   <span style="color:#000000;">• </span> 
+   <span style="color:#000000;">-dsp_register_opt </span> 
+  </div> 
+  <div> 
+   <span style="color:#000000;">• </span> 
+   <span style="color:#000000;">-bram_register_opt </span> 
+  </div> 
+  <div> 
+   <span style="color:#000000;">• </span> 
+   <span style="color:#000000;">-uram_register_opt </span> 
+  </div> 
+  <div> 
+   <span style="color:#000000;">• </span> 
+   <span style="color:#000000;">-shift_register_opt </span> 
+  </div> 
+  <div> 
+   <span style="color:#000000;">• </span> 
+   <span style="color:#000000;">-insert_negative_edge_ffs </span> 
+  </div> 
+  <div> 
+   <span style="color:#000000;">• </span> 
+   <span style="color:#000000;">-slr_crossing_opt </span> 
+  </div> 
+  <div> 
+   <span style="color:#000000;">• </span> 
+   <span style="color:#000000;">-critical_pin_opt </span> 
+  </div> 
+  <div> 
+   <span style="color:#000000;">• </span> 
+   <span style="color:#000000;">-replicate_cell </span> 
+  </div> 
+  <div> 
+   <span style="color:#000000;">• </span> 
+   <span style="color:#000000;">-forward_retime </span> 
+  </div> 
+  <div> 
+   <span style="color:#000000;">• </span> 
+   <span style="color:#000000;">-backward_retime </span> 
+  </div> 
+  <div> 
+   <span style="color:#000000;">• </span> 
+   <span style="color:#000000;">-shift_register_to_pipeline </span> 
+  </div> 
+  <div> 
+   <span style="color:#000000;">• </span> 
+   <span style="color:#000000;">-auto_pipeline </span> 
+  </div> 
+  <div> 
+   <span style="color:#000000;">• </span> 
+   <span style="color:#000000;">-pipeline_to_shift_register </span> 
+  </div> 
+  <div> 
+   <span style="color:#000000;">• </span> 
+   <span style="color:#000000;">-restruct_opt-equ_drivers_opt </span> 
+  </div> 
+  <div> 
+   <span style="color:#000000;">• </span> 
+   <span style="color:#000000;">-create_bufg </span> 
+  </div> 
+  <div> 
+   <p>应用输入Tcl脚本中定义的跳过的优化，以及标准优化。这些是由跳过的phys_opt_design标识的优化因为无法找到用于优化逻辑的合适位置。当指定此选项时iphys_opt_design命令将尝试在预放置网表。</p> 
+   <p>iphys_opt_design</p> 
+   <p>iphys_opt_design命令是一个低级别的Tcl命令，用于执行物理优化。所有默认的phys_opt_design优化都可以使用iphys_opt_design。尽管可以修改iphys_opt_design命令，并且即使是从头开始创建它们，通常也会将它们写入脚本并在单独运行。</p> 
+   <p>建议：避免使用Tcl source命令执行iphys_opt_design的脚本命令。为了获得最高效的命令处理和最快的运行时间，请使用改为read_iphys_opt_tcl命令。</p> 
+   <p>语法</p> 
+   <div> 
+    <span style="color:#000000;">iphys_opt_design [-fanout_opt] [-critical_cell_opt] [-replicate_cell] </span> 
+   </div> 
+   <div> 
+    <span style="color:#000000;">[-reconnect] [-placement_opt] [-forward_retime] </span> 
+   </div> 
+   <div> 
+    <span style="color:#000000;">[-backward_retime] [-net &lt;arg&gt;] -cluster &lt;args&gt; </span> 
+   </div> 
+   <div> 
+    <span style="color:#000000;">-place_cell &lt;args&gt; [-dsp_register_opt] [- </span> 
+   </div> 
+   <div> 
+    <span style="color:#000000;">bram_register_opt] </span> 
+   </div> 
+   <div> 
+    <span style="color:#000000;">[-uram_register_opt] [-shift_register_opt] [-cell &lt;arg&gt;] </span> 
+   </div> 
+   <div> 
+    <span style="color:#000000;">[-packing] [-unpacking] [-port &lt;arg&gt;] [-critical_pin_opt] </span> 
+   </div> 
+   <div> 
+    <span style="color:#000000;">[-restruct_opt] [-equ_drivers_opt] [-skipped_optimization] </span> 
+   </div> 
+   <div> 
+    <span style="color:#000000;">[-create_bufg] [-insert_negative_edge_ffs] [-hold_fix] </span> 
+   </div> 
+   <div> 
+    <span style="color:#000000;">[-slr_crossing_opt] [-shift_register_to_pipeline] </span> 
+   </div> 
+   <div> 
+    <span style="color:#000000;">[-auto_pipeline] [-pipeline_to_shift_register] [-quiet] </span> 
+   </div> 
+   <div> 
+    <span style="color:#000000;">[-verbose] </span> 
+   </div> 
+  </div> 
+ </div> 
+</div>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/29ad011799be501a5d3300891505892c/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">一款非常流行的数字音乐工作站软件FL Studio for Mac 21.2.3.3586中文版新功能特色</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/66186f3f6487683caa990e47f3522984/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">118.Qt入门，实现一个图片查看软件</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

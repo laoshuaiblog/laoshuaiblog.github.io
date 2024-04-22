@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>CMU15 445/645课程-Buffer Pool笔记 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/6cf63f3ee79fa1a2be19758826d5c22b/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="CMU15 445/645课程-Buffer Pool笔记">
+  <meta property="og:description" content="Buffer Pools 用户对数据库的最基本要求就是能高效的读取和存储数据，但是读写数据都涉及到与低速的设备交互，为了弥补两者之间的速度差异，所有数据库都有缓存池，用来管理相应的数据页，提高数据库的效率，当然也因为引入了这一中间层，数据库对内存的管理变得相对比较复杂。 缓冲池是从磁盘读取的页面的内存缓存，一个内存区域。
+Page table: 页中除了存储用户数据，还可以存储控制信息的数据。
+缓冲池是从磁盘读取的页面的内存缓存 （a）它是一个由固定大小页面数组组织的内存区域。 每个数组条目称为一个帧 （b）当DBMS请求页面时，将精确副本放入其中一个帧中
+缓冲池维护的元数据： （a）页面表：跟踪当前在内存中的页面 （b）Dirty-flag：线程修改页面时设置（需要回写） （c）Pin-counter：触摸该页面的线程数
+Workloads: 1.OLTP:联机事务处理 短周期 行列式存储 2.OLAP:联机事务分析 周期长 复杂 列式存储
+存储模型： 1.n-ary storage model 优点： 插入，更新，删除操作快 对于需要整个关系的查询非常友好 缺点： 数据量大，都传入内存时，容易堵塞 2.column store 优点： 减少IO，因为DBMS只读需要的数据 缺点： 不利于OLTP
+Locks VS Latches 1.Locks 保护数据库事务免受其他事务影响 负责事务时期Held for transaction duration 允许事务执行或者让事务推迟直到一个安全的状态 2.Latches （a）保护DBMS内部数据结构的关键部分不受其他线程的影响 （b）负责操作时期Held for operation duration （c）不需要能够回滚更改
+时钟算法： LRU（least recently used）参考链接:https://blog.csdn.net/wanghao109/article/details/13003479">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2018-07-09T22:34:52+08:00">
+    <meta property="article:modified_time" content="2018-07-09T22:34:52+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">CMU15 445/645课程-Buffer Pool笔记</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-dark">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <h3 id="buffer-pools">Buffer Pools</h3> 
+<p>用户对数据库的最基本要求就是能高效的读取和存储数据，但是读写数据都涉及到与低速的设备交互，为了弥补两者之间的速度差异，所有数据库都有缓存池，用来管理相应的数据页，提高数据库的效率，当然也因为引入了这一中间层，数据库对内存的管理变得相对比较复杂。 <br> 缓冲池是从磁盘读取的页面的内存缓存，一个内存区域。</p> 
+<h2 id="page-table">Page table:</h2> 
+<p>页中除了存储用户数据，还可以存储控制信息的数据。</p> 
+<h2 id="缓冲池是从磁盘读取的页面的内存缓存">缓冲池是从磁盘读取的页面的内存缓存</h2> 
+<p>（a）它是一个由固定大小页面数组组织的内存区域。 每个数组条目称为一个帧 <br> （b）当DBMS请求页面时，将精确副本放入其中一个帧中</p> 
+<h2 id="缓冲池维护的元数据">缓冲池维护的元数据：</h2> 
+<p>（a）页面表：跟踪当前在内存中的页面 <br> （b）Dirty-flag：线程修改页面时设置（需要回写） <br> （c）Pin-counter：触摸该页面的线程数</p> 
+<h2 id="workloads">Workloads:</h2> 
+<p>1.OLTP:联机事务处理 <br> 短周期 <br> 行列式存储 <br> 2.OLAP:联机事务分析 <br> 周期长 <br> 复杂 <br> 列式存储</p> 
+<h2 id="存储模型">存储模型：</h2> 
+<p>1.n-ary storage model <br> 优点： <br> 插入，更新，删除操作快 <br> 对于需要整个关系的查询非常友好 <br> 缺点： <br> 数据量大，都传入内存时，容易堵塞 <br> 2.column store <br> 优点： <br> 减少IO，因为DBMS只读需要的数据 <br> 缺点： <br> 不利于OLTP</p> 
+<h2 id="locks-vs-latches">Locks VS Latches</h2> 
+<p>1.Locks <br> 保护数据库事务免受其他事务影响 <br> 负责事务时期Held for transaction duration <br> 允许事务执行或者让事务推迟直到一个安全的状态 <br> 2.Latches <br> （a）保护DBMS内部数据结构的关键部分不受其他线程的影响 <br> （b）负责操作时期Held for operation duration <br> （c）不需要能够回滚更改</p> 
+<h2 id="时钟算法">时钟算法：</h2> 
+<p>LRU（least recently used）参考链接:<a href="https://blog.csdn.net/wanghao109/article/details/13003479">https://blog.csdn.net/wanghao109/article/details/13003479</a></p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/29a218c349ee4dad5ca1fad7c740e8b3/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">redis 数据恢复过程</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/1c7a9701b2e066a8d44f651b05f6aca7/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">ggplot2.multiplot 多个图形组合为一张图片（区别于 分面）</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

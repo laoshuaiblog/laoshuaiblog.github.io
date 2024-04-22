@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>nginx常用命令与相关理论 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/c9a9c9827c280958d4e895adcb1f7bbd/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="nginx常用命令与相关理论">
+  <meta property="og:description" content="文章目录 常用命令业务流程nginx的基础配置：server_name：匹配规则 正/反向代理正向代理反向代理内网反向代理 负载均衡轮询weight（权重）downbackup保持会话的负载均衡（不常用）**ip_hash****least_conn****url_hash****fair** 动静分离URLRewrite网关防盗链高可用不安全的协议、证书配置对称加密不安全：非对称加密：HTTPS（CA机构）nginx证书引入 常用命令 进入安装目录的sbin文件夹下：
+./nginx 或 systemctl start nginx.service 启动./nginx -s stop 或systemctl stop nginx.service 或 kill -9/-15 pid 快速停止./nginx -s quit 处理完当前工作后停止systemctl restart nginx.service 或 ./nginx -s reopen 重启./nginx -s reload 或 systemctl reload nginx 重新加载配置文件./nginx -v 查看版本信息ps aux | grep nginx 查看启动后的记录systemctl status nginx 状态systemctl enable nginx.service 开启自启动
+docker 中
+docker run --name nginx -p 80:80 -d nginx 容器内文件
+docker exec -it nginx /bin/bash docker run -p 80:80 -p 443:443 --name nginx --restart=always \ -v /usr/local/nginx/conf/nginx.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2023-04-02T15:59:07+08:00">
+    <meta property="article:modified_time" content="2023-04-02T15:59:07+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">nginx常用命令与相关理论</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-light">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <p></p> 
+<div class="toc"> 
+ <h4>文章目录</h4> 
+ <ul><li><a href="#_1" rel="nofollow">常用命令</a></li><li><a href="#_49" rel="nofollow">业务流程</a></li><li><a href="#nginx_56" rel="nofollow">nginx的基础配置：</a></li><li><ul><li><ul><li><a href="#server_name_91" rel="nofollow">server_name：匹配规则</a></li></ul> 
+  </li></ul> 
+  </li><li><a href="#_109" rel="nofollow">正/反向代理</a></li><li><ul><li><ul><li><a href="#_111" rel="nofollow">正向代理</a></li><li><a href="#_116" rel="nofollow">反向代理</a></li><li><a href="#_122" rel="nofollow">内网反向代理</a></li></ul> 
+  </li></ul> 
+  </li><li><a href="#_130" rel="nofollow">负载均衡</a></li><li><ul><li><ul><li><a href="#_131" rel="nofollow">轮询</a></li><li><a href="#weight_133" rel="nofollow">weight（权重）</a></li><li><a href="#down_136" rel="nofollow">down</a></li><li><a href="#backup_139" rel="nofollow">backup</a></li><li><a href="#_143" rel="nofollow">保持会话的负载均衡（不常用）</a></li><li><ul><li><ul><li><ul><li><a href="#ip_hash_149" rel="nofollow">**ip_hash**</a></li><li><a href="#least_conn_152" rel="nofollow">**least_conn**</a></li><li><a href="#url_hash_157" rel="nofollow">**url_hash**</a></li><li><a href="#fair_162" rel="nofollow">**fair**</a></li></ul> 
+     </li></ul> 
+    </li></ul> 
+   </li></ul> 
+  </li></ul> 
+  </li><li><a href="#_167" rel="nofollow">动静分离</a></li><li><a href="#URLRewrite_186" rel="nofollow">URLRewrite</a></li><li><a href="#_226" rel="nofollow">网关</a></li><li><a href="#_245" rel="nofollow">防盗链</a></li><li><a href="#_273" rel="nofollow">高可用</a></li><li><a href="#_334" rel="nofollow">不安全的协议、证书配置</a></li><li><ul><li><ul><li><a href="#_337" rel="nofollow">对称加密不安全：</a></li><li><a href="#_340" rel="nofollow">非对称加密：</a></li><li><a href="#HTTPSCA_352" rel="nofollow">HTTPS（CA机构）</a></li><li><a href="#nginx_356" rel="nofollow">nginx证书引入</a></li></ul> 
+  </li></ul> 
+ </li></ul> 
+</div> 
+<p></p> 
+<h2><a id="_1"></a>常用命令</h2> 
+<p>进入安装目录的sbin文件夹下：</p> 
+<ul><li>./nginx 或 systemctl start nginx.service 启动</li><li>./nginx -s stop 或systemctl stop nginx.service 或 kill -9/-15 pid 快速停止</li><li>./nginx -s quit 处理完当前工作后停止</li><li>systemctl restart nginx.service 或 ./nginx -s reopen 重启</li><li>./nginx -s reload 或 systemctl reload nginx 重新加载配置文件</li><li>./nginx -v 查看版本信息</li><li>ps aux | grep nginx 查看启动后的记录</li><li>systemctl status nginx 状态</li><li>systemctl enable nginx.service 开启自启动<br> docker 中<br> docker run --name nginx -p 80:80 -d nginx 容器内文件<br> docker exec -it nginx /bin/bash</li></ul> 
+<pre><code class="prism language-1">docker run  -p 80:80 -p 443:443 --name nginx --restart=always \
+-v /usr/local/nginx/conf/nginx.conf:/etc/nginx/nginx.conf:rw \
+-v /usr/local/nginx/conf.d:/etc/nginx/conf.d:rw \
+-v /usr/local/nginx/html:/usr/share/nginx/html:rw \
+-v /usr/local/nginx/logs:/var/log/nginx:rw \
+-v /home/nginx/ssl:/etc/nginx/ssl/:rw \
+-d  nginx
+前面是主机地址，后面是docker中地址
+</code></pre> 
+<p>docker logs nginx或者id 查看日志<br> docker save nginx &gt; nginx.tar 查看未启动容器文件结构（将镜像打包，然后移出查看）<br> docker cp source container:target_path 将外部文件复制到容器内<br> docker cp container:source_path output_path 将容器内部文件复制到容器外</p> 
+<p><img src="https://images2.imgbox.com/8d/0a/jHR2WJ7e_o.png" alt="在这里插入图片描述"><br> conf #配置文件<br> ｜-nginx.conf # 主配置文件<br> ｜-其他配置文件 # 可通过那个include关键字，引入到了nginx.conf生效</p> 
+<p>html #静态页面</p> 
+<p>logs<br> ｜-access.log #访问日志(每次访问都会记录)<br> ｜-error.log #错误日志<br> ｜-nginx.pid #进程号</p> 
+<p>sbin<br> ｜-nginx #主进程文件</p> 
+<p>*_temp #运行时，生成临时文件</p> 
+<h2><a id="_49"></a>业务流程</h2> 
+<p>ngibx启动后会有两个进程（master负责协调，work负责处理用户请求响应）<br> <img src="https://images2.imgbox.com/54/22/McKhKHwO_o.png" alt="在这里插入图片描述"></p> 
+<h2><a id="nginx_56"></a>nginx的基础配置：</h2> 
+<p>简化版 nginx.conf</p> 
+<pre><code>worker_processes  1; # 启动的worker进程数
+
+events {
+    worker_connections  1024; #每个worker进程的连接数
+}
+
+http {
+    include       mime.types; #include是引入关键字，这里引入了mime.types这个配置文件（同在conf目录下，mime.types是用来定义，请求返回的content-type）
+    default_type  application/octet-stream; #mime.types未定义的，使用默认格式application/octet-stream
+
+    sendfile        on; #详情，见下文
+    keepalive_timeout  65; #长链接超时时间
+	
+		#一个nginx可以启用多个server（虚拟服务器）
+		#主机，通过端口区分
+    server {
+        listen       80;#监听端口80
+        server_name  localhost;  #接收的域名
+
+        location / { 
+            root   html; #根目录指向html目录 
+            index  index.html index.htm; #域名/index 指向 index.html index.htm文件
+        }
+
+        error_page   500 502 503 504  /50x.html; # 服务器错误码为500 502 503 504，转到"域名/50x.html"
+        location = /50x.html {# 指定到html文件夹下找/50x.htm
+            root   html;
+        }
+    }
+}
+</code></pre> 
+<h4><a id="server_name_91"></a>server_name：匹配规则</h4> 
+<ul><li>在配置server时：root后路径不以/开头是相对路径,从nginx根目录开始；以/开头是绝对路径, 从linux根开始</li><li>书写配置文件server时，如果前面匹配了就不会去匹配后面了，如果都不匹配则会去第一个server</li><li>一个server中可以书写多个域名，用空格隔开</li><li>使用通配符：*.linsy.work</li><li>正则表达式：`^www.linsy.work$</li><li></ul> 
+<p>打开sendfile，用户请求的数据不再加载到nginx内存，而是直接发送<br> <img src="https://images2.imgbox.com/04/91/3Dy2U5K1_o.png" alt="在这里插入图片描述"><br> 不打开sendfile<br> <img src="https://images2.imgbox.com/3b/91/Sv8VRLnW_o.png" alt="在这里插入图片描述"></p> 
+<h2><a id="_109"></a>正/反向代理</h2> 
+<p><strong>正向代理服务器看不到真正的客户端，反向代理客户端看不到真正的业务服务器</strong></p> 
+<h4><a id="_111"></a>正向代理</h4> 
+<p>如使用梯子访问外络，我们的请求打到代理服务器，代理服务器再将请求打到国外的服务器，响应的数据依次返回至我们的客户端中。国外的服务器看不到真正的客户端。<br> <img src="https://images2.imgbox.com/ab/a7/n6Gh4Gxw_o.png" alt="在这里插入图片描述"></p> 
+<h4><a id="_116"></a>反向代理</h4> 
+<p>不需要你做任何设置，直接访问服务器真实ip或者域名，但是服务器内部会自动根据访问内容进行跳转及内容返回，你不知道它最终访问的是哪些机器。<br> 用户访问资源，请求进互联网 =&gt; 网关 =&gt; nginx服务器 =&gt; 应用服务器<br> 用户的请求不会直接打到应用服务器，与应用服务器不同。nginx作为一个中间商进行数据代理<br> <img src="https://images2.imgbox.com/09/6f/glkgE2mX_o.png" alt="在这里插入图片描述"></p> 
+<h4><a id="_122"></a>内网反向代理</h4> 
+<p>使用proxy_pass:+网址，这里使用了proxy_pass就不用root和index了。</p> 
+<ul><li>这里使用www和不使用www的区别就是不使用会<code>请求重定向，之后就不j经过nginx服务器</code>，这里使用请求转发时部分网站（如百度）会重定向两次至不再通过自己nginx服务器。<br> <img src="https://images2.imgbox.com/15/bd/tv1okGS8_o.png" alt="在这里插入图片描述"><br> 二级域名：<br> *.weibo.com进入nginx被泛解析，反向代理交给Tomcat去数据库中查询 域名前缀信息，然后交给nginx返回用户<br> <img src="https://images2.imgbox.com/4f/f8/eKaYhhZl_o.png" alt="在这里插入图片描述"></li></ul> 
+<h2><a id="_130"></a>负载均衡</h2> 
+<h4><a id="_131"></a>轮询</h4> 
+<p><img src="https://images2.imgbox.com/9f/b0/8SHG7zWv_o.png" alt="在这里插入图片描述"></p> 
+<h4><a id="weight_133"></a>weight（权重）</h4> 
+<p>即按比例分发请求，如下16次请求分10次132，分4次133，分2次134，大约是按照这个比例。<br> <img src="https://images2.imgbox.com/30/15/2dOYKAid_o.png" alt="在这里插入图片描述"></p> 
+<h4><a id="down_136"></a>down</h4> 
+<p>表示当前主机不参与负载均衡，只剩133和134启用。<br> <img src="https://images2.imgbox.com/eb/86/lu0h4dvX_o.png" alt="在这里插入图片描述"></p> 
+<h4><a id="backup_139"></a>backup</h4> 
+<p><strong>备用服务器</strong>，正常情况下不会启用，只有当133宕机才会启用<br> <img src="https://images2.imgbox.com/20/1e/JRLUJUhA_o.png" alt="在这里插入图片描述"></p> 
+<h4><a id="_143"></a>保持会话的负载均衡（不常用）</h4> 
+<p><code>生产上使用redis做session共享</code><br> 都存在问题：无法动态更改：如下线一台服务器，上线两台服务器</p> 
+<p>场景：登录操作，客户端保存cookie，服务端保存session，若使用轮询或其它下一次请求打到另一台服务器，而找不到session。</p> 
+<h6><a id="ip_hash_149"></a><strong>ip_hash</strong></h6> 
+<p>当请求地址为同一个时将打到同一台服务器，不常用原因：如坐车使用手机，网络基站会切换导致切换到另一台服务器。</p> 
+<h6><a id="least_conn_152"></a><strong>least_conn</strong></h6> 
+<p>最少连接数访问，不常用原因：1、由于权重造成的流量倾斜（性能好的流量多），不能违背初始设定，2、加入一台新的服务器，会使整体reload配置，造成服务短时间中断（停掉原来的工作进程，启动新的工作进程），重新启动可能会耗费较长时间。场景：用户请求打到服务器，服务器reload，保持和会话，2分钟后成功启动然后将响应返回给用户。</p> 
+<p>解决方式：异步，使用中间件处理慢服务。</p> 
+<h6><a id="url_hash_157"></a><strong>url_hash</strong></h6> 
+<p>根据用户访问的url定向转发请求，不常用原因：如用户注册，网址：http://www.baidu.com/register，解析这个网址拿到对应的hash值去访问一台服务器，注册结束登录（本应该访问同一台服务器通过session免登录），网址：http://www.baidu.com/login ，在次解析网址对应的hash值与之前不同，可能造成访问的服务器不同，而无法实现免登录。</p> 
+<p>适用于固定资源不在同一服务器。</p> 
+<h6><a id="fair_162"></a><strong>fair</strong></h6> 
+<p>根据后端服务器访问时间转发请求，不常用原因：如其中一台服务器由于交换机过热造成网络延迟瞬时比较高，请求倾斜到其它服务器，由于负载较高可能会被压垮。</p> 
+<h2><a id="_167"></a>动静分离</h2> 
+<p>适用于中小型网站，因并发量不是特别高，且分离出来的资源也不是很多。<br> <img src="https://images2.imgbox.com/fe/2e/e38y8bV9_o.png" alt="在这里插入图片描述"></p> 
+<p>将一些静态资源放在nginx里（图片，css，js），使得动态请求仍然通过nginx访问服务器，而静态请求直接打到nginx就能拿到。</p> 
+<p>第一种方式：将资源放到nginx目录下，在location中书写资源地址，注意带有字符的斜杠放在单斜杠的后面。 因为 \ 的优先级低于 js\ ，就是带有字符的反斜杠优先级更高，如果放在前面则，但斜杠不会被解析。<br> <img src="https://images2.imgbox.com/d6/81/L8qMHw3Z_o.png" alt="在这里插入图片描述"></p> 
+<p>第二种方式：正则表达式</p> 
+<pre><code>location ~*/(js/img/css) { 
+	root html;
+	index  index.html index.htm;
+}
+</code></pre> 
+<h2><a id="URLRewrite_186"></a>URLRewrite</h2> 
+<pre><code class="prism language-1">rewrite是URL重写的关键指令，根据regex（正则表达式）部分内容，重定向到replacement，结尾是flag标记。
+
+rewrite    &lt;regex&gt;   &lt;replacement&gt;  [flag];
+关键字		正则			替代后内容     flagt标记
+
+正则：per1内容正则表达式语句进行规则匹配
+替代后内容（即真实转发内容）：将正则匹配的内容替换成replacement
+
+flag标记说明：
+last  #本条规则匹配完成后，继续向下匹配新的1ocation URI规则
+break #本条规则匹配完成即终止，不再匹配后面的任何规则
+
+redirect #返回302临重定向，游览器地址会显示跳转后的URL地址
+permanent #返回301永久重定向，测览器地址栏会显示跳转后的URL地址
+</code></pre> 
+<p>浏览器地址栏访问 xxx/123.html实际上是访问xxx/index.jsp?pageNum=123</p> 
+<pre><code class="prism language-js">server <span class="token punctuation">{<!-- --></span>
+        listen       <span class="token number">80</span><span class="token punctuation">;</span>
+        server_name  localhost<span class="token punctuation">;</span>
+				
+				location <span class="token operator">/</span> <span class="token punctuation">{<!-- --></span> 
+						rewrite <span class="token operator">^</span><span class="token operator">/</span><span class="token punctuation">(</span><span class="token punctuation">[</span><span class="token number">0</span><span class="token operator">-</span><span class="token number">9</span><span class="token punctuation">]</span><span class="token operator">+</span><span class="token punctuation">)</span><span class="token punctuation">.</span>html$ <span class="token operator">/</span>index<span class="token punctuation">.</span>jsp<span class="token operator">?</span>pageNum<span class="token operator">=</span>$1  <span class="token keyword">break</span><span class="token punctuation">;</span>
+        		proxy_pass http<span class="token operator">:</span><span class="token operator">/</span><span class="token operator">/</span>xxx<span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+      
+
+        error_page   <span class="token number">500</span> <span class="token number">502</span> <span class="token number">503</span> <span class="token number">504</span>  <span class="token operator">/</span>50x<span class="token punctuation">.</span>html<span class="token punctuation">;</span>
+        location <span class="token operator">=</span> <span class="token operator">/</span>50x<span class="token punctuation">.</span>html <span class="token punctuation">{<!-- --></span>
+            root   html<span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<h2><a id="_226"></a>网关</h2> 
+<p><img src="https://images2.imgbox.com/33/bf/cTkZPEj1_o.png" alt="在这里插入图片描述"><br> 应用服务器不能直接被外网访问，只能被nginx服务器访问。nginx作为网关服务器转发请求与响应</p> 
+<p>在服务器的防火墙上添加规则：</p> 
+<pre><code>这里是设置允许访问服务器的ip地址
+firewall-cmd --permanent --add-rich-rule="rule family="ipv4" source address="192.168.52.129" port protocol="tcp" port="80" accept"
+
+移除允许访问服务器的IP地址
+firewall-cmd --permanent --remove-rich-rule="rule family="ipv4" source address="192.168.52.129" port port="80" protocol="tcp" accept"
+</code></pre> 
+<p>firewall-cmd --reload 重加载规则</p> 
+<p>查看已开启规则：firewall-cmd --list-all</p> 
+<h2><a id="_245"></a>防盗链</h2> 
+<p>当我们请求得到一个页面后，往往会再次去请求获得一些静态资源。这个时候请求头中就有一个refer的字段，表示当前这个请求的来源，我们可以设定限制请求来源地址以达到节省资源的效果。<br> <img src="https://images2.imgbox.com/97/fa/nYhgsUoA_o.png" alt="在这里插入图片描述"></p> 
+<p><img src="https://images2.imgbox.com/86/fc/1XyoUpk8_o.png" alt="在这里插入图片描述"><br> 生产环境上上面的ip应是域名，上面配置如果检测到没有referer则报403<br> valid_referers none | blocked | server_name 将这行命令放在防盗链资源的location内</p> 
+<p>设置有效的refer值</p> 
+<ul><li>none：检测地址没有referer可以访问，有但是错了不让访问</li><li>blocked：</li><li>server_name：设置一个或多个url，检测请求头中的referer是否来自这些url中的某一个，则有效（server_name必须是完整的http://xxxx）</li></ul> 
+<p><strong>注意：if ($invalid_referer)中if后有个空格，不写就会报错</strong></p> 
+<p>curl 测试<br> <img src="https://images2.imgbox.com/7b/c9/4vHWBqMJ_o.png" alt="在这里插入图片描述"></p> 
+<p>curl -i http://192.168.52.129 查看响应头信息，不加参数 i 可看整个信息</p> 
+<p>curl -e “http://www.baidu.com” -i http://192.168.52.129 带referer引用访问</p> 
+<h2><a id="_273"></a>高可用</h2> 
+<p>生产上只有一个nginx充当网关调用资源服务器，那么当这个nginx服务器宕机了，整个系统也就崩溃了。<br> 解决方法就是添加多台nginx服务器，当其中的一台宕机后启用备用的nginx（多台nginx的ip不一样），但是客户端请求域名的ip地址是不能随意切换的，这里怎么样才能使请求打到备用nginx上呢？加一层又会陷入最开始的问题。</p> 
+<p>采用虚拟ip，映射到nginx上。使用keepalived，keepalived检测其它nginx是否存活，若当前含有虚拟ip的nginx宕机了，就会把虚拟IP交给备用的nginx，若备用nginx宕机了，则会反馈给维护人员，以此来达到nginx的高可用。<br> <img src="https://images2.imgbox.com/a3/80/VEHM2XlL_o.png" alt="在这里插入图片描述"></p> 
+<p>keepalived 是通过检查进程是否存活，然后互相发送信息包<br> yum install -y keepalived</p> 
+<p>修改keepalived配置<br> 配置文件在/etc/keepalived/keepalived.conf<br> vrrp_instance、authentication、virtual_router_id、virtual_ipaddress这几个一样的机器，才算是同一个组里。这个组才会选出一个作为Master机器<br> 这里我们设置两台机器，分别下载好keepalived，然后进行配置</p> 
+<pre><code class="prism language-2">! Configuration File for keepalived
+
+global_defs {
+   router_id lb1 # 名字与其他配置了keepalive的机器不重复就行
+}
+
+vrrp_instance heyingjie {#vrrp实例名可以随意取
+    state MASTER #只能有一个默认的Master，其他写BACKUP
+    interface ens33 # ip addr查看下网卡名，默认时ens33
+    virtual_router_id 51
+    priority 100 # 多台安装了keepalived的机器竞争成为Master的优先级
+    advert_int 1 #通信时间
+    authentication {
+        auth_type PASS
+        auth_pass 1111
+    }
+    virtual_ipaddress {
+        192.168.200.16 #虚拟IP
+    }
+}
+</code></pre> 
+<pre><code class="prism language-1">! Configuration File for keepalived
+
+global_defs {
+   router_id lb2 
+}
+
+vrrp_instance heyingjie {
+    state BACKUP #只能有一个默认的Master，其他写BACKUP
+    interface ens33 
+    virtual_router_id 51
+    priority 50
+    advert_int 1 
+    authentication {
+        auth_type PASS
+        auth_pass 1111
+    }
+    virtual_ipaddress {
+        192.168.200.16 #虚拟IP
+    }
+}
+</code></pre> 
+<h2><a id="_334"></a>不安全的协议、证书配置</h2> 
+<p>https是先非对称加密，由服务器给用户发公钥，然后用户确定服务器是正常后，再对称加密，将消息加密发送（因为对称加密消耗低）</p> 
+<h4><a id="_337"></a>对称加密不安全：</h4> 
+<p><img src="https://images2.imgbox.com/a2/7c/h8945Xhs_o.png" alt="在这里插入图片描述"></p> 
+<h4><a id="_340"></a>非对称加密：</h4> 
+<ol><li>公钥加密，私钥解密</li><li>私钥加密，公钥解密</li><li>公钥加密，公钥解不开</li><li>要保证私钥的安全性，不在互联网传输<br> <img src="https://images2.imgbox.com/91/1e/Wbj7oRTQ_o.png" alt="在这里插入图片描述"></li></ol> 
+<p>也是不安全的：<br> 消息经路由在传输过程中，若被拦截，其中某一个路由下发假的公钥给客户端，自己得到真正的服务器公钥。经假公钥信息在传输到这个路由时被被假私钥解码并响应假的数据可客户端，而这个路由拿着假公钥解密的真实信息去请求服务器从而盗取信息。<br> <img src="https://images2.imgbox.com/b1/1e/vXQ8Okcv_o.png" alt="在这里插入图片描述"></p> 
+<h4><a id="HTTPSCA_352"></a>HTTPS（CA机构）</h4> 
+<p>服务器将生成的公钥提交给CA机构进行公钥认证，然后生成证书。服务器端响应数据时携带证书，操作系统内嵌CA公钥，当操作系统利用CA公钥能解开证书说明信息没有被篡改过（证书在传递过程中能够被解开，但是由于CA私钥是不会公开的，所以不能再次对证书进行正确的加密 ），客户端解密证书后拿到服务器公钥然后对信息进行加密传输（当然这个公钥其它人也能得到，但是他用服务器公钥解不开公钥加密的信息），因此保证了数据的安全性。<br> <img src="https://images2.imgbox.com/f2/c3/HEHFwv6g_o.png" alt="在这里插入图片描述"></p> 
+<h4><a id="nginx_356"></a>nginx证书引入</h4> 
+<p>下载证书，解压压缩包，可以看到两个文件，一个是 xxx.key（私钥）和xxx.pem（证书），将这两个文件上传到nginx.conf所在conf目录下，<br> <img src="https://images2.imgbox.com/82/ac/UPX5Ooam_o.png" alt="在这里插入图片描述"><br> 然后配置nginx.conf文件，添加server</p> 
+<pre><code class="prism language-1">server {
+	listen 443 ss1; #配置端口协议
+	server_name localhost; #配置域名
+	ss1 certificate  xxx.pem; #这里是证书路径
+	ss1_ certificate_key  xxx.key  #这里是私钥路径
+}
+</code></pre>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/117e9f0954591b1538a6d790083e304d/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">Vue中的key有什么作用？</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/76d803162d33842c2850aba8382f94ad/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">Android Studio Connect to repo.maven.apache.org:443 failed: Connection time</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

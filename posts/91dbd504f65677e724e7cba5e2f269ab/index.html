@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>python batchnorm2d_PyTorch 卷积与BatchNorm的融合 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/91dbd504f65677e724e7cba5e2f269ab/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="python batchnorm2d_PyTorch 卷积与BatchNorm的融合">
+  <meta property="og:description" content="2020-05-27 更新PyTorch已经官方支持了合并操作：Captain Jack：MergeBN &amp;amp;&amp;amp; Quantization PyTorch 官方解决方案​zhuanlan.zhihu.com
+2. 有用户爸爸/妈妈(我是讲女权的)在用我的这套代码的时候出现了各种错误，如果还是打算用这套，我将最新版同步到了github上，后面也会不定期同步：https://github.com/qinjian623/pytorch_toys/blob/master/post_quant/fusion.py​github.com
+原文：2018-11-11(本文最后一次更新的时间，神tm的日子...)
+融合Conv和BatchNorm是个很基本的优化提速方法，很多框架应该都提供了功能。自己因为一个Weekend Project的需求，需要在PyTorch的Python里直接这个事情给做了。
+这个融合优化属于经济上净赚的事情，精度理论上无损(实际上有损，但是很小，既然都提速了，八成要弄量化，这个精度掉的更夸张)，速度有大幅度提升，尤其是BN层接的特别多的情况。
+融合原理
+卷积的工作：
+BN的工作：
+带入的话可以推出来，融合后的新卷积：
+新的卷积就直接顺路完成BN的工作。
+测试结果：
+在我的笔记本上的测试，CPU版本应该是同步的吧，否则这个结果也是不靠谱的，当然这个结果也不是严肃结果，没平均，没热机。不过能定性说明问题就OK，单位是秒。
+import torch
+import torch.nn as nn
+import torchvision as tv
+class DummyModule(nn.Module):
+def __init__(self):
+super(DummyModule, self).__init__()
+def forward(self, x):
+# print(&#34;Dummy, Dummy.&#34;)
+return x
+def fuse(conv, bn):
+w = conv.weight
+mean = bn.running_mean
+var_sqrt = torch.sqrt(bn.running_var &#43; bn.eps)
+beta = bn.weight
+gamma = bn.bias
+if conv.bias is not None:">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2020-12-08T19:36:04+08:00">
+    <meta property="article:modified_time" content="2020-12-08T19:36:04+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">python batchnorm2d_PyTorch 卷积与BatchNorm的融合</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <div style="font-size:16px;"> 
+ <p align="center">2020-05-27 更新PyTorch已经官方支持了合并操作：Captain Jack：MergeBN &amp;&amp; Quantization PyTorch 官方解决方案​zhuanlan.zhihu.com<img src="" alt=""></p> 
+ <p>2. 有用户爸爸/妈妈(我是讲女权的)在用我的这套代码的时候出现了各种错误，如果还是打算用这套，我将最新版同步到了github上，后面也会不定期同步：https://github.com/qinjian623/pytorch_toys/blob/master/post_quant/fusion.py​github.com</p> 
+ <p>原文：2018-11-11(本文最后一次更新的时间，神tm的日子...)</p> 
+ <p>融合Conv和BatchNorm是个很基本的优化提速方法，很多框架应该都提供了功能。自己因为一个Weekend Project的需求，需要在PyTorch的Python里直接这个事情给做了。</p> 
+ <p>这个融合优化属于经济上净赚的事情，精度理论上无损(实际上有损，但是很小，既然都提速了，八成要弄量化，这个精度掉的更夸张)，速度有大幅度提升，尤其是BN层接的特别多的情况。</p> 
+ <p>融合原理</p> 
+ <p>卷积的工作：</p> 
+ <p align="center"><img src="" alt=""></p> 
+ <p>BN的工作：</p> 
+ <p align="center"><img src="" alt=""></p> 
+ <p>带入的话可以推出来，融合后的新卷积：</p> 
+ <p align="center"><img src="" alt=""></p> 
+ <p align="center"><img src="" alt=""></p> 
+ <p>新的卷积就直接顺路完成BN的工作。</p> 
+ <p>测试结果：</p> 
+ <p align="center">在我的笔记本上的测试，CPU版本应该是同步的吧，否则这个结果也是不靠谱的，当然这个结果也不是严肃结果，没平均，没热机。不过能定性说明问题就OK，单位是秒。<img src="" alt=""></p> 
+ <p>import torch</p> 
+ <p>import torch.nn as nn</p> 
+ <p>import torchvision as tv</p> 
+ <p>class DummyModule(nn.Module):</p> 
+ <p>def __init__(self):</p> 
+ <p>super(DummyModule, self).__init__()</p> 
+ <p>def forward(self, x):</p> 
+ <p># print("Dummy, Dummy.")</p> 
+ <p>return x</p> 
+ <p>def fuse(conv, bn):</p> 
+ <p>w = conv.weight</p> 
+ <p>mean = bn.running_mean</p> 
+ <p>var_sqrt = torch.sqrt(bn.running_var + bn.eps)</p> 
+ <p>beta = bn.weight</p> 
+ <p>gamma = bn.bias</p> 
+ <p>if conv.bias is not None:</p> 
+ <p>b = conv.bias</p> 
+ <p>else:</p> 
+ <p>b = mean.new_zeros(mean.shape)</p> 
+ <p>w = w * (beta / var_sqrt).reshape([conv.out_channels, 1, 1, 1])</p> 
+ <p>b = (b - mean)/var_sqrt * beta + gamma</p> 
+ <p>fused_conv = nn.Conv2d(conv.in_channels,</p> 
+ <p>conv.out_channels,</p> 
+ <p>conv.kernel_size,</p> 
+ <p>conv.stride,</p> 
+ <p>conv.padding,</p> 
+ <p>bias=True)</p> 
+ <p>fused_conv.weight = nn.Parameter(w)</p> 
+ <p>fused_conv.bias = nn.Parameter(b)</p> 
+ <p>return fused_conv</p> 
+ <p>def fuse_module(m):</p> 
+ <p>children = list(m.named_children())</p> 
+ <p>c = None</p> 
+ <p>cn = None</p> 
+ <p>for name, child in children:</p> 
+ <p>if isinstance(child, nn.BatchNorm2d):</p> 
+ <p>bc = fuse(c, child)</p> 
+ <p>m._modules[cn] = bc</p> 
+ <p>m._modules[name] = DummyModule()</p> 
+ <p>c = None</p> 
+ <p>elif isinstance(child, nn.Conv2d):</p> 
+ <p>c = child</p> 
+ <p>cn = name</p> 
+ <p>else:</p> 
+ <p>fuse_module(child)</p> 
+ <p>def test_net(m):</p> 
+ <p>p = torch.randn([1, 3, 224, 224])</p> 
+ <p>import time</p> 
+ <p>s = time.time()</p> 
+ <p>o_output = m(p)</p> 
+ <p>print("Original time: ", time.time() - s)</p> 
+ <p>fuse_module(m)</p> 
+ <p>s = time.time()</p> 
+ <p>f_output = m(p)</p> 
+ <p>print("Fused time: ", time.time() - s)</p> 
+ <p>print("Max abs diff: ", (o_output - f_output).abs().max().item())</p> 
+ <p>assert(o_output.argmax() == f_output.argmax())</p> 
+ <p># print(o_output[0][0].item(), f_output[0][0].item())</p> 
+ <p>print("MSE diff: ", nn.MSELoss()(o_output, f_output).item())</p> 
+ <p>def test_layer():</p> 
+ <p>p = torch.randn([1, 3, 112, 112])</p> 
+ <p>conv1 = m.conv1</p> 
+ <p>bn1 = m.bn1</p> 
+ <p>o_output = bn1(conv1(p))</p> 
+ <p>fusion = fuse(conv1, bn1)</p> 
+ <p>f_output = fusion(p)</p> 
+ <p>print(o_output[0][0][0][0].item())</p> 
+ <p>print(f_output[0][0][0][0].item())</p> 
+ <p>print("Max abs diff: ", (o_output - f_output).abs().max().item())</p> 
+ <p>print("MSE diff: ", nn.MSELoss()(o_output, f_output).item())</p> 
+ <p>m = tv.models.resnet152(True)</p> 
+ <p>m.eval()</p> 
+ <p>print("Layer level test: ")</p> 
+ <p>test_layer()</p> 
+ <p>print("============================")</p> 
+ <p>print("Module level test: ")</p> 
+ <p>m = tv.models.resnet18(True)</p> 
+ <p>m.eval()</p> 
+ <p>test_net(m)</p> 
+</div>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/2ea74810ceb14183fa880040f161e748/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">python format函数_如何用format函数保留小数？</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/238839af03b3dd750301048a6b002c70/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">面试三连问：你这个数据量多大？分库分表怎么做？用的哪个组件？</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

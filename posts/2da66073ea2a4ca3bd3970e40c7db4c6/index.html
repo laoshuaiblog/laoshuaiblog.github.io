@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>SpringBoot项目通过触发器调度实现定时任务 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/2da66073ea2a4ca3bd3970e40c7db4c6/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="SpringBoot项目通过触发器调度实现定时任务">
+  <meta property="og:description" content="文章目录 前言一、quartz是什么？二、quartz中核心概念三、集成步骤1.引入依赖2.demo样例a.定义一个任务参数实体类b.定义操作触发器、定时任务接口及实现c.作业实现d.结果截图 四、其他1.QuartzJobBean和Job区别2.注意事项3.作业（Job）和触发器（Trigger）参数解析a.JobDetail 参数解析a.Trigger 参数解析 前言 项目中可能会遇到一些需要定时同步数据的业务场景，比如从多个数据库汇总数据形成结果，可以使用数据自带的定时任务去执行存储过程实现，也可以通过集成quartz来实现，
+一、quartz是什么？ 1、Quartz是一个功能强大且灵活的开源任务调度库，用于在Java应用程序中实现定时任务和作业调度。它允许你根据特定的时间表（比如每天凌晨执行一次，或者每隔一段时间执行一次）来调度任务的执行。Quartz提供了丰富的功能，包括支持CRON表达式、作业持久化、集群环境下的分布式调度、监听器支持等。
+2、通过Quartz，可以创建各种类型的作业，例如简单作业（只需要执行一次）、重复作业（按照指定的时间间隔重复执行）、以及基于CRON表达式的作业（按照指定的时间规则执行）。
+二、quartz中核心概念 1、任务 Job： Job 就是你想要实现的任务类，每一个 Job 必须实现org.quartz.job 接口，且只需实现接口定义的execute() 方法。
+2、触发器 Trigger： Trigger 为你执行任务的触发器，Trigger将会设置3点执行该任务。 Trigger主要包含两种 SimplerTrigger 和 CronTrigger 两种。
+3、调度器 Scheduler： Scheduler 为任务的调度器，它会将任务 Job 及触发器 Trigger 整合起来，负责基于Trigger 设定的时间来执行 Job。
+三、集成步骤 1.引入依赖 &amp;lt;dependency&amp;gt; &amp;lt;groupId&amp;gt;org.springframework.boot&amp;lt;/groupId&amp;gt; &amp;lt;artifactId&amp;gt;spring-boot-starter-quartz&amp;lt;/artifactId&amp;gt; &amp;lt;version&amp;gt;2.6.13&amp;lt;/version&amp;gt; &amp;lt;/dependency&amp;gt; 2.demo样例 a.定义一个任务参数实体类 @Data public class QuartzJobInfo { private String type; private Map&amp;lt;String, Object&amp;gt; params; private String jobName; private String cronj; private String orderId; } b.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2024-03-20T16:59:07+08:00">
+    <meta property="article:modified_time" content="2024-03-20T16:59:07+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">SpringBoot项目通过触发器调度实现定时任务</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-light">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <p></p> 
+<div class="toc"> 
+ <h4>文章目录</h4> 
+ <ul><li><a href="#_7" rel="nofollow">前言</a></li><li><a href="#quartz_13" rel="nofollow">一、quartz是什么？</a></li><li><a href="#quartz_18" rel="nofollow">二、quartz中核心概念</a></li><li><a href="#_24" rel="nofollow">三、集成步骤</a></li><li><ul><li><a href="#1_25" rel="nofollow">1.引入依赖</a></li><li><a href="#2demo_34" rel="nofollow">2.demo样例</a></li><li><ul><li><a href="#a_36" rel="nofollow">a.定义一个任务参数实体类</a></li><li><a href="#b_53" rel="nofollow">b.定义操作触发器、定时任务接口及实现</a></li><li><a href="#c_289" rel="nofollow">c.作业实现</a></li><li><a href="#d_337" rel="nofollow">d.结果截图</a></li></ul> 
+  </li></ul> 
+  </li><li><a href="#_342" rel="nofollow">四、其他</a></li><li><ul><li><ul><li><a href="#1QuartzJobBeanJob_344" rel="nofollow">1.QuartzJobBean和Job区别</a></li><li><a href="#2_353" rel="nofollow">2.注意事项</a></li><li><a href="#3JobTrigger_356" rel="nofollow">3.作业（Job）和触发器（Trigger）参数解析</a></li><li><ul><li><a href="#aJobDetail__357" rel="nofollow">a.JobDetail 参数解析</a></li><li><a href="#aTrigger__368" rel="nofollow">a.Trigger 参数解析</a></li></ul> 
+   </li></ul> 
+  </li></ul> 
+ </li></ul> 
+</div> 
+<p></p> 
+<hr> 
+<h2><a id="_7"></a>前言</h2> 
+<p>项目中可能会遇到一些需要定时同步数据的业务场景，比如从多个数据库汇总数据形成结果，可以使用数据自带的定时任务去执行存储过程实现，也可以通过集成quartz来实现，</p> 
+<hr> 
+<h2><a id="quartz_13"></a>一、quartz是什么？</h2> 
+<p>1、Quartz是一个功能强大且灵活的开源任务调度库，用于在Java应用程序中实现定时任务和作业调度。它允许你根据特定的时间表（比如每天凌晨执行一次，或者每隔一段时间执行一次）来调度任务的执行。Quartz提供了丰富的功能，包括支持CRON表达式、作业持久化、集群环境下的分布式调度、监听器支持等。<br> 2、通过Quartz，可以创建各种类型的作业，例如简单作业（只需要执行一次）、重复作业（按照指定的时间间隔重复执行）、以及基于CRON表达式的作业（按照指定的时间规则执行）。</p> 
+<h2><a id="quartz_18"></a>二、quartz中核心概念</h2> 
+<p>1、任务 Job： Job 就是你想要实现的任务类，每一个 Job 必须实现org.quartz.job 接口，且只需实现接口定义的execute() 方法。<br> 2、触发器 Trigger： Trigger 为你执行任务的触发器，Trigger将会设置3点执行该任务。 Trigger主要包含两种 SimplerTrigger 和 CronTrigger 两种。<br> 3、调度器 Scheduler： Scheduler 为任务的调度器，它会将任务 Job 及触发器 Trigger 整合起来，负责基于Trigger 设定的时间来执行 Job。</p> 
+<h2><a id="_24"></a>三、集成步骤</h2> 
+<h3><a id="1_25"></a>1.引入依赖</h3> 
+<pre><code class="prism language-xml">   <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>dependency</span><span class="token punctuation">&gt;</span></span>
+       <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>groupId</span><span class="token punctuation">&gt;</span></span>org.springframework.boot<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>groupId</span><span class="token punctuation">&gt;</span></span>
+       <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>artifactId</span><span class="token punctuation">&gt;</span></span>spring-boot-starter-quartz<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>artifactId</span><span class="token punctuation">&gt;</span></span>
+        <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>version</span><span class="token punctuation">&gt;</span></span>2.6.13<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>version</span><span class="token punctuation">&gt;</span></span>
+   <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>dependency</span><span class="token punctuation">&gt;</span></span>
+</code></pre> 
+<h3><a id="2demo_34"></a>2.demo样例</h3> 
+<h4><a id="a_36"></a>a.定义一个任务参数实体类</h4> 
+<pre><code class="prism language-java"><span class="token annotation punctuation">@Data</span>
+<span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">QuartzJobInfo</span> <span class="token punctuation">{<!-- --></span>
+
+    <span class="token keyword">private</span> <span class="token class-name">String</span> type<span class="token punctuation">;</span>
+
+    <span class="token keyword">private</span> <span class="token class-name">Map</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">String</span><span class="token punctuation">,</span> <span class="token class-name">Object</span><span class="token punctuation">&gt;</span></span> params<span class="token punctuation">;</span>
+
+    <span class="token keyword">private</span> <span class="token class-name">String</span> jobName<span class="token punctuation">;</span>
+
+    <span class="token keyword">private</span> <span class="token class-name">String</span> cronj<span class="token punctuation">;</span>
+
+    <span class="token keyword">private</span> <span class="token class-name">String</span> orderId<span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<h4><a id="b_53"></a>b.定义操作触发器、定时任务接口及实现</h4> 
+<ol><li>接口类</li></ol> 
+<pre><code class="prism language-java"><span class="token keyword">public</span> <span class="token keyword">interface</span> <span class="token class-name">IQuartzService</span> <span class="token punctuation">{<!-- --></span>
+
+    <span class="token comment">//1.添加定时任务</span>
+    <span class="token keyword">void</span> <span class="token function">addTrigger</span><span class="token punctuation">(</span><span class="token class-name">QuartzJobInfo</span> jobInfo<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token comment">//2.移除定时任务id</span>
+    <span class="token keyword">void</span> <span class="token function">delTrigger</span><span class="token punctuation">(</span><span class="token class-name">Long</span> id<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+</code></pre> 
+<ol start="2"><li>接口实现类</li></ol> 
+<pre><code class="prism language-java"><span class="token annotation punctuation">@Service</span>
+<span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">QuartzServiceImpl</span> <span class="token keyword">implements</span> <span class="token class-name">IQuartzService</span> <span class="token punctuation">{<!-- --></span>
+
+    <span class="token annotation punctuation">@Autowired</span>
+    <span class="token keyword">private</span> <span class="token class-name">SchedulerFactoryBean</span> factoryBean<span class="token punctuation">;</span>
+
+    <span class="token annotation punctuation">@Override</span>
+    <span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">addTrigger</span><span class="token punctuation">(</span><span class="token class-name">QuartzJobInfo</span> jobInfo<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token comment">//jobInfo转换为json</span>
+        <span class="token class-name">String</span> info <span class="token operator">=</span> <span class="token class-name">JSONObject</span><span class="token punctuation">.</span><span class="token function">toJSONString</span><span class="token punctuation">(</span>jobInfo<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token comment">//获取调度器</span>
+        <span class="token class-name">Scheduler</span> scheduler <span class="token operator">=</span> factoryBean<span class="token punctuation">.</span><span class="token function">getScheduler</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token comment">//调用 工具类设置定时任务</span>
+        <span class="token class-name">QuartzUtils</span><span class="token punctuation">.</span><span class="token function">addJob</span><span class="token punctuation">(</span>scheduler<span class="token punctuation">,</span> jobInfo<span class="token punctuation">.</span><span class="token function">getJobName</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token class-name">OrderJob</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">,</span> info<span class="token punctuation">,</span> jobInfo<span class="token punctuation">.</span><span class="token function">getCronj</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token annotation punctuation">@Override</span>
+    <span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">delTrigger</span><span class="token punctuation">(</span><span class="token class-name">Long</span> id<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token comment">//获取Job的名字</span>
+        <span class="token class-name">String</span> jobName <span class="token operator">=</span> <span class="token string">"product_job"</span> <span class="token operator">+</span> id<span class="token punctuation">;</span>
+        <span class="token comment">//获取调度器</span>
+        <span class="token class-name">Scheduler</span> scheduler <span class="token operator">=</span> factoryBean<span class="token punctuation">.</span><span class="token function">getScheduler</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token class-name">QuartzUtils</span><span class="token punctuation">.</span><span class="token function">removeJob</span><span class="token punctuation">(</span>scheduler<span class="token punctuation">,</span> jobName<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+</code></pre> 
+<ol start="3"><li>工具类</li></ol> 
+<pre><code class="prism language-java"><span class="token comment">/**
+ * Quartz调度管理器
+ */</span>
+<span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">QuartzUtils</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">private</span> <span class="token keyword">static</span> <span class="token class-name">String</span> <span class="token constant">JOB_GROUP_NAME</span> <span class="token operator">=</span> <span class="token string">"JOB_GROUP_SYSTEM"</span><span class="token punctuation">;</span>
+    <span class="token keyword">private</span> <span class="token keyword">static</span> <span class="token class-name">String</span> <span class="token constant">TRIGGER_GROUP_NAME</span> <span class="token operator">=</span> <span class="token string">"TRIGGER_GROUP_SYSTEM"</span><span class="token punctuation">;</span>
+
+    <span class="token comment">/**
+     * @param sched   调度器
+     * @param jobName 任务名
+     * @param cls     任务
+     * @param params  任务参数
+     * @param time    时间设置，参考quartz说明文档
+     * @Description: 添加一个定时任务，使用默认的任务组名，触发器名，触发器组名
+     * @Title: QuartzManager.java
+     */</span>
+    <span class="token keyword">public</span> <span class="token keyword">static</span> <span class="token keyword">void</span> <span class="token function">addJob</span><span class="token punctuation">(</span><span class="token class-name">Scheduler</span> sched<span class="token punctuation">,</span> <span class="token class-name">String</span> jobName<span class="token punctuation">,</span> <span class="token annotation punctuation">@SuppressWarnings</span><span class="token punctuation">(</span><span class="token string">"rawtypes"</span><span class="token punctuation">)</span> <span class="token class-name">Class</span> cls<span class="token punctuation">,</span> <span class="token class-name">Object</span> params<span class="token punctuation">,</span>
+                              <span class="token class-name">String</span> time<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">try</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token class-name">JobKey</span> jobKey <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">JobKey</span><span class="token punctuation">(</span>jobName<span class="token punctuation">,</span> <span class="token constant">JOB_GROUP_NAME</span><span class="token punctuation">)</span><span class="token punctuation">;</span><span class="token comment">// 任务名，任务组，任务执行类</span>
+            <span class="token annotation punctuation">@SuppressWarnings</span><span class="token punctuation">(</span><span class="token string">"unchecked"</span><span class="token punctuation">)</span>
+
+            <span class="token class-name">JobDataMap</span> jobDataMap <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">JobDataMap</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            jobDataMap<span class="token punctuation">.</span><span class="token function">put</span><span class="token punctuation">(</span><span class="token string">"params"</span><span class="token punctuation">,</span> params<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token class-name">JobDetail</span> jobDetail <span class="token operator">=</span> <span class="token function">newJob</span><span class="token punctuation">(</span>cls<span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">withIdentity</span><span class="token punctuation">(</span>jobKey<span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">setJobData</span><span class="token punctuation">(</span>jobDataMap<span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">build</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token class-name">TriggerKey</span> triggerKey <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">TriggerKey</span><span class="token punctuation">(</span>jobName<span class="token punctuation">,</span> <span class="token constant">TRIGGER_GROUP_NAME</span><span class="token punctuation">)</span><span class="token punctuation">;</span><span class="token comment">// 触发器</span>
+            <span class="token class-name">System</span><span class="token punctuation">.</span>out<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span>time<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token class-name">Trigger</span> trigger <span class="token operator">=</span> <span class="token function">newTrigger</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">withIdentity</span><span class="token punctuation">(</span>triggerKey<span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">withSchedule</span><span class="token punctuation">(</span><span class="token function">cronSchedule</span><span class="token punctuation">(</span>time<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">build</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span><span class="token comment">// 触发器时间设定</span>
+            sched<span class="token punctuation">.</span><span class="token function">scheduleJob</span><span class="token punctuation">(</span>jobDetail<span class="token punctuation">,</span> trigger<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>sched<span class="token punctuation">.</span><span class="token function">isShutdown</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                sched<span class="token punctuation">.</span><span class="token function">start</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span><span class="token comment">// 启动</span>
+            <span class="token punctuation">}</span>
+        <span class="token punctuation">}</span> <span class="token keyword">catch</span> <span class="token punctuation">(</span><span class="token class-name">Exception</span> e<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token keyword">throw</span> <span class="token keyword">new</span> <span class="token class-name">RuntimeException</span><span class="token punctuation">(</span>e<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token comment">/**
+     * @param sched            调度器
+     * @param jobName          任务名
+     * @param jobGroupName     任务组名
+     * @param triggerName      触发器名
+     * @param triggerGroupName 触发器组名
+     * @param jobClass         任务
+     * @param params           任务参数
+     * @param time             时间设置，参考quartz说明文档
+     * @Description: 添加一个定时任务
+     * @Title: QuartzManager.java
+     */</span>
+    <span class="token keyword">public</span> <span class="token keyword">static</span> <span class="token keyword">void</span> <span class="token function">addJob</span><span class="token punctuation">(</span><span class="token class-name">Scheduler</span> sched<span class="token punctuation">,</span> <span class="token class-name">String</span> jobName<span class="token punctuation">,</span> <span class="token class-name">String</span> jobGroupName<span class="token punctuation">,</span> <span class="token class-name">String</span> triggerName<span class="token punctuation">,</span>
+                              <span class="token class-name">String</span> triggerGroupName<span class="token punctuation">,</span> <span class="token annotation punctuation">@SuppressWarnings</span><span class="token punctuation">(</span><span class="token string">"rawtypes"</span><span class="token punctuation">)</span> <span class="token class-name">Class</span> jobClass<span class="token punctuation">,</span> <span class="token class-name">Object</span> params<span class="token punctuation">,</span> <span class="token class-name">String</span> time<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">try</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token class-name">JobKey</span> jobKey <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">JobKey</span><span class="token punctuation">(</span>jobName<span class="token punctuation">,</span> jobGroupName<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token class-name">JobDataMap</span> jobDataMap <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">JobDataMap</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            jobDataMap<span class="token punctuation">.</span><span class="token function">put</span><span class="token punctuation">(</span><span class="token string">"params"</span><span class="token punctuation">,</span> params<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token annotation punctuation">@SuppressWarnings</span><span class="token punctuation">(</span><span class="token string">"unchecked"</span><span class="token punctuation">)</span>
+            <span class="token class-name">JobDetail</span> jobDetail <span class="token operator">=</span> <span class="token function">newJob</span><span class="token punctuation">(</span>jobClass<span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">withIdentity</span><span class="token punctuation">(</span>jobKey<span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">setJobData</span><span class="token punctuation">(</span>jobDataMap<span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">build</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token comment">// 触发器</span>
+            <span class="token class-name">TriggerKey</span> triggerKey <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">TriggerKey</span><span class="token punctuation">(</span>triggerName<span class="token punctuation">,</span> triggerGroupName<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token class-name">Trigger</span> trigger <span class="token operator">=</span> <span class="token function">newTrigger</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">withIdentity</span><span class="token punctuation">(</span>triggerKey<span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">withSchedule</span><span class="token punctuation">(</span><span class="token function">cronSchedule</span><span class="token punctuation">(</span>time<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">build</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            sched<span class="token punctuation">.</span><span class="token function">scheduleJob</span><span class="token punctuation">(</span>jobDetail<span class="token punctuation">,</span> trigger<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span> <span class="token keyword">catch</span> <span class="token punctuation">(</span><span class="token class-name">Exception</span> e<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token keyword">throw</span> <span class="token keyword">new</span> <span class="token class-name">RuntimeException</span><span class="token punctuation">(</span>e<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token comment">/**
+     * @param sched   调度器
+     * @param jobName
+     * @param time
+     * @Description: 修改一个任务的触发时间(使用默认的任务组名 ， 触发器名 ， 触发器组名)
+     * @Title: QuartzManager.java
+     */</span>
+    <span class="token annotation punctuation">@SuppressWarnings</span><span class="token punctuation">(</span><span class="token string">"rawtypes"</span><span class="token punctuation">)</span>
+    <span class="token keyword">public</span> <span class="token keyword">static</span> <span class="token keyword">void</span> <span class="token function">modifyJobTime</span><span class="token punctuation">(</span><span class="token class-name">Scheduler</span> sched<span class="token punctuation">,</span> <span class="token class-name">String</span> jobName<span class="token punctuation">,</span> <span class="token class-name">String</span> time<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">try</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token class-name">TriggerKey</span> triggerKey <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">TriggerKey</span><span class="token punctuation">(</span>jobName<span class="token punctuation">,</span> <span class="token constant">TRIGGER_GROUP_NAME</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token class-name">CronTrigger</span> trigger <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token class-name">CronTrigger</span><span class="token punctuation">)</span> sched<span class="token punctuation">.</span><span class="token function">getTrigger</span><span class="token punctuation">(</span>triggerKey<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span>trigger <span class="token operator">==</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                <span class="token keyword">return</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+            <span class="token class-name">String</span> oldTime <span class="token operator">=</span> trigger<span class="token punctuation">.</span><span class="token function">getCronExpression</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>oldTime<span class="token punctuation">.</span><span class="token function">equalsIgnoreCase</span><span class="token punctuation">(</span>time<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                <span class="token class-name">JobKey</span> jobKey <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">JobKey</span><span class="token punctuation">(</span>jobName<span class="token punctuation">,</span> <span class="token constant">JOB_GROUP_NAME</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token class-name">JobDetail</span> jobDetail <span class="token operator">=</span> sched<span class="token punctuation">.</span><span class="token function">getJobDetail</span><span class="token punctuation">(</span>jobKey<span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token class-name">Class</span> objJobClass <span class="token operator">=</span> jobDetail<span class="token punctuation">.</span><span class="token function">getJobClass</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token class-name">Object</span> params <span class="token operator">=</span> jobDetail<span class="token punctuation">.</span><span class="token function">getJobDataMap</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">get</span><span class="token punctuation">(</span><span class="token string">"params"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token function">removeJob</span><span class="token punctuation">(</span>sched<span class="token punctuation">,</span> jobName<span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token class-name">System</span><span class="token punctuation">.</span>out<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"修改任务："</span> <span class="token operator">+</span> jobName<span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token function">addJob</span><span class="token punctuation">(</span>sched<span class="token punctuation">,</span> jobName<span class="token punctuation">,</span> objJobClass<span class="token punctuation">,</span> params<span class="token punctuation">,</span> time<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+        <span class="token punctuation">}</span> <span class="token keyword">catch</span> <span class="token punctuation">(</span><span class="token class-name">Exception</span> e<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token keyword">throw</span> <span class="token keyword">new</span> <span class="token class-name">RuntimeException</span><span class="token punctuation">(</span>e<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token comment">/**
+     * @param sched            调度器 *
+     * @param sched            调度器
+     * @param triggerName
+     * @param triggerGroupName
+     * @param time
+     * @Description: 修改一个任务的触发时间
+     * @Title: QuartzManager.java
+     */</span>
+    <span class="token keyword">public</span> <span class="token keyword">static</span> <span class="token keyword">void</span> <span class="token function">modifyJobTime</span><span class="token punctuation">(</span><span class="token class-name">Scheduler</span> sched<span class="token punctuation">,</span> <span class="token class-name">String</span> triggerName<span class="token punctuation">,</span> <span class="token class-name">String</span> triggerGroupName<span class="token punctuation">,</span> <span class="token class-name">String</span> time<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">try</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token class-name">TriggerKey</span> triggerKey <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">TriggerKey</span><span class="token punctuation">(</span>triggerName<span class="token punctuation">,</span> triggerGroupName<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token class-name">CronTrigger</span> trigger <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token class-name">CronTrigger</span><span class="token punctuation">)</span> sched<span class="token punctuation">.</span><span class="token function">getTrigger</span><span class="token punctuation">(</span>triggerKey<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span>trigger <span class="token operator">==</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                <span class="token keyword">return</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+            <span class="token class-name">String</span> oldTime <span class="token operator">=</span> trigger<span class="token punctuation">.</span><span class="token function">getCronExpression</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>oldTime<span class="token punctuation">.</span><span class="token function">equalsIgnoreCase</span><span class="token punctuation">(</span>time<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                <span class="token comment">// 修改时间</span>
+                trigger<span class="token punctuation">.</span><span class="token function">getTriggerBuilder</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">withSchedule</span><span class="token punctuation">(</span><span class="token function">cronSchedule</span><span class="token punctuation">(</span>time<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token comment">// 重启触发器</span>
+                sched<span class="token punctuation">.</span><span class="token function">resumeTrigger</span><span class="token punctuation">(</span>triggerKey<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+        <span class="token punctuation">}</span> <span class="token keyword">catch</span> <span class="token punctuation">(</span><span class="token class-name">Exception</span> e<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token keyword">throw</span> <span class="token keyword">new</span> <span class="token class-name">RuntimeException</span><span class="token punctuation">(</span>e<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token comment">/**
+     * @param sched   调度器
+     * @param jobName
+     * @Description: 移除一个任务(使用默认的任务组名 ， 触发器名 ， 触发器组名)
+     * @Title: QuartzManager.java
+     */</span>
+    <span class="token keyword">public</span> <span class="token keyword">static</span> <span class="token keyword">void</span> <span class="token function">removeJob</span><span class="token punctuation">(</span><span class="token class-name">Scheduler</span> sched<span class="token punctuation">,</span> <span class="token class-name">String</span> jobName<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">try</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token class-name">TriggerKey</span> triggerKey <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">TriggerKey</span><span class="token punctuation">(</span>jobName<span class="token punctuation">,</span> <span class="token constant">TRIGGER_GROUP_NAME</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            sched<span class="token punctuation">.</span><span class="token function">pauseTrigger</span><span class="token punctuation">(</span>triggerKey<span class="token punctuation">)</span><span class="token punctuation">;</span><span class="token comment">// 停止触发器</span>
+            sched<span class="token punctuation">.</span><span class="token function">unscheduleJob</span><span class="token punctuation">(</span>triggerKey<span class="token punctuation">)</span><span class="token punctuation">;</span><span class="token comment">// 移除触发器</span>
+            <span class="token class-name">JobKey</span> jobKey <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">JobKey</span><span class="token punctuation">(</span>jobName<span class="token punctuation">,</span> <span class="token constant">JOB_GROUP_NAME</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            sched<span class="token punctuation">.</span><span class="token function">deleteJob</span><span class="token punctuation">(</span>jobKey<span class="token punctuation">)</span><span class="token punctuation">;</span><span class="token comment">// 删除任务</span>
+        <span class="token punctuation">}</span> <span class="token keyword">catch</span> <span class="token punctuation">(</span><span class="token class-name">Exception</span> e<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token keyword">throw</span> <span class="token keyword">new</span> <span class="token class-name">RuntimeException</span><span class="token punctuation">(</span>e<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token comment">/**
+     * @param sched            调度器
+     * @param jobName
+     * @param jobGroupName
+     * @param triggerName
+     * @param triggerGroupName
+     * @Description: 移除一个任务
+     * @Title: QuartzManager.java
+     */</span>
+    <span class="token keyword">public</span> <span class="token keyword">static</span> <span class="token keyword">void</span> <span class="token function">removeJob</span><span class="token punctuation">(</span><span class="token class-name">Scheduler</span> sched<span class="token punctuation">,</span> <span class="token class-name">String</span> jobName<span class="token punctuation">,</span> <span class="token class-name">String</span> jobGroupName<span class="token punctuation">,</span> <span class="token class-name">String</span> triggerName<span class="token punctuation">,</span>
+                                 <span class="token class-name">String</span> triggerGroupName<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">try</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token class-name">TriggerKey</span> triggerKey <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">TriggerKey</span><span class="token punctuation">(</span>triggerName<span class="token punctuation">,</span> triggerGroupName<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            sched<span class="token punctuation">.</span><span class="token function">pauseTrigger</span><span class="token punctuation">(</span>triggerKey<span class="token punctuation">)</span><span class="token punctuation">;</span><span class="token comment">// 停止触发器</span>
+            sched<span class="token punctuation">.</span><span class="token function">unscheduleJob</span><span class="token punctuation">(</span>triggerKey<span class="token punctuation">)</span><span class="token punctuation">;</span><span class="token comment">// 移除触发器</span>
+            <span class="token class-name">JobKey</span> jobKey <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">JobKey</span><span class="token punctuation">(</span>jobName<span class="token punctuation">,</span> jobGroupName<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            sched<span class="token punctuation">.</span><span class="token function">deleteJob</span><span class="token punctuation">(</span>jobKey<span class="token punctuation">)</span><span class="token punctuation">;</span><span class="token comment">// 删除任务</span>
+        <span class="token punctuation">}</span> <span class="token keyword">catch</span> <span class="token punctuation">(</span><span class="token class-name">Exception</span> e<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token keyword">throw</span> <span class="token keyword">new</span> <span class="token class-name">RuntimeException</span><span class="token punctuation">(</span>e<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token comment">/**
+     * @param sched 调度器
+     * @Description:启动所有定时任务
+     * @Title: QuartzManager.java
+     */</span>
+    <span class="token keyword">public</span> <span class="token keyword">static</span> <span class="token keyword">void</span> <span class="token function">startJobs</span><span class="token punctuation">(</span><span class="token class-name">Scheduler</span> sched<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">try</span> <span class="token punctuation">{<!-- --></span>
+            sched<span class="token punctuation">.</span><span class="token function">start</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span> <span class="token keyword">catch</span> <span class="token punctuation">(</span><span class="token class-name">Exception</span> e<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token keyword">throw</span> <span class="token keyword">new</span> <span class="token class-name">RuntimeException</span><span class="token punctuation">(</span>e<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token comment">/**
+     * @param sched 调度器
+     * @Description:关闭所有定时任务
+     */</span>
+    <span class="token keyword">public</span> <span class="token keyword">static</span> <span class="token keyword">void</span> <span class="token function">shutdownJobs</span><span class="token punctuation">(</span><span class="token class-name">Scheduler</span> sched<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">try</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>sched<span class="token punctuation">.</span><span class="token function">isShutdown</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                sched<span class="token punctuation">.</span><span class="token function">shutdown</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+        <span class="token punctuation">}</span> <span class="token keyword">catch</span> <span class="token punctuation">(</span><span class="token class-name">Exception</span> e<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token keyword">throw</span> <span class="token keyword">new</span> <span class="token class-name">RuntimeException</span><span class="token punctuation">(</span>e<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<h4><a id="c_289"></a>c.作业实现</h4> 
+<blockquote> 
+ <p>新增作业时，需要继承QuartzJobBean类，实现executeInternal方法。</p> 
+</blockquote> 
+<pre><code class="prism language-java"><span class="token annotation punctuation">@Component</span>
+<span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">OrderJob</span>  <span class="token keyword">extends</span> <span class="token class-name">QuartzJobBean</span> <span class="token keyword">implements</span> <span class="token class-name">CommandLineRunner</span> <span class="token punctuation">{<!-- --></span>
+
+    <span class="token annotation punctuation">@Autowired</span>
+    <span class="token class-name">IQuartzService</span> iQuartzService<span class="token punctuation">;</span>
+
+    <span class="token comment">//遵循规范</span>
+    <span class="token annotation punctuation">@Override</span>
+    <span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">executeInternal</span><span class="token punctuation">(</span><span class="token class-name">JobExecutionContext</span> jobExecutionContext<span class="token punctuation">)</span> <span class="token keyword">throws</span> <span class="token class-name">JobExecutionException</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token class-name">String</span> params <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token class-name">String</span><span class="token punctuation">)</span> jobExecutionContext<span class="token punctuation">.</span><span class="token function">getJobDetail</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">getJobDataMap</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">get</span><span class="token punctuation">(</span><span class="token string">"params"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token class-name">QuartzJobInfo</span> info <span class="token operator">=</span> <span class="token class-name">JSONObject</span><span class="token punctuation">.</span><span class="token function">parseObject</span><span class="token punctuation">(</span>params<span class="token punctuation">,</span> <span class="token class-name">QuartzJobInfo</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token class-name">String</span> type <span class="token operator">=</span> info<span class="token punctuation">.</span><span class="token function">getType</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token class-name">Date</span> now <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">Date</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">switch</span> <span class="token punctuation">(</span>type<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token keyword">case</span> <span class="token class-name">JobTypeConsts</span><span class="token punctuation">.</span><span class="token constant">WAIT_PRODUCT_ORDER_PAY_CANCEL_JOB</span><span class="token operator">:</span>
+                <span class="token comment">//执行逻辑1</span>
+                <span class="token class-name">System</span><span class="token punctuation">.</span>out<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"-----------&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;执行逻辑1,订单ID："</span> <span class="token operator">+</span> info<span class="token punctuation">.</span><span class="token function">getOrderId</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token keyword">break</span><span class="token punctuation">;</span>
+            <span class="token keyword">case</span> <span class="token class-name">JobTypeConsts</span><span class="token punctuation">.</span><span class="token constant">WAIT_USERDEPOSIT_ORDER_PAY_CANCEL_JOB</span><span class="token operator">:</span>
+                <span class="token comment">//执行逻辑2</span>
+                <span class="token class-name">System</span><span class="token punctuation">.</span>out<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"-----------&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;执行逻辑2,订单ID："</span> <span class="token operator">+</span> info<span class="token punctuation">.</span><span class="token function">getOrderId</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token keyword">break</span><span class="token punctuation">;</span>
+            <span class="token keyword">case</span> <span class="token class-name">JobTypeConsts</span><span class="token punctuation">.</span><span class="token constant">WAIT_REFUNDUSERDEPOSIT_ORDER_PAY_CANCEL_JOB</span><span class="token operator">:</span>
+                <span class="token comment">//执行逻辑3</span>
+                <span class="token class-name">System</span><span class="token punctuation">.</span>out<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"-----------&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;执行逻辑3,订单ID："</span> <span class="token operator">+</span> info<span class="token punctuation">.</span><span class="token function">getOrderId</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token keyword">break</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+    <span class="token annotation punctuation">@Override</span>
+    <span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">run</span><span class="token punctuation">(</span><span class="token class-name">String</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span> args<span class="token punctuation">)</span> <span class="token keyword">throws</span> <span class="token class-name">Exception</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token keyword">int</span> i <span class="token operator">=</span> <span class="token number">1</span><span class="token punctuation">;</span> i <span class="token operator">&lt;</span> <span class="token number">4</span><span class="token punctuation">;</span> i<span class="token operator">++</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token class-name">QuartzJobInfo</span> quartzJobInfo <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">QuartzJobInfo</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            quartzJobInfo<span class="token punctuation">.</span><span class="token function">setJobName</span><span class="token punctuation">(</span><span class="token string">"测试定时任务---&gt;&gt;&gt;&gt;."</span> <span class="token operator">+</span> i<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            quartzJobInfo<span class="token punctuation">.</span><span class="token function">setCronj</span><span class="token punctuation">(</span><span class="token string">"0 0/1 * * * ?"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            quartzJobInfo<span class="token punctuation">.</span><span class="token function">setType</span><span class="token punctuation">(</span><span class="token class-name">String</span><span class="token punctuation">.</span><span class="token function">valueOf</span><span class="token punctuation">(</span>i<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            quartzJobInfo<span class="token punctuation">.</span><span class="token function">setOrderId</span><span class="token punctuation">(</span><span class="token class-name">String</span><span class="token punctuation">.</span><span class="token function">valueOf</span><span class="token punctuation">(</span>i<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            iQuartzService<span class="token punctuation">.</span><span class="token function">addTrigger</span><span class="token punctuation">(</span>quartzJobInfo<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<ol><li>实现CommandLineRunner接口的作用是，当项目启动时，会扫描到此接口，执行实现接口中的逻辑；</li><li>执行完run方法，然后根据Quartz 的调度触发机制，在适当的时间执行 execute 方法。</li></ol> 
+<h4><a id="d_337"></a>d.结果截图</h4> 
+<blockquote> 
+ <p>0 0/1 * * * ?代表每分钟执行一次<br> <img src="https://images2.imgbox.com/c6/a2/ACqa8ozm_o.png" alt="在这里插入图片描述"></p> 
+</blockquote> 
+<h2><a id="_342"></a>四、其他</h2> 
+<h4><a id="1QuartzJobBeanJob_344"></a>1.QuartzJobBean和Job区别</h4> 
+<ol><li> <p>继承关系：QuartzJobBean 是一个 Spring 定制的 Quartz 作业类，是 Quartz 提供的 Job 接口的一个实现类。因此，QuartzJobBean 继承自 Spring 的 QuartzJobBean 类和实现了 Quartz 的 Job 接口。</p> </li><li> <p>扩展性：通过继承 QuartzJobBean 类，您可以利用 Spring 框架提供的依赖注入和生命周期管理等功能，更容易地将 Quartz 作业集成到 Spring 应用中。而直接实现 Quartz 的 Job 接口则是一种更传统的方式，不具备 Spring 相关的特性。</p> </li><li> <p>依赖注入：使用 QuartzJobBean 可以方便地利用 Spring 的依赖注入机制，从 Spring 容器中获取其他 Bean，并在作业中使用这些 Bean，例如使用使用@Autowired方式。而直接实现 Job 接口时，无法直接获得 Spring 托管的 Bean，需要手动从 Spring 上下文中获取。</p> </li><li> <p>配置方式：QuartzJobBean 更适合在 Spring 应用中使用，可以通过 Spring 的配置文件或注解的方式来配置和管理定时任务。而直接实现 Job 接口通常需要通过 Quartz 的配置文件或 API 来进行配置。</p> </li></ol> 
+<h4><a id="2_353"></a>2.注意事项</h4> 
+<ol><li>调度作业在在继承QuartzJobBean类后，需要加@Component注解，确保Spring Boot 应用程序能正确扫描到。</li></ol> 
+<h4><a id="3JobTrigger_356"></a>3.作业（Job）和触发器（Trigger）参数解析</h4> 
+<h5><a id="aJobDetail__357"></a>a.JobDetail 参数解析</h5> 
+<ol><li>Job Class（作业类）：指定实现了Job接口的类，该类定义了要执行的作业逻辑。</li><li>Job Name（作业名称）：作业的名称，用于在调度器中标识该作业。</li><li>Job Group（作业组）：作业所属的分组，用于对作业进行分类管理。</li><li>Job Data Map（作业数据）：可以传递一些作业执行时需要的数据，以键值对的形式存储在JobDataMap中。</li></ol> 
+<p>例：</p> 
+<pre><code class="prism language-java"> <span class="token class-name">JobDetail</span> jobDetail <span class="token operator">=</span> <span class="token function">newJob</span><span class="token punctuation">(</span>cls<span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">withIdentity</span><span class="token punctuation">(</span>jobKey<span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">setJobData</span><span class="token punctuation">(</span>jobDataMap<span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">build</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre> 
+<h5><a id="aTrigger__368"></a>a.Trigger 参数解析</h5> 
+<ol><li>Trigger Name（触发器名称）：触发器的名称，用于在调度器中标识该触发器。</li><li>Trigger Group（触发器组）：触发器所属的分组，用于对触发器进行分类管理。</li><li>Trigger Start Time（触发器开始时间）：指定触发器首次触发的时间点。</li><li>Trigger End Time（触发器结束时间）：可选参数，指定触发器的结束时间，超过该时间后触发器不再生效。</li><li>Repeat Interval（重复间隔时间）：指定触发器重复执行的间隔时间。</li></ol> 
+<p>例:</p> 
+<pre><code class="prism language-java"><span class="token comment">//创建触发器的唯一标识 TriggerKey 对象</span>
+ <span class="token class-name">TriggerKey</span> triggerKey <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">TriggerKey</span><span class="token punctuation">(</span>jobName<span class="token punctuation">,</span> <span class="token constant">TRIGGER_GROUP_NAME</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token comment">//withSchedule() 方法用于设置触发器的调度规则</span>
+<span class="token comment">//cronSchedule(time) 表示使用 CRON 表达式来指定触发规则</span>
+<span class="token comment">//time 是一个表示 CRON 表达式的字符串，用于定义触发器的执行时间规则         </span>
+ <span class="token class-name">Trigger</span> trigger <span class="token operator">=</span> <span class="token function">newTrigger</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">withIdentity</span><span class="token punctuation">(</span>triggerKey<span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">withSchedule</span><span class="token punctuation">(</span><span class="token function">cronSchedule</span><span class="token punctuation">(</span>time<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">build</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/0689e526523f58c898d8fcfcb309f04c/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">快速画流程图</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/c2139f43e1e71823487d3e5ccdc73b57/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">Wpf-自定义图标Button</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

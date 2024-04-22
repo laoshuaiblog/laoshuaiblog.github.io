@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>spring boot security 防止用户重复登录（原创） - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/7d528681d134e5570c79c4c888187eb4/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="spring boot security 防止用户重复登录（原创）">
+  <meta property="og:description" content="原理：在认证成功通过后，在显示登录成功页面之前，也就是在SavedRequestAwareAuthenticationSuccessHandler类中操作。
+添加一个集合sessionMap 用于保存认证成功的会话，键名为会话ID，
+每次有用户登录认证通过都要判断一下是否重复登录，如果不是继续执行，将会话保存在集合sessionMap里。
+如果是就踢除之前登录过的用户的会话，将旧的会话从集合sessionMap里删除，还有一步就是将旧的会话从sessionRegistry里删除（不然你如果要获取所有认证通过的用户，还会从sessionRegistry中获取旧用户），然后将自己的新会话保存到集合sessionMap里。（每次认证通过的用户会话都会保存到sessionRegistry里，所以不必自己再写一遍）
+package com.test.handler; import java.io.IOException; import java.util.ArrayList; import java.util.HashMap; import java.util.Iterator; import java.util.List; import java.util.Map; import java.util.Map.Entry; import javax.servlet.ServletException; import javax.servlet.http.HttpServletRequest; import javax.servlet.http.HttpServletResponse; import javax.servlet.http.HttpSession; import org.slf4j.Logger; import org.slf4j.LoggerFactory; import org.springframework.beans.factory.annotation.Autowired; import org.springframework.context.annotation.Bean; import org.springframework.security.core.Authentication; import org.springframework.security.core.context.SecurityContext; import org.springframework.security.core.context.SecurityContextHolder; import org.springframework.security.core.session.SessionRegistry; import org.springframework.security.core.session.SessionRegistryImpl; import org.springframework.security.web.authentication.SavedRequestAwareAuthenticationSuccessHandler; import org.springframework.stereotype.Component; import com.test.domain.SysUser; import com.test.util.SessionUtil; //登录用户认证通过后，显示登录成功页面前，做的操作。 @Component public class MyAuthenctiationSuccessHandler extends SavedRequestAwareAuthenticationSuccessHandler { private static final Logger logger = LoggerFactory.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2018-09-11T11:11:35+08:00">
+    <meta property="article:modified_time" content="2018-09-11T11:11:35+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">spring boot security 防止用户重复登录（原创）</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <p>原理：在认证成功通过后，在显示登录成功页面之前，也就是在SavedRequestAwareAuthenticationSuccessHandler类中操作。</p> 
+<p>添加一个集合sessionMap 用于保存认证成功的会话，键名为会话ID，</p> 
+<p>每次有用户登录认证通过都要判断一下是否重复登录，如果不是继续执行，将会话保存在集合sessionMap里。</p> 
+<p>如果是就踢除之前登录过的用户的会话，将旧的会话从集合sessionMap里删除，还有一步就是将旧的会话从sessionRegistry里删除（不然你如果要获取所有认证通过的用户，还会从sessionRegistry中获取旧用户），然后将自己的新会话保存到集合sessionMap里。（每次认证通过的用户会话都会保存到sessionRegistry里，所以不必自己再写一遍）</p> 
+<p> </p> 
+<pre class="has"><code>package com.test.handler;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+
+import javax.servlet.ServletException;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpSession;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Bean;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.session.SessionRegistry;
+import org.springframework.security.core.session.SessionRegistryImpl;
+import org.springframework.security.web.authentication.SavedRequestAwareAuthenticationSuccessHandler;
+import org.springframework.stereotype.Component;
+
+import com.test.domain.SysUser;
+import com.test.util.SessionUtil;
+
+//登录用户认证通过后，显示登录成功页面前，做的操作。
+@Component
+public class MyAuthenctiationSuccessHandler extends SavedRequestAwareAuthenticationSuccessHandler {
+
+	private static final Logger logger = LoggerFactory.getLogger(MyAuthenctiationSuccessHandler.class);
+
+	// key为sessionId，value为HttpSession，使用static，定义静态变量，使之程序运行时，一直存在内存中。
+	// 保存所有已经登录用户的会话（每个浏览器一个会话）
+	public static HashMap&lt;String, HttpSession&gt; sessionMap = new HashMap&lt;String, HttpSession&gt;();
+
+	@Autowired
+	// @Qualifier("sessionRegistry")
+	private SessionRegistry sessionRegistry;
+
+	// @Bean(name="sessionRegistry",value="sessionRegistry")
+	@Bean
+	// @Bean(name="sessionRegistry")
+	public SessionRegistry getSessionRegistry() {
+		return new SessionRegistryImpl();
+	}
+
+	@Override
+	public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
+			Authentication authentication) throws ServletException, IOException {
+
+		// 1.登录认证成功后，获取用户名
+		//（只能在认证成功通过后，才能获得sc，不然在CustomUserService implements UserDetailsService的loadUserByUsername方法中是第二次才能获取到）
+		SecurityContext sc = SecurityContextHolder.getContext();
+		String currentuser = ((SysUser) sc.getAuthentication().getPrincipal()).getUsername();
+		logger.info("当前登录用户：" + currentuser);
+
+		
+		// 2.先判断用户是否重复登录
+		Iterator&lt;Entry&lt;String, HttpSession&gt;&gt; iterator = sessionMap.entrySet().iterator();
+		while(iterator.hasNext()) {
+			Map.Entry&lt;String, HttpSession&gt; entry = iterator.next();
+			HttpSession session = entry.getValue();
+			// 2.1 判断session中所包含的用户名称是否有当前登录用户
+			String username = SessionUtil.getUserName(session);
+			if (currentuser.equals(username)) {
+				logger.info("用户：" + currentuser + "已经在其它地方登录过，将踢除！");
+				SessionUtil.expireSession(session);
+				logger.info("删除的会话："+entry.getKey());
+				// 2.2 从sessionMap中踢除会话
+				iterator.remove();
+				// 2.3 从sessionRegistry中踢除会话
+				sessionRegistry.removeSessionInformation(session.getId());
+			}
+		}
+		
+		/*//以下这种方法会引起java.util.ConcurrentModificationException: null 错误，    HashMap
+		// 2.先判断用户是否重复登录
+		for (Entry&lt;String, HttpSession&gt; entry : sessionMap.entrySet()) {
+			HttpSession session = entry.getValue();
+			// 2.1 判断session中所包含的用户名称是否有当前登录用户
+			String username = SessionUtil.getUserName(session);
+			if (currentuser.equals(username)) {
+				logger.info("用户：" + currentuser + "已经在其它地方登录过，将踢除！");
+				SessionUtil.expireSession(session);
+				logger.info(entry.getKey());
+				sessionMap.remove(entry.getKey());//这里会引起同步错误
+				sessionRegistry.removeSessionInformation(session.getId());
+			}
+		}*/
+
+		// 3.将当前session保存到sessionMap中
+		logger.info("将当前会话:" + request.getSession().getId() + "，保存到sessionMap");
+		sessionMap.put(request.getSession().getId(), request.getSession());
+		for (Entry&lt;String, HttpSession&gt; entry : sessionMap.entrySet()) {
+			logger.info("显示已经保存的sessionMap:Key: " + entry.getKey() + " Value: " + entry.getValue());
+		}
+
+		// 4.打印所有认证通过的用户（包含重复登录的,不过上面已经踢除了）
+		List&lt;Object&gt; principals = sessionRegistry.getAllPrincipals();
+  		List&lt;String&gt; usersNamesList = new ArrayList&lt;String&gt;();
+  		for (Object principal: principals) {
+  		    if (principal instanceof SysUser) {
+  		        usersNamesList.add(((SysUser) principal).getUsername());
+  		    }
+  		}
+  		logger.info("已经认证通过的用户数:"+usersNamesList.size()+"，     已经认证通过用户："+usersNamesList.toString());
+		
+		
+		// response.sendRedirect("/");
+		super.onAuthenticationSuccess(request, response, authentication);
+	}
+
+}
+</code></pre> 
+<pre class="has"><code>package com.test.util;
+
+import java.util.Enumeration;
+import java.util.List;
+
+import javax.servlet.ServletContext;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpSession;
+
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.session.SessionInformation;
+import org.springframework.security.core.session.SessionRegistry;
+import org.springframework.security.core.userdetails.User;
+
+import com.test.domain.SysUser;
+
+public class SessionUtil {
+
+	private static SecurityContext attribute;
+	
+	/**
+	 * 根据当前session获取当前登录用户对象
+	 * @param session
+	 * @return guser
+	 */
+	public static SysUser getUser(HttpSession session) {
+		try {
+			attribute = (SecurityContext) session.getAttribute("SPRING_SECURITY_CONTEXT");
+			SysUser principal = (SysUser) attribute.getAuthentication().getPrincipal();
+			return principal;
+		} catch (Exception e) {
+		}
+		return null;
+	}
+	
+	/**
+	 * 根据当前session获取当前登录用户ID
+	 * @param session
+	 * @return guser
+	 */
+	public static Integer getUserId(HttpSession session) {
+		try {
+			attribute = (SecurityContext) session.getAttribute("SPRING_SECURITY_CONTEXT");
+			SysUser principal = (SysUser) attribute.getAuthentication().getPrincipal();
+			return principal.getId();
+		} catch (Exception e) {
+		}
+		return null;
+	}
+	
+	/**
+	 * 根据session获取用户名称
+	 * @param session
+	 * @return void
+	 */
+	public static String getUserName(HttpSession session) {
+		try {
+			attribute = (SecurityContext) session.getAttribute("SPRING_SECURITY_CONTEXT");
+			SysUser principal = (SysUser) attribute.getAuthentication().getPrincipal();
+			return principal.getUsername();
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return null;
+}
+	
+	/**
+	 * 根据session获取count
+	 * session中包含一个count键默认为null，可以用来统计登录次数
+	 * @param session
+	 * @return void
+	 */
+	public static void count(HttpSession session) {
+		ServletContext context = session.getServletContext();
+		
+		System.out.println("sessionid:"+session.getId()+",的count是："+context.getAttribute("count"));
+	}
+	
+	
+    /**
+     * 辨别用户是否已经登录，如果已经登录就不能登录了。
+     *
+     * @param request
+     * @param sessionRegistry
+     * @param loginedUser
+     */
+    public static void deleteSameUser(HttpServletRequest request, SessionRegistry sessionRegistry, User loginedUser) {
+        SecurityContext sc = (SecurityContext) request.getSession().getAttribute("SPRING_SECURITY_CONTEXT");
+        List&lt;SessionInformation&gt; sessionsInfo;
+        sessionsInfo = sessionRegistry.getAllSessions(sc.getAuthentication().getPrincipal(), true);
+        String currentSessionId;
+        if (null != sessionsInfo &amp;&amp; sessionsInfo.size() == 0) {
+            sessionRegistry.registerNewSession(request.getSession().getId(), sc.getAuthentication().getPrincipal());
+            sessionsInfo = sessionRegistry.getAllSessions(sc.getAuthentication().getPrincipal(), false);
+        }
+        currentSessionId = sessionsInfo.get(0).getSessionId();
+        List&lt;Object&gt; o = sessionRegistry.getAllPrincipals();
+        for (Object principal : o) {
+            if (principal instanceof User &amp;&amp; (loginedUser.getUsername().equals(((User) principal).getUsername()))) {
+                List&lt;SessionInformation&gt; oldSessionsInfo = sessionRegistry.getAllSessions(principal, false);
+                if (null != oldSessionsInfo &amp;&amp; oldSessionsInfo.size() &gt; 0 &amp;&amp; !oldSessionsInfo.get(0).getSessionId().equals(currentSessionId)) {
+                    for (SessionInformation sessionInformation : sessionsInfo) {
+                        //当前session失效
+                        sessionInformation.expireNow();
+                        sc.setAuthentication(null);
+                        sessionRegistry.removeSessionInformation(currentSessionId);
+                        //throw new GeneralServerExistException(ErrorMessage.ALONG_LOGIN_ERROTR.toString());
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * 会话销毁(剔除前一个用户)
+     *
+     * @param request
+     * @param sessionRegistry
+     * @param loginedUser
+     * @param , SysMessageService sysMessageService
+     */
+    public static void expireSession(HttpSession session) {
+    	session.invalidate();
+    }
+    
+    
+    /**
+     * 剔除前一个用户
+     *
+     * @param request
+     * @param sessionRegistry
+     * @param loginedUser
+     * @param , SysMessageService sysMessageService
+     */
+    public static void dropPreviousUser2(HttpServletRequest request, SessionRegistry sessionRegistry, SysUser loginedUser) {
+    	List&lt;SessionInformation&gt; sessionsInfo = null;
+    	//登录以后session里才会加入键名为"SPRING_SECURITY_CONTEXT"的字段
+        SecurityContext sc = (SecurityContext) request.getSession().getAttribute("SPRING_SECURITY_CONTEXT");
+        
+        if(sc!=null) {
+        	System.out.println("!!!!!!!!!!!!"+sc.getAuthentication().getPrincipal().toString());
+        	//获取当前登录用户的会话信息集合
+        	sessionsInfo = sessionRegistry.getAllSessions(sc.getAuthentication().getPrincipal(), false);
+        	if (sessionsInfo.size() &gt; 0) {
+        		//当前会话ID
+        		String  currentSessionId = sessionsInfo.get(0).getSessionId();
+        		//获取所有已经登录的用户
+        		List&lt;Object&gt; o = sessionRegistry.getAllPrincipals();
+        		for (Object principal : o) {
+        			//当登录用户的名字和已经登录用户的名字相同，也就是登录用户已经登录过了。
+        			if (principal instanceof User &amp;&amp; (loginedUser.getUsername().equals(((User) principal).getUsername()))) {
+        				//获取已经登录用户的会话信息集合
+        				List&lt;SessionInformation&gt; oldSessionsInfo = sessionRegistry.getAllSessions(principal, false);
+        				//如果会话信息不为空且会话信息的ID不等于当前会话ID
+        				if (null != oldSessionsInfo &amp;&amp; oldSessionsInfo.size() &gt; 0 &amp;&amp; !oldSessionsInfo.get(0).getSessionId().equals(currentSessionId)) {
+        					//遍历已经登录用户的会话信息，并设置过期，即删除session
+        					for (SessionInformation sessionInformation : oldSessionsInfo) {
+        						//旧用户的session失效
+        						//send message
+        						//sysMessageService.sendMessage(((User) principal).getUsername(), new SysMessage(null, Consts.NOTIFICATION_TYPE_HADLOGIN_CONTENT, 5, Consts.NOTIFICATION_ACCEPT_TYPE_HADLOGIN));
+        						sessionInformation.expireNow();
+        					}
+        				}
+        			}
+        		}
+        	}
+        }
+        
+    }
+
+    /**
+     * session 失效
+     *
+     * @param request
+     * @param sessionRegistry
+     */
+    public static void expireSession(HttpServletRequest request, User user, SessionRegistry sessionRegistry) {
+        List&lt;SessionInformation&gt; sessionsInfo = null;
+        if (null != user) {
+            List&lt;Object&gt; o = sessionRegistry.getAllPrincipals();
+            for (Object principal : o) {
+                if (principal instanceof User &amp;&amp; (user.getUsername().equals(((User) principal).getUsername()))) {
+                    sessionsInfo = sessionRegistry.getAllSessions(principal, false);
+                }
+            }
+        } else if (null != request) {
+            SecurityContext sc = (SecurityContext) request.getSession().getAttribute("SPRING_SECURITY_CONTEXT");
+            if (null != sc.getAuthentication().getPrincipal()) {
+                sessionsInfo = sessionRegistry.getAllSessions(sc.getAuthentication().getPrincipal(), false);
+                sc.setAuthentication(null);
+            }
+        }
+        if (null != sessionsInfo &amp;&amp; sessionsInfo.size() &gt; 0) {
+            for (SessionInformation sessionInformation : sessionsInfo) {
+                //当前session失效
+                sessionInformation.expireNow();
+                sessionRegistry.removeSessionInformation(sessionInformation.getSessionId());
+            }
+        }
+    }
+    
+    public void showsession(HttpServletRequest request) {
+    	//获取session  
+    	HttpSession   session   =   request.getSession();    
+    	// 获取session中所有的键值  
+    	Enumeration&lt;String&gt; attrs = session.getAttributeNames();  
+    	// 遍历attrs中的
+    	while(attrs.hasMoreElements()){
+    	// 获取session键值  
+    	    String name = attrs.nextElement().toString();
+    	    // 根据键值取session中的值  
+    	    Object vakue = session.getAttribute(name);
+    	    // 打印结果 
+    	    System.out.println("--sessionID"+session.getId());
+    	    System.out.println("--名字：" + name +"-----\n");
+    	    System.out.println("--值：" + vakue +"--------\n");
+    	}
+    	
+    }
+}</code></pre> 
+<p> SessionRegistry引入的方法</p> 
+<pre class="has"><code>package com.test.config;
+
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.ImportResource;
+
+@Configuration
+@ImportResource(locations={"classpath:spring-security-context.xml"})
+public class XMLConfigClass {
+
+}</code></pre> 
+<pre class="has"><code>&lt;?xml version="1.0" encoding="UTF-8"?&gt;
+&lt;beans xmlns="http://www.springframework.org/schema/beans"
+	   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	   xmlns:security="http://www.springframework.org/schema/security"
+	   xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+						   http://www.springframework.org/schema/security http://www.springframework.org/schema/security/spring-security.xsd"&gt;
+
+	
+
+    
+    
+    &lt;bean id="mySessionAuthenticationStrategy" 
+           class="org.springframework.security.web.authentication.session.ConcurrentSessionControlAuthenticationStrategy"&gt;
+       &lt;constructor-arg  name="sessionRegistry"  ref="sessionRegistry"/&gt;
+       &lt;property name="maximumSessions" value="1" /&gt; 
+    &lt;/bean&gt;
+    &lt;bean id="sessionRegistry" class="org.springframework.security.core.session.SessionRegistryImpl" /&gt;
+    
+    
+&lt;/beans&gt;</code></pre> 
+<p>添加一个监听器，用于控制session过期的情况，</p> 
+<pre class="has"><code>package com.test.listener;
+
+import javax.servlet.annotation.WebListener;
+import javax.servlet.http.HttpSessionEvent;
+import javax.servlet.http.HttpSessionListener;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContext;
+
+import com.test.domain.SysUser;
+import com.test.handler.MyAuthenctiationSuccessHandler;
+
+//启动类加上注解@ServletComponentScan，这样才能扫描到监听器
+@WebListener
+public class MySessionListner    implements HttpSessionListener {
+
+	private static final Logger logger = LoggerFactory.getLogger(MySessionListner.class);
+	
+	/**
+	 * 新建session时（打开浏览器访问登录页面时，服务器会创建一个新的session）
+	 */
+	@Override
+	public void sessionCreated(HttpSessionEvent httpSessionEvent) {
+		
+		
+	}
+	/**
+	 * 删除session时（退出系统）
+	 */
+	@Override
+	public void sessionDestroyed(HttpSessionEvent httpSessionEvent) {
+		logger.info("销毁session时");
+		MyAuthenctiationSuccessHandler.sessionMap.remove(httpSessionEvent.getSession().getId());
+	}
+	
+}
+</code></pre> 
+<p> </p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/10725ed5a1f9aef3d51e54316d16dbba/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">matlab —— cftool曲线拟合工具箱的使用</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/80af016ebc4d6a797b7606c920c54c2b/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">读取sftp服务器上的文件内容到指定的数据库表内</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

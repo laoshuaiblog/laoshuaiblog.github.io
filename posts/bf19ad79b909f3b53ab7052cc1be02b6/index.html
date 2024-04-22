@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>常用方法（图片逆光度、傅里叶变换、寻找波峰波谷、计算俯仰/侧脸） - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/bf19ad79b909f3b53ab7052cc1be02b6/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="常用方法（图片逆光度、傅里叶变换、寻找波峰波谷、计算俯仰/侧脸）">
+  <meta property="og:description" content="1.计算图片逆光度
+from matplotlib import pyplot as plt import cv2 import numpy as np import os import math def get_fm(file_name): image = cv2.imread(file_name,0) hist = cv2.calcHist([image],[0],None,[256],[0,256]) nums=image.shape[0]*image.shape[1] hist=hist/nums # 总体均值 u=0 for i in range(256): u&#43;=hist[i]*i # print(u) # 总体方差 a=0 for i in range(256): a&#43;=hist[i]*pow((i-u),2) # print(a) # 逆光度 dbl=np.sqrt(a) return dbl # file_name=&#39;data2/img/blur (8).jpg&#39; # dbl=get_fm(file_name) # print(dbl) path=&#39;img/&#39; for file in os.listdir(path): file_name=path&#43;file dbl=get_fm(file_name) print(file, dbl) 2.图像傅里叶变换">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2021-06-29T10:55:27+08:00">
+    <meta property="article:modified_time" content="2021-06-29T10:55:27+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">常用方法（图片逆光度、傅里叶变换、寻找波峰波谷、计算俯仰/侧脸）</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <p>1.计算图片逆光度</p> 
+<pre><code class="language-python">from matplotlib import pyplot as plt
+import cv2
+import numpy as np
+import os
+import math
+
+
+def get_fm(file_name):
+	image = cv2.imread(file_name,0)
+	hist = cv2.calcHist([image],[0],None,[256],[0,256])
+
+	nums=image.shape[0]*image.shape[1]
+	hist=hist/nums
+
+	# 总体均值
+	u=0
+	for i in range(256):
+		u+=hist[i]*i
+	# print(u)
+
+	# 总体方差
+	a=0
+	for i in range(256):
+		a+=hist[i]*pow((i-u),2)
+	# print(a)
+
+	# 逆光度
+	dbl=np.sqrt(a)
+	
+	return dbl
+
+
+
+# file_name='data2/img/blur (8).jpg'
+# dbl=get_fm(file_name)
+# print(dbl)
+
+path='img/'
+for file in os.listdir(path):
+	file_name=path+file
+	dbl=get_fm(file_name)
+	print(file, dbl)</code></pre> 
+<p>2.图像傅里叶变换</p> 
+<pre><code class="language-python"># -*- coding: utf-8 -*-
+import cv2
+import numpy as np
+from matplotlib import pyplot as plt
+
+#读取图像
+file_name="img/a.jpg"
+img = cv2.imread(file_name, 0)
+img=cv2.resize(img,(500,500))
+
+#快速傅里叶变换算法得到频率分布
+f = np.fft.fft2(img)
+#默认结果中心点位置是在左上角,
+#调用fftshift()函数转移到中间位置
+fshift = np.fft.fftshift(f)       
+#fft结果是复数, 其绝对值结果是振幅
+fimg = np.log(np.abs(fshift))
+
+
+# 1.高通滤波——把中心的低频信息都去掉，保留周围的高频信息
+area=30
+rows, cols = img.shape
+crow, ccol = int(rows/2), int(cols/2)
+fshift[crow-area:crow+area, ccol-area:ccol+area] = 0
+
+
+# # 2.低通滤波——保留中心的低频信息，把周围的高频信息都去掉
+# area=30
+# rows, cols = img.shape
+# crow,ccol = int(rows/2), int(cols/2)
+# mask = np.zeros((rows, cols), np.uint8)
+# mask[crow-area:crow+area, ccol-area:ccol+area] = 1
+# f = fshift * mask
+
+#傅里叶逆变换
+ishift = np.fft.ifftshift(fshift)
+iimg = np.fft.ifft2(ishift)
+iimg = np.abs(iimg)
+
+# cv2.imwrite("data/data1/test/a1-sharp.jpg",iimg)
+
+
+# #展示结果
+# plt.subplot(221), plt.imshow(img, 'gray'), plt.title('Original Fourier')
+# plt.axis('off')
+# plt.subplot(222), plt.imshow(fimg, 'gray'), plt.title('Fourier Fourier')
+# plt.axis('off')
+# plt.subplot(223), plt.imshow(iimg, 'gray'), plt.title('Fourier Fourier')
+# plt.axis('off')
+# plt.show()
+</code></pre> 
+<p>3.寻找信号的波峰波谷</p> 
+<pre><code class="language-python">import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
+from scipy import signal #滤波等
+
+# xxx = np.arange(0, 1000)
+# yyy = np.sin(xxx*np.pi/180)
+
+# z1 = np.polyfit(xxx, yyy, 7) # 用7次多项式拟合
+# p1 = np.poly1d(z1) #多项式系数
+# yvals=p1(xxx) 
+
+
+xxx = np.arange(0, 1000)
+yvals = np.sin(xxx*np.pi/180)
+
+# 寻找极大值
+maxs_x=signal.argrelextrema(yvals,np.greater)[0]
+maxs_y=yvals[signal.argrelextrema(yvals, np.greater)]
+
+# 寻找极小值
+mins_x=signal.argrelextrema(yvals,np.less)[0]
+mins_y=yvals[signal.argrelextrema(yvals, np.less)]
+print(mins_x, mins_y) #极大值的x轴
+
+plt.plot(xxx, yvals, 'r',label='polyfit values')
+plt.xlabel('x axis')
+plt.ylabel('y axis')
+plt.plot(maxs_x,maxs_y, 'o', color='blue', markersize=5) #极大值点
+plt.plot(mins_x, mins_y,'o', color='green', markersize=5) #极小值点
+plt.show()</code></pre> 
+<p>4.计算人脸的俯仰值/侧脸值</p> 
+<pre><code class="language-python">import glob
+from PIL import Image
+import os
+import numpy as np
+import xlrd
+import xlutils.copy
+import dlib
+import cv2
+from PIL import Image
+import numpy as np
+import time
+import imutils
+
+def face_detect(pic):
+    detector = dlib.get_frontal_face_detector()
+    predictor = dlib.shape_predictor('class/shape_predictor_68_face_landmarks.dat')
+    img = np.copy(pic)
+    # img_gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+
+    # 人脸数rects
+    points = []
+    rects = detector(img, 1)
+    if len(rects)!=1:
+        print("face detection fail!")
+        
+    else:
+        landmarks = np.matrix([[p.x, p.y] for p in predictor(img, rects[0]).parts()])
+        for idx, point in enumerate(landmarks):
+            x = point[0, 0]
+            y = point[0, 1]
+            points.append([x, y])
+        
+            # 画图和点
+            cv2.circle(img, (x,y), 9, (0, 255, 0), thickness=-1, lineType=cv2.FILLED)
+            cv2.putText(img, str(idx), (x,y), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 0, 255), 2,cv2.LINE_AA)
+
+    return img, np.array(points)
+
+
+def get_radio(point):
+    # 侧脸：24-12  18-24   (39-27  42-27)
+    left = abs(point[39][0] - point[27][0])
+    right = abs(point[42][0] - point[27][0])
+
+    num1=max(left,right)
+    num2=min(left,right)
+    sideways_radio = num1/num2
+
+    # 俯仰1：top:6-0(21-22)中间    median:26(30) 鼻尖    bottom:41(57)下嘴唇
+    # 俯仰2：26-24/41-29   (30-27/57-33)
+
+    top=np.sqrt( (point[30][0]-point[27][0])**2 + (point[30][1]-point[27][1])**2 )
+    bottom=np.sqrt( (point[57][0]-point[33][0])**2 + (point[57][1]-point[33][1])**2 )
+    pitch_radio=top/bottom
+
+    top2=point[30][1]-point[27][1]
+    bottom2=point[57][1]-point[33][1]
+    pitch_radio2=top2/bottom2
+    # print(top,bottom,pitch_radio)
+
+    return sideways_radio,pitch_radio,pitch_radio2
+
+
+f1 = open("img/data.txt", 'w+')
+n=0
+path = "img/0/"
+# save="img4/src/1-2/"
+for root,dirs,files in os.walk(path):
+    for file in files:
+        if file.endswith('jpg'):
+            file_name=root+"/"+file
+            n+=1
+            # 人脸检测，获取坐标点
+            pic=cv2.imread(file_name)
+            img_face,point=face_detect(pic)   #人脸检测
+            print(point)
+            if len(point)!=0:
+                sideways_radio,pitch_radio,pitch_radio2=get_radio(point)
+                print(n,root+file,sideways_radio,pitch_radio)
+                f1.write(str(n)+'  '+(root + file)+'  '+str(sideways_radio)+'  '+str(pitch_radio)+'  '+str(pitch_radio2)+"  \n")
+            else:
+                f1.write(str(n) + '  ' + (root + file) + '  ' + str(0) + '  ' + str(0)+ '  ' + str(0)+"  \n")</code></pre> 
+<p></p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/296ac916f8f16e81fc58a731cc7f76eb/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">linux做题时小结</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/6fc3d30b9c7f28d9a1235155d7747a7f/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">vue 组件通信的几种方式</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

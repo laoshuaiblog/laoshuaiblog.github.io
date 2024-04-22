@@ -1,0 +1,1361 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>基于 Android 13 的 Activity 启动流程分析 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/d4a38492db2e4cc569e8ebaa7c9cbd8a/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="基于 Android 13 的 Activity 启动流程分析">
+  <meta property="og:description" content="对于 Android 客户端开发者来说，Activity 是我们再熟悉不过的一个组件了。它是 Android 四大组件之一，是一个用于直接与用户交互的展示型 UI 组件。在开发过程中，启动并创建一个 Activity 流程非常简单，而在系统底层实际上做了大量的工作，之所以使用这么简单，得益于系统底层对于 Activity 的良好封装。本篇内容我们着重来分析一下 Framework 层 Activity 的启动与创建的过程。
+一、前言 在 《不得不说的 Android Binder 机制与 AIDL》这篇文章中我们了解了通过如何通过 Binder 与 AIDL 进行跨进程通信，在另一篇文章 《反思 Android 消息机制的设计与实现》深入探讨了 Handler 消息机制的实现原理。这两篇文章，尤其是通过 Binder 与 AIDL 跨进程通信这块内容是理解本篇文章的基础，如果现在还不了解的同学建议先去阅读这两篇文章。
+在平时的开发中，启动一个新的 Activity 只需要在当前 Activity 中调用startActivity方法，并传入一个Intent 即可，例如，从 MainActivity 启动一个 TestActivity 代码如下：
+Intent intent = new Intent(this, TestActivity.class); startActivity(intent); 两行看似简单的代码，实际上经历了与 system_service 进程的数次互相调用，才成功启动了一个 Activity。为方便理解，后文中我们把启动 Activity 的进程称为客户端，把 system_server 进程称为服务端。
+二、客户端的调用流程 startActivity 的操作是由客户端发起的，因此当前的代码执行在客户端进程中。追进startActivity即可看到如下源码：
+// frameworks/base/core/java/android/app/Activity.java ActivityThread mMainThread; @Override public void startActivity(Intent intent) { this.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2023-03-19T13:24:56+08:00">
+    <meta property="article:modified_time" content="2023-03-19T13:24:56+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">基于 Android 13 的 Activity 启动流程分析</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atelier-sulphurpool-light">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <p>对于 Android 客户端开发者来说，Activity 是我们再熟悉不过的一个组件了。它是 Android 四大组件之一，是一个用于直接与用户交互的展示型 UI 组件。在开发过程中，启动并创建一个 Activity 流程非常简单，而在系统底层实际上做了大量的工作，之所以使用这么简单，得益于系统底层对于 Activity 的良好封装。本篇内容我们着重来分析一下 Framework 层 Activity 的启动与创建的过程。</p> 
+<h3><a id="_3"></a>一、前言</h3> 
+<p>在 《<a href="https://juejin.cn/post/6994057245113729038" rel="nofollow">不得不说的 Android Binder 机制与 AIDL</a>》这篇文章中我们了解了通过如何通过 Binder 与 AIDL 进行跨进程通信，在另一篇文章 《<a href="https://juejin.cn/post/7110625878320775204" rel="nofollow">反思 Android 消息机制的设计与实现</a>》深入探讨了 Handler 消息机制的实现原理。这两篇文章，尤其是通过 Binder 与 AIDL 跨进程通信这块内容是理解本篇文章的基础，如果现在还不了解的同学建议先去阅读这两篇文章。</p> 
+<p>在平时的开发中，启动一个新的 Activity 只需要在当前 Activity 中调用<code>startActivity</code>方法，并传入一个Intent 即可，例如，从 MainActivity 启动一个 TestActivity 代码如下：</p> 
+<pre><code class="prism language-Java">Intent intent = new Intent(this, TestActivity.class);
+startActivity(intent);
+</code></pre> 
+<p>两行看似简单的代码，实际上经历了与 system_service 进程的数次互相调用，才成功启动了一个 Activity。为方便理解，后文中我们把启动 Activity 的进程称为客户端，把 system_server 进程称为服务端。</p> 
+<h3><a id="_19"></a>二、客户端的调用流程</h3> 
+<p>startActivity 的操作是由客户端发起的，因此当前的代码执行在客户端进程中。追进<code>startActivity</code>即可看到如下源码：</p> 
+<pre><code class="prism language-java"><span class="token comment">// frameworks/base/core/java/android/app/Activity.java</span>
+
+    <span class="token class-name">ActivityThread</span> mMainThread<span class="token punctuation">;</span>
+
+    <span class="token annotation punctuation">@Override</span>
+    <span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">startActivity</span><span class="token punctuation">(</span><span class="token class-name">Intent</span> intent<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">this</span><span class="token punctuation">.</span><span class="token function">startActivity</span><span class="token punctuation">(</span>intent<span class="token punctuation">,</span> <span class="token keyword">null</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    
+    <span class="token annotation punctuation">@Override</span>
+    <span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">startActivity</span><span class="token punctuation">(</span><span class="token class-name">Intent</span> intent<span class="token punctuation">,</span> <span class="token annotation punctuation">@Nullable</span> <span class="token class-name">Bundle</span> options<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token function">getAutofillClientController</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">onStartActivity</span><span class="token punctuation">(</span>intent<span class="token punctuation">,</span> mIntent<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>options <span class="token operator">!=</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token function">startActivityForResult</span><span class="token punctuation">(</span>intent<span class="token punctuation">,</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">,</span> options<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token comment">// Note we want to go through this call for compatibility with</span>
+            <span class="token comment">// applications that may have overridden the method.</span>
+            <span class="token function">startActivityForResult</span><span class="token punctuation">(</span>intent<span class="token punctuation">,</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">startActivityForResult</span><span class="token punctuation">(</span><span class="token annotation punctuation">@RequiresPermission</span> <span class="token class-name">Intent</span> intent<span class="token punctuation">,</span> <span class="token keyword">int</span> requestCode<span class="token punctuation">,</span>
+            <span class="token annotation punctuation">@Nullable</span> <span class="token class-name">Bundle</span> options<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>mParent <span class="token operator">==</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            options <span class="token operator">=</span> <span class="token function">transferSpringboardActivityOptions</span><span class="token punctuation">(</span>options<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token class-name">Instrumentation<span class="token punctuation">.</span>ActivityResult</span> ar <span class="token operator">=</span>
+                mInstrumentation<span class="token punctuation">.</span><span class="token function">execStartActivity</span><span class="token punctuation">(</span>
+                    <span class="token keyword">this</span><span class="token punctuation">,</span> mMainThread<span class="token punctuation">.</span><span class="token function">getApplicationThread</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> mToken<span class="token punctuation">,</span> <span class="token keyword">this</span><span class="token punctuation">,</span>
+                    intent<span class="token punctuation">,</span> requestCode<span class="token punctuation">,</span> options<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span>ar <span class="token operator">!=</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                mMainThread<span class="token punctuation">.</span><span class="token function">sendActivityResult</span><span class="token punctuation">(</span>
+                    mToken<span class="token punctuation">,</span> mEmbeddedID<span class="token punctuation">,</span> requestCode<span class="token punctuation">,</span> ar<span class="token punctuation">.</span><span class="token function">getResultCode</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span>
+                    ar<span class="token punctuation">.</span><span class="token function">getResultData</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+            <span class="token comment">// ...</span>
+
+        <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token comment">// ...</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+</code></pre> 
+<p>可以看到，<code>startActivity</code> 方法最终会调用 <code>startActivityForResult</code> 方法，这个方法的核心代码是通过 <code>Instrumentation</code> 调用了 <code>execStartActivity</code>。而 <code>execStartActivity</code> 方法中的第二个参数为 <code>mMainThread.getApplicationThread()</code>，这里的 mMainThread 即为 ActivityThread，通过 ActivityThread 获取到了 ApplicationThread，ApplicationThread 是一个 Binder 类，这个类最终会被传到服务端，在服务端作为客户端的代理来调用客户端的代码，关于这个类后文还会分析。</p> 
+<p>继续跟进 Instrumentation 的 execStartActivity 方法，代码如下：</p> 
+<pre><code class="prism language-java"><span class="token comment">// frameworks/base/core/java/android/app/Instrumentation.java</span>
+
+    <span class="token keyword">public</span> <span class="token class-name">ActivityResult</span> <span class="token function">execStartActivity</span><span class="token punctuation">(</span>
+            <span class="token class-name">Context</span> who<span class="token punctuation">,</span> <span class="token class-name">IBinder</span> contextThread<span class="token punctuation">,</span> <span class="token class-name">IBinder</span> token<span class="token punctuation">,</span> <span class="token class-name">Activity</span> target<span class="token punctuation">,</span>
+            <span class="token class-name">Intent</span> intent<span class="token punctuation">,</span> <span class="token keyword">int</span> requestCode<span class="token punctuation">,</span> <span class="token class-name">Bundle</span> options<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token class-name">IApplicationThread</span> whoThread <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token class-name">IApplicationThread</span><span class="token punctuation">)</span> contextThread<span class="token punctuation">;</span>
+        <span class="token class-name">Uri</span> referrer <span class="token operator">=</span> target <span class="token operator">!=</span> <span class="token keyword">null</span> <span class="token operator">?</span> target<span class="token punctuation">.</span><span class="token function">onProvideReferrer</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">:</span> <span class="token keyword">null</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>referrer <span class="token operator">!=</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            intent<span class="token punctuation">.</span><span class="token function">putExtra</span><span class="token punctuation">(</span><span class="token class-name">Intent</span><span class="token punctuation">.</span>EXTRA_REFERRER<span class="token punctuation">,</span> referrer<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        
+        <span class="token comment">// ...</span>
+        
+        <span class="token keyword">try</span> <span class="token punctuation">{<!-- --></span>
+            intent<span class="token punctuation">.</span><span class="token function">migrateExtraStreamToClipData</span><span class="token punctuation">(</span>who<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            intent<span class="token punctuation">.</span><span class="token function">prepareToLeaveProcess</span><span class="token punctuation">(</span>who<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token comment">// 通过 ActivityTaskManager 获取 Service 来启动 Activity</span>
+            <span class="token keyword">int</span> result <span class="token operator">=</span> <span class="token class-name">ActivityTaskManager</span><span class="token punctuation">.</span><span class="token function">getService</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">startActivity</span><span class="token punctuation">(</span>whoThread<span class="token punctuation">,</span>
+                    who<span class="token punctuation">.</span><span class="token function">getOpPackageName</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> who<span class="token punctuation">.</span><span class="token function">getAttributionTag</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> intent<span class="token punctuation">,</span>
+                    intent<span class="token punctuation">.</span><span class="token function">resolveTypeIfNeeded</span><span class="token punctuation">(</span>who<span class="token punctuation">.</span><span class="token function">getContentResolver</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">,</span> token<span class="token punctuation">,</span>
+                    target <span class="token operator">!=</span> <span class="token keyword">null</span> <span class="token operator">?</span> target<span class="token punctuation">.</span>mEmbeddedID <span class="token operator">:</span> <span class="token keyword">null</span><span class="token punctuation">,</span> requestCode<span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">,</span> <span class="token keyword">null</span><span class="token punctuation">,</span> options<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token function">notifyStartActivityResult</span><span class="token punctuation">(</span>result<span class="token punctuation">,</span> options<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token comment">// 检查 Activity 的启动结果，例如是否在 AndroidManifest 文件中注册，没有则抛出异常</span>
+            <span class="token function">checkStartActivityResult</span><span class="token punctuation">(</span>result<span class="token punctuation">,</span> intent<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span> <span class="token keyword">catch</span> <span class="token punctuation">(</span><span class="token class-name">RemoteException</span> e<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token keyword">throw</span> <span class="token keyword">new</span> <span class="token class-name">RuntimeException</span><span class="token punctuation">(</span><span class="token string">"Failure from system"</span><span class="token punctuation">,</span> e<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        <span class="token keyword">return</span> <span class="token keyword">null</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+</code></pre> 
+<p>上述方法的核心代码是通过 ActivityTaskManager 获取到了一个 Service，具体是一个什么 Service 这里并不能看出来，我们继续跟进 ActivityTaskManager 的 getService 可以看到如下代码：</p> 
+<pre><code class="prism language-java"><span class="token comment">// frameworks/base/core/java/android/app/ActivityTaskManager.java</span>
+
+    <span class="token keyword">public</span> <span class="token keyword">static</span> <span class="token class-name">IActivityTaskManager</span> <span class="token function">getService</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">return</span> <span class="token class-name">IActivityTaskManagerSingleton</span><span class="token punctuation">.</span><span class="token function">get</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token annotation punctuation">@UnsupportedAppUsage</span><span class="token punctuation">(</span>trackingBug <span class="token operator">=</span> <span class="token number">129726065</span><span class="token punctuation">)</span>
+    <span class="token keyword">private</span> <span class="token keyword">static</span> <span class="token keyword">final</span> <span class="token class-name">Singleton</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">IActivityTaskManager</span><span class="token punctuation">&gt;</span></span> <span class="token class-name">IActivityTaskManagerSingleton</span> <span class="token operator">=</span>
+            <span class="token keyword">new</span> <span class="token class-name">Singleton</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">IActivityTaskManager</span><span class="token punctuation">&gt;</span></span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                <span class="token annotation punctuation">@Override</span>
+                <span class="token keyword">protected</span> <span class="token class-name">IActivityTaskManager</span> <span class="token function">create</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                    <span class="token keyword">final</span> <span class="token class-name">IBinder</span> b <span class="token operator">=</span> <span class="token class-name">ServiceManager</span><span class="token punctuation">.</span><span class="token function">getService</span><span class="token punctuation">(</span><span class="token class-name">Context</span><span class="token punctuation">.</span>ACTIVITY_TASK_SERVICE<span class="token punctuation">)</span><span class="token punctuation">;</span>
+                    <span class="token keyword">return</span> <span class="token class-name">IActivityTaskManager<span class="token punctuation">.</span>Stub</span><span class="token punctuation">.</span><span class="token function">asInterface</span><span class="token punctuation">(</span>b<span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token punctuation">}</span>
+            <span class="token punctuation">}</span><span class="token punctuation">;</span>
+</code></pre> 
+<p>这里可以看到 getService 获取到的是一个 IActivityTaskManager，IActivityTaskManager 是什么呢？通过搜索源码，发现它其实是一个 AIDL 类，目录为： <code>frameworks/base/core/java/android/app/IActivityTaskManager.aidl</code>，因此，IActivityTaskManager#startActivity 在这里肯定是一个跨进程的操作，到这里代码就进入了服务端进程，即 system_server 进程。</p> 
+<h3><a id="_122"></a>三、服务端的调用流程</h3> 
+<p>经过上一小节的分析，代码已经执行到了 system_server 进程，那在 system_server 进程中调用的是哪个类呢？熟悉 AIDL 的同学应该清楚，在编译完代码后 <code>IActivityTaskManager</code> 这个 AIDL 文件会生成一个 IActivityTaskManager.Stub 类，这个类继承自 Binder, 并且会有一个名为 <code>startActivity</code> 的抽象方法。因此接下来我们需要找到哪个类继承了 IActivityTaskManager.Stub 即可，通过全局搜索我们发现 ActivityTaskManagerService 继承了 IActivityTaskManager.Stub，其部分源码如下：</p> 
+<pre><code class="prism language-java"><span class="token comment">// frameworks/base/services/core/java/com/android/server/wm/ActivityTaskManagerService.java</span>
+
+<span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">ActivityTaskManagerService</span> <span class="token keyword">extends</span> <span class="token class-name">IActivityTaskManager<span class="token punctuation">.</span>Stub</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token comment">// ...</span>
+    
+    <span class="token keyword">private</span> <span class="token class-name">ActivityStartController</span> mActivityStartController<span class="token punctuation">;</span>
+
+   <span class="token annotation punctuation">@Override</span>
+    <span class="token keyword">public</span> <span class="token keyword">final</span> <span class="token keyword">int</span> <span class="token function">startActivity</span><span class="token punctuation">(</span><span class="token class-name">IApplicationThread</span> caller<span class="token punctuation">,</span> <span class="token class-name">String</span> callingPackage<span class="token punctuation">,</span>
+            <span class="token class-name">String</span> callingFeatureId<span class="token punctuation">,</span> <span class="token class-name">Intent</span> intent<span class="token punctuation">,</span> <span class="token class-name">String</span> resolvedType<span class="token punctuation">,</span> <span class="token class-name">IBinder</span> resultTo<span class="token punctuation">,</span>
+            <span class="token class-name">String</span> resultWho<span class="token punctuation">,</span> <span class="token keyword">int</span> requestCode<span class="token punctuation">,</span> <span class="token keyword">int</span> startFlags<span class="token punctuation">,</span> <span class="token class-name">ProfilerInfo</span> profilerInfo<span class="token punctuation">,</span>
+            <span class="token class-name">Bundle</span> bOptions<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">return</span> <span class="token function">startActivityAsUser</span><span class="token punctuation">(</span>caller<span class="token punctuation">,</span> callingPackage<span class="token punctuation">,</span> callingFeatureId<span class="token punctuation">,</span> intent<span class="token punctuation">,</span> resolvedType<span class="token punctuation">,</span>
+                resultTo<span class="token punctuation">,</span> resultWho<span class="token punctuation">,</span> requestCode<span class="token punctuation">,</span> startFlags<span class="token punctuation">,</span> profilerInfo<span class="token punctuation">,</span> bOptions<span class="token punctuation">,</span>
+                <span class="token class-name">UserHandle</span><span class="token punctuation">.</span><span class="token function">getCallingUserId</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    
+   <span class="token annotation punctuation">@Override</span>
+    <span class="token keyword">public</span> <span class="token keyword">int</span> <span class="token function">startActivityAsUser</span><span class="token punctuation">(</span><span class="token class-name">IApplicationThread</span> caller<span class="token punctuation">,</span> <span class="token class-name">String</span> callingPackage<span class="token punctuation">,</span>
+            <span class="token class-name">String</span> callingFeatureId<span class="token punctuation">,</span> <span class="token class-name">Intent</span> intent<span class="token punctuation">,</span> <span class="token class-name">String</span> resolvedType<span class="token punctuation">,</span> <span class="token class-name">IBinder</span> resultTo<span class="token punctuation">,</span>
+            <span class="token class-name">String</span> resultWho<span class="token punctuation">,</span> <span class="token keyword">int</span> requestCode<span class="token punctuation">,</span> <span class="token keyword">int</span> startFlags<span class="token punctuation">,</span> <span class="token class-name">ProfilerInfo</span> profilerInfo<span class="token punctuation">,</span>
+            <span class="token class-name">Bundle</span> bOptions<span class="token punctuation">,</span> <span class="token keyword">int</span> userId<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">return</span> <span class="token function">startActivityAsUser</span><span class="token punctuation">(</span>caller<span class="token punctuation">,</span> callingPackage<span class="token punctuation">,</span> callingFeatureId<span class="token punctuation">,</span> intent<span class="token punctuation">,</span> resolvedType<span class="token punctuation">,</span>
+                resultTo<span class="token punctuation">,</span> resultWho<span class="token punctuation">,</span> requestCode<span class="token punctuation">,</span> startFlags<span class="token punctuation">,</span> profilerInfo<span class="token punctuation">,</span> bOptions<span class="token punctuation">,</span> userId<span class="token punctuation">,</span>
+                <span class="token boolean">true</span> <span class="token comment">/*validateIncomingUser*/</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token keyword">private</span> <span class="token keyword">int</span> <span class="token function">startActivityAsUser</span><span class="token punctuation">(</span><span class="token class-name">IApplicationThread</span> caller<span class="token punctuation">,</span> <span class="token class-name">String</span> callingPackage<span class="token punctuation">,</span>
+            <span class="token annotation punctuation">@Nullable</span> <span class="token class-name">String</span> callingFeatureId<span class="token punctuation">,</span> <span class="token class-name">Intent</span> intent<span class="token punctuation">,</span> <span class="token class-name">String</span> resolvedType<span class="token punctuation">,</span>
+            <span class="token class-name">IBinder</span> resultTo<span class="token punctuation">,</span> <span class="token class-name">String</span> resultWho<span class="token punctuation">,</span> <span class="token keyword">int</span> requestCode<span class="token punctuation">,</span> <span class="token keyword">int</span> startFlags<span class="token punctuation">,</span>
+            <span class="token class-name">ProfilerInfo</span> profilerInfo<span class="token punctuation">,</span> <span class="token class-name">Bundle</span> bOptions<span class="token punctuation">,</span> <span class="token keyword">int</span> userId<span class="token punctuation">,</span> <span class="token keyword">boolean</span> validateIncomingUser<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+
+        <span class="token comment">// ... 省略配置项获取与校验</span>
+
+
+        userId <span class="token operator">=</span> <span class="token function">getActivityStartController</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">checkTargetUser</span><span class="token punctuation">(</span>userId<span class="token punctuation">,</span> validateIncomingUser<span class="token punctuation">,</span>
+                <span class="token class-name">Binder</span><span class="token punctuation">.</span><span class="token function">getCallingPid</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token class-name">Binder</span><span class="token punctuation">.</span><span class="token function">getCallingUid</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token string">"startActivityAsUser"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        <span class="token comment">// TODO: Switch to user app stacks here.</span>
+        <span class="token keyword">return</span> <span class="token function">getActivityStartController</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">obtainStarter</span><span class="token punctuation">(</span>intent<span class="token punctuation">,</span> <span class="token string">"startActivityAsUser"</span><span class="token punctuation">)</span>
+                <span class="token punctuation">.</span><span class="token function">setCaller</span><span class="token punctuation">(</span>caller<span class="token punctuation">)</span>
+                <span class="token punctuation">.</span><span class="token function">setCallingPackage</span><span class="token punctuation">(</span>callingPackage<span class="token punctuation">)</span>
+                <span class="token punctuation">.</span><span class="token function">setCallingFeatureId</span><span class="token punctuation">(</span>callingFeatureId<span class="token punctuation">)</span>
+                <span class="token punctuation">.</span><span class="token function">setResolvedType</span><span class="token punctuation">(</span>resolvedType<span class="token punctuation">)</span>
+                <span class="token punctuation">.</span><span class="token function">setResultTo</span><span class="token punctuation">(</span>resultTo<span class="token punctuation">)</span>
+                <span class="token punctuation">.</span><span class="token function">setResultWho</span><span class="token punctuation">(</span>resultWho<span class="token punctuation">)</span>
+                <span class="token punctuation">.</span><span class="token function">setRequestCode</span><span class="token punctuation">(</span>requestCode<span class="token punctuation">)</span>
+                <span class="token punctuation">.</span><span class="token function">setStartFlags</span><span class="token punctuation">(</span>startFlags<span class="token punctuation">)</span>
+                <span class="token punctuation">.</span><span class="token function">setProfilerInfo</span><span class="token punctuation">(</span>profilerInfo<span class="token punctuation">)</span>
+                <span class="token punctuation">.</span><span class="token function">setActivityOptions</span><span class="token punctuation">(</span>opts<span class="token punctuation">)</span>
+                <span class="token punctuation">.</span><span class="token function">setUserId</span><span class="token punctuation">(</span>userId<span class="token punctuation">)</span>
+                <span class="token punctuation">.</span><span class="token function">execute</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token punctuation">}</span> 
+<span class="token punctuation">}</span>
+
+</code></pre> 
+<p>可以看到，在这个类中 <code>startActivity</code> 最终调用了 <code>startActivityAsUser</code> 方法，这个方法中的代码也比较简单，就是通过 <code>getActivityStartController().obtainStarter</code> 来配置相关参数，并最终执行 <code>execute</code>。</p> 
+<p><code>getActivityStartController()</code> 获取到的是一个 ActivityStartController 对象，如下：</p> 
+<pre><code class="prism language-Java">     ActivityStartController getActivityStartController() {
+        return mActivityStartController;
+    }
+</code></pre> 
+<p>接着调用了 ActivityStartController 的 obtainStarter，代码如下：</p> 
+<pre><code class="prism language-java"><span class="token comment">/// ActivityStartController</span>
+<span class="token class-name">ActivityStarter</span> <span class="token function">obtainStarter</span><span class="token punctuation">(</span><span class="token class-name">Intent</span> intent<span class="token punctuation">,</span> <span class="token class-name">String</span> reason<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">return</span> mFactory<span class="token punctuation">.</span><span class="token function">obtain</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">setIntent</span><span class="token punctuation">(</span>intent<span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">setReason</span><span class="token punctuation">(</span>reason<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>obtainStarter 返回的是一个 ActivityStarter 对象，忽略相关参数的配置，我们直接看 ActivityStarter 的 execute 方法，源码如下：</p> 
+<pre><code class="prism language-java"><span class="token comment">// frameworks/base/services/core/java/com/android/server/wm/ActivityStarter.java</span>
+
+<span class="token keyword">private</span> <span class="token keyword">final</span> <span class="token class-name">ActivityTaskSupervisor</span> mSupervisor<span class="token punctuation">;</span>
+
+<span class="token keyword">int</span> <span class="token function">execute</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">try</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token function">onExecutionStarted</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+            <span class="token comment">// ... </span>
+
+            <span class="token keyword">int</span> res<span class="token punctuation">;</span>
+            <span class="token keyword">synchronized</span> <span class="token punctuation">(</span>mService<span class="token punctuation">.</span>mGlobalLock<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                <span class="token comment">// ...</span>
+                
+                res <span class="token operator">=</span> <span class="token function">executeRequest</span><span class="token punctuation">(</span>mRequest<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+                <span class="token comment">// ...</span>
+                <span class="token punctuation">}</span>
+                <span class="token keyword">return</span> <span class="token function">getExternalResult</span><span class="token punctuation">(</span>res<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+        <span class="token punctuation">}</span> <span class="token keyword">finally</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token function">onExecutionComplete</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+</code></pre> 
+<p><code>execute</code> 方法又调用了 <code>executeRequest</code> 方法，源码如下：</p> 
+<pre><code class="prism language-java"><span class="token comment">// frameworks/base/services/core/java/com/android/server/wm/ActivityStarter.java</span>
+
+<span class="token keyword">private</span> <span class="token keyword">int</span> <span class="token function">executeRequest</span><span class="token punctuation">(</span><span class="token class-name">Request</span> request<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+
+        <span class="token comment">// ... 省略参数初始化及权限校验</span>
+
+        <span class="token keyword">final</span> <span class="token class-name">ActivityRecord</span> r <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">ActivityRecord<span class="token punctuation">.</span>Builder</span><span class="token punctuation">(</span>mService<span class="token punctuation">)</span>
+                <span class="token punctuation">.</span><span class="token function">setCaller</span><span class="token punctuation">(</span>callerApp<span class="token punctuation">)</span>
+                <span class="token punctuation">.</span><span class="token function">setLaunchedFromPid</span><span class="token punctuation">(</span>callingPid<span class="token punctuation">)</span>
+                <span class="token punctuation">.</span><span class="token function">setLaunchedFromUid</span><span class="token punctuation">(</span>callingUid<span class="token punctuation">)</span>
+                <span class="token punctuation">.</span><span class="token function">setLaunchedFromPackage</span><span class="token punctuation">(</span>callingPackage<span class="token punctuation">)</span>
+                <span class="token punctuation">.</span><span class="token function">setLaunchedFromFeature</span><span class="token punctuation">(</span>callingFeatureId<span class="token punctuation">)</span>
+                <span class="token punctuation">.</span><span class="token function">setIntent</span><span class="token punctuation">(</span>intent<span class="token punctuation">)</span>
+                <span class="token punctuation">.</span><span class="token function">setResolvedType</span><span class="token punctuation">(</span>resolvedType<span class="token punctuation">)</span>
+                <span class="token punctuation">.</span><span class="token function">setActivityInfo</span><span class="token punctuation">(</span>aInfo<span class="token punctuation">)</span>
+                <span class="token punctuation">.</span><span class="token function">setConfiguration</span><span class="token punctuation">(</span>mService<span class="token punctuation">.</span><span class="token function">getGlobalConfiguration</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+                <span class="token punctuation">.</span><span class="token function">setResultTo</span><span class="token punctuation">(</span>resultRecord<span class="token punctuation">)</span>
+                <span class="token punctuation">.</span><span class="token function">setResultWho</span><span class="token punctuation">(</span>resultWho<span class="token punctuation">)</span>
+                <span class="token punctuation">.</span><span class="token function">setRequestCode</span><span class="token punctuation">(</span>requestCode<span class="token punctuation">)</span>
+                <span class="token punctuation">.</span><span class="token function">setComponentSpecified</span><span class="token punctuation">(</span>request<span class="token punctuation">.</span>componentSpecified<span class="token punctuation">)</span>
+                <span class="token punctuation">.</span><span class="token function">setRootVoiceInteraction</span><span class="token punctuation">(</span>voiceSession <span class="token operator">!=</span> <span class="token keyword">null</span><span class="token punctuation">)</span>
+                <span class="token punctuation">.</span><span class="token function">setActivityOptions</span><span class="token punctuation">(</span>checkedOptions<span class="token punctuation">)</span>
+                <span class="token punctuation">.</span><span class="token function">setSourceRecord</span><span class="token punctuation">(</span>sourceRecord<span class="token punctuation">)</span>
+                <span class="token punctuation">.</span><span class="token function">build</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        <span class="token comment">// ...</span>
+
+        mLastStartActivityResult <span class="token operator">=</span> <span class="token function">startActivityUnchecked</span><span class="token punctuation">(</span>r<span class="token punctuation">,</span> sourceRecord<span class="token punctuation">,</span> voiceSession<span class="token punctuation">,</span>
+                request<span class="token punctuation">.</span>voiceInteractor<span class="token punctuation">,</span> startFlags<span class="token punctuation">,</span> <span class="token boolean">true</span> <span class="token comment">/* doResume */</span><span class="token punctuation">,</span> checkedOptions<span class="token punctuation">,</span>
+                inTask<span class="token punctuation">,</span> inTaskFragment<span class="token punctuation">,</span> restrictedBgActivity<span class="token punctuation">,</span> intentGrants<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>request<span class="token punctuation">.</span>outActivity <span class="token operator">!=</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            request<span class="token punctuation">.</span>outActivity<span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span> <span class="token operator">=</span> mLastStartActivityRecord<span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+
+        <span class="token keyword">return</span> mLastStartActivityResult<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+</code></pre> 
+<p>executeRequest 方法中的核心是实例化了 ActivityRecord，并调用 startActivityUnchecked，</p> 
+<pre><code class="prism language-java"><span class="token comment">// frameworks/base/services/core/java/com/android/server/wm/ActivityStarter.java</span>
+
+<span class="token keyword">private</span> <span class="token keyword">int</span> <span class="token function">startActivityUnchecked</span><span class="token punctuation">(</span><span class="token keyword">final</span> <span class="token class-name">ActivityRecord</span> r<span class="token punctuation">,</span> <span class="token class-name">ActivityRecord</span> sourceRecord<span class="token punctuation">,</span>
+            <span class="token class-name">IVoiceInteractionSession</span> voiceSession<span class="token punctuation">,</span> <span class="token class-name">IVoiceInteractor</span> voiceInteractor<span class="token punctuation">,</span>
+            <span class="token keyword">int</span> startFlags<span class="token punctuation">,</span> <span class="token keyword">boolean</span> doResume<span class="token punctuation">,</span> <span class="token class-name">ActivityOptions</span> options<span class="token punctuation">,</span> <span class="token class-name">Task</span> inTask<span class="token punctuation">,</span>
+            <span class="token class-name">TaskFragment</span> inTaskFragment<span class="token punctuation">,</span> <span class="token keyword">boolean</span> restrictedBgActivity<span class="token punctuation">,</span>
+            <span class="token class-name">NeededUriGrants</span> intentGrants<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        
+        <span class="token keyword">try</span> <span class="token punctuation">{<!-- --></span>
+            mService<span class="token punctuation">.</span><span class="token function">deferWindowLayout</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token keyword">try</span> <span class="token punctuation">{<!-- --></span>
+                result <span class="token operator">=</span> <span class="token function">startActivityInner</span><span class="token punctuation">(</span>r<span class="token punctuation">,</span> sourceRecord<span class="token punctuation">,</span> voiceSession<span class="token punctuation">,</span> voiceInteractor<span class="token punctuation">,</span>
+                        startFlags<span class="token punctuation">,</span> doResume<span class="token punctuation">,</span> options<span class="token punctuation">,</span> inTask<span class="token punctuation">,</span> inTaskFragment<span class="token punctuation">,</span> restrictedBgActivity<span class="token punctuation">,</span>
+                        intentGrants<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span> <span class="token keyword">finally</span> <span class="token punctuation">{<!-- --></span>
+                <span class="token comment">// ...</span>
+            <span class="token punctuation">}</span>
+        <span class="token punctuation">}</span> <span class="token keyword">finally</span> <span class="token punctuation">{<!-- --></span>
+            mService<span class="token punctuation">.</span><span class="token function">continueWindowLayout</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        <span class="token function">postStartActivityProcessing</span><span class="token punctuation">(</span>r<span class="token punctuation">,</span> result<span class="token punctuation">,</span> startedActivityRootTask<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        <span class="token keyword">return</span> result<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>`java
+
+</code></pre> 
+<p><code>startActivityUnchecked</code> 方法中又调用了 <code>startActivityInner</code>，源码如下：</p> 
+<pre><code class="prism language-java"><span class="token comment">// frameworks/base/services/core/java/com/android/server/wm/ActivityStarter.java</span>
+
+<span class="token keyword">private</span> <span class="token keyword">final</span> <span class="token class-name">RootWindowContainer</span> mRootWindowContainer<span class="token punctuation">;</span>
+
+<span class="token keyword">int</span> <span class="token function">startActivityInner</span><span class="token punctuation">(</span><span class="token keyword">final</span> <span class="token class-name">ActivityRecord</span> r<span class="token punctuation">,</span> <span class="token class-name">ActivityRecord</span> sourceRecord<span class="token punctuation">,</span>
+            <span class="token class-name">IVoiceInteractionSession</span> voiceSession<span class="token punctuation">,</span> <span class="token class-name">IVoiceInteractor</span> voiceInteractor<span class="token punctuation">,</span>
+            <span class="token keyword">int</span> startFlags<span class="token punctuation">,</span> <span class="token keyword">boolean</span> doResume<span class="token punctuation">,</span> <span class="token class-name">ActivityOptions</span> options<span class="token punctuation">,</span> <span class="token class-name">Task</span> inTask<span class="token punctuation">,</span>
+            <span class="token class-name">TaskFragment</span> inTaskFragment<span class="token punctuation">,</span> <span class="token keyword">boolean</span> restrictedBgActivity<span class="token punctuation">,</span>
+            <span class="token class-name">NeededUriGrants</span> intentGrants<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token function">setInitialState</span><span class="token punctuation">(</span>r<span class="token punctuation">,</span> options<span class="token punctuation">,</span> inTask<span class="token punctuation">,</span> inTaskFragment<span class="token punctuation">,</span> doResume<span class="token punctuation">,</span> startFlags<span class="token punctuation">,</span> sourceRecord<span class="token punctuation">,</span>
+                voiceSession<span class="token punctuation">,</span> voiceInteractor<span class="token punctuation">,</span> restrictedBgActivity<span class="token punctuation">)</span><span class="token punctuation">;</span>
+                
+        <span class="token comment">// 处理 Intent 中携带的 flags</span>
+        <span class="token function">computeLaunchingTaskFlags</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        
+        <span class="token comment">// 获取启动 Activity 的任务栈，这里即获取 MainActivity 所在的任务栈 </span>
+        <span class="token function">computeSourceRootTask</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        
+        <span class="token comment">// ...</span>
+        
+        <span class="token comment">// 查找可用的任务栈</span>
+        <span class="token keyword">final</span> <span class="token class-name">Task</span> reusedTask <span class="token operator">=</span> <span class="token function">getReusableTask</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        <span class="token comment">// ...</span>
+        
+        <span class="token comment">// 如果 reusedTask 不空，则使用 reusedTask 任务栈，否则寻找目标任务栈</span>
+        <span class="token keyword">final</span> <span class="token class-name">Task</span> targetTask <span class="token operator">=</span> reusedTask <span class="token operator">!=</span> <span class="token keyword">null</span> <span class="token operator">?</span> reusedTask <span class="token operator">:</span> <span class="token function">computeTargetTask</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token comment">// 目标任务栈为空，则标记为使用新任务栈，需要新建任务栈</span>
+        <span class="token keyword">final</span> <span class="token keyword">boolean</span> newTask <span class="token operator">=</span> targetTask <span class="token operator">==</span> <span class="token keyword">null</span><span class="token punctuation">;</span>
+        
+        mTargetTask <span class="token operator">=</span> targetTask<span class="token punctuation">;</span>
+
+        <span class="token function">computeLaunchParams</span><span class="token punctuation">(</span>r<span class="token punctuation">,</span> sourceRecord<span class="token punctuation">,</span> targetTask<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>newTask<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token comment">// 创建一个新的任务栈</span>
+            <span class="token keyword">final</span> <span class="token class-name">Task</span> taskToAffiliate <span class="token operator">=</span> <span class="token punctuation">(</span>mLaunchTaskBehind <span class="token operator">&amp;&amp;</span> mSourceRecord <span class="token operator">!=</span> <span class="token keyword">null</span><span class="token punctuation">)</span>
+                    <span class="token operator">?</span> mSourceRecord<span class="token punctuation">.</span><span class="token function">getTask</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">:</span> <span class="token keyword">null</span><span class="token punctuation">;</span>
+            <span class="token comment">// 将 Activity 放入新建的任务栈        </span>
+            <span class="token function">setNewTask</span><span class="token punctuation">(</span>taskToAffiliate<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token keyword">if</span> <span class="token punctuation">(</span>mAddingToTask<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token comment">// 加入已有的任务栈</span>
+            <span class="token function">addOrReparentStartingActivity</span><span class="token punctuation">(</span>targetTask<span class="token punctuation">,</span> <span class="token string">"adding to task"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+
+        <span class="token comment">// ...</span>
+       
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>mDoResume<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                <span class="token comment">// ...</span>
+                mRootWindowContainer<span class="token punctuation">.</span><span class="token function">resumeFocusedTasksTopActivities</span><span class="token punctuation">(</span>
+                        mTargetRootTask<span class="token punctuation">,</span> mStartActivity<span class="token punctuation">,</span> mOptions<span class="token punctuation">,</span> mTransientLaunch<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+        <span class="token punctuation">}</span>
+        
+        <span class="token keyword">return</span> START_SUCCESS<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+</code></pre> 
+<p>startActivityInner 方法中的代码比较复杂。经过了简化处理后，可以看到这个方法里主要是处理任务栈相关的逻辑，如果找到可用的任务栈则直接使用这个任务栈，如果没有找到，则新建一个任务栈。 在完成任务栈的处理之后通过<code>mRootWindowContainer.resumeFocusedTasksTopActivities</code>继续 Activity 的启动流程，这里的 mRootWindowContainer 是 RootWindowContainer 的实例，resumeFocusedTasksTopActivities 代码如下：</p> 
+<pre><code class="prism language-java"><span class="token comment">// frameworks/base/services/core/java/com/android/server/wm/RootWindowContainer.java</span>
+
+ <span class="token keyword">boolean</span> <span class="token function">resumeFocusedTasksTopActivities</span><span class="token punctuation">(</span>
+            <span class="token class-name">Task</span> targetRootTask<span class="token punctuation">,</span> <span class="token class-name">ActivityRecord</span> target<span class="token punctuation">,</span> <span class="token class-name">ActivityOptions</span> targetOptions<span class="token punctuation">,</span>
+            <span class="token keyword">boolean</span> deferPause<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token comment">// ...</span>
+        
+        <span class="token keyword">boolean</span> result <span class="token operator">=</span> <span class="token boolean">false</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>targetRootTask <span class="token operator">!=</span> <span class="token keyword">null</span> <span class="token operator">&amp;&amp;</span> <span class="token punctuation">(</span>targetRootTask<span class="token punctuation">.</span><span class="token function">isTopRootTaskInDisplayArea</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+                <span class="token operator">||</span> <span class="token function">getTopDisplayFocusedRootTask</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">==</span> targetRootTask<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            result <span class="token operator">=</span> targetRootTask<span class="token punctuation">.</span><span class="token function">resumeTopActivityUncheckedLocked</span><span class="token punctuation">(</span>target<span class="token punctuation">,</span> targetOptions<span class="token punctuation">,</span>deferPause<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        
+        <span class="token comment">// ...</span>
+
+        <span class="token keyword">return</span> result<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+</code></pre> 
+<p>这个方法中将启动相关的代码交给了 Task 的 <code>resumeTopActivityUncheckedLocked</code> 方法。代码如下：</p> 
+<pre><code class="prism language-java">frameworks<span class="token operator">/</span>base<span class="token operator">/</span>services<span class="token operator">/</span>core<span class="token operator">/</span>java<span class="token operator">/</span>com<span class="token operator">/</span>android<span class="token operator">/</span>server<span class="token operator">/</span>wm<span class="token operator">/</span><span class="token class-name">Task</span><span class="token punctuation">.</span>java
+
+<span class="token keyword">boolean</span> <span class="token function">resumeTopActivityUncheckedLocked</span><span class="token punctuation">(</span><span class="token class-name">ActivityRecord</span> prev<span class="token punctuation">,</span> <span class="token class-name">ActivityOptions</span> options<span class="token punctuation">,</span>
+            <span class="token keyword">boolean</span> deferPause<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token comment">// ...</span>
+
+        <span class="token keyword">boolean</span> someActivityResumed <span class="token operator">=</span> <span class="token boolean">false</span><span class="token punctuation">;</span>
+        <span class="token keyword">try</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token comment">// Protect against recursion.</span>
+            mInResumeTopActivity <span class="token operator">=</span> <span class="token boolean">true</span><span class="token punctuation">;</span>
+
+            <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">isLeafTask</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">isFocusableAndVisible</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                    someActivityResumed <span class="token operator">=</span> <span class="token function">resumeTopActivityInnerLocked</span><span class="token punctuation">(</span>prev<span class="token punctuation">,</span> options<span class="token punctuation">,</span> deferPause<span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token punctuation">}</span>
+            <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{<!-- --></span>
+                       <span class="token comment">// ...</span>
+                   <span class="token punctuation">}</span>
+            <span class="token punctuation">}</span>
+
+        <span class="token comment">// ...</span>
+
+        <span class="token keyword">return</span> someActivityResumed<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    
+    
+<span class="token keyword">boolean</span> <span class="token function">resumeTopActivityUncheckedLocked</span><span class="token punctuation">(</span><span class="token class-name">ActivityRecord</span> prev<span class="token punctuation">,</span> <span class="token class-name">ActivityOptions</span> options<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">return</span> <span class="token function">resumeTopActivityUncheckedLocked</span><span class="token punctuation">(</span>prev<span class="token punctuation">,</span> options<span class="token punctuation">,</span> <span class="token boolean">false</span> <span class="token comment">/* skipPause */</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token annotation punctuation">@GuardedBy</span><span class="token punctuation">(</span><span class="token string">"mService"</span><span class="token punctuation">)</span>
+    <span class="token keyword">private</span> <span class="token keyword">boolean</span> <span class="token function">resumeTopActivityInnerLocked</span><span class="token punctuation">(</span><span class="token class-name">ActivityRecord</span> prev<span class="token punctuation">,</span> <span class="token class-name">ActivityOptions</span> options<span class="token punctuation">,</span>
+            <span class="token keyword">boolean</span> deferPause<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>mAtmService<span class="token punctuation">.</span><span class="token function">isBooting</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">&amp;&amp;</span> <span class="token operator">!</span>mAtmService<span class="token punctuation">.</span><span class="token function">isBooted</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token comment">// Not ready yet!</span>
+            <span class="token keyword">return</span> <span class="token boolean">false</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        <span class="token comment">// 任务栈栈顶正在运行的 Activity </span>
+        <span class="token keyword">final</span> <span class="token class-name">ActivityRecord</span> topActivity <span class="token operator">=</span> <span class="token function">topRunningActivity</span><span class="token punctuation">(</span><span class="token boolean">true</span> <span class="token comment">/* focusableOnly */</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>topActivity <span class="token operator">==</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token comment">// 空任务栈 There are no activities left in this task, let's look somewhere else.</span>
+            <span class="token keyword">return</span> <span class="token function">resumeNextFocusableActivityWhenRootTaskIsEmpty</span><span class="token punctuation">(</span>prev<span class="token punctuation">,</span> options<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+
+        <span class="token keyword">final</span> <span class="token keyword">boolean</span><span class="token punctuation">[</span><span class="token punctuation">]</span> resumed <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token keyword">boolean</span><span class="token punctuation">[</span><span class="token number">1</span><span class="token punctuation">]</span><span class="token punctuation">;</span>
+        <span class="token keyword">final</span> <span class="token class-name">TaskFragment</span> topFragment <span class="token operator">=</span> topActivity<span class="token punctuation">.</span><span class="token function">getTaskFragment</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        resumed<span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span> <span class="token operator">=</span> topFragment<span class="token punctuation">.</span><span class="token function">resumeTopActivity</span><span class="token punctuation">(</span>prev<span class="token punctuation">,</span> options<span class="token punctuation">,</span> deferPause<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token comment">// ...</span>
+        <span class="token keyword">return</span> resumed<span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    
+</code></pre> 
+<p>在 Task 的 resumeTopActivityUncheckedLocked 方法中进而又调用了resumeTopActivityUncheckedLocked，在 resumeTopActivityInnerLocked 中通过 TaskFragment 调用了 resumeTopActivity，接着来看 TaskFragment 中的实现。</p> 
+<pre><code class="prism language-java">frameworks<span class="token operator">/</span>base<span class="token operator">/</span>services<span class="token operator">/</span>core<span class="token operator">/</span>java<span class="token operator">/</span>com<span class="token operator">/</span>android<span class="token operator">/</span>server<span class="token operator">/</span>wm<span class="token operator">/</span><span class="token class-name">TaskFragment</span><span class="token punctuation">.</span>java
+
+<span class="token keyword">final</span> <span class="token class-name">ActivityTaskSupervisor</span> mTaskSupervisor<span class="token punctuation">;</span>
+
+<span class="token keyword">final</span> <span class="token keyword">boolean</span> <span class="token function">resumeTopActivity</span><span class="token punctuation">(</span><span class="token class-name">ActivityRecord</span> prev<span class="token punctuation">,</span> <span class="token class-name">ActivityOptions</span> options<span class="token punctuation">,</span>
+            <span class="token keyword">boolean</span> deferPause<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token class-name">ActivityRecord</span> next <span class="token operator">=</span> <span class="token function">topRunningActivity</span><span class="token punctuation">(</span><span class="token boolean">true</span> <span class="token comment">/* focusableOnly */</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+         <span class="token comment">// ...</span>
+         
+         <span class="token keyword">if</span> <span class="token punctuation">(</span>mResumedActivity <span class="token operator">!=</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+             <span class="token comment">// 暂停栈顶的Activity</span>
+            pausing <span class="token operator">|=</span> <span class="token function">startPausing</span><span class="token punctuation">(</span>mTaskSupervisor<span class="token punctuation">.</span>mUserLeaving<span class="token punctuation">,</span> <span class="token boolean">false</span> <span class="token comment">/* uiSleeping */</span><span class="token punctuation">,</span> next<span class="token punctuation">,</span> <span class="token string">"resumeTopActivity"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+         
+        <span class="token comment">// ... </span>
+           
+        <span class="token comment">// 要启动的 Activity 已存在，且不需要重新创建，例如设置了 singleTask 或 singleTop启动模式</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>next<span class="token punctuation">.</span><span class="token function">attachedToProcess</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token comment">// ...</span>
+
+            <span class="token class-name">ActivityRecord</span> lastResumedActivity <span class="token operator">=</span>
+                    lastFocusedRootTask <span class="token operator">==</span> <span class="token keyword">null</span> <span class="token operator">?</span> <span class="token keyword">null</span>
+                            <span class="token operator">:</span> lastFocusedRootTask<span class="token punctuation">.</span><span class="token function">getTopResumedActivity</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token keyword">final</span> <span class="token class-name">ActivityRecord<span class="token punctuation">.</span>State</span> lastState <span class="token operator">=</span> next<span class="token punctuation">.</span><span class="token function">getState</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+            mAtmService<span class="token punctuation">.</span><span class="token function">updateCpuStats</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+            next<span class="token punctuation">.</span><span class="token function">setState</span><span class="token punctuation">(</span>RESUMED<span class="token punctuation">,</span> <span class="token string">"resumeTopActivity"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+            <span class="token comment">// Have the window manager re-evaluate the orientation of</span>
+            <span class="token comment">// the screen based on the new activity order.</span>
+            <span class="token keyword">boolean</span> notUpdated <span class="token operator">=</span> <span class="token boolean">true</span><span class="token punctuation">;</span>
+
+            <span class="token comment">// ...</span>
+
+            <span class="token keyword">try</span> <span class="token punctuation">{<!-- --></span>
+                <span class="token comment">// 开启一个事务</span>
+                <span class="token keyword">final</span> <span class="token class-name">ClientTransaction</span> transaction <span class="token operator">=</span>
+                        <span class="token class-name">ClientTransaction</span><span class="token punctuation">.</span><span class="token function">obtain</span><span class="token punctuation">(</span>next<span class="token punctuation">.</span>app<span class="token punctuation">.</span><span class="token function">getThread</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> next<span class="token punctuation">.</span>token<span class="token punctuation">)</span><span class="token punctuation">;</span>
+                 <span class="token comment">// ...</span>
+
+                <span class="token keyword">if</span> <span class="token punctuation">(</span>next<span class="token punctuation">.</span>newIntents <span class="token operator">!=</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                    <span class="token comment">// 添加 onNewIntent 的 callback ，最终会在APP端执行 onNewIntent()</span>
+                    transaction<span class="token punctuation">.</span><span class="token function">addCallback</span><span class="token punctuation">(</span>
+                            <span class="token class-name">NewIntentItem</span><span class="token punctuation">.</span><span class="token function">obtain</span><span class="token punctuation">(</span>next<span class="token punctuation">.</span>newIntents<span class="token punctuation">,</span> <span class="token boolean">true</span> <span class="token comment">/* resume */</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token punctuation">}</span>
+
+                <span class="token comment">// ...</span>
+               
+                <span class="token comment">// 设置 Activity 最终的生命周期状态为 Resume</span>
+                transaction<span class="token punctuation">.</span><span class="token function">setLifecycleStateRequest</span><span class="token punctuation">(</span>
+                        <span class="token class-name">ResumeActivityItem</span><span class="token punctuation">.</span><span class="token function">obtain</span><span class="token punctuation">(</span>next<span class="token punctuation">.</span>app<span class="token punctuation">.</span><span class="token function">getReportedProcState</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span>
+                                dc<span class="token punctuation">.</span><span class="token function">isNextTransitionForward</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token comment">// Flag1：开始执行事务                </span>
+                mAtmService<span class="token punctuation">.</span><span class="token function">getLifecycleManager</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">scheduleTransaction</span><span class="token punctuation">(</span>transaction<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+            <span class="token punctuation">}</span> <span class="token keyword">catch</span> <span class="token punctuation">(</span><span class="token class-name">Exception</span> e<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                <span class="token comment">// ...</span>
+                
+                <span class="token comment">// Resume 异常，重新启动</span>
+                mTaskSupervisor<span class="token punctuation">.</span><span class="token function">startSpecificActivity</span><span class="token punctuation">(</span>next<span class="token punctuation">,</span> <span class="token boolean">true</span><span class="token punctuation">,</span> <span class="token boolean">false</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token keyword">return</span> <span class="token boolean">true</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+
+           <span class="token comment">// ...</span>
+        <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token comment">// ...</span>
+            
+            <span class="token comment">// 启动 Activity</span>
+            mTaskSupervisor<span class="token punctuation">.</span><span class="token function">startSpecificActivity</span><span class="token punctuation">(</span>next<span class="token punctuation">,</span> <span class="token boolean">true</span><span class="token punctuation">,</span> <span class="token boolean">true</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+
+        <span class="token keyword">return</span> <span class="token boolean">true</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+</code></pre> 
+<p>resumeTopActivity 方法中主要有两部分内容。</p> 
+<ul><li>next.attachedToProcess() 为 true，即要启动的这个 Activity 已经存在，并且设置了像“singleInstance” 的启动模式，无需重新创建 Activity 的情况下，则先通过 ClientTransaction 添加了一个 NewIntentItem 的 callback，接下来通过 setLifecycleStateRequest 设置了一个 ResumeActivityItem 对象。</li><li>next.attachedToProcess() 为 false ，则继续执行 Activity 的启动流程</li></ul> 
+<p>第一部分中的 ClientTransaction 是什么？ scheduleTransaction 又是做了什么？这里先不做探讨，留一个Flag，后边再来分析。</p> 
+<p>接着继续看主线流程，在 <code>next.attachedToProcess()</code> 返回 false 之后，通过 ActivityTaskSupervisor 调用了 <code>startSpecificActivity</code>，这里是 Activity 正常启动的流程，查看 <code>startSpecificActivity</code> 源码如下：</p> 
+<pre><code class="prism language-java">frameworks<span class="token operator">/</span>base<span class="token operator">/</span>services<span class="token operator">/</span>core<span class="token operator">/</span>java<span class="token operator">/</span>com<span class="token operator">/</span>android<span class="token operator">/</span>server<span class="token operator">/</span>wm<span class="token operator">/</span><span class="token class-name">ActivityTaskSupervisor</span><span class="token punctuation">.</span>java
+
+
+    <span class="token keyword">void</span> <span class="token function">startSpecificActivity</span><span class="token punctuation">(</span><span class="token class-name">ActivityRecord</span> r<span class="token punctuation">,</span> <span class="token keyword">boolean</span> andResume<span class="token punctuation">,</span> <span class="token keyword">boolean</span> checkConfig<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token comment">// Is this activity's application already running?</span>
+        <span class="token keyword">final</span> <span class="token class-name">WindowProcessController</span> wpc <span class="token operator">=</span>
+                mService<span class="token punctuation">.</span><span class="token function">getProcessController</span><span class="token punctuation">(</span>r<span class="token punctuation">.</span>processName<span class="token punctuation">,</span> r<span class="token punctuation">.</span>info<span class="token punctuation">.</span>applicationInfo<span class="token punctuation">.</span>uid<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        <span class="token keyword">boolean</span> knownToBeDead <span class="token operator">=</span> <span class="token boolean">false</span><span class="token punctuation">;</span>
+        
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>wpc <span class="token operator">!=</span> <span class="token keyword">null</span> <span class="token operator">&amp;&amp;</span> wpc<span class="token punctuation">.</span><span class="token function">hasThread</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token keyword">try</span> <span class="token punctuation">{<!-- --></span>
+                <span class="token function">realStartActivityLocked</span><span class="token punctuation">(</span>r<span class="token punctuation">,</span> wpc<span class="token punctuation">,</span> andResume<span class="token punctuation">,</span> checkConfig<span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token keyword">return</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span> <span class="token keyword">catch</span> <span class="token punctuation">(</span><span class="token class-name">RemoteException</span> e<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+               <span class="token comment">// ...</span>
+            <span class="token punctuation">}</span>
+
+            <span class="token comment">// ...</span>
+        <span class="token punctuation">}</span>
+
+        <span class="token comment">// ...</span>
+    <span class="token punctuation">}</span>
+    
+   <span class="token keyword">boolean</span> <span class="token function">realStartActivityLocked</span><span class="token punctuation">(</span><span class="token class-name">ActivityRecord</span> r<span class="token punctuation">,</span> <span class="token class-name">WindowProcessController</span> proc<span class="token punctuation">,</span>
+            <span class="token keyword">boolean</span> andResume<span class="token punctuation">,</span> <span class="token keyword">boolean</span> checkConfig<span class="token punctuation">)</span> <span class="token keyword">throws</span> <span class="token class-name">RemoteException</span> <span class="token punctuation">{<!-- --></span>
+
+        <span class="token comment">// ...</span>
+
+        <span class="token keyword">final</span> <span class="token class-name">Task</span> task <span class="token operator">=</span> r<span class="token punctuation">.</span><span class="token function">getTask</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">final</span> <span class="token class-name">Task</span> rootTask <span class="token operator">=</span> task<span class="token punctuation">.</span><span class="token function">getRootTask</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        <span class="token keyword">try</span> <span class="token punctuation">{<!-- --></span>
+                <span class="token comment">// ...</span>
+
+                <span class="token comment">// 创建启动 Activity 的事务</span>
+                <span class="token keyword">final</span> <span class="token class-name">ClientTransaction</span> clientTransaction <span class="token operator">=</span> <span class="token class-name">ClientTransaction</span><span class="token punctuation">.</span><span class="token function">obtain</span><span class="token punctuation">(</span>
+                        proc<span class="token punctuation">.</span><span class="token function">getThread</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> r<span class="token punctuation">.</span>token<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+                <span class="token keyword">final</span> <span class="token keyword">boolean</span> isTransitionForward <span class="token operator">=</span> r<span class="token punctuation">.</span><span class="token function">isTransitionForward</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token keyword">final</span> <span class="token class-name">IBinder</span> fragmentToken <span class="token operator">=</span> r<span class="token punctuation">.</span><span class="token function">getTaskFragment</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">getFragmentToken</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+                
+                <span class="token comment">// 添加启动 Activity 的 callback，执行launchActivity</span>
+                clientTransaction<span class="token punctuation">.</span><span class="token function">addCallback</span><span class="token punctuation">(</span><span class="token class-name">LaunchActivityItem</span><span class="token punctuation">.</span><span class="token function">obtain</span><span class="token punctuation">(</span><span class="token keyword">new</span> <span class="token class-name">Intent</span><span class="token punctuation">(</span>r<span class="token punctuation">.</span>intent<span class="token punctuation">)</span><span class="token punctuation">,</span>
+                        <span class="token class-name">System</span><span class="token punctuation">.</span><span class="token function">identityHashCode</span><span class="token punctuation">(</span>r<span class="token punctuation">)</span><span class="token punctuation">,</span> r<span class="token punctuation">.</span>info<span class="token punctuation">,</span>
+                        <span class="token comment">// TODO: Have this take the merged configuration instead of separate global</span>
+                        <span class="token comment">// and override configs.</span>
+                        mergedConfiguration<span class="token punctuation">.</span><span class="token function">getGlobalConfiguration</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span>
+                        mergedConfiguration<span class="token punctuation">.</span><span class="token function">getOverrideConfiguration</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> r<span class="token punctuation">.</span>compat<span class="token punctuation">,</span>
+                        r<span class="token punctuation">.</span><span class="token function">getFilteredReferrer</span><span class="token punctuation">(</span>r<span class="token punctuation">.</span>launchedFromPackage<span class="token punctuation">)</span><span class="token punctuation">,</span> task<span class="token punctuation">.</span>voiceInteractor<span class="token punctuation">,</span>
+                        proc<span class="token punctuation">.</span><span class="token function">getReportedProcState</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> r<span class="token punctuation">.</span><span class="token function">getSavedState</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> r<span class="token punctuation">.</span><span class="token function">getPersistentSavedState</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span>
+                        results<span class="token punctuation">,</span> newIntents<span class="token punctuation">,</span> r<span class="token punctuation">.</span><span class="token function">takeOptions</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> isTransitionForward<span class="token punctuation">,</span>
+                        proc<span class="token punctuation">.</span><span class="token function">createProfilerInfoIfNeeded</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> r<span class="token punctuation">.</span>assistToken<span class="token punctuation">,</span> activityClientController<span class="token punctuation">,</span>
+                        r<span class="token punctuation">.</span>shareableActivityToken<span class="token punctuation">,</span> r<span class="token punctuation">.</span><span class="token function">getLaunchedFromBubble</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> fragmentToken<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+                <span class="token comment">// Activity 启动后最终的生命周期状态</span>
+                <span class="token keyword">final</span> <span class="token class-name">ActivityLifecycleItem</span> lifecycleItem<span class="token punctuation">;</span>
+                <span class="token keyword">if</span> <span class="token punctuation">(</span>andResume<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                    <span class="token comment">// 将最终生命周期设置为 Resume 状态</span>
+                    lifecycleItem <span class="token operator">=</span> <span class="token class-name">ResumeActivityItem</span><span class="token punctuation">.</span><span class="token function">obtain</span><span class="token punctuation">(</span>isTransitionForward<span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{<!-- --></span>
+                    <span class="token comment">// 将最终生命周期设置为 Pause 状态</span>
+                    lifecycleItem <span class="token operator">=</span> <span class="token class-name">PauseActivityItem</span><span class="token punctuation">.</span><span class="token function">obtain</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token punctuation">}</span>
+                <span class="token comment">// 设置 Activity 启动后最终的生命周期状态</span>
+                clientTransaction<span class="token punctuation">.</span><span class="token function">setLifecycleStateRequest</span><span class="token punctuation">(</span>lifecycleItem<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+                <span class="token comment">// 开启事务</span>
+                mService<span class="token punctuation">.</span><span class="token function">getLifecycleManager</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">scheduleTransaction</span><span class="token punctuation">(</span>clientTransaction<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+               <span class="token comment">// ...</span>
+
+            <span class="token punctuation">}</span> <span class="token keyword">catch</span> <span class="token punctuation">(</span><span class="token class-name">RemoteException</span> e<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                <span class="token comment">// ...</span>
+            <span class="token punctuation">}</span>
+        <span class="token punctuation">}</span> <span class="token keyword">finally</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token comment">// ...</span>
+        <span class="token punctuation">}</span>
+
+        <span class="token comment">// ...</span>
+
+        <span class="token keyword">return</span> <span class="token boolean">true</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+ 
+</code></pre> 
+<p><code>startSpecificActivity</code> 方法中最核心的逻辑是调用了 <code>realStartActivityLocked</code> ，这个方法中同样是获取了一个 ClientTransaction 实例，并调用了它的 addCallback 方法，与上边不同的是，这里添加了一个 LaunchActivityItem 实例。</p> 
+<p>这里与上边 Flag 处的代码逻辑是一样，只是添加的 callback 不同，那 ClientTransaction 是什么？它与 Activity 的启动又有什么关系呢？</p> 
+<h5><a id="1_ClientTransaction_616"></a>1. ClientTransaction</h5> 
+<p>ClientTransaction 是包含了一系列要执行的事务项的事务。我们可以通过调用它的 <code>addCallback</code>方法来添加一个事务项，你也可以多次调用来添加多个事务项。addCallback 接收的参数类型为 ClientTransactionItem，而这个 ClientTransactionItem 有多个子类，例如上边已经出现过的 NewIntentItem、LaunchActivityItem 等都是其子类。</p> 
+<p>另外可以通过 ClientTransactionItem 的 <code>setLifecycleStateRequest</code> 方法设置 Activity 执行完后最终的生命周期状态，其参数的类型为 ActivityLifecycleItem。ActivityLifecycleItem 也是继承自 ClientTransactionItem。同时，ActivityLifecycleItem 也有多个子类，它的每个子类都对应了 Activity 的一个生命周期事件。</p> 
+<p>在完成 callback 与 lifeCycleStateRequest 的设置之后，便通过调用 <code>mService.getLifecycleManager().scheduleTransaction(clientTransaction)</code>方法开启事务项的执行。</p> 
+<p>这里的 mService.getLifecycleManager() 获取到的是什么呢？跟踪 ActivityTaskManagerService 源码我们可以找到 getLifecycleManager 的代码如下：</p> 
+<pre><code class="prism language-java"><span class="token comment">// frameworks/base/services/core/java/com/android/server/wm/ActivityTaskManagerService.java</span>
+    <span class="token keyword">private</span> <span class="token keyword">final</span> <span class="token class-name">ClientLifecycleManager</span> mLifecycleManager<span class="token punctuation">;</span>
+    
+    <span class="token class-name">ClientLifecycleManager</span> <span class="token function">getLifecycleManager</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">return</span> mLifecycleManager<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+</code></pre> 
+<p>可以看到，getLifecycleManager 返回了一个 ClientLifecycleManager 的实例，并调用了 scheduleTransaction 方法，代码如下：</p> 
+<pre><code class="prism language-java"><span class="token comment">// frameworks/base/services/core/java/com/android/server/wm/ClientLifecycleManager.java</span>
+
+<span class="token keyword">void</span> <span class="token function">scheduleTransaction</span><span class="token punctuation">(</span><span class="token class-name">ClientTransaction</span> transaction<span class="token punctuation">)</span> <span class="token keyword">throws</span> <span class="token class-name">RemoteException</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">final</span> <span class="token class-name">IApplicationThread</span> client <span class="token operator">=</span> transaction<span class="token punctuation">.</span><span class="token function">getClient</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        transaction<span class="token punctuation">.</span><span class="token function">schedule</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token comment">// ...</span>
+    <span class="token punctuation">}</span>
+
+</code></pre> 
+<p>上述方法的核心代码是调用了 ClientTransaction 的 schedule 方法，schedule 方法源码如下：</p> 
+<pre><code class="prism language-java"> <span class="token comment">// frameworks/base/core/java/android/app/servertransaction/ClientTransaction.java</span>
+ 
+ <span class="token keyword">private</span> <span class="token class-name">IApplicationThread</span> mClient<span class="token punctuation">;</span>
+ 
+ <span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">schedule</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token keyword">throws</span> <span class="token class-name">RemoteException</span> <span class="token punctuation">{<!-- --></span>
+         mClient<span class="token punctuation">.</span><span class="token function">scheduleTransaction</span><span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+</code></pre> 
+<p>在 schedule 方法中通过 mClient 调用了 scheduleTransaction，<br> 这里的 mClient 即为 IApplicationThread，也就是我们在第二章中提到的客户端的 Binder。这个参数是在实例化 ClientTransaction 时传进来的，IApplicationThread 是一个AIDL 类，那么通过编译后它会生成一个 IApplicationThread.Stub 类，上文中提到的 <strong>ActivityThread#ApplicationThread</strong> 就是继承了IApplicationThread.Stub。</p> 
+<pre><code class="prism language-java"><span class="token comment">// frameworks/base/core/java/android/app/ActivityThread#ApplicationThread </span>
+
+<span class="token keyword">private</span> <span class="token keyword">class</span> <span class="token class-name">ApplicationThread</span> <span class="token keyword">extends</span> <span class="token class-name">IApplicationThread<span class="token punctuation">.</span>Stub</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token comment">// ...</span>
+<span class="token punctuation">}</span>
+
+</code></pre> 
+<p>既然我们已经知道了 IApplicationThread 是客户端 Binder 在服务端的代理， 那么这里实际上是就是调用了客户端 ApplicationThread 中的 scheduleTransaction 方法。</p> 
+<p>至此，代码最终又回到了客户端的 ApplicationThread 中。但是，关于 ClientTransaction 的分析到这里还未结束。可以看到的是，此时的代码又通过 scheduleTransaction 方法回到了客户端，并且将 ClientTransaction 作为参数传了过去。那么，ClientTransaction 的执行逻辑实际上在客户端中执行的。</p> 
+<h3><a id="_675"></a>四、再探客户端的调用流程</h3> 
+<p>通过 Binder IPC，代码的调用流程又回到了客户端，来看 ApplicationThread 中 scheduleTransaction 方法的实现，源码如下：</p> 
+<pre><code class="prism language-java"><span class="token comment">// frameworks/base/core/java/android/app/ActivityThread#ApplicationThread</span>
+
+    <span class="token annotation punctuation">@Override</span>
+    <span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">scheduleTransaction</span><span class="token punctuation">(</span><span class="token class-name">ClientTransaction</span> transaction<span class="token punctuation">)</span> <span class="token keyword">throws</span> <span class="token class-name">RemoteException</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token class-name">ActivityThread</span><span class="token punctuation">.</span><span class="token keyword">this</span><span class="token punctuation">.</span><span class="token function">scheduleTransaction</span><span class="token punctuation">(</span>transaction<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+</code></pre> 
+<p>这个方法中又调用了 ActivityThread 的 scheduleTransaction 。而 scheduleTransaction 的源码在ActivityThread 的父类 ClientTransactionHandler 中， 如下：</p> 
+<pre><code class="prism language-java"><span class="token comment">// frameworks/base/core/java/android/app/ClientTransactionHandler.java</span>
+
+    <span class="token keyword">void</span> <span class="token function">scheduleTransaction</span><span class="token punctuation">(</span><span class="token class-name">ClientTransaction</span> transaction<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        transaction<span class="token punctuation">.</span><span class="token function">preExecute</span><span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">sendMessage</span><span class="token punctuation">(</span><span class="token class-name">ActivityThread<span class="token punctuation">.</span>H</span><span class="token punctuation">.</span>EXECUTE_TRANSACTION<span class="token punctuation">,</span> transaction<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+</code></pre> 
+<p>这里将 transaction 作为参数调用了 sendMessage 方法。sendMessage 方法源码如下：</p> 
+<pre><code class="prism language-Java">
+    void sendMessage(int what, Object obj) {
+        sendMessage(what, obj, 0, 0, false);
+    }
+
+    private void sendMessage(int what, Object obj, int arg1) {
+        sendMessage(what, obj, arg1, 0, false);
+    }
+
+    private void sendMessage(int what, Object obj, int arg1, int arg2) {
+        sendMessage(what, obj, arg1, arg2, false);
+    }
+
+    private void sendMessage(int what, Object obj, int arg1, int arg2, boolean async) {
+        
+        Message msg = Message.obtain();
+        msg.what = what;
+        msg.obj = obj;
+        msg.arg1 = arg1;
+        msg.arg2 = arg2;
+        if (async) {
+            // 设置异步消息，会优先执行
+            msg.setAsynchronous(true);
+        }
+        mH.sendMessage(msg);
+    }
+</code></pre> 
+<p>可以看到，这里最终将 ClientTransaction 与 EXECUTE_TRANSACTION 打包成一个 Message ,并且将这个 Message 设置成了异步消息，最终通过 mH 发送了出去，这里的 mH 是一个继承自 Handler 的 <code>H</code> 类，位于 ActivityThread 类的内部。</p> 
+<blockquote> 
+ <p>Message 被设置为异步消息后具有优先执行权，因为 Activity 的启动涉及到 Activity 的创建以及生命周期的调用，所有这里发送出来的 Message 不应该被其他 Message 阻塞，不然肯定会影响到 Activity 的启动，造成卡顿问题。具体分析可以参见 《<a href="https://juejin.cn/post/7110625878320775204" rel="nofollow">反思 Android 消息机制的设计与实现</a>》 这篇文章。</p> 
+</blockquote> 
+<p>接下来看一下在 H 类的内部是如何处理这条消息的，我们搜索 <code>EXECUTE_TRANSACTION</code> 可以看到如下代码：</p> 
+<pre><code class="prism language-java"><span class="token comment">// frameworks/base/core/java/android/app/ActivityThread#H</span>
+<span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">handleMessage</span><span class="token punctuation">(</span><span class="token class-name">Message</span> msg<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">switch</span> <span class="token punctuation">(</span>msg<span class="token punctuation">.</span>what<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">case</span> EXECUTE_TRANSACTION<span class="token operator">:</span>
+            <span class="token keyword">final</span> <span class="token class-name">ClientTransaction</span> transaction <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token class-name">ClientTransaction</span><span class="token punctuation">)</span> msg<span class="token punctuation">.</span>obj<span class="token punctuation">;</span>
+            mTransactionExecutor<span class="token punctuation">.</span><span class="token function">execute</span><span class="token punctuation">(</span>transaction<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token comment">// ...</span>
+             <span class="token keyword">break</span><span class="token punctuation">;</span>
+    
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>这里的代码很简单，通过 Message 拿到 ClientTransaction 后，然后通过 TransactionExecutor 的 execute 方法来执行 ClientTransaction。</p> 
+<p>在上一章中，我们只是对 ClientTransaction 做了简单的介绍。虽然 ClientTransaction 的实例化是在服务端，但其执行流程却是在客户端。看一下 TransactionExecutor 中 execute 源码：</p> 
+<pre><code class="prism language-java"><span class="token comment">// frameworks/base/core/java/android/app/servertransaction/TransactionExecutor.java</span>
+
+<span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">execute</span><span class="token punctuation">(</span><span class="token class-name">ClientTransaction</span> transaction<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+
+       <span class="token comment">// ...</span>
+        
+        <span class="token comment">// 执行 callback</span>
+        <span class="token function">executeCallbacks</span><span class="token punctuation">(</span>transaction<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token comment">// 执行 lifecycleState</span>
+        <span class="token function">executeLifecycleState</span><span class="token punctuation">(</span>transaction<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        
+        mPendingActions<span class="token punctuation">.</span><span class="token function">clear</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+       
+    <span class="token punctuation">}</span>   
+</code></pre> 
+<p>这个方法里的执行逻辑可以分为两部分：</p> 
+<ul><li>通过 executeCallbacks 方法执行所有被添加进来的 ClientTransactionItem</li><li>通过 executeLifecycleState 方法将 Activity 的生命周期执行到指定的状态</li></ul> 
+<h4><a id="1_executeCallbacks__774"></a>1. executeCallbacks 方法分析</h4> 
+<p>executeCallbacks 方法中的逻辑比较简单，其源码如下：</p> 
+<pre><code class="prism language-java">
+<span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">executeCallbacks</span><span class="token punctuation">(</span><span class="token class-name">ClientTransaction</span> transaction<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token comment">// ...</span>
+        
+        <span class="token keyword">final</span> <span class="token keyword">int</span> size <span class="token operator">=</span> callbacks<span class="token punctuation">.</span><span class="token function">size</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token keyword">int</span> i <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span> i <span class="token operator">&lt;</span> size<span class="token punctuation">;</span> <span class="token operator">++</span>i<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token comment">// ...</span>
+            <span class="token keyword">final</span> <span class="token class-name">ClientTransactionItem</span> item <span class="token operator">=</span> callbacks<span class="token punctuation">.</span><span class="token function">get</span><span class="token punctuation">(</span>i<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            item<span class="token punctuation">.</span><span class="token function">execute</span><span class="token punctuation">(</span>mTransactionHandler<span class="token punctuation">,</span> token<span class="token punctuation">,</span> mPendingActions<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token comment">// ...</span>
+            
+            <span class="token function">cycleToPath</span><span class="token punctuation">(</span>r<span class="token punctuation">,</span> postExecutionState<span class="token punctuation">,</span> shouldExcludeLastTransition<span class="token punctuation">,</span> transaction<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+</code></pre> 
+<p>在 executeCallbacks 中遍历了所有的 ClientTransactionItem 并执行了 ClientTransactionItem 的 execute 方法。上一章我们分析了，当 Activity 正常启动时，通过 addCallback 添加的是一个 LaunchActivityItem 的实例。以此为例，这里就会首先执行 LaunchActivityItem 的 execute 方法，进而执行 Activity 的实例化及 onCreate 生命周期的调用。这块源码留作后边再来分析。</p> 
+<h4><a id="2_ClientTransactionItem_797"></a>2. ClientTransactionItem</h4> 
+<p>我们上文提到过 ClientTransactionItem 有多个实现类，这些实现类对应了 Activity 中不同的执行流程。例如在 Activity 启动时如果不需要重新创建 Activity ，则会通过 addCallback 添加了一个 NewIntentItem 来执行 Activity 的 onNewIntennt 方法。而当需要重新创建 Activity 时，则传入的是一个 LaunchActivityItem，用来创建并启动Activity。</p> 
+<p>ClientTransactionItem 的所有子类或相关类均在 frameworks/base/core/java/android/app/servertransaction/ 目录下，如下图所示：</p> 
+<p><img src="https://images2.imgbox.com/fd/af/UZFGgEzc_o.png" alt="image.png"></p> 
+<p>上文中提到的 ActivityLifecycleItem 继承自 ClientTransactionItem ，且其子类均为 Activity 生命周相关的实现，例如，StartActivityItem、ResumeActivityItem、DestroyActivityItem 等。显而易见的是，这里将 Activity 的生命周期以及其它相关方法以面向对象的思想封装成了一个个的对象来执行。相比早些年的 Android 版本代码，所有生命周期以及相关方法都通过 Handler 的 sendMessage 的方式发送出来，这种面向对象的思想的逻辑更加清晰，且代码更容易维护。</p> 
+<h4><a id="3_executeLifecycleState__807"></a>3. executeLifecycleState 方法分析</h4> 
+<p>接着来看 executeCallbacks 中的 executeLifecycleState 方法，前面提到过，这里会将 Activity 执行到指定的生命周期状态。上边的代码中我们看到在 Activity 启动时，setLifecycleStateRequest 设置的是一个 ResumeActivityItem，代码如下：</p> 
+<pre><code class="prism language-Java">   // 设置 Activity 最终的生命周期状态为 Resume
+   transaction.setLifecycleStateRequest(
+          ResumeActivityItem.obtain(next.app.getReportedProcState(),
+                 dc.isNextTransitionForward()));
+</code></pre> 
+<p>设置了 ResumeActivityItem后，接下来的代码会怎么执行呢？来看 <code>executeLifecycleState</code> 方法的源码：</p> 
+<pre><code class="prism language-Java">   private void executeLifecycleState(ClientTransaction transaction) {
+        final ActivityLifecycleItem lifecycleItem = transaction.getLifecycleStateRequest();
+        // ...
+
+        // 第二个参数为执行完时的生命周状态
+        cycleToPath(r, lifecycleItem.getTargetState(), true /* excludeLastState */, transaction);
+
+        // Execute the final transition with proper parameters.
+        lifecycleItem.execute(mTransactionHandler, token, mPendingActions);
+        
+        lifecycleItem.postExecute(mTransactionHandler, token, mPendingActions);
+    }
+</code></pre> 
+<p>这段代码的关键点在于 <code>cycleToPath</code> 。同时，通过 lifecycleItem.getTargetState() 作为结束时的生命周期状态。由于此时设置的是一个 ResumeActivityItem，它的 getTargetState 返回的是一个 ON_RESUME 的值，代码如下:</p> 
+<pre><code class="prism language-Java">// frameworks/base/core/java/android/app/servertransaction/ResumeActivityItem.java
+    @Override
+    public int getTargetState() {
+        return ON_RESUME;
+    }
+    
+    
+    @Retention(RetentionPolicy.SOURCE)
+    public @interface LifecycleState{}
+    public static final int UNDEFINED = -1;
+    public static final int PRE_ON_CREATE = 0;
+    public static final int ON_CREATE = 1;
+    public static final int ON_START = 2;
+    public static final int ON_RESUME = 3;
+    public static final int ON_PAUSE = 4;
+    public static final int ON_STOP = 5;
+    public static final int ON_DESTROY = 6;
+    public static final int ON_RESTART = 7;
+
+</code></pre> 
+<p>可以看到 ON_RESUME 的值为 3。接着来看 cycleToPath 源码：</p> 
+<pre><code class="prism language-Java">private void cycleToPath(ActivityClientRecord r, int finish, boolean excludeLastState,
+            ClientTransaction transaction) {
+        // 获取当前 Activity 的生命周期状态，即开始时的状态    
+        final int start = r.getLifecycleState();
+        // 获取要执行的生命周期数组
+        final IntArray path = mHelper.getLifecyclePath(start, finish, excludeLastState);
+        // 按顺序执行 Activity 的生命周期
+        performLifecycleSequence(r, path, transaction);
+    }
+
+</code></pre> 
+<p>在这个方法中，首先获取了当前 Activity 生命周期状态，即开始执行 getLifecyclePath 时 Activity 的生命周期状态，由于 executeLifecycleState 方法是在 executeCallback 之后执行的，上面我们已经提到此时的 Activity 已经执行完了创建流程，并执行过了 onCreate 的生命周期。因此，这里的 start 应该是 ON_CREATE 状态，ON_CREATE 的值为 1。</p> 
+<p>那么接下来，这里的关键点就在于 getLifecyclePath 做了什么。我们看一下源码：</p> 
+<pre><code class="prism language-Java">// frameworks/base/core/java/android/app/servertransaction/TransactionExecutorHelper.java
+
+public IntArray getLifecyclePath(int start, int finish, boolean excludeLastState) {
+        if (start == UNDEFINED || finish == UNDEFINED) {
+            throw new IllegalArgumentException("Can't resolve lifecycle path for undefined state");
+        }
+        if (start == ON_RESTART || finish == ON_RESTART) {
+            throw new IllegalArgumentException(
+                    "Can't start or finish in intermittent RESTART state");
+        }
+        if (finish == PRE_ON_CREATE &amp;&amp; start != finish) {
+            throw new IllegalArgumentException("Can only start in pre-onCreate state");
+        }
+
+        mLifecycleSequence.clear();
+        // Activity 启动 时，执行到这里的 start 状态为 ON_CREATE，结束状态为 ON_RESUME
+        if (finish &gt;= start) {
+            if (start == ON_START &amp;&amp; finish == ON_STOP) {
+                // A case when we from start to stop state soon, we don't need to go
+                // through the resumed, paused state.
+                mLifecycleSequence.add(ON_STOP);
+            } else {
+                // 会走到这里的逻辑，将 ON_START 与 ON_RESUME 添加到数组
+                for (int i = start + 1; i &lt;= finish; i++) {
+                    mLifecycleSequence.add(i);
+                }
+            }
+        } else { // finish &lt; start, can't just cycle down
+            if (start == ON_PAUSE &amp;&amp; finish == ON_RESUME) {
+                // Special case when we can just directly go to resumed state.
+                mLifecycleSequence.add(ON_RESUME);
+            } else if (start &lt;= ON_STOP &amp;&amp; finish &gt;= ON_START) {
+                // Restart and go to required state.
+
+                // Go to stopped state first.
+                for (int i = start + 1; i &lt;= ON_STOP; i++) {
+                    mLifecycleSequence.add(i);
+                }
+                // Restart
+                mLifecycleSequence.add(ON_RESTART);
+                // Go to required state
+                for (int i = ON_START; i &lt;= finish; i++) {
+                    mLifecycleSequence.add(i);
+                }
+            } else {
+                // Relaunch and go to required state
+
+                // Go to destroyed state first.
+                for (int i = start + 1; i &lt;= ON_DESTROY; i++) {
+                    mLifecycleSequence.add(i);
+                }
+                // Go to required state
+                for (int i = ON_CREATE; i &lt;= finish; i++) {
+                    mLifecycleSequence.add(i);
+                }
+            }
+        }
+
+        // Remove last transition in case we want to perform it with some specific params.
+        if (excludeLastState &amp;&amp; mLifecycleSequence.size() != 0) {
+            mLifecycleSequence.remove(mLifecycleSequence.size() - 1);
+        }
+
+        return mLifecycleSequence;
+    }
+</code></pre> 
+<p>根据上边分析，此时的 start 为 ON_CREATE（值为 1），而 finish 的值为 ON_RESUME(值为 2)。因此，执行完 getLifecyclePath 后，会得到一个包含了 ON_START 与 ON_RESUME 的数组。</p> 
+<p>接下来看<code>performLifecycleSequence</code> 中的代码：</p> 
+<pre><code class="prism language-Java">    /** Transition the client through previously initialized state sequence. */
+    private void performLifecycleSequence(ActivityClientRecord r, IntArray path,
+            ClientTransaction transaction) {
+        final int size = path.size();
+        // 遍历数组，执行 Activity 的生命周
+        for (int i = 0, state; i &lt; size; i++) {
+            state = path.get(i);
+
+            switch (state) {
+                case ON_CREATE:
+                    mTransactionHandler.handleLaunchActivity(r, mPendingActions,
+                            null /* customIntent */);
+                    break;
+                case ON_START:
+                    mTransactionHandler.handleStartActivity(r, mPendingActions,
+                            null /* activityOptions */);
+                    break;
+                case ON_RESUME:
+                    mTransactionHandler.handleResumeActivity(r, false /* finalStateRequest */,
+                            r.isForward, "LIFECYCLER_RESUME_ACTIVITY");
+                    break;
+                case ON_PAUSE:
+                    mTransactionHandler.handlePauseActivity(r, false /* finished */,
+                            false /* userLeaving */, 0 /* configChanges */,
+                            false /* autoEnteringPip */, mPendingActions,
+                            "LIFECYCLER_PAUSE_ACTIVITY");
+                    break;
+                case ON_STOP:
+                    mTransactionHandler.handleStopActivity(r, 0 /* configChanges */,
+                            mPendingActions, false /* finalStateRequest */,
+                            "LIFECYCLER_STOP_ACTIVITY");
+                    break;
+                case ON_DESTROY:
+                    mTransactionHandler.handleDestroyActivity(r, false /* finishing */,
+                            0 /* configChanges */, false /* getNonConfigInstance */,
+                            "performLifecycleSequence. cycling to:" + path.get(size - 1));
+                    break;
+                case ON_RESTART:
+                    mTransactionHandler.performRestartActivity(r, false /* start */);
+                    break;
+                default:
+                    throw new IllegalArgumentException("Unexpected lifecycle state: " + state);
+            }
+        }
+    }
+</code></pre> 
+<p>在 <code>performLifecycleSequence</code> 方法中则是遍历了这个数组。因为此时的数组中有只有 ON_START 与 ON_RESUME 两个值，因此，这里分别先后执行了 <code>mTransactionHandler.handleStartActivity</code> 与 <code>mTransactionHandler.handleResumeActivity</code>，即调用了 ApplicationThread 的 handleStartActivity 与 handleResumeActivity 来执行 Activity 的 onStart 与 onResume 的生命周期。</p> 
+<h3><a id="Activity__1001"></a>五、Activity 的创建与生命周期的执行</h3> 
+<p>通过前面几个章节的分析我们已经知道，Activity 的启动是在服务端通过添加一个 LaunchActivityItem 到 ClientTransaction 中实现的，然后通过 IApplicationThread 跨进程将 ClientTransaction 传到了客户端来执行的。客户端通过遍历 ClientTransaction 中的所有 ClientTransactionItem，并执行了它的 execute 方法进而来执行 Activity 的创建过程。那接下来我们就来看一下 LaunchActivityItem 的 execute 方法调用后到底是如何执行的。</p> 
+<pre><code class="prism language-Java">// frameworks/base/core/java/android/app/servertransaction/LaunchActivityItem.java
+
+@Override
+    public void execute(ClientTransactionHandler client, IBinder token,
+            PendingTransactionActions pendingActions) {
+        
+        ActivityClientRecord r = new ActivityClientRecord(token, mIntent, mIdent, mInfo,
+                mOverrideConfig, mCompatInfo, mReferrer, mVoiceInteractor, mState, mPersistentState,
+                mPendingResults, mPendingNewIntents, mActivityOptions, mIsForward, mProfilerInfo,
+                client, mAssistToken, mShareableActivityToken, mLaunchedFromBubble,
+                mTaskFragmentToken);
+                
+        client.handleLaunchActivity(r, pendingActions, null /* customIntent */);
+    }
+</code></pre> 
+<p>LaunchActivityItem 的 execute 方法调用了 ClientTransactionHandler 的 <code>handleLaunchActivity</code>，而这里的 ClientTransactionHandler 就是 ActivityThread。 ActivityThread 中 handleLaunchActivity 的源码如下：</p> 
+<pre><code class="prism language-Java">// frameworks/base/core/java/android/app/ActivityThread.java
+
+public Activity handleLaunchActivity(ActivityClientRecord r,
+            PendingTransactionActions pendingActions, Intent customIntent) {
+        // If we are getting ready to gc after going to the background, well
+        // we are back active so skip it.
+        unscheduleGcIdler();
+        mSomeActivitiesChanged = true;
+
+        // ...
+
+        // 初始化 WindowManagerGlobal
+        WindowManagerGlobal.initialize();
+
+       
+        // 调用 performLaunchActivity 执行 Activity 的创建流程
+        final Activity a = performLaunchActivity(r, customIntent);
+
+        // ...
+
+        return a;
+    }
+</code></pre> 
+<p>在 handleLaunchActivity 方法中首先去初始化了 WindowManagerGlobal，紧接着调用了 performLaunchActivity 并返回了一个 Activity 实例，那么 Activity 的实例化必定是在 performLaunchActivity 中完成的。</p> 
+<h4><a id="1_Activity__onCreate__1050"></a>1. Activity 的实例化与 onCreate 的调用</h4> 
+<p>看下 performLaunchActivity 的源码:</p> 
+<pre><code class="prism language-Java">// frameworks/base/core/java/android/app/ActivityThread.java
+
+private Activity performLaunchActivity(ActivityClientRecord r, Intent customIntent) {
+        ActivityInfo aInfo = r.activityInfo;
+        // ...
+
+        ContextImpl appContext = createBaseContextForActivity(r);
+        Activity activity = null;
+        try {
+            // 在 Instrumentation 中通过反射实例化 Activity 
+            java.lang.ClassLoader cl = appContext.getClassLoader();
+            activity = mInstrumentation.newActivity(
+                    cl, component.getClassName(), r.intent);
+            StrictMode.incrementExpectedActivityCount(activity.getClass());
+            r.intent.setExtrasClassLoader(cl);
+            r.intent.prepareToEnterProcess(isProtectedComponent(r.activityInfo),
+                    appContext.getAttributionSource());
+            if (r.state != null) {
+                r.state.setClassLoader(cl);
+            }
+        } catch (Exception e) {
+            if (!mInstrumentation.onException(activity, e)) {
+                throw new RuntimeException(
+                    "Unable to instantiate activity " + component
+                    + ": " + e.toString(), e);
+            }
+        }
+
+       // ... 省略后半部分执行 Activity 生命周期的代码
+
+        return activity;
+    }
+
+</code></pre> 
+<p>这个方法中的主要逻辑可以分为两部分，第一部分是实例化 Activity；第二部分是执行 Activity 的 onCreate 的生命周期。由于代码比较长，这里我们只截取了第一部分的代码。可以看到这里通过 Instrumentation 的 newActivity 获取到一个 Activity 实例，newActivity 的参数传入了一个 ClassLoader 和 Activity 的 className。因此，这里实例化 Activity 的过程一定是通过反射实现的。看代码：</p> 
+<pre><code class="prism language-java">    <span class="token keyword">public</span> <span class="token class-name">Activity</span> <span class="token function">newActivity</span><span class="token punctuation">(</span><span class="token class-name">Class</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token operator">?</span><span class="token punctuation">&gt;</span></span> clazz<span class="token punctuation">,</span> <span class="token class-name">Context</span> context<span class="token punctuation">,</span> 
+            <span class="token class-name">IBinder</span> token<span class="token punctuation">,</span> <span class="token class-name">Application</span> application<span class="token punctuation">,</span> <span class="token class-name">Intent</span> intent<span class="token punctuation">,</span> <span class="token class-name">ActivityInfo</span> info<span class="token punctuation">,</span> 
+            <span class="token class-name">CharSequence</span> title<span class="token punctuation">,</span> <span class="token class-name">Activity</span> parent<span class="token punctuation">,</span> <span class="token class-name">String</span> id<span class="token punctuation">,</span>
+            <span class="token class-name">Object</span> lastNonConfigurationInstance<span class="token punctuation">)</span> <span class="token keyword">throws</span> <span class="token class-name">InstantiationException</span><span class="token punctuation">,</span>
+            <span class="token class-name">IllegalAccessException</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token class-name">Activity</span> activity <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token class-name">Activity</span><span class="token punctuation">)</span>clazz<span class="token punctuation">.</span><span class="token function">newInstance</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token class-name">ActivityThread</span> aThread <span class="token operator">=</span> <span class="token keyword">null</span><span class="token punctuation">;</span>
+        <span class="token comment">// Activity.attach expects a non-null Application Object.</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>application <span class="token operator">==</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            application <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">Application</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        activity<span class="token punctuation">.</span><span class="token function">attach</span><span class="token punctuation">(</span>context<span class="token punctuation">,</span> aThread<span class="token punctuation">,</span> <span class="token keyword">this</span><span class="token punctuation">,</span> token<span class="token punctuation">,</span> <span class="token number">0</span> <span class="token comment">/* ident */</span><span class="token punctuation">,</span> application<span class="token punctuation">,</span> intent<span class="token punctuation">,</span>
+                info<span class="token punctuation">,</span> title<span class="token punctuation">,</span> parent<span class="token punctuation">,</span> id<span class="token punctuation">,</span>
+                <span class="token punctuation">(</span><span class="token class-name">Activity<span class="token punctuation">.</span>NonConfigurationInstances</span><span class="token punctuation">)</span>lastNonConfigurationInstance<span class="token punctuation">,</span>
+                <span class="token keyword">new</span> <span class="token class-name">Configuration</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token keyword">null</span> <span class="token comment">/* referrer */</span><span class="token punctuation">,</span> <span class="token keyword">null</span> <span class="token comment">/* voiceInteractor */</span><span class="token punctuation">,</span>
+                <span class="token keyword">null</span> <span class="token comment">/* window */</span><span class="token punctuation">,</span> <span class="token keyword">null</span> <span class="token comment">/* activityCallback */</span><span class="token punctuation">,</span> <span class="token keyword">null</span> <span class="token comment">/*assistToken*/</span><span class="token punctuation">,</span>
+                <span class="token keyword">null</span> <span class="token comment">/*shareableActivityToken*/</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">return</span> activity<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+</code></pre> 
+<p>newActivity 中通过反射实例化了 Activity，接着调用了 Activity 的 attach 方法。</p> 
+<p>接下来看 performLaunchActivity 方法的后半部分的逻辑。在实例化了 Activity 之后是如何调用 Activity 的 onCreate 生命周期的。</p> 
+<pre><code class="prism language-Java">private Activity performLaunchActivity(ActivityClientRecord r, Intent customIntent) {
+        ActivityInfo aInfo = r.activityInfo;
+        // ...
+
+        try {
+            // 获取 Application 
+            Application app = r.packageInfo.makeApplicationInner(false, mInstrumentation);
+
+            // ...
+
+            if (activity != null) {
+                CharSequence title = r.activityInfo.loadLabel(appContext.getPackageManager());
+                Configuration config =
+                        new Configuration(mConfigurationController.getCompatConfiguration());
+                // ...
+
+                // Activity resources must be initialized with the same loaders as the
+                // application context.
+                appContext.getResources().addLoaders(
+                        app.getResources().getLoaders().toArray(new ResourcesLoader[0]));
+
+                appContext.setOuterContext(activity);
+                // 再次执行 Activity 的 attach 方法
+                activity.attach(appContext, this, getInstrumentation(), r.token,
+                        r.ident, app, r.intent, r.activityInfo, title, r.parent,
+                        r.embeddedID, r.lastNonConfigurationInstances, config,
+                        r.referrer, r.voiceInteractor, window, r.activityConfigCallback,
+                        r.assistToken, r.shareableActivityToken);
+
+                if (customIntent != null) {
+                    activity.mIntent = customIntent;
+                }
+                r.lastNonConfigurationInstances = null;
+                checkAndBlockForNetworkAccess();
+                activity.mStartedActivity = false;
+                int theme = r.activityInfo.getThemeResource();
+                if (theme != 0) {
+                    // 设置 Activity 主题
+                    activity.setTheme(theme);
+                }
+
+                if (r.mActivityOptions != null) {
+                    activity.mPendingOptions = r.mActivityOptions;
+                    r.mActivityOptions = null;
+                }
+                activity.mLaunchedFromBubble = r.mLaunchedFromBubble;
+                activity.mCalled = false;
+                // Assigning the activity to the record before calling onCreate() allows
+                // ActivityThread#getActivity() lookup for the callbacks triggered from
+                // ActivityLifecycleCallbacks#onActivityCreated() or
+                // ActivityLifecycleCallback#onActivityPostCreated().
+                r.activity = activity;
+                // 调用 Activity 的 onCreate 方法
+                if (r.isPersistable()) {
+                    mInstrumentation.callActivityOnCreate(activity, r.state, r.persistentState);
+                } else {
+                    mInstrumentation.callActivityOnCreate(activity, r.state);
+                }
+                // ...
+            }
+            r.setState(ON_CREATE);
+
+        } catch (SuperNotCalledException e) {
+           // ...
+        } 
+
+        return activity;
+    }
+
+</code></pre> 
+<p>上述方法中首先获取 Activity 的 title 以及 Configuration 等相关参数，然后再次调用 Activity 的 attach 方法，并将这些参数传入。attach 方法中主要做了初始化 PhoneWindow 的一些操作，代码如下：</p> 
+<pre><code class="prism language-java"><span class="token comment">// frameworks/base/core/java/android/app/Activity.java</span>
+
+<span class="token keyword">final</span> <span class="token keyword">void</span> <span class="token function">attach</span><span class="token punctuation">(</span><span class="token class-name">Context</span> context<span class="token punctuation">,</span> <span class="token class-name">ActivityThread</span> aThread<span class="token punctuation">,</span>
+            <span class="token class-name">Instrumentation</span> instr<span class="token punctuation">,</span> <span class="token class-name">IBinder</span> token<span class="token punctuation">,</span> <span class="token keyword">int</span> ident<span class="token punctuation">,</span>
+            <span class="token class-name">Application</span> application<span class="token punctuation">,</span> <span class="token class-name">Intent</span> intent<span class="token punctuation">,</span> <span class="token class-name">ActivityInfo</span> info<span class="token punctuation">,</span>
+            <span class="token class-name">CharSequence</span> title<span class="token punctuation">,</span> <span class="token class-name">Activity</span> parent<span class="token punctuation">,</span> <span class="token class-name">String</span> id<span class="token punctuation">,</span>
+            <span class="token class-name">NonConfigurationInstances</span> lastNonConfigurationInstances<span class="token punctuation">,</span>
+            <span class="token class-name">Configuration</span> config<span class="token punctuation">,</span> <span class="token class-name">String</span> referrer<span class="token punctuation">,</span> <span class="token class-name">IVoiceInteractor</span> voiceInteractor<span class="token punctuation">,</span>
+            <span class="token class-name">Window</span> window<span class="token punctuation">,</span> <span class="token class-name">ActivityConfigCallback</span> activityConfigCallback<span class="token punctuation">,</span> <span class="token class-name">IBinder</span> assistToken<span class="token punctuation">,</span>
+            <span class="token class-name">IBinder</span> shareableActivityToken<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token function">attachBaseContext</span><span class="token punctuation">(</span>context<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        mFragments<span class="token punctuation">.</span><span class="token function">attachHost</span><span class="token punctuation">(</span><span class="token keyword">null</span> <span class="token comment">/*parent*/</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token comment">// 实例化 PhoneWindow，Activity 中持有 PhoneWindow</span>
+        mWindow <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">PhoneWindow</span><span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">,</span> window<span class="token punctuation">,</span> activityConfigCallback<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        mWindow<span class="token punctuation">.</span><span class="token function">setWindowControllerCallback</span><span class="token punctuation">(</span>mWindowControllerCallback<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token comment">// 将 Activity 自身设置到 PhoneWindow</span>
+        mWindow<span class="token punctuation">.</span><span class="token function">setCallback</span><span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        mWindow<span class="token punctuation">.</span><span class="token function">setOnWindowDismissedCallback</span><span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        mWindow<span class="token punctuation">.</span><span class="token function">getLayoutInflater</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">setPrivateFactory</span><span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        
+        <span class="token comment">// ...</span>
+        
+        <span class="token comment">// PhoneWindow 关联 WindowManager</span>
+        mWindow<span class="token punctuation">.</span><span class="token function">setWindowManager</span><span class="token punctuation">(</span>
+                <span class="token punctuation">(</span><span class="token class-name">WindowManager</span><span class="token punctuation">)</span>context<span class="token punctuation">.</span><span class="token function">getSystemService</span><span class="token punctuation">(</span><span class="token class-name">Context</span><span class="token punctuation">.</span>WINDOW_SERVICE<span class="token punctuation">)</span><span class="token punctuation">,</span>
+                mToken<span class="token punctuation">,</span> mComponent<span class="token punctuation">.</span><span class="token function">flattenToString</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span>
+                <span class="token punctuation">(</span>info<span class="token punctuation">.</span>flags <span class="token operator">&amp;</span> <span class="token class-name">ActivityInfo</span><span class="token punctuation">.</span>FLAG_HARDWARE_ACCELERATED<span class="token punctuation">)</span> <span class="token operator">!=</span> <span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>mParent <span class="token operator">!=</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            mWindow<span class="token punctuation">.</span><span class="token function">setContainer</span><span class="token punctuation">(</span>mParent<span class="token punctuation">.</span><span class="token function">getWindow</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        <span class="token comment">// Activity 中持有 WindowManager</span>
+        mWindowManager <span class="token operator">=</span> mWindow<span class="token punctuation">.</span><span class="token function">getWindowManager</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        mCurrentConfig <span class="token operator">=</span> config<span class="token punctuation">;</span>
+
+        mWindow<span class="token punctuation">.</span><span class="token function">setColorMode</span><span class="token punctuation">(</span>info<span class="token punctuation">.</span>colorMode<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        mWindow<span class="token punctuation">.</span><span class="token function">setPreferMinimalPostProcessing</span><span class="token punctuation">(</span>
+                <span class="token punctuation">(</span>info<span class="token punctuation">.</span>flags <span class="token operator">&amp;</span> <span class="token class-name">ActivityInfo</span><span class="token punctuation">.</span>FLAG_PREFER_MINIMAL_POST_PROCESSING<span class="token punctuation">)</span> <span class="token operator">!=</span> <span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        <span class="token function">getAutofillClientController</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">onActivityAttached</span><span class="token punctuation">(</span>application<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">setContentCaptureOptions</span><span class="token punctuation">(</span>application<span class="token punctuation">.</span><span class="token function">getContentCaptureOptions</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+</code></pre> 
+<p>调用 attach 方法之后，接着通过 Instrumentation 执行了 Activity 的 performCreate 方法，代码如下:</p> 
+<pre><code class="prism language-Java">    public void callActivityOnCreate(Activity activity, Bundle icicle) {
+        prePerformCreate(activity);
+        activity.performCreate(icicle);
+        postPerformCreate(activity);
+    }
+    
+    
+</code></pre> 
+<p>而 Activity 的 performCreate 方法中最终会调用 Activity 的 onCreate方法。至此，我们在 Activity 的 onCreate 方法中写的逻辑才会被调用。performCreate 方法的代码这里就不再贴出，有兴趣的可以自行查看。</p> 
+<h4><a id="2_onStart__1252"></a>2. onStart 方法的执行</h4> 
+<p>在第四章的第 3 小节中，中我们已经分析了创建完 Activity 后如何执行后续的生命周期流程。我们知道 onStart 是通过 ActivityThread 的 handleStartActivity 来执行的，其源码如下：</p> 
+<pre><code class="prism language-java"><span class="token comment">// frameworks/base/core/java/android/app/ActivityThread.java</span>
+
+<span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">handleStartActivity</span><span class="token punctuation">(</span><span class="token class-name">ActivityClientRecord</span> r<span class="token punctuation">,</span>
+            <span class="token class-name">PendingTransactionActions</span> pendingActions<span class="token punctuation">,</span> <span class="token class-name">ActivityOptions</span> activityOptions<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">final</span> <span class="token class-name">Activity</span> activity <span class="token operator">=</span> r<span class="token punctuation">.</span>activity<span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>r<span class="token punctuation">.</span>stopped<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token keyword">throw</span> <span class="token keyword">new</span> <span class="token class-name">IllegalStateException</span><span class="token punctuation">(</span><span class="token string">"Can't start activity that is not stopped."</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>r<span class="token punctuation">.</span>activity<span class="token punctuation">.</span>mFinished<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token comment">// TODO(lifecycler): How can this happen?</span>
+            <span class="token keyword">return</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+
+        <span class="token function">unscheduleGcIdler</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>activityOptions <span class="token operator">!=</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            activity<span class="token punctuation">.</span>mPendingOptions <span class="token operator">=</span> activityOptions<span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+
+        <span class="token comment">// 调用 Activity 的 performStart 进而执行 onStart</span>
+        activity<span class="token punctuation">.</span><span class="token function">performStart</span><span class="token punctuation">(</span><span class="token string">"handleStartActivity"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        
+        <span class="token comment">// 将生命周状态设置为 ON_START</span>
+        r<span class="token punctuation">.</span><span class="token function">setState</span><span class="token punctuation">(</span>ON_START<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+       <span class="token comment">// ...</span>
+    <span class="token punctuation">}</span>
+</code></pre> 
+<p>handleStartActivity 的逻辑比较简单，就是调用了 Activity 的 performStart 方法，进而调用了 onStart 方法。这里也不再贴出 performStart 方法的源码，感兴趣的同学自行查看。</p> 
+<h4><a id="3_onResume__1287"></a>3. onResume 方法的调用</h4> 
+<p>onResume 方法是通过 ActivityThread 的 handleResumeActivity 来执行的，源码如下：</p> 
+<pre><code class="prism language-java"><span class="token comment">// frameworks/base/core/java/android/app/ActivityThread.java</span>
+
+<span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">handleResumeActivity</span><span class="token punctuation">(</span><span class="token class-name">ActivityClientRecord</span> r<span class="token punctuation">,</span> <span class="token keyword">boolean</span> finalStateRequest<span class="token punctuation">,</span>
+            <span class="token keyword">boolean</span> isForward<span class="token punctuation">,</span> <span class="token keyword">boolean</span> shouldSendCompatFakeFocus<span class="token punctuation">,</span> <span class="token class-name">String</span> reason<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token comment">// If we are getting ready to gc after going to the background, well</span>
+        <span class="token comment">// we are back active so skip it.</span>
+        <span class="token function">unscheduleGcIdler</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        mSomeActivitiesChanged <span class="token operator">=</span> <span class="token boolean">true</span><span class="token punctuation">;</span>
+
+        <span class="token comment">// TODO Push resumeArgs into the activity for consideration</span>
+        <span class="token comment">// skip below steps for double-resume and r.mFinish = true case.</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span><span class="token function">performResumeActivity</span><span class="token punctuation">(</span>r<span class="token punctuation">,</span> finalStateRequest<span class="token punctuation">,</span> reason<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token keyword">return</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        
+       <span class="token comment">// ... 省略 Window 的添加逻辑</span>
+    <span class="token punctuation">}</span>
+</code></pre> 
+<p>handleResumeActivity 方法中的逻辑比较复杂，但核心主要有两点：</p> 
+<ul><li>调用 performResumeActivity 执行 onResume 的生命周期</li><li>将 DecorView 添加到 Window 中</li></ul> 
+<p>上述代码中我们省略了 decorView 添加到 Window 部分的代码，后边再来分析。先来看 performResumeActivity，其源码如下：</p> 
+<pre><code class="prism language-java"> <span class="token keyword">public</span> <span class="token keyword">boolean</span> <span class="token function">performResumeActivity</span><span class="token punctuation">(</span><span class="token class-name">ActivityClientRecord</span> r<span class="token punctuation">,</span> <span class="token keyword">boolean</span> finalStateRequest<span class="token punctuation">,</span>
+            <span class="token class-name">String</span> reason<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>r<span class="token punctuation">.</span>activity<span class="token punctuation">.</span>mFinished<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token comment">// 如果 Activity 已经是finish状态，直接return false</span>
+            <span class="token keyword">return</span> <span class="token boolean">false</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>r<span class="token punctuation">.</span><span class="token function">getLifecycleState</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">==</span> ON_RESUME<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token comment">// 如果已经是 Resume 状态 直接return false，避免重复执行</span>
+            <span class="token keyword">return</span> <span class="token boolean">false</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+
+        <span class="token keyword">try</span> <span class="token punctuation">{<!-- --></span>
+           <span class="token comment">// ...</span>
+           
+            <span class="token comment">// 执行 Activity 的 performResume 进而执行 onResume</span>
+            r<span class="token punctuation">.</span>activity<span class="token punctuation">.</span> <span class="token function">performResume</span><span class="token punctuation">(</span>r<span class="token punctuation">.</span>startsNotResumed<span class="token punctuation">,</span> reason<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+            r<span class="token punctuation">.</span>state <span class="token operator">=</span> <span class="token keyword">null</span><span class="token punctuation">;</span>
+            r<span class="token punctuation">.</span>persistentState <span class="token operator">=</span> <span class="token keyword">null</span><span class="token punctuation">;</span>
+            <span class="token comment">// 设置 Activity 的状态 为 ON_RESUME</span>
+            r<span class="token punctuation">.</span><span class="token function">setState</span><span class="token punctuation">(</span>ON_RESUME<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+            <span class="token function">reportTopResumedActivityChanged</span><span class="token punctuation">(</span>r<span class="token punctuation">,</span> r<span class="token punctuation">.</span>isTopResumedActivity<span class="token punctuation">,</span> <span class="token string">"topWhenResuming"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span> <span class="token keyword">catch</span> <span class="token punctuation">(</span><span class="token class-name">Exception</span> e<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>mInstrumentation<span class="token punctuation">.</span><span class="token function">onException</span><span class="token punctuation">(</span>r<span class="token punctuation">.</span>activity<span class="token punctuation">,</span> e<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                <span class="token keyword">throw</span> <span class="token keyword">new</span> <span class="token class-name">RuntimeException</span><span class="token punctuation">(</span><span class="token string">"Unable to resume activity "</span>
+                        <span class="token operator">+</span> r<span class="token punctuation">.</span>intent<span class="token punctuation">.</span><span class="token function">getComponent</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">toShortString</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">+</span> <span class="token string">": "</span> <span class="token operator">+</span> e<span class="token punctuation">.</span><span class="token function">toString</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> e<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+        <span class="token punctuation">}</span>
+        <span class="token keyword">return</span> <span class="token boolean">true</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+</code></pre> 
+<p>performResumeActivity 中先对 Activity 的状态进行了判断，如果状态符合，则会调用 Activity 的 performResume 方法，进而执行 Activity 的 onResume。performResume 方法的源码不再贴出。</p> 
+<p>在完成了 performResume 的调用后，performResumeActivity 方法中接着执行了将 DecorView 添加到 Window 的过。代码如下</p> 
+<pre><code class="prism language-java"><span class="token comment">// frameworks/base/core/java/android/app/ActivityThread.java</span>
+
+<span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">handleResumeActivity</span><span class="token punctuation">(</span><span class="token class-name">ActivityClientRecord</span> r<span class="token punctuation">,</span> <span class="token keyword">boolean</span> finalStateRequest<span class="token punctuation">,</span>
+            <span class="token keyword">boolean</span> isForward<span class="token punctuation">,</span> <span class="token keyword">boolean</span> shouldSendCompatFakeFocus<span class="token punctuation">,</span> <span class="token class-name">String</span> reason<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token comment">// ...</span>
+        
+
+        <span class="token keyword">final</span> <span class="token class-name">Activity</span> a <span class="token operator">=</span> r<span class="token punctuation">.</span>activity<span class="token punctuation">;</span>
+
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>r<span class="token punctuation">.</span>window <span class="token operator">==</span> <span class="token keyword">null</span> <span class="token operator">&amp;&amp;</span> <span class="token operator">!</span>a<span class="token punctuation">.</span>mFinished <span class="token operator">&amp;&amp;</span> willBeVisible<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token comment">// PhoneWindow</span>
+            r<span class="token punctuation">.</span>window <span class="token operator">=</span> r<span class="token punctuation">.</span>activity<span class="token punctuation">.</span><span class="token function">getWindow</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token comment">// 获取 DecorView</span>
+            <span class="token class-name">View</span> decor <span class="token operator">=</span> r<span class="token punctuation">.</span>window<span class="token punctuation">.</span><span class="token function">getDecorView</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token comment">// 先设置 DecorView 不可见</span>
+            decor<span class="token punctuation">.</span><span class="token function">setVisibility</span><span class="token punctuation">(</span><span class="token class-name">View</span><span class="token punctuation">.</span>INVISIBLE<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token comment">// 获取 WindowManager</span>
+            <span class="token class-name">ViewManager</span> wm <span class="token operator">=</span> a<span class="token punctuation">.</span><span class="token function">getWindowManager</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token comment">// 获取 Window 的属性参数</span>
+            <span class="token class-name">WindowManager<span class="token punctuation">.</span>LayoutParams</span> l <span class="token operator">=</span> r<span class="token punctuation">.</span>window<span class="token punctuation">.</span><span class="token function">getAttributes</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            a<span class="token punctuation">.</span>mDecor <span class="token operator">=</span> decor<span class="token punctuation">;</span>
+            l<span class="token punctuation">.</span>type <span class="token operator">=</span> <span class="token class-name">WindowManager<span class="token punctuation">.</span>LayoutParams</span><span class="token punctuation">.</span>TYPE_BASE_APPLICATION<span class="token punctuation">;</span>
+            l<span class="token punctuation">.</span>softInputMode <span class="token operator">|=</span> forwardBit<span class="token punctuation">;</span>
+            <span class="token comment">// ...</span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span>a<span class="token punctuation">.</span>mVisibleFromClient<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>a<span class="token punctuation">.</span>mWindowAdded<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                    a<span class="token punctuation">.</span>mWindowAdded <span class="token operator">=</span> <span class="token boolean">true</span><span class="token punctuation">;</span>
+                    <span class="token comment">// 通过 WindowManager 将 DecorView添加到窗口</span>
+                    wm<span class="token punctuation">.</span><span class="token function">addView</span><span class="token punctuation">(</span>decor<span class="token punctuation">,</span> l<span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{<!-- --></span>
+                    <span class="token comment">// The activity will get a callback for this {@link LayoutParams} change</span>
+                    <span class="token comment">// earlier. However, at that time the decor will not be set (this is set</span>
+                    <span class="token comment">// in this method), so no action will be taken. This call ensures the</span>
+                    <span class="token comment">// callback occurs with the decor set.</span>
+                    a<span class="token punctuation">.</span><span class="token function">onWindowAttributesChanged</span><span class="token punctuation">(</span>l<span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token punctuation">}</span>
+            <span class="token punctuation">}</span>
+
+            <span class="token comment">// If the window has already been added, but during resume</span>
+            <span class="token comment">// we started another activity, then don't yet make the</span>
+            <span class="token comment">// window visible.</span>
+        <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>willBeVisible<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span>localLOGV<span class="token punctuation">)</span> <span class="token class-name">Slog</span><span class="token punctuation">.</span><span class="token function">v</span><span class="token punctuation">(</span>TAG<span class="token punctuation">,</span> <span class="token string">"Launch "</span> <span class="token operator">+</span> r <span class="token operator">+</span> <span class="token string">" mStartedActivity set"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            r<span class="token punctuation">.</span>hideForNow <span class="token operator">=</span> <span class="token boolean">true</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        <span class="token comment">// ...</span>
+    <span class="token punctuation">}</span>
+</code></pre> 
+<p>可以看到，上述方法的的核心是 <code>wm.addView(decor, l)</code> 这行代码，即通过 ViewManager 的 addView 方法将 DecorView 添加到了窗口中。窗口的添加过程会完成 DecorView 的布局、测量与绘制。当完成窗口的添加后 Activity 的 View 才被显示出来，且有了宽高。这也是为什么我们在 onResume 中获取不到 View 宽高的原因。</p> 
+<p>另外需要注意到是，将 View 添加到 Window 的过程也是一个相当复杂的过程，这个过程也多次涉及到跨进程调用。这也是为什么在本文的开头提到 Activity 启动是一个数次跨进程调用的过程的原因。关于 Window 的添加过程，这里就不再赘述了，后边会单独写一篇文章来详细分析 Window 的添加。</p> 
+<h3><a id="_1409"></a>六、总结</h3> 
+<p>通过本篇文章我们详细的了解了 Activity 的启动流程，虽然在开发中启动一个 Activity 只需要我们调用一行代码，但通过追踪源码我们发现 startActivity 方法的调用栈非常深，且中间涉及了两次跨进程的调用，如果不了解 Binder 与 AIDL 是比较难以读懂的。另外，由于 Activity 的启动过程比较复杂，文章中不能面面俱到，忽略了很多支线逻辑，比如当启动 Activity 时，Activity 所在的进程不存在时的逻辑，本文章并没有去分析，感兴趣的同学可以自行查看源码。</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/07f974d23c19c439502ab4d0f7f6b5bb/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">使用Python语言写一个推箱子游戏</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/b76bf6ad5d80d81f1640916517b73b52/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">【左手代码右手诗】JAVA学习第七篇：面向对象三大特性</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

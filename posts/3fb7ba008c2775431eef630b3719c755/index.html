@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>MVVM架构 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/3fb7ba008c2775431eef630b3719c755/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="MVVM架构">
+  <meta property="og:description" content="MVVM 一、概述二、演变2.1 MVC2.2 MVP 三、MVVM2.1 ViewModel2.1.1 基本用法2.1.2 本地存储数据 2.2 LiveData2.2.1 基本使用 一、概述 MVVM（Model-View-ViewModel）和MVC、MVP一样，也是一种项目架构模式，目前广泛应用在Android程序设计。MVVM主要由三部分组成，Model数据模型部分，View视图展示部分，ViewModel则是一个特殊的部分，为视图与数据模型的中间件。大概的结构如下图
+这张图中，将程序分为了若干层。其中，UI控制层包含了我们平时写的Activity、Fragment和布局文件等与界面相关的东西。ViewModel层用于持有和UI元素相关的数据，以保证这些数据在屏幕旋转等动作时不会丢失，并且还要提供接口给UI控制层调用以及和仓库层进行通信。仓库层要做的主要工作是判断调用方请求的数据应该是从本地数据源中获取还是从网络数据源中获取，并将获取到的数据返回给调用方。本地数据源可以使用数据库、SharedPreferences等持久化技术来实现，也可以用网络数据源，通常访问服务器提供的Webservice接口来实现。并且，图中的所有箭头都是单向的，即是单向引用，具体原因下面会给到解释。
+二、演变 所谓前人栽树，后人乘凉，项目架构也是如此，现在的架构，取老架构的精华，去其糟粕，变得越来越完善，但是掌握老架构能让我们对新架构有更好的理解
+2.1 MVC 最经典的还是MVC，MVC架构中，很多的逻辑代码都写在了Activity中，后期需求的增加或者变更，Activity就会变得过于庞大，这时候的MVC变得难以维护，一度被吐槽为Massive-View-Controller（意为沉重的Controller），这种情况下，MVP出现了
+2.2 MVP MVP架构的核心就是View与Presenter都被抽象成了接口，面向接口编程。因为面向接口，所以实现了依赖隔离。通俗点的解释View层只负责UI渲染，不再需要处理对应的业务逻辑，Presenter在获取到Model的数据，并进行处理后，通过View层暴露的接口调用去更新UI，这样View层和Model层不互相持有引用，保证是隔离和解耦的。
+MVP架构将我们从庞大的Activity中解救出来，只需定义好View与Presenter的接口，即可实现UI与业务逻辑独立开发，并且业务逻辑只在Presenter中进行维护，遵循了单一职责类的设计原则，提升了代码的可维护性；接口请求及缓存策略只在Model中进行维护，同Presente 一样，遵循了单一职责类的设计原则。View、Presenter、Model 类的体积都不会太大，提升了代码的可读性与可维护性。
+看起来已经很完善的MVP同样也有缺点
+1、Presenter层中，需要处理的业务逻辑过多，复杂的业务逻辑会使Presenter层非常庞大和臃肿，且Presenter中除了业务逻辑以外，还有大量的View-&amp;gt;Model，Model-&amp;gt;View的手动同步逻辑，维护困难
+2、接口及接口中声明的方法粒度不好把控。MVP的架构不是固定的，可能会随着实际需求的不同而有不同的改动。P层就是一个变化比较多的地方，P层的意义是使V与M层解耦。如果粒度太小，那么一旦业务多起来，我们的P层会非常臃肿。而如果粒度太大，那么我们一个P层确实可以达到复用，可却导致了我们不同需求的V层复用同一个P层接口时，实现了过多不需要的方法，这就是非常典型的违背了接口隔离，接口的实现类不应该实现没有的方法。而其中有些方法是否会用到以及是否会增加或删减还需要后续进一步确认。
+3、Activity中需要声明大量跟UI相关的方法，而相应的事件通过Presenter调用相关方法来实现。两者互相引用和调用，存在耦合。一旦View层的UI视图发生改变，接口中的方法就需要改变，View层和P层同时都需要修改。
+总结就是形式上解耦，职责分工却耦合，结构清晰，写起来不方便。
+三、MVVM MVP的一些缺点，在MVVM中得到很好的改善，MVVM的运用，离不开Jetpack的一些组件。
+Jetpack是一个开发组件工具集，它的主要目的是帮助我们编写出更加简洁的代码，并简化我们的开发过程。Jetpack中的组件有一个特点，它们大部分不依赖于任何Android系统版本，这意味着这些组件通常是定义在AndroidX库当中的，并且拥有非常好的向下兼容性。
+Jetpack主要可以分为基础、架构、行为、界面这四部分。这四部包含了大量组件，许多架构组件都是专门为MVVM架构量身打造的。
+2.1 ViewModel 2.1.1 基本用法 ViewModel 应该可以算是Jetpack 中最重要的组件之一了 ，可以帮助Activity 分担一部分工作，专门用于存放与界 面相关的数据的。也就是说，只要是界面上能看得到的数据，它的相关变量都应该存放在 ViewModel 中，而不是Activity 中，这样可以在一定程度上减少Activity 中的逻辑。
+ViewModel 还有一个非常重要的特性。我们都知道，当手机发生横竖屏旋转的时候， Activity 会被重新创建，同时存放在Activity 中的数据也会丢失。而ViewModel 的生命周期和 Activity 不同，它可以保证在手机屏幕发生旋转的时候不会被重新创建，只有当Activity 退出的 时候才会跟着Activity 一起销毁。因此，将与界面相关的变量存放在ViewModel 当中，这样即使旋转手机屏幕，界面上显示的数据也不会丢失。下图是ViewModel的生存期。
+下面是创建一个基本的ViewModel实例，需要注意的是ViewModel的实例化，不能直接实例化，而是需要通过ViewModelProvider去获取，之所以不能直接创建实例，是因为ViewModel有其独立的生命周期，并且其生命周期要长于Activity。
+打个比方我们在onCreate()方法中创建ViewModel的实例，那么每次onCreate()方法执行的时候，ViewModel都会创建一个新的实例，这样当手机屏幕发生旋转的时候，就无法保留其中的数据了。
+MainActivity.java
+private TextView textView; private Button plusOneBtn; private MainViewModel viewModel; @Override protected void onCreate(Bundle savedInstanceState) { super.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2023-07-08T16:03:14+08:00">
+    <meta property="article:modified_time" content="2023-07-08T16:03:14+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">MVVM架构</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-dark">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <p></p> 
+<div class="toc"> 
+ <h4>MVVM</h4> 
+ <ul><li><a href="#_1" rel="nofollow">一、概述</a></li><li><a href="#_6" rel="nofollow">二、演变</a></li><li><ul><li><a href="#21_MVC_9" rel="nofollow">2.1 MVC</a></li><li><a href="#22_MVP_12" rel="nofollow">2.2 MVP</a></li></ul> 
+  </li><li><a href="#MVVM_21" rel="nofollow">三、MVVM</a></li><li><ul><li><a href="#21_ViewModel_27" rel="nofollow">2.1 ViewModel</a></li><li><ul><li><a href="#211__28" rel="nofollow">2.1.1 基本用法</a></li><li><a href="#212__69" rel="nofollow">2.1.2 本地存储数据</a></li></ul> 
+   </li><li><a href="#22_LiveData_151" rel="nofollow">2.2 LiveData</a></li><li><ul><li><a href="#221__153" rel="nofollow">2.2.1 基本使用</a></li></ul> 
+  </li></ul> 
+ </li></ul> 
+</div> 
+<p></p> 
+<h2><a id="_1"></a>一、概述</h2> 
+<p>       MVVM（Model-View-ViewModel）和MVC、MVP一样，也是一种项目架构模式，目前广泛应用在Android程序设计。MVVM主要由三部分组成，Model数据模型部分，View视图展示部分，ViewModel则是一个特殊的部分，为视图与数据模型的中间件。大概的结构如下图<br> <img src="https://images2.imgbox.com/64/72/8VyzczHM_o.png" alt="在这里插入图片描述">       这张图中，将程序分为了若干层。其中，UI控制层包含了我们平时写的Activity、Fragment和布局文件等与界面相关的东西。ViewModel层用于持有和UI元素相关的数据，以保证这些数据在屏幕旋转等动作时不会丢失，并且还要提供接口给UI控制层调用以及和仓库层进行通信。仓库层要做的主要工作是判断调用方请求的数据应该是从本地数据源中获取还是从网络数据源中获取，并将获取到的数据返回给调用方。本地数据源可以使用数据库、SharedPreferences等持久化技术来实现，也可以用网络数据源，通常访问服务器提供的Webservice接口来实现。并且，图中的所有箭头都是单向的，即是单向引用，具体原因下面会给到解释。</p> 
+<h2><a id="_6"></a>二、演变</h2> 
+<p>       所谓前人栽树，后人乘凉，项目架构也是如此，现在的架构，取老架构的精华，去其糟粕，变得越来越完善，但是掌握老架构能让我们对新架构有更好的理解</p> 
+<h3><a id="21_MVC_9"></a>2.1 MVC</h3> 
+<p>                 <img src="https://images2.imgbox.com/0d/d7/sVnQ2t7v_o.png" alt="在这里插入图片描述"><br>        最经典的还是MVC，MVC架构中，很多的逻辑代码都写在了Activity中，后期需求的增加或者变更，Activity就会变得过于庞大，这时候的MVC变得难以维护，一度被吐槽为Massive-View-Controller（意为沉重的Controller），这种情况下，MVP出现了</p> 
+<h3><a id="22_MVP_12"></a>2.2 MVP</h3> 
+<p>                 <img src="https://images2.imgbox.com/7e/84/sctezzTo_o.png" alt="在这里插入图片描述"><br>        MVP架构的核心就是View与Presenter都被抽象成了接口，面向接口编程。因为面向接口，所以实现了依赖隔离。通俗点的解释View层只负责UI渲染，不再需要处理对应的业务逻辑，Presenter在获取到Model的数据，并进行处理后，通过View层暴露的接口调用去更新UI，这样View层和Model层不互相持有引用，保证是隔离和解耦的。<br>        MVP架构将我们从庞大的Activity中解救出来，只需定义好View与Presenter的接口，即可实现UI与业务逻辑独立开发，并且业务逻辑只在Presenter中进行维护，遵循了单一职责类的设计原则，提升了代码的可维护性；接口请求及缓存策略只在Model中进行维护，同Presente 一样，遵循了单一职责类的设计原则。View、Presenter、Model 类的体积都不会太大，提升了代码的可读性与可维护性。<br>        看起来已经很完善的MVP同样也有缺点<br>        1、Presenter层中，需要处理的业务逻辑过多，复杂的业务逻辑会使Presenter层非常庞大和臃肿，且Presenter中除了业务逻辑以外，还有大量的View-&gt;Model，Model-&gt;View的手动同步逻辑，维护困难<br>        2、接口及接口中声明的方法粒度不好把控。MVP的架构不是固定的，可能会随着实际需求的不同而有不同的改动。P层就是一个变化比较多的地方，P层的意义是使V与M层解耦。如果粒度太小，那么一旦业务多起来，我们的P层会非常臃肿。而如果粒度太大，那么我们一个P层确实可以达到复用，可却导致了我们不同需求的V层复用同一个P层接口时，实现了过多不需要的方法，这就是非常典型的违背了接口隔离，接口的实现类不应该实现没有的方法。而其中有些方法是否会用到以及是否会增加或删减还需要后续进一步确认。<br>        3、Activity中需要声明大量跟UI相关的方法，而相应的事件通过Presenter调用相关方法来实现。两者互相引用和调用，存在耦合。一旦View层的UI视图发生改变，接口中的方法就需要改变，View层和P层同时都需要修改。<br>        总结就是形式上解耦，职责分工却耦合，结构清晰，写起来不方便。</p> 
+<h2><a id="MVVM_21"></a>三、MVVM</h2> 
+<p>       MVP的一些缺点，在MVVM中得到很好的改善，MVVM的运用，离不开Jetpack的一些组件。</p> 
+<p>       Jetpack是一个开发组件工具集，它的主要目的是帮助我们编写出更加简洁的代码，并简化我们的开发过程。Jetpack中的组件有一个特点，它们大部分不依赖于任何Android系统版本，这意味着这些组件通常是定义在AndroidX库当中的，并且拥有非常好的向下兼容性。<br> <img src="https://images2.imgbox.com/68/5a/b3Keb50H_o.png" alt="在这里插入图片描述"><br>        Jetpack主要可以分为基础、架构、行为、界面这四部分。这四部包含了大量组件，许多架构组件都是专门为MVVM架构量身打造的。</p> 
+<h3><a id="21_ViewModel_27"></a>2.1 ViewModel</h3> 
+<h4><a id="211__28"></a>2.1.1 基本用法</h4> 
+<p>       ViewModel 应该可以算是Jetpack 中最重要的组件之一了 ，可以帮助Activity 分担一部分工作，专门用于存放与界 面相关的数据的。也就是说，只要是界面上能看得到的数据，它的相关变量都应该存放在 ViewModel 中，而不是Activity 中，这样可以在一定程度上减少Activity 中的逻辑。<br> ViewModel 还有一个非常重要的特性。我们都知道，当手机发生横竖屏旋转的时候， Activity 会被重新创建，同时存放在Activity 中的数据也会丢失。而ViewModel 的生命周期和 Activity 不同，它可以保证在手机屏幕发生旋转的时候不会被重新创建，只有当Activity 退出的 时候才会跟着Activity 一起销毁。因此，将与界面相关的变量存放在ViewModel 当中，这样即使旋转手机屏幕，界面上显示的数据也不会丢失。下图是ViewModel的生存期。<br>                                         <img src="https://images2.imgbox.com/58/47/DSuFV4fY_o.png" alt="在这里插入图片描述"><br>        下面是创建一个基本的ViewModel实例，需要注意的是ViewModel的实例化，不能直接实例化，而是需要通过ViewModelProvider去获取，之所以不能直接创建实例，是因为ViewModel有其独立的生命周期，并且其生命周期要长于Activity。<br>        打个比方我们在onCreate()方法中创建ViewModel的实例，那么每次onCreate()方法执行的时候，ViewModel都会创建一个新的实例，这样当手机屏幕发生旋转的时候，就无法保留其中的数据了。</p> 
+<p><strong>MainActivity.java</strong></p> 
+<pre><code class="prism language-java"><span class="token keyword">private</span> <span class="token class-name">TextView</span> textView<span class="token punctuation">;</span>
+<span class="token keyword">private</span> <span class="token class-name">Button</span> plusOneBtn<span class="token punctuation">;</span>
+<span class="token keyword">private</span> <span class="token class-name">MainViewModel</span> viewModel<span class="token punctuation">;</span>
+
+<span class="token annotation punctuation">@Override</span>
+<span class="token keyword">protected</span> <span class="token keyword">void</span> <span class="token function">onCreate</span><span class="token punctuation">(</span><span class="token class-name">Bundle</span> savedInstanceState<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">super</span><span class="token punctuation">.</span><span class="token function">onCreate</span><span class="token punctuation">(</span>savedInstanceState<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">setContentView</span><span class="token punctuation">(</span><span class="token class-name">R</span><span class="token punctuation">.</span>layout<span class="token punctuation">.</span>activity_main<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    textView <span class="token operator">=</span> <span class="token function">findViewById</span><span class="token punctuation">(</span><span class="token class-name">R</span><span class="token punctuation">.</span>id<span class="token punctuation">.</span>info_text<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    plusOneBtn <span class="token operator">=</span> <span class="token function">findViewById</span><span class="token punctuation">(</span><span class="token class-name">R</span><span class="token punctuation">.</span>id<span class="token punctuation">.</span>plus_one_btn<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token comment">// 使用ViewModelProvider实例化ViewModel</span>
+    viewModel <span class="token operator">=</span><span class="token keyword">new</span> <span class="token class-name">ViewModelProvider</span><span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">get</span><span class="token punctuation">(</span><span class="token class-name">MainViewModel</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    plusOneBtn<span class="token punctuation">.</span><span class="token function">setOnClickListener</span><span class="token punctuation">(</span>v <span class="token operator">-&gt;</span> <span class="token punctuation">{<!-- --></span>
+        viewModel<span class="token punctuation">.</span>count<span class="token operator">++</span><span class="token punctuation">;</span>
+        <span class="token function">setTextView</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">setTextView</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">private</span> <span class="token keyword">void</span> <span class="token function">setTextView</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    textView<span class="token punctuation">.</span><span class="token function">setText</span><span class="token punctuation">(</span><span class="token class-name">String</span><span class="token punctuation">.</span><span class="token function">valueOf</span><span class="token punctuation">(</span>viewModel<span class="token punctuation">.</span>count<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p><strong>MainViewModel.java</strong></p> 
+<pre><code class="prism language-java"><span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">MainViewModel</span> <span class="token keyword">extends</span> <span class="token class-name">ViewModel</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">public</span> <span class="token keyword">int</span> count <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+    
+<span class="token punctuation">}</span>
+</code></pre> 
+<h4><a id="212__69"></a>2.1.2 本地存储数据</h4> 
+<p>       现在我们需要在View创建时，读取存储内的数据，并在初始化时赋值，这时就需要向ViewModel的构造函数传参，我们需要借助 ViewModelProvider.Factory。<br>        首先新建一个MainViewModelFactory类，并实现ViewModelProvider.Factory接口</p> 
+<p><strong>MainViewModelFactory.java</strong></p> 
+<pre><code class="prism language-java"><span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">MainViewModelFactory</span> <span class="token keyword">implements</span> <span class="token class-name">ViewModelProvider<span class="token punctuation">.</span>Factory</span> <span class="token punctuation">{<!-- --></span>
+
+    <span class="token keyword">private</span> <span class="token keyword">int</span> count<span class="token punctuation">;</span>
+
+    <span class="token keyword">public</span> <span class="token class-name">MainViewModelFactory</span><span class="token punctuation">(</span><span class="token keyword">int</span> count<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">this</span><span class="token punctuation">.</span>count <span class="token operator">=</span> count<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token annotation punctuation">@NonNull</span>
+    <span class="token annotation punctuation">@Override</span>
+    <span class="token keyword">public</span> <span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">T</span> <span class="token keyword">extends</span> <span class="token class-name">ViewModel</span><span class="token punctuation">&gt;</span></span> <span class="token class-name">T</span> <span class="token function">create</span><span class="token punctuation">(</span><span class="token annotation punctuation">@NonNull</span> <span class="token class-name">Class</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">T</span><span class="token punctuation">&gt;</span></span> modelClass<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">return</span> <span class="token punctuation">(</span><span class="token class-name">T</span><span class="token punctuation">)</span> <span class="token keyword">new</span> <span class="token class-name">MainViewModel</span><span class="token punctuation">(</span>count<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>       实现ViewModelProvider.Factory接口要求我们必须实现create()方法，因此这里在create()方法中我们创建MainViewModel的实例，并将count参数传了进去。这里可以创建MainViewModel实例的原因，是因为create()方法的执行时机和 Activity的生命周期无关，所以不会产生之前提到的重复创建丢失数据的问题。</p> 
+<p><strong>MainViewModel.java</strong></p> 
+<pre><code class="prism language-java"><span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">MainViewModel</span> <span class="token keyword">extends</span> <span class="token class-name">ViewModel</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">public</span> <span class="token keyword">int</span> count<span class="token punctuation">;</span>
+
+    <span class="token keyword">public</span> <span class="token class-name">MainViewModel</span><span class="token punctuation">(</span><span class="token keyword">int</span> count<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">this</span><span class="token punctuation">.</span>count <span class="token operator">=</span> count<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p><strong>MainActivity.java</strong></p> 
+<pre><code class="prism language-java"><span class="token keyword">private</span> <span class="token class-name">TextView</span> textView<span class="token punctuation">;</span>
+<span class="token keyword">private</span> <span class="token class-name">Button</span> plusOneBtn<span class="token punctuation">;</span>
+<span class="token keyword">private</span> <span class="token class-name">Button</span> cleanBtn<span class="token punctuation">;</span>
+<span class="token keyword">private</span> <span class="token class-name">MainViewModel</span> viewModel<span class="token punctuation">;</span>
+<span class="token keyword">private</span> <span class="token class-name">SharedPreferences</span> sp<span class="token punctuation">;</span>
+
+<span class="token annotation punctuation">@Override</span>
+<span class="token keyword">protected</span> <span class="token keyword">void</span> <span class="token function">onCreate</span><span class="token punctuation">(</span><span class="token class-name">Bundle</span> savedInstanceState<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">super</span><span class="token punctuation">.</span><span class="token function">onCreate</span><span class="token punctuation">(</span>savedInstanceState<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">setContentView</span><span class="token punctuation">(</span><span class="token class-name">R</span><span class="token punctuation">.</span>layout<span class="token punctuation">.</span>activity_main<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    sp <span class="token operator">=</span> <span class="token function">getPreferences</span><span class="token punctuation">(</span><span class="token class-name">Context</span><span class="token punctuation">.</span><span class="token constant">MODE_PRIVATE</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">int</span> count <span class="token operator">=</span> sp<span class="token punctuation">.</span><span class="token function">getInt</span><span class="token punctuation">(</span><span class="token string">"count_reserved"</span><span class="token punctuation">,</span> <span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    textView <span class="token operator">=</span> <span class="token function">findViewById</span><span class="token punctuation">(</span><span class="token class-name">R</span><span class="token punctuation">.</span>id<span class="token punctuation">.</span>info_text<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    plusOneBtn <span class="token operator">=</span> <span class="token function">findViewById</span><span class="token punctuation">(</span><span class="token class-name">R</span><span class="token punctuation">.</span>id<span class="token punctuation">.</span>plus_one_btn<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    cleanBtn <span class="token operator">=</span> <span class="token function">findViewById</span><span class="token punctuation">(</span><span class="token class-name">R</span><span class="token punctuation">.</span>id<span class="token punctuation">.</span>clean_btn<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token comment">// 使用MainViewModelFactory传递参数</span>
+    viewModel <span class="token operator">=</span><span class="token keyword">new</span> <span class="token class-name">ViewModelProvider</span><span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">,</span> <span class="token keyword">new</span> <span class="token class-name">MainViewModelFactory</span><span class="token punctuation">(</span>count<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">get</span><span class="token punctuation">(</span><span class="token class-name">MainViewModel</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    
+    plusOneBtn<span class="token punctuation">.</span><span class="token function">setOnClickListener</span><span class="token punctuation">(</span>v <span class="token operator">-&gt;</span> <span class="token punctuation">{<!-- --></span>
+        viewModel<span class="token punctuation">.</span>count<span class="token operator">++</span><span class="token punctuation">;</span>
+        <span class="token function">setTextView</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token comment">// 清零</span>
+    cleanBtn<span class="token punctuation">.</span><span class="token function">setOnClickListener</span><span class="token punctuation">(</span> v <span class="token operator">-&gt;</span> <span class="token punctuation">{<!-- --></span>
+        viewModel<span class="token punctuation">.</span>count <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+        <span class="token function">setTextView</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">setTextView</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token comment">/*保存计数*/</span>
+<span class="token annotation punctuation">@Override</span>
+<span class="token keyword">protected</span> <span class="token keyword">void</span> <span class="token function">onPause</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">super</span><span class="token punctuation">.</span><span class="token function">onPause</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token class-name">Log</span><span class="token punctuation">.</span><span class="token function">d</span><span class="token punctuation">(</span><span class="token constant">TAG</span><span class="token punctuation">,</span> <span class="token string">"onPause: viewModel.counter = "</span> <span class="token operator">+</span> viewModel<span class="token punctuation">.</span>count<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token class-name">SharedPreferences<span class="token punctuation">.</span>Editor</span> editor <span class="token operator">=</span> sp<span class="token punctuation">.</span><span class="token function">edit</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    editor<span class="token punctuation">.</span><span class="token function">putInt</span><span class="token punctuation">(</span><span class="token string">"count_reserved"</span><span class="token punctuation">,</span> viewModel<span class="token punctuation">.</span>count<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    editor<span class="token punctuation">.</span><span class="token function">apply</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">private</span> <span class="token keyword">void</span> <span class="token function">setTextView</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    textView<span class="token punctuation">.</span><span class="token function">setText</span><span class="token punctuation">(</span><span class="token class-name">String</span><span class="token punctuation">.</span><span class="token function">valueOf</span><span class="token punctuation">(</span>viewModel<span class="token punctuation">.</span>count<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<h3><a id="22_LiveData_151"></a>2.2 LiveData</h3> 
+<p>       LiveData是Jetpack提供的一种响应式编程组件，它可以包含任何类型的数据，并在数据发生变化的时候通知给观察者。ViewModel和LiveData是很经典且实用的组合</p> 
+<h4><a id="221__153"></a>2.2.1 基本使用</h4> 
+<p>       上述的ViewModel中，我们的逻辑代码依然是写在View层中的，并且这种计数方式在单线程模式下确实可以正常工作，但如果ViewModel的内部开启了线程去执行一些耗时逻辑，那么在点击按钮后就立即去获取最新的数据，得到的肯定还是之前的数据。一直都是在Activity中手动获取ViewModel中的数据这种交互方式，但是ViewModel却无法将数据的变化主动通知给Activity。并且前面说到，ViewModel的生命周期是长于Activity的，所以我们不能把Activity的实例传给ViewMode，否则Activity会因为无法释放而造成内存泄漏。这种情况就用到了LiveData。<br>        首先修改ViewModel内的代码</p> 
+<pre><code class="prism language-java"><span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">MainViewModel</span> <span class="token keyword">extends</span> <span class="token class-name">ViewModel</span> <span class="token punctuation">{<!-- --></span>
+
+    <span class="token comment">// MutableLiveData是一种可变的LiveData</span>
+    <span class="token keyword">public</span> <span class="token class-name">MutableLiveData</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Integer</span><span class="token punctuation">&gt;</span></span> count <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">MutableLiveData</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token punctuation">&gt;</span></span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">public</span> <span class="token class-name">MainViewModel</span><span class="token punctuation">(</span><span class="token keyword">int</span> count<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">this</span><span class="token punctuation">.</span>count<span class="token punctuation">.</span><span class="token function">setValue</span><span class="token punctuation">(</span>count<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">plusOne</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>count<span class="token punctuation">.</span><span class="token function">getValue</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">==</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token keyword">return</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        count<span class="token punctuation">.</span><span class="token function">setValue</span><span class="token punctuation">(</span>count<span class="token punctuation">.</span><span class="token function">getValue</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">+</span> <span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">clean</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        count<span class="token punctuation">.</span><span class="token function">setValue</span><span class="token punctuation">(</span><span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>       这里将count改成了一个MutableLiveData对象，MutableLiveData是一种可变的LiveData，LiveData对象有三个读写数据的方法，分别是读数据getValue()，写数据setValue()和postValue()，setValue()必须在主线程内使用。<br>        接着是MainActivity.java</p> 
+<pre><code class="prism language-java"><span class="token keyword">private</span> <span class="token keyword">static</span> <span class="token keyword">final</span> <span class="token class-name">String</span> <span class="token constant">TAG</span> <span class="token operator">=</span> <span class="token string">"MainActivity"</span><span class="token punctuation">;</span>
+<span class="token keyword">private</span> <span class="token class-name">TextView</span> textView<span class="token punctuation">;</span>
+<span class="token keyword">private</span> <span class="token class-name">Button</span> plusOneBtn<span class="token punctuation">;</span>
+<span class="token keyword">private</span> <span class="token class-name">Button</span> cleanBtn<span class="token punctuation">;</span>
+<span class="token keyword">private</span> <span class="token class-name">MainViewModel</span> viewModel<span class="token punctuation">;</span>
+<span class="token keyword">private</span> <span class="token class-name">SharedPreferences</span> sp<span class="token punctuation">;</span>
+
+<span class="token annotation punctuation">@Override</span>
+<span class="token keyword">protected</span> <span class="token keyword">void</span> <span class="token function">onCreate</span><span class="token punctuation">(</span><span class="token class-name">Bundle</span> savedInstanceState<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">super</span><span class="token punctuation">.</span><span class="token function">onCreate</span><span class="token punctuation">(</span>savedInstanceState<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">setContentView</span><span class="token punctuation">(</span><span class="token class-name">R</span><span class="token punctuation">.</span>layout<span class="token punctuation">.</span>activity_main<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    sp <span class="token operator">=</span> <span class="token function">getPreferences</span><span class="token punctuation">(</span><span class="token class-name">Context</span><span class="token punctuation">.</span><span class="token constant">MODE_PRIVATE</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">int</span> count <span class="token operator">=</span> sp<span class="token punctuation">.</span><span class="token function">getInt</span><span class="token punctuation">(</span><span class="token string">"count_reserved"</span><span class="token punctuation">,</span> <span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    textView <span class="token operator">=</span> <span class="token function">findViewById</span><span class="token punctuation">(</span><span class="token class-name">R</span><span class="token punctuation">.</span>id<span class="token punctuation">.</span>info_text<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    plusOneBtn <span class="token operator">=</span> <span class="token function">findViewById</span><span class="token punctuation">(</span><span class="token class-name">R</span><span class="token punctuation">.</span>id<span class="token punctuation">.</span>plus_one_btn<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    cleanBtn <span class="token operator">=</span> <span class="token function">findViewById</span><span class="token punctuation">(</span><span class="token class-name">R</span><span class="token punctuation">.</span>id<span class="token punctuation">.</span>clean_btn<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    viewModel <span class="token operator">=</span><span class="token keyword">new</span> <span class="token class-name">ViewModelProvider</span><span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">,</span> <span class="token keyword">new</span> <span class="token class-name">MainViewModelFactory</span><span class="token punctuation">(</span>count<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">get</span><span class="token punctuation">(</span><span class="token class-name">MainViewModel</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    plusOneBtn<span class="token punctuation">.</span><span class="token function">setOnClickListener</span><span class="token punctuation">(</span>v <span class="token operator">-&gt;</span> <span class="token punctuation">{<!-- --></span>
+        viewModel<span class="token punctuation">.</span><span class="token function">plusOne</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    cleanBtn<span class="token punctuation">.</span><span class="token function">setOnClickListener</span><span class="token punctuation">(</span> v <span class="token operator">-&gt;</span> <span class="token punctuation">{<!-- --></span>
+        viewModel<span class="token punctuation">.</span><span class="token function">clean</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    
+    viewModel<span class="token punctuation">.</span>count<span class="token punctuation">.</span><span class="token function">observe</span><span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">,</span> <span class="token keyword">new</span> <span class="token class-name">Observer</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Integer</span><span class="token punctuation">&gt;</span></span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token annotation punctuation">@Override</span>
+        <span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">onChanged</span><span class="token punctuation">(</span><span class="token class-name">Integer</span> integer<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            textView<span class="token punctuation">.</span><span class="token function">setText</span><span class="token punctuation">(</span><span class="token class-name">String</span><span class="token punctuation">.</span><span class="token function">valueOf</span><span class="token punctuation">(</span>integer<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token annotation punctuation">@Override</span>
+<span class="token keyword">protected</span> <span class="token keyword">void</span> <span class="token function">onPause</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">super</span><span class="token punctuation">.</span><span class="token function">onPause</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token class-name">Log</span><span class="token punctuation">.</span><span class="token function">d</span><span class="token punctuation">(</span><span class="token constant">TAG</span><span class="token punctuation">,</span> <span class="token string">"onPause: viewModel.counter = "</span> <span class="token operator">+</span> viewModel<span class="token punctuation">.</span>count<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token class-name">SharedPreferences<span class="token punctuation">.</span>Editor</span> editor <span class="token operator">=</span> sp<span class="token punctuation">.</span><span class="token function">edit</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>viewModel<span class="token punctuation">.</span>count<span class="token punctuation">.</span><span class="token function">getValue</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">==</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token class-name">Log</span><span class="token punctuation">.</span><span class="token function">d</span><span class="token punctuation">(</span><span class="token constant">TAG</span><span class="token punctuation">,</span> <span class="token string">"onPause: viewModel.count.getValue() is null"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        editor<span class="token punctuation">.</span><span class="token function">putInt</span><span class="token punctuation">(</span><span class="token string">"count_reserved"</span><span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">return</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    editor<span class="token punctuation">.</span><span class="token function">putInt</span><span class="token punctuation">(</span><span class="token string">"count_reserved"</span><span class="token punctuation">,</span> viewModel<span class="token punctuation">.</span>count<span class="token punctuation">.</span><span class="token function">getValue</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    editor<span class="token punctuation">.</span><span class="token function">apply</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>       主要的改动点有以下几个，点击事件内的逻辑处理换到了ViewModel内，添加了count的observe（）方法，这个方法就是用来观察数据的变化。任何LiveData对象都可以调用它的observe()方法来观察数据的变化。</p> 
+<p>       Activity/Fragment 通过观察 ViewModel 中的 LiveData 来更新界面。<br>        Repository 通过更新 ViewModel 中的 LiveData 来更新界面。</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/0d20570489cb42f9ba680fe184876da4/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">Web服务器、应用程序服务器、HTTP服务器区别</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/6a9b1321c1eeababae2640ad5c20f916/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">Java面试题-并发篇（2万字带你搞定并发问题）</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>自然语言处理之基于biLSTM的pytorch立场检测实现 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/88a492190563782db38c02b896049620/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="自然语言处理之基于biLSTM的pytorch立场检测实现">
+  <meta property="og:description" content="其他文中已经讲过了LSTM的原理，LSTM理解了，biLSTM其实也就很容易理解了。这个实验，我是根据黑龙家大学nlp实验室的冯志，王潜升师兄的指导以及一篇基于biLSTM的paper实现的，如果想要这个paper的pdf，可以私聊我，一起进步。
+biLSTM是双向循环神经网络，简单的理解就是LSTM正向走一遍，又反向走了一遍而已。而对于立场检测这个实验，在这里我借用此论文的图片：
+Stance Detection with Bidirectional Conditional Encoding
+先说数据文本格式：
+数据截图
+前面是topic（图里的target），中间是针对这个topic的谈论文本，最后是这个文本在这个topic下的立场，格式简化为：
+sentence = topic &#43; text &#43; label
+这里的topic有5种，分别为：
+&#39;Atheism&#39;, &#39;Feminist Movement&#39;, &#39;Hillary Clinton&#39;, &#39;Legalization of Abortion&#39;, &#39;Climate Change is a Real Concern&#39;
+而上面biLSTM网络流程图就是选取的topic为Legalization of Abortion的例子。
+现在我来结合代码详细解释下这个基于biLSTM网络的立场检测实验：
+首先，把网络搭建好：
+其中，LSTM的参数隐藏层大小hiddenSize和隐藏层数量hiddenNum，我用上面的图详细解释下：
+hiddenSize是说LSTM一个cell的参数大小，hiddenNum是说这样大网络循环的个数。
+网络搭建好了，数据开始在网络中流动：
+假设EmbedSize = 100，hiddenSize = 50
+topic，text分别过Embedding Layer，维度分别为：(1,1,100)，(1,17,100)
+然后分别经过biLSTM Layer，维度为：(1,1,200)，(1,17,200)
+因为一会要经过一个maxPooling，所以现在先转置下，维度为(1,200,1)，(1,200,17)：
+然后经过一个激活函数tanh，维度不变为(1,200,1)，(1,200,17)：
+在第三维上，分别经过maxPooling，之后的维度为(1, 200, 1)，(1, 200, 1)：
+然后cat在一起，维度为(1, 400, 1)：
+一会要经过线性层，可以先将没用的第三维扔掉，维度为(1, 400)：
+然后经过第一个线性层(400-&amp;gt;100)，维度为(1,100)：
+然后再经过一个tanh，维度不变(1,100)：
+最后，经过最后一个线性层(100-&amp;gt;3)，维度为(1,3):
+你或许有疑问，为什么不直接经过一个线性层呢？因为我们要直接从400-&amp;gt;3的话，信息会损失很多，如果分别经过两个400-&amp;gt;100, 100-&amp;gt;3，这样就不会损失那么多信息了，如果你想用三个线性层也可以，自己感觉调到最佳就好。
+这个整体的数据流图为：
+整个也就算讲完了，其实也想把实验结果摆上来的，可是我的电脑是4G的。。太慢了。。但是如果想要源代码的话，可以留言给我，共同进步。">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2019-03-07T18:07:00+08:00">
+    <meta property="article:modified_time" content="2019-03-07T18:07:00+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">自然语言处理之基于biLSTM的pytorch立场检测实现</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <p>       其他文中已经讲过了LSTM的原理，LSTM理解了，<span style="color:#7c79e5;">biLSTM</span>其实也就很容易理解了。这个实验，我是根据黑龙家大学nlp实验室的冯志，王潜升师兄的指导以及一篇基于biLSTM的paper实现的，如果想要这个paper的pdf，可以私聊我，一起进步。</p> 
+<p>       biLSTM是<span style="color:#7c79e5;">双向循环神经网络</span>，简单的理解就是<span style="color:#7c79e5;">LSTM正向走一遍</span>，<span style="color:#7c79e5;">又反向走了一遍而已</span>。而对于<span style="color:#7c79e5;">立场检测</span>这个实验，在这里我借用此论文的图片：</p> 
+<p style="text-align:center;"><img alt="" class="has" height="226" src="https://images2.imgbox.com/99/11/Co0E9YnT_o.jpg" width="456"></p> 
+<p>                                                        Stance Detection with Bidirectional Conditional Encoding</p> 
+<p>先说<span style="color:#7c79e5;">数据文本格式</span>：</p> 
+<p style="text-align:center;"><img alt="" class="has" height="205" src="https://images2.imgbox.com/fa/f2/LfjD7wRM_o.jpg" width="840"></p> 
+<p>                                                                                                  数据截图</p> 
+<p>       前面是<span style="color:#7c79e5;">topic</span>（图里的<span style="color:#7c79e5;">target</span>），中间是针对这个topic的<span style="color:#7c79e5;">谈论文本</span>，最后是这个文本在这个topic下的<span style="color:#7c79e5;">立场</span>，格式简化为：</p> 
+<p>                                                                              <span style="color:#f33b45;">sentence = topic + text + label</span></p> 
+<p>       这里的topic有5种，分别为：</p> 
+<p>       'Atheism', 'Feminist Movement', 'Hillary Clinton', 'Legalization of Abortion', 'Climate Change is a Real Concern'</p> 
+<p>       而上面biLSTM网络流程图就是选取的topic为Legalization of Abortion的例子。</p> 
+<p> </p> 
+<p>现在我来结合代码详细解释下这个基于biLSTM网络的立场检测实验：</p> 
+<p>       首先，把<span style="color:#7c79e5;">网络搭建</span>好：</p> 
+<p style="text-align:center;"><img alt="" class="has" height="258" src="https://images2.imgbox.com/e6/c6/iA95ziQG_o.jpg" width="664"></p> 
+<p>       其中，LSTM的参数隐藏层大小hiddenSize和隐藏层数量hiddenNum，我用上面的图详细解释下：</p> 
+<p style="text-align:center;"><img alt="" class="has" height="216" src="https://images2.imgbox.com/d1/b8/uHTTFRnX_o.jpg" width="431"></p> 
+<p>   <span style="color:#f33b45;">    hiddenSize</span>是说<span style="color:#7c79e5;">LSTM一个cell的参数大小</span>，<span style="color:#f33b45;">hiddenNum</span>是说这样<span style="color:#7c79e5;">大网络循环的个数</span>。</p> 
+<p>网络搭建好了，<span style="color:#7c79e5;">数据</span>开始在<span style="color:#7c79e5;">网络中流动</span>：</p> 
+<p>       假设<span style="color:#f33b45;">EmbedSize</span> = 100，<span style="color:#f33b45;">hiddenSize</span> = 50</p> 
+<p>       topic，text分别过<span style="color:#7c79e5;">Embedding Layer</span>，维度分别为：(1,1,100)，(1,17,100)</p> 
+<p style="text-align:center;"><img alt="" class="has" height="33" src="https://images2.imgbox.com/2f/f6/uUGG7JuJ_o.jpg" width="308"></p> 
+<p>       然后分别经过<span style="color:#7c79e5;">biLSTM Layer</span>，维度为：(1,1,200)，(1,17,200)</p> 
+<p style="text-align:center;"><img alt="" class="has" height="42" src="https://images2.imgbox.com/19/54/XfbNirKe_o.jpg" width="307"></p> 
+<p>       因为一会要经过一个maxPooling，所以现在先<span style="color:#7c79e5;">转置</span>下，维度为(1,200,1)，(1,200,17)：</p> 
+<p style="text-align:center;"><img alt="" class="has" height="43" src="https://images2.imgbox.com/2b/6a/pMAJ4ZsX_o.jpg" width="332"></p> 
+<p>       然后经过一个激活函数<span style="color:#7c79e5;">tanh</span>，维度不变为(1,200,1)，(1,200,17)：</p> 
+<p style="text-align:center;"><img alt="" class="has" height="37" src="https://images2.imgbox.com/8e/76/lUEL2H1S_o.jpg" width="204"></p> 
+<p>       在第三维上，分别经过<span style="color:#7c79e5;">maxPooling</span>，之后的维度为(1, 200, 1)，(1, 200, 1)：</p> 
+<p style="text-align:center;"><img alt="" class="has" height="38" src="https://images2.imgbox.com/14/8d/a5VaNuPg_o.jpg" width="384"></p> 
+<p>       然后<span style="color:#7c79e5;">cat</span>在一起，维度为(1, 400, 1)：</p> 
+<p style="text-align:center;"><img alt="" class="has" height="26" src="https://images2.imgbox.com/30/75/SOEcvySC_o.jpg" width="385"></p> 
+<p>       一会要经过线性层，可以先将没用的<span style="color:#7c79e5;">第三维扔掉</span>，维度为(1, 400)：</p> 
+<p style="text-align:center;"><img alt="" class="has" height="20" src="https://images2.imgbox.com/be/2e/5PdexZGZ_o.jpg" width="324"></p> 
+<p>       然后经过第一个<span style="color:#7c79e5;">线性层</span>(400-&gt;100)，维度为(1,100)：</p> 
+<p style="text-align:center;"><img alt="" class="has" height="20" src="https://images2.imgbox.com/82/39/LHx1zW3I_o.jpg" width="303"></p> 
+<p>       然后再经过一个<span style="color:#7c79e5;">tanh</span>，维度不变(1,100)：</p> 
+<p style="text-align:center;"><img alt="" class="has" height="19" src="https://images2.imgbox.com/3a/79/osbEbC4l_o.jpg" width="228"></p> 
+<p>       最后，经过最后一个<span style="color:#7c79e5;">线性层</span>(100-&gt;3)，维度为(1,3):</p> 
+<p style="text-align:center;"><img alt="" class="has" height="20" src="https://images2.imgbox.com/91/6a/rGbzCKrR_o.jpg" width="276"></p> 
+<p>       你或许有<span style="color:#f33b45;">疑问，为什么不直接经过一个线性层呢？</span><span style="color:#7c79e5;">因为</span>我们要直接从400-&gt;3的话，<span style="color:#7c79e5;">信息会损失很多</span>，如果分别经过两个400-&gt;100, 100-&gt;3，这样就不会损失那么多信息了，如果你想用三个线性层也可以，<span style="color:#7c79e5;">自己感觉调到最佳就好</span>。</p> 
+<p>       这个<span style="color:#7c79e5;">整体的数据流图</span>为：</p> 
+<p style="text-align:center;"><img alt="" class="has" height="503" src="https://images2.imgbox.com/d7/5d/CLCJWzOj_o.jpg" width="568"></p> 
+<p> </p> 
+<p>       整个也就算讲完了，其实也想把实验结果摆上来的，可是我的电脑是4G的。。太慢了。。但是如果想要源代码的话，可以留言给我，共同进步。</p> 
+<hr> 
+<p>更多精彩内容，请关注 <strong><strong>深度学习自然语言处理</strong></strong> 公众号，就是下方啦！跟随小博主，每天进步一丢丢！哈哈！</p> 
+<p><img alt="" class="has" height="435" src="https://images2.imgbox.com/95/c0/nTcLJNFQ_o.jpg" width="800"></p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/b24a13527ecc89ff04980b9375eec3b0/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">300道Python面试题，备战春招！</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/54b9f2b0e9ebc39a61741454fe2ca0d9/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">opencv--第一个例子，找不到“highgui.h”（转）</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Java代码审计安全篇-常见Java SQL注入 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/1e425376f0d71bfd94c5e7ce5f2b1138/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="Java代码审计安全篇-常见Java SQL注入">
+  <meta property="og:description" content="前言： 堕落了三个月，现在因为被找实习而困扰，着实自己能力不足，从今天开始 每天沉淀一点点 ，准备秋招 加油
+注意： 本文章参考qax的网络安全java代码审计，记录自己的学习过程，还希望各位博主 师傅 大佬 勿喷，还希望大家指出错误
+1.SQL语句参数直接动态拼接 常见的的执行语句为Statement执行SQL语句
+例如下面这段代码：
+&amp;lt;% //驱动程序名 String driverName = &#34;com.mysql.jdbc.Driver&#34;; //数据库用户名 String userName = &#34;root&#34;; //密码 String userPasswd = &#34;root&#34;; //数据库名 String dbName = &#34;javasqltest&#34;; //表名 String ID = &#39;1&#39; //联结字符串 String url = &#34;jdbc:mysql://localhost:3306/&#34; &#43; dbName &#43; &#34;?user=&#34; &#43; userName &#43; &#34;&amp;amp;password=&#34; &#43; userPasswd; Class.forName(&#34;com.mysql.jdbc.Driver&#34;).newInstance(); Connection connection = DriverManager.getConnection(url); Statement statement = connection.createStatement(); String sql = &#34;SELECT * FROM people where id = &#34;">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2024-03-06T19:17:06+08:00">
+    <meta property="article:modified_time" content="2024-03-06T19:17:06+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">Java代码审计安全篇-常见Java SQL注入</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <h4>前言：</h4> 
+<p>        堕落了三个月，现在因为被找实习而困扰，着实自己能力不足，从今天开始 每天沉淀一点点 ，准备秋招 加油</p> 
+<h4>注意：</h4> 
+<p>本文章参考qax的网络安全java代码审计，记录自己的学习过程，还希望各位博主 师傅 大佬 勿喷，还希望大家指出错误</p> 
+<h4>1.SQL语句参数直接动态拼接</h4> 
+<p>常见的的执行语句为Statement执行SQL语句</p> 
+<p>例如下面这段代码：</p> 
+<pre><code class="language-javascript">&lt;%  //驱动程序名   
+        String driverName = "com.mysql.jdbc.Driver";  
+        //数据库用户名   
+        String userName = "root";  
+        //密码   
+        String userPasswd = "root";  
+        //数据库名   
+        String dbName = "javasqltest";  
+        //表名   
+        String ID = '1'
+        //联结字符串   
+        String url = "jdbc:mysql://localhost:3306/" + dbName + "?user="  
+                + userName + "&amp;password=" + userPasswd;  
+        Class.forName("com.mysql.jdbc.Driver").newInstance();  
+        Connection connection = DriverManager.getConnection(url);  
+        Statement statement = connection.createStatement();  
+        String sql = "SELECT * FROM  people where id = " +ID ;  
+        ResultSet rs = statement.executeQuery(sql);  
+    %&gt;  </code></pre> 
+<p> 打印出来的结果如图下所示</p> 
+<p><img alt="" height="152" src="https://images2.imgbox.com/b4/d0/CkoNbD3x_o.png" width="711"></p> 
+<p>数据库数据：</p> 
+<p><img alt="" height="251" src="https://images2.imgbox.com/b3/ac/GuHIoDOX_o.png" width="741"></p> 
+<p>我们发现 像这种情况就是由SQL语句参数直接动态拼接成的，这样的话参数ID可控并且可以执行sql语句的拼接，存在明显的SQL注入漏洞</p> 
+<pre><code class="language-javascript">String sql = "SELECT * FROM  people where id = " +ID ;  </code></pre> 
+<p>我们测试验证 一下 传入参数为  </p> 
+<pre><code class="language-javascript">1 and 1= 1</code></pre> 
+<p><img alt="" height="549" src="https://images2.imgbox.com/73/e3/GtMLAvUF_o.png" width="1200"></p> 
+<p>果然存在漏洞，这样就有个严重 的问题 当输入<span style="color:#fe2c24;">1 or 1 = 1</span><span style="color:#0d0016;">就会打印所有的表的数据 ，造成数据泄露</span></p> 
+<pre><code class="language-javascript"> 1 or 1=1</code></pre> 
+<h5 style="background-color:transparent;"><img alt="" height="648" src="https://images2.imgbox.com/c6/49/zG8qrfQh_o.png" width="1200"></h5> 
+<h4>2.预编译有误</h4> 
+<p>首先预编译处理就是将一些灵活的参数值以占位符?的形式给代替掉，我们把参数值给抽取出来，把SQL语句进行模板化。让MySQL服务器执行相同的SQL语句时，不需要在校验、解析SQL语句上面花费重复的时间</p> 
+<pre><code class="hljs">public void test1() throws Exception {
+
+        // 获取连接
+        Connection connection = DriverManager.getConnection("jdbc:mysql://localhost:3306/mybatis?useServerPrepStmts=true", "root", "admin");
+
+        String sql = "select * from user where id = ?";
+
+        PreparedStatement ps = connection.prepareStatement(sql);
+
+        ps.setInt(1, 1);
+
+        // 执行查询,获取结果集
+        ResultSet rs = ps.executeQuery();
+
+        //遍历查询结果集
+        while (rs.next()) {
+            System.out.println(rs.getObject("id")+"---"+rs.getObject("username"));
+        }
+        rs.close();
+        ps.close();
+
+    }
+</code></pre> 
+<p>那么预编译有误这个很好理解，就是使用错了编程方式，也就是采用了动态拼接</p> 
+<p><img alt="" height="191" src="https://images2.imgbox.com/98/ee/lgEByqHw_o.png" width="669"> </p> 
+<blockquote> 
+ <p>     上述代码就是典型的预编译错误编程方式，虽然id参数使用了PrepareStatement进行SQL查询，但是后面的usermame使用了SQL语句拼接的方式“sql += " and usermame like%”+username +.""%"";""，将username参数进行了拼接，这样导致了SQL注入漏洞的产<br> 生。传入的username值为“"user% or T'=1"#""<br>  </p> 
+</blockquote> 
+<h4>3.order by 注入 </h4> 
+<p>就是即使是标准的预编译处理也难以防止sql注入，因为某些情况下是不能使用预编译处理的，只能采用字符串拼接处理 像order by 注入</p> 
+<p>原理：</p> 
+<blockquote> 
+ <p>SQL中：ORDER BY执行排序后面需要指定列名，该列名是不能被引号包含的否则就会被认为是一个字符串。</p> 
+</blockquote> 
+<p>所以进行ID拼接的时候就出现了 sql注入</p> 
+<h4>4. %和_模糊查询</h4> 
+<p>首先明白这两个通配符的作用</p> 
+<pre><code class="hljs">_：任意一个字符，
+%：任意0或多个字符。</code></pre> 
+<p> 下面举例 例如查询名字为root的用户 得到</p> 
+<p><img alt="" height="528" src="https://images2.imgbox.com/1a/82/68H14nED_o.png" width="1200"></p> 
+<p>我们填入r试试</p> 
+<p><img alt="" height="450" src="https://images2.imgbox.com/cf/09/ng42RlKv_o.png" width="1200"> </p> 
+<p>查询不到 但是因为在java中预编译查询不会对%和_ 进行转义，而它们又是like查询的通配符，所以出现了漏洞，我们输入 </p> 
+<pre><code class="hljs">username=r%</code></pre> 
+<p>能够得到root的全部信息</p> 
+<p><img alt="" height="458" src="https://images2.imgbox.com/2f/0d/sniilWe4_o.png" width="1200"> </p> 
+<p>所以只能手动过滤_和% </p> 
+<h4>5.MyBatis中的#{}和${}</h4> 
+<blockquote> 
+ <p>1、#{}表示一个占位符号 相当于 jdbc中的 ? 符号<br> #{}实现的是向prepareStatement中的预处理语句中设置参数值，sql语句中#{}表示一个占位符即?</p> 
+</blockquote> 
+<blockquote> 
+ <p>2、${}将传入的数据都当成一个字符串，会对自动传入的数据加一个双引号。如：select * from user where id= #{user_id}，如果传入的值是11,那么解析成sql时的值为where id="11" ，</p> 
+</blockquote> 
+<p>     就是说使用#{}方法更为安全 ${}方法不安全 ，因为在MyBatis中像order by 查询，like查询，in参数等都只能采用拼接方式 ，要确切的查询只能用到${}，所以就会出现sql注入 ，所以得采用手动过滤的方法进行修复  </p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/30c25e324fe40afba5c2d2b63f32dba1/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">linux服务器查询系统版本，内存，存储等命令</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/0e70e7e699d3c6de78f0f00cff6d015a/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">java在cmd中乱码的问题解决</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

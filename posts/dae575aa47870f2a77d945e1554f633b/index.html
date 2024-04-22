@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>matlab如何处理不均匀小时采样的数据，并合并成均匀日采样 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/dae575aa47870f2a77d945e1554f633b/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="matlab如何处理不均匀小时采样的数据，并合并成均匀日采样">
+  <meta property="og:description" content="前一专栏我介绍了如何将每日的水位数据合并成每月
+Matlab实现GNSS、水位监测日数据转成月数据_matlab 由日数据求月平均-CSDN博客
+现在我分享一个matlab程序，将每小时不均匀采样的水质数据统一成日采样。这一方法对其他的有关时间数据处理具有借鉴意义。
+下面展示了部分水质数据 water.txt 的数据的具体格式：
+月 日 年 小时
+10 02 2013 12:00 0 0 0.4259 0 0 0.0102 0 0
+10 02 2013 20:00 0 0 0.4425 0 0 0.0068 0 0
+10 03 2013 04:00 0 0 0.4287 0 0 0.0046 0 0
+10 03 2013 12:00 0 0 0.4573 0 0 0.0035 0 0
+10 03 2013 20:00 0 0 0.4599 0 0 0.0054 0 0">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2024-03-29T10:13:44+08:00">
+    <meta property="article:modified_time" content="2024-03-29T10:13:44+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">matlab如何处理不均匀小时采样的数据，并合并成均匀日采样</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <p>前一专栏我介绍了如何将每日的水位数据合并成每月</p> 
+<blockquote> 
+ <p><a href="https://blog.csdn.net/weixin_43047707/article/details/131137991?spm=1001.2014.3001.5502" title="Matlab实现GNSS、水位监测日数据转成月数据_matlab 由日数据求月平均-CSDN博客">Matlab实现GNSS、水位监测日数据转成月数据_matlab 由日数据求月平均-CSDN博客</a></p> 
+</blockquote> 
+<p>现在我分享一个matlab程序，将每小时不均匀采样的水质数据统一成日采样。这一方法对其他的有关时间数据处理具有借鉴意义。</p> 
+<p>下面展示了部分水质数据 water.txt 的数据的具体格式：</p> 
+<blockquote> 
+ <p>月  日  年     小时</p> 
+ <p>10 02 2013 12:00    0    0    0.4259    0    0    0.0102    0    0<br> 10 02 2013 20:00    0    0    0.4425    0    0    0.0068    0    0<br> 10 03 2013 04:00    0    0    0.4287    0    0    0.0046    0    0<br> 10 03 2013 12:00    0    0    0.4573    0    0    0.0035    0    0<br> 10 03 2013 20:00    0    0    0.4599    0    0    0.0054    0    0<br> 10 04 2013 04:00    0    0    0.4282    0    0    0.004    0    0<br> 10 04 2013 12:00    0    0    0.4346    0    0    0.0034    0    0<br> 10 04 2013 20:00    0    0    0.4174    0    0    0.0158    0    0<br> 10 05 2013 04:00    0    0    0.3955    0    0    0.0171    0    0</p> 
+</blockquote> 
+<p>我们看到每一行时间采样是不均匀的，因此我们的思路是：循环读取，在数据后面添加label，如果日是不变的，则label是1，当前后的日发生变化，则对应的label加1，这样我们最终可以得到互相不冲突的label标记，后面只需要对相同标记的行求平均。</p> 
+<p>下面是matlab代码：</p> 
+<blockquote> 
+ <p>A = load(['water.txt']);</p> 
+ <p>    ind1 = 1;<br>     new_ = [A,zeros(length(A(:,1)),1)];</p> 
+ <p>    for i = 1:length(A(:,1))<br>         if(i==1)<br>             new_(1,14) = ind1;  <br>         else</p> 
+ <p>            if(A(i,2)-A(i-1,2)==0)<br>                 new_(i,14) = ind1;<br>             else<br>                 ind1 = ind1+1;<br>                 new_(i,14) = ind1;<br>             end<br>         end<br>     end</p> 
+ <p>    for i = 1:max(new_(:,14))<br>         ind = find(new_(:,14)==i);<br>         if(length(ind)==1)<br>             out(i,:) = new_(ind,:);<br>         else<br>             out(i,:) = mean(new_(ind,:));<br>         end<br>     end</p> 
+</blockquote> 
+<p style="text-align:center;">♥欢迎点赞收藏♥</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/f7116478b66a64c567e7d460f4a84e27/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">如何成为一名真正黑客_如何成为一名优秀的黑客</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/0f9c173d196beb97cff854fbc3d4f7f0/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">GeoTrust SSL证书有什么优势？</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>基于RxJava2.0&#43;Retrofit2.0超大文件分块（分片）上传（带进度） - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/561520527a011d6af849f6e0c4b5da1a/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="基于RxJava2.0&#43;Retrofit2.0超大文件分块（分片）上传（带进度）">
+  <meta property="og:description" content="当上传文件过大时，直接上传会增加服务器负载，负载过高会导致机器无法处理其他请求及操作，甚至导致宕机，这时分块上传是最佳选择。本次简单介绍两种分块上传文件方案（暂不考虑文件安全相关问题，如签名）：
+方案一： 客户端把单个文件切割成若干块，依次上传，最后由服务端合并
+方案二： 客户端读取文件 offset 到 offset&#43;chunk的文件块上传，每次上传完返回新的offset（或者每次上传后，本地保存最新的offset），客户端更新offset值并继续下一次上传，本文为了测试方便，最新的偏移量本地计算好即不通过接口返回最新偏移量
+文件分块上传与断点下载相比，断点下载的进度保存在客户端（使用数据库保存），分块上传的进度保存在服务端并由服务端合并
+效果图：
+两种方案对比，方案二上传时间更短，因为方案一基于文件操作，方案二基于内存操作，所以方案二上传时间更短
+方案一
+客服端：
+public void uploadTest1(View view) { countUploadSize = 0; clearDir(); totalSize = file.length(); //分割文件并组装数据上传，文件分割数量根据实际情况调整 List&amp;lt;File&amp;gt; cut = FileUtils.split(file.getAbsolutePath(), 10); int totalChunk = cut.size(); FileChunkReq[] items = new FileChunkReq[cut.size()]; for (int i = 0; i &amp;lt; cut.size(); i&#43;&#43;) { FileChunkReq fileChunkReq = new FileChunkReq(); fileChunkReq.file = cut.get(i); fileChunkReq.fileName = file.getName(); fileChunkReq.fileSize = totalSize; fileChunkReq.chunkNum = i &#43; 1; fileChunkReq.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2021-06-14T21:38:55+08:00">
+    <meta property="article:modified_time" content="2021-06-14T21:38:55+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">基于RxJava2.0&#43;Retrofit2.0超大文件分块（分片）上传（带进度）</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-dark">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <p>当上传文件过大时，直接上传会增加服务器负载，负载过高会导致机器无法处理其他请求及操作，甚至导致宕机，这时分块上传是最佳选择。本次简单介绍两种分块上传文件方案（暂不考虑文件安全相关问题，如签名）：</p> 
+<p><strong>方案一：</strong> 客户端把单个文件切割成若干块，依次上传，最后由服务端合并<br> <strong>方案二：</strong> 客户端读取文件 offset 到 offset+chunk的文件块上传，每次上传完返回新的offset（或者每次上传后，本地保存最新的offset），客户端更新offset值并继续下一次上传，本文为了测试方便，<strong>最新的偏移量本地计算好即不通过接口返回最新偏移量</strong></p> 
+<p>文件分块上传与断点下载相比，断点下载的进度保存在客户端（使用数据库保存），分块上传的进度保存在服务端并由服务端合并</p> 
+<p>效果图：</p> 
+<div> 
+ <img src="https://images2.imgbox.com/d4/55/NlqBhcKe_o.png" width="45%"> 
+ <img src="https://images2.imgbox.com/31/31/vuFSmU0r_o.png" width="45%"> 
+</div> 
+<p>两种方案对比，方案二上传时间更短，因为方案一基于文件操作，方案二基于内存操作，所以方案二上传时间更短</p> 
+<blockquote> 
+ <p>方案一</p> 
+</blockquote> 
+<p><strong>客服端：</strong></p> 
+<pre><code class="prism language-java">    <span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">uploadTest1</span><span class="token punctuation">(</span><span class="token class-name">View</span> view<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        countUploadSize <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+        <span class="token function">clearDir</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        totalSize <span class="token operator">=</span> file<span class="token punctuation">.</span><span class="token function">length</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token comment">//分割文件并组装数据上传，文件分割数量根据实际情况调整</span>
+        <span class="token class-name">List</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">File</span><span class="token punctuation">&gt;</span></span> cut <span class="token operator">=</span> <span class="token class-name">FileUtils</span><span class="token punctuation">.</span><span class="token function">split</span><span class="token punctuation">(</span>file<span class="token punctuation">.</span><span class="token function">getAbsolutePath</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token number">10</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">int</span> totalChunk <span class="token operator">=</span> cut<span class="token punctuation">.</span><span class="token function">size</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token class-name">FileChunkReq</span><span class="token punctuation">[</span><span class="token punctuation">]</span> items <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">FileChunkReq</span><span class="token punctuation">[</span>cut<span class="token punctuation">.</span><span class="token function">size</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">]</span><span class="token punctuation">;</span>
+        <span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token keyword">int</span> i <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span> i <span class="token operator">&lt;</span> cut<span class="token punctuation">.</span><span class="token function">size</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span> i<span class="token operator">++</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token class-name">FileChunkReq</span> fileChunkReq <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">FileChunkReq</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            fileChunkReq<span class="token punctuation">.</span>file <span class="token operator">=</span> cut<span class="token punctuation">.</span><span class="token function">get</span><span class="token punctuation">(</span>i<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            fileChunkReq<span class="token punctuation">.</span>fileName <span class="token operator">=</span> file<span class="token punctuation">.</span><span class="token function">getName</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            fileChunkReq<span class="token punctuation">.</span>fileSize <span class="token operator">=</span> totalSize<span class="token punctuation">;</span>
+            fileChunkReq<span class="token punctuation">.</span>chunkNum <span class="token operator">=</span> i <span class="token operator">+</span> <span class="token number">1</span><span class="token punctuation">;</span>
+            fileChunkReq<span class="token punctuation">.</span>totalChunk <span class="token operator">=</span> totalChunk<span class="token punctuation">;</span>
+            fileChunkReq<span class="token punctuation">.</span>uuid <span class="token operator">=</span> UUID<span class="token punctuation">;</span>
+            items<span class="token punctuation">[</span>i<span class="token punctuation">]</span> <span class="token operator">=</span> fileChunkReq<span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        startTime <span class="token operator">=</span> <span class="token class-name">System</span><span class="token punctuation">.</span><span class="token function">currentTimeMillis</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token class-name">Observable</span><span class="token punctuation">.</span><span class="token function">fromArray</span><span class="token punctuation">(</span>items<span class="token punctuation">)</span>
+                <span class="token punctuation">.</span><span class="token function">concatMap</span><span class="token punctuation">(</span><span class="token keyword">new</span> <span class="token class-name">Function</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">FileChunkReq</span><span class="token punctuation">,</span> <span class="token class-name">ObservableSource</span><span class="token punctuation">&lt;</span><span class="token class-name">ResponseResult</span><span class="token punctuation">&gt;</span><span class="token punctuation">&gt;</span></span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                    <span class="token annotation punctuation">@Override</span>
+                    <span class="token keyword">public</span> <span class="token class-name">ObservableSource</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">ResponseResult</span><span class="token punctuation">&gt;</span></span> <span class="token function">apply</span><span class="token punctuation">(</span><span class="token class-name">FileChunkReq</span> fcq<span class="token punctuation">)</span> <span class="token keyword">throws</span> <span class="token class-name">Exception</span> <span class="token punctuation">{<!-- --></span>
+                        <span class="token keyword">return</span> <span class="token function">upload1</span><span class="token punctuation">(</span>fcq<span class="token punctuation">)</span><span class="token punctuation">;</span>
+                    <span class="token punctuation">}</span>
+                <span class="token punctuation">}</span><span class="token punctuation">)</span>
+                <span class="token punctuation">.</span><span class="token function">subscribeOn</span><span class="token punctuation">(</span><span class="token class-name">Schedulers</span><span class="token punctuation">.</span><span class="token function">io</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+                <span class="token punctuation">.</span><span class="token function">observeOn</span><span class="token punctuation">(</span><span class="token class-name">AndroidSchedulers</span><span class="token punctuation">.</span><span class="token function">mainThread</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+                <span class="token punctuation">.</span><span class="token function">subscribe</span><span class="token punctuation">(</span><span class="token keyword">new</span> <span class="token class-name">Consumer</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">ResponseResult</span><span class="token punctuation">&gt;</span></span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                    <span class="token annotation punctuation">@Override</span>
+                    <span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">accept</span><span class="token punctuation">(</span><span class="token class-name">ResponseResult</span> responseResult<span class="token punctuation">)</span> <span class="token keyword">throws</span> <span class="token class-name">Exception</span> <span class="token punctuation">{<!-- --></span>
+                        <span class="token function">showMsg</span><span class="token punctuation">(</span><span class="token string">"分块上传方案1responseResult："</span> <span class="token operator">+</span> responseResult<span class="token punctuation">.</span><span class="token function">toString</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+                    <span class="token punctuation">}</span>
+                <span class="token punctuation">}</span><span class="token punctuation">,</span> <span class="token keyword">new</span> <span class="token class-name">Consumer</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Throwable</span><span class="token punctuation">&gt;</span></span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                    <span class="token annotation punctuation">@Override</span>
+                    <span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">accept</span><span class="token punctuation">(</span><span class="token class-name">Throwable</span> throwable<span class="token punctuation">)</span> <span class="token keyword">throws</span> <span class="token class-name">Exception</span> <span class="token punctuation">{<!-- --></span>
+                        <span class="token function">showMsg</span><span class="token punctuation">(</span><span class="token string">"分块上传方案1异常:"</span> <span class="token operator">+</span> throwable<span class="token punctuation">.</span><span class="token function">getMessage</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+                    <span class="token punctuation">}</span>
+                <span class="token punctuation">}</span><span class="token punctuation">,</span> <span class="token keyword">new</span> <span class="token class-name">Action</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                    <span class="token annotation punctuation">@Override</span>
+                    <span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">run</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token keyword">throws</span> <span class="token class-name">Exception</span> <span class="token punctuation">{<!-- --></span>
+                        <span class="token function">showMsg</span><span class="token punctuation">(</span><span class="token string">"分块上传方案1完毕"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+                    <span class="token punctuation">}</span>
+                <span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token punctuation">}</span>
+
+</code></pre> 
+<p>接口调用</p> 
+<pre><code class="prism language-java"><span class="token comment">/**
+     * 分块上传1
+     *
+     * @param fileChunkReq
+     * @return
+     */</span>
+    <span class="token keyword">private</span> <span class="token class-name">Observable</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">ResponseResult</span><span class="token punctuation">&gt;</span></span> <span class="token function">upload1</span><span class="token punctuation">(</span><span class="token class-name">FileChunkReq</span> fileChunkReq<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token comment">//"application/octet-stream"</span>
+        <span class="token comment">//"multipart/form-data"</span>
+        <span class="token class-name">FileProgressRequestBody</span> filePart <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">FileProgressRequestBody</span><span class="token punctuation">(</span>fileChunkReq<span class="token punctuation">.</span>file<span class="token punctuation">,</span> <span class="token string">"application/octet-stream"</span><span class="token punctuation">,</span> <span class="token keyword">new</span> <span class="token class-name">FileProgressRequestBody<span class="token punctuation">.</span>ProgressListener</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token annotation punctuation">@Override</span>
+            <span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">progress</span><span class="token punctuation">(</span><span class="token keyword">long</span> upload<span class="token punctuation">,</span> <span class="token keyword">long</span> totalUpload<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                <span class="token keyword">synchronized</span> <span class="token punctuation">(</span>obj<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                    <span class="token function">showProgress</span><span class="token punctuation">(</span>upload<span class="token punctuation">)</span><span class="token punctuation">;</span>
+                    <span class="token class-name">Log</span><span class="token punctuation">.</span><span class="token function">w</span><span class="token punctuation">(</span>TAG<span class="token punctuation">,</span> <span class="token string">"上传方案1,countUploadSize:"</span> <span class="token operator">+</span> countUploadSize <span class="token operator">+</span> <span class="token string">",percent:"</span> <span class="token operator">+</span> percent<span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token punctuation">}</span>
+            <span class="token punctuation">}</span>
+        <span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+
+        <span class="token keyword">final</span> <span class="token class-name">MultipartBody</span> requestBody <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">MultipartBody<span class="token punctuation">.</span>Builder</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+                <span class="token punctuation">.</span><span class="token function">setType</span><span class="token punctuation">(</span><span class="token class-name">MultipartBody</span><span class="token punctuation">.</span>FORM<span class="token punctuation">)</span>
+                <span class="token punctuation">.</span><span class="token function">addFormDataPart</span><span class="token punctuation">(</span><span class="token string">"file"</span><span class="token punctuation">,</span> fileChunkReq<span class="token punctuation">.</span>file<span class="token punctuation">.</span><span class="token function">getName</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> filePart<span class="token punctuation">)</span>
+                <span class="token punctuation">.</span><span class="token function">addFormDataPart</span><span class="token punctuation">(</span><span class="token string">"fileName"</span><span class="token punctuation">,</span> fileChunkReq<span class="token punctuation">.</span>fileName<span class="token punctuation">)</span>
+                <span class="token punctuation">.</span><span class="token function">addFormDataPart</span><span class="token punctuation">(</span><span class="token string">"fileSize"</span><span class="token punctuation">,</span> <span class="token class-name">String</span><span class="token punctuation">.</span><span class="token function">valueOf</span><span class="token punctuation">(</span>fileChunkReq<span class="token punctuation">.</span>fileSize<span class="token punctuation">)</span><span class="token punctuation">)</span>
+                <span class="token punctuation">.</span><span class="token function">addFormDataPart</span><span class="token punctuation">(</span><span class="token string">"uuid"</span><span class="token punctuation">,</span> fileChunkReq<span class="token punctuation">.</span>uuid<span class="token punctuation">)</span> <span class="token comment">//可用于持久化，作为文件存放目录，验证重复上传</span>
+                <span class="token punctuation">.</span><span class="token function">addFormDataPart</span><span class="token punctuation">(</span><span class="token string">"chunkNum"</span><span class="token punctuation">,</span> <span class="token class-name">String</span><span class="token punctuation">.</span><span class="token function">valueOf</span><span class="token punctuation">(</span>fileChunkReq<span class="token punctuation">.</span>chunkNum<span class="token punctuation">)</span><span class="token punctuation">)</span>
+                <span class="token punctuation">.</span><span class="token function">addFormDataPart</span><span class="token punctuation">(</span><span class="token string">"totalChunk"</span><span class="token punctuation">,</span> <span class="token class-name">String</span><span class="token punctuation">.</span><span class="token function">valueOf</span><span class="token punctuation">(</span>fileChunkReq<span class="token punctuation">.</span>totalChunk<span class="token punctuation">)</span><span class="token punctuation">)</span>
+                <span class="token punctuation">.</span><span class="token function">build</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        <span class="token class-name">Observable</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">ResponseResult</span><span class="token punctuation">&gt;</span></span> observable <span class="token operator">=</span> uploadApi<span class="token punctuation">.</span><span class="token function">upload1</span><span class="token punctuation">(</span>requestBody<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">return</span> observable<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+</code></pre> 
+<blockquote> 
+ <p>方案二</p> 
+</blockquote> 
+<p><strong>客服端：</strong></p> 
+<pre><code class="prism language-java"> <span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">uploadTest2</span><span class="token punctuation">(</span><span class="token class-name">View</span> view<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        countUploadSize <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+        offset <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+        <span class="token keyword">long</span> length <span class="token operator">=</span> file<span class="token punctuation">.</span><span class="token function">length</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        totalSize <span class="token operator">=</span> length<span class="token punctuation">;</span>
+        startTime <span class="token operator">=</span> <span class="token class-name">System</span><span class="token punctuation">.</span><span class="token function">currentTimeMillis</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token class-name">Observable</span><span class="token punctuation">.</span><span class="token function">create</span><span class="token punctuation">(</span><span class="token keyword">new</span> <span class="token class-name">ObservableOnSubscribe</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">FileChunkReq</span><span class="token punctuation">&gt;</span></span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+
+            <span class="token annotation punctuation">@Override</span>
+            <span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">subscribe</span><span class="token punctuation">(</span><span class="token class-name">ObservableEmitter</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">FileChunkReq</span><span class="token punctuation">&gt;</span></span> emitter<span class="token punctuation">)</span> <span class="token keyword">throws</span> <span class="token class-name">Exception</span> <span class="token punctuation">{<!-- --></span>
+                <span class="token keyword">int</span> blockSize <span class="token operator">=</span> <span class="token number">1024</span> <span class="token operator">*</span> <span class="token number">1024</span><span class="token punctuation">;</span> <span class="token comment">//1M</span>
+                <span class="token keyword">while</span> <span class="token punctuation">(</span>offset <span class="token operator">&lt;</span> totalSize<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                	<span class="token comment">//基于偏移量获取块大小，blockSize 可根据服务端调整</span>
+                    <span class="token keyword">byte</span><span class="token punctuation">[</span><span class="token punctuation">]</span> block <span class="token operator">=</span> <span class="token class-name">FileUtils</span><span class="token punctuation">.</span><span class="token function">getBlock</span><span class="token punctuation">(</span>offset<span class="token punctuation">,</span> file<span class="token punctuation">,</span> blockSize<span class="token punctuation">)</span><span class="token punctuation">;</span>
+                    <span class="token keyword">if</span> <span class="token punctuation">(</span>block <span class="token operator">!=</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                        <span class="token class-name">FileChunkReq</span> fileChunkReq <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">FileChunkReq</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+                        fileChunkReq<span class="token punctuation">.</span>fileByte <span class="token operator">=</span> block<span class="token punctuation">;</span>
+                        fileChunkReq<span class="token punctuation">.</span>fileName <span class="token operator">=</span> file<span class="token punctuation">.</span><span class="token function">getName</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+                        fileChunkReq<span class="token punctuation">.</span>fileSize <span class="token operator">=</span> totalSize<span class="token punctuation">;</span>
+                        fileChunkReq<span class="token punctuation">.</span>offset <span class="token operator">=</span> offset<span class="token punctuation">;</span>
+                        fileChunkReq<span class="token punctuation">.</span>uuid <span class="token operator">=</span> UUID<span class="token punctuation">;</span>
+                        emitter<span class="token punctuation">.</span><span class="token function">onNext</span><span class="token punctuation">(</span>fileChunkReq<span class="token punctuation">)</span><span class="token punctuation">;</span>
+                        <span class="token comment">//下一个偏移量</span>
+                        offset <span class="token operator">+=</span> block<span class="token punctuation">.</span>length<span class="token punctuation">;</span>
+                    <span class="token punctuation">}</span>
+                <span class="token punctuation">}</span>
+                emitter<span class="token punctuation">.</span><span class="token function">onComplete</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+        <span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">flatMap</span><span class="token punctuation">(</span><span class="token keyword">new</span> <span class="token class-name">Function</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">FileChunkReq</span><span class="token punctuation">,</span> <span class="token class-name">ObservableSource</span><span class="token punctuation">&lt;</span><span class="token class-name">ResponseResult</span><span class="token punctuation">&gt;</span><span class="token punctuation">&gt;</span></span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token annotation punctuation">@Override</span>
+            <span class="token keyword">public</span> <span class="token class-name">ObservableSource</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">ResponseResult</span><span class="token punctuation">&gt;</span></span> <span class="token function">apply</span><span class="token punctuation">(</span><span class="token class-name">FileChunkReq</span> fileChunkReq<span class="token punctuation">)</span> <span class="token keyword">throws</span> <span class="token class-name">Exception</span> <span class="token punctuation">{<!-- --></span>
+                <span class="token keyword">return</span> <span class="token function">upload2</span><span class="token punctuation">(</span>fileChunkReq<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+        <span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">subscribeOn</span><span class="token punctuation">(</span><span class="token class-name">Schedulers</span><span class="token punctuation">.</span><span class="token function">io</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+                <span class="token punctuation">.</span><span class="token function">observeOn</span><span class="token punctuation">(</span><span class="token class-name">AndroidSchedulers</span><span class="token punctuation">.</span><span class="token function">mainThread</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+                <span class="token punctuation">.</span><span class="token function">subscribe</span><span class="token punctuation">(</span><span class="token keyword">new</span> <span class="token class-name">Consumer</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">ResponseResult</span><span class="token punctuation">&gt;</span></span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                    <span class="token annotation punctuation">@Override</span>
+                    <span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">accept</span><span class="token punctuation">(</span><span class="token class-name">ResponseResult</span> responseResult<span class="token punctuation">)</span> <span class="token keyword">throws</span> <span class="token class-name">Exception</span> <span class="token punctuation">{<!-- --></span>
+                        <span class="token function">showMsg</span><span class="token punctuation">(</span><span class="token string">"分块上传方案2responseResult："</span> <span class="token operator">+</span> responseResult<span class="token punctuation">.</span><span class="token function">toString</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+                    <span class="token punctuation">}</span>
+                <span class="token punctuation">}</span><span class="token punctuation">,</span> <span class="token keyword">new</span> <span class="token class-name">Consumer</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Throwable</span><span class="token punctuation">&gt;</span></span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                    <span class="token annotation punctuation">@Override</span>
+                    <span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">accept</span><span class="token punctuation">(</span><span class="token class-name">Throwable</span> throwable<span class="token punctuation">)</span> <span class="token keyword">throws</span> <span class="token class-name">Exception</span> <span class="token punctuation">{<!-- --></span>
+                        <span class="token function">showMsg</span><span class="token punctuation">(</span><span class="token string">"分块上传方案2异常:"</span> <span class="token operator">+</span> throwable<span class="token punctuation">.</span><span class="token function">getMessage</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+                    <span class="token punctuation">}</span>
+                <span class="token punctuation">}</span><span class="token punctuation">,</span> <span class="token keyword">new</span> <span class="token class-name">Action</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                    <span class="token annotation punctuation">@Override</span>
+                    <span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">run</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token keyword">throws</span> <span class="token class-name">Exception</span> <span class="token punctuation">{<!-- --></span>
+                        <span class="token function">showMsg</span><span class="token punctuation">(</span><span class="token string">"分块上传方案2完毕"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+                    <span class="token punctuation">}</span>
+                <span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+</code></pre> 
+<p>接口调用</p> 
+<pre><code class="prism language-java"><span class="token comment">/**
+     * 分块上传2
+     *
+     * @param fileChunkReq
+     * @return
+     */</span>
+    <span class="token keyword">private</span> <span class="token class-name">ObservableSource</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">ResponseResult</span><span class="token punctuation">&gt;</span></span> <span class="token function">upload2</span><span class="token punctuation">(</span><span class="token class-name">FileChunkReq</span> fileChunkReq<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token class-name">ByteProgressRequestBody</span> filePart <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">ByteProgressRequestBody</span><span class="token punctuation">(</span>fileChunkReq<span class="token punctuation">.</span>fileByte<span class="token punctuation">,</span> <span class="token string">"application/octet-stream"</span><span class="token punctuation">,</span> <span class="token keyword">new</span> <span class="token class-name">FileProgressRequestBody<span class="token punctuation">.</span>ProgressListener</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token annotation punctuation">@Override</span>
+            <span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">progress</span><span class="token punctuation">(</span><span class="token keyword">long</span> upload<span class="token punctuation">,</span> <span class="token keyword">long</span> totalUpload<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                <span class="token keyword">synchronized</span> <span class="token punctuation">(</span>obj<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                    <span class="token function">showProgress</span><span class="token punctuation">(</span>upload<span class="token punctuation">)</span><span class="token punctuation">;</span>
+                    <span class="token class-name">Log</span><span class="token punctuation">.</span><span class="token function">w</span><span class="token punctuation">(</span>TAG<span class="token punctuation">,</span> <span class="token string">"上传方案2,countUploadSize:"</span> <span class="token operator">+</span> countUploadSize <span class="token operator">+</span> <span class="token string">",percent:"</span> <span class="token operator">+</span> percent<span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token punctuation">}</span>
+            <span class="token punctuation">}</span>
+        <span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+
+        <span class="token keyword">final</span> <span class="token class-name">MultipartBody</span> requestBody <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">MultipartBody<span class="token punctuation">.</span>Builder</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+                <span class="token punctuation">.</span><span class="token function">setType</span><span class="token punctuation">(</span><span class="token class-name">MultipartBody</span><span class="token punctuation">.</span>FORM<span class="token punctuation">)</span>
+                <span class="token punctuation">.</span><span class="token function">addFormDataPart</span><span class="token punctuation">(</span><span class="token string">"file"</span><span class="token punctuation">,</span> fileChunkReq<span class="token punctuation">.</span>fileName<span class="token punctuation">,</span> filePart<span class="token punctuation">)</span>
+                <span class="token punctuation">.</span><span class="token function">addFormDataPart</span><span class="token punctuation">(</span><span class="token string">"offset"</span><span class="token punctuation">,</span> <span class="token class-name">String</span><span class="token punctuation">.</span><span class="token function">valueOf</span><span class="token punctuation">(</span>fileChunkReq<span class="token punctuation">.</span>offset<span class="token punctuation">)</span><span class="token punctuation">)</span>
+                <span class="token punctuation">.</span><span class="token function">addFormDataPart</span><span class="token punctuation">(</span><span class="token string">"fileName"</span><span class="token punctuation">,</span> fileChunkReq<span class="token punctuation">.</span>fileName<span class="token punctuation">)</span>
+                <span class="token punctuation">.</span><span class="token function">addFormDataPart</span><span class="token punctuation">(</span><span class="token string">"fileSize"</span><span class="token punctuation">,</span> <span class="token class-name">String</span><span class="token punctuation">.</span><span class="token function">valueOf</span><span class="token punctuation">(</span>fileChunkReq<span class="token punctuation">.</span>fileSize<span class="token punctuation">)</span><span class="token punctuation">)</span>
+                <span class="token punctuation">.</span><span class="token function">addFormDataPart</span><span class="token punctuation">(</span><span class="token string">"uuid"</span><span class="token punctuation">,</span> fileChunkReq<span class="token punctuation">.</span>uuid<span class="token punctuation">)</span>
+                <span class="token punctuation">.</span><span class="token function">build</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        <span class="token class-name">Observable</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">ResponseResult</span><span class="token punctuation">&gt;</span></span> observable <span class="token operator">=</span> uploadApi<span class="token punctuation">.</span><span class="token function">upload2</span><span class="token punctuation">(</span>requestBody<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">return</span> observable<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+</code></pre> 
+<p><strong>小结</strong></p> 
+<p>上面两种方案不支持多线程分块上传，必须严格按照分块顺序依次上传，否则影响最终上传文件的完整性，本文只提供思路，大家可基于示例扩展完善，置于选择哪种方案，看具体情况，各有优缺点。</p> 
+<p><strong>demo地址</strong></p> 
+<p>GitHub:<a href="https://github.com/kellysong/android-blog-demo/tree/master/net-demo">https://github.com/kellysong/android-blog-demo/tree/master/net-demo</a></p> 
+<h3><a id="_215"></a>其它文章：</h3> 
+<p><a href="https://blog.csdn.net/u011082160/article/details/81233756">基于RxJava2.0+Retrofit2.0的文件下载实现（带进度，非覆写ResponseBody和拦截器）</a></p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/6ec691b258692de844a8b34918bc95c4/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">Django 搭建博客网站-task00：环境配置</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/fef04bf6cec2e9a05a82cc2f7939837f/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">密码学—安全归约问题(Reduction)</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

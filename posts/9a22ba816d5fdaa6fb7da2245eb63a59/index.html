@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Apache James数据库存储用户信息的密码加密问题 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/9a22ba816d5fdaa6fb7da2245eb63a59/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="Apache James数据库存储用户信息的密码加密问题">
+  <meta property="og:description" content="项目场景 Apache James邮件服务器使用数据库来存储用户信息的密码加密问题：
+将James的用户改为数据库存储James密码是如何加密验证的 1.将James的用户改为数据库存储 1、修改存储方式 找到james-2.3.2\apps\james\SAR-INF\config.xml 找到&amp;lt;users-store&amp;gt;标签，注释掉原来文件存储的方式，改为数据库的方式
+maildb：是后面配置的数据源名称
+mail_users：是存储用户信息的表名
+&amp;lt;users-store&amp;gt; &amp;lt;!-- 注释掉原来文件存储的方式 --&amp;gt; &amp;lt;!-- &amp;lt;repository name=&#34;LocalUsers&#34; class=&#34;org.apache.james.userrepository.UsersFileRepository&#34;&amp;gt; &amp;lt;destination URL=&#34;file://var/users/&#34;/&amp;gt; &amp;lt;/repository&amp;gt; --&amp;gt; &amp;lt;!-- 改为数据库的方式 --&amp;gt; &amp;lt;repository name=&#34;LocalUsers&#34; class=&#34;org.apache.james.userrepository.JamesUsersJdbcRepository&#34; destinationURL=&#34;db://maildb/mail_users&#34;&amp;gt; &amp;lt;sqlFile&amp;gt;file://conf/sqlResources.xml&amp;lt;/sqlFile&amp;gt; &amp;lt;/repository&amp;gt; &amp;lt;/users-store&amp;gt; 2.、配置数据库信息 找到&amp;lt;data-source&amp;gt;标签，根据具体数据库类型进行配置，下面已国产达梦数据库为例
+maildb：数据源名称 &amp;lt;data-source name=&#34;maildb&#34; class=&#34;org.apache.james.util.dbcp.JdbcDataSource&#34;&amp;gt; &amp;lt;driver&amp;gt;dm.jdbc.driver.DmDriver&amp;lt;/driver&amp;gt; &amp;lt;dburl&amp;gt;jdbc:dm://127.0.0.1:5236/test_mail&amp;lt;/dburl&amp;gt; &amp;lt;user&amp;gt;test&amp;lt;/user&amp;gt; &amp;lt;password&amp;gt;test123&amp;lt;/password&amp;gt; &amp;lt;max&amp;gt;50&amp;lt;/max&amp;gt; &amp;lt;/data-source&amp;gt; 3、添加依赖包 因为我用的是达梦数据库，james里面没有这个数据库的依赖包，所以需要额外添加，如果是mysql、oracle常用的数据库就不需要再额外添加，因为james已经支持。
+找到james-2.3.2\lib，然后把需要的依赖包放进去
+4、创建用户表 正常情况下会自动创建，sql语句在james-2.3.2\apps\james\conf\sqlResources.xml
+如果不会自动创建，那么自己把sql语句复制出来执行
+CREATE TABLE &#34;MAIL_USERS&#34; ( &#34;USERNAME&#34; VARCHAR2(64) NOT NULL, &#34;PWDHASH&#34; VARCHAR2(50), &#34;PWDALGORITHM&#34; VARCHAR2(20), &#34;USEFORWARDING&#34; NUMBER(1,0), &#34;FORWARDDESTINATION&#34; VARCHAR2(255), &#34;USEALIAS&#34; NUMBER(1,0), &#34;ALIAS&#34; VARCHAR2(255), PRIMARY KEY(&#34;">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2024-03-22T18:26:32+08:00">
+    <meta property="article:modified_time" content="2024-03-22T18:26:32+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">Apache James数据库存储用户信息的密码加密问题</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <h2><a id="_0"></a>项目场景</h2> 
+<p><code>Apache James邮件服务器使用数据库来存储用户信息的密码加密问题：</code></p> 
+<ol><li>将James的用户改为数据库存储</li><li>James密码是如何加密验证的</li></ol> 
+<hr> 
+<h2><a id="_7"></a>1.将James的用户改为数据库存储</h2> 
+<h3><code>1、修改存储方式</code></h3> 
+<p><code>找到james-2.3.2\apps\james\SAR-INF\config.xml</code><code class="language-c"> </code></p> 
+<p><img alt="" src="https://images2.imgbox.com/e3/78/0bPpyrEy_o.jpg"></p> 
+<p>找到&lt;users-store&gt;标签，注释掉原来文件存储的方式，改为数据库的方式</p> 
+<blockquote> 
+ <p>maildb：是后面配置的数据源名称</p> 
+ <p>mail_users：是存储用户信息的表名</p> 
+</blockquote> 
+<pre><code class="language-XML">&lt;users-store&gt;
+  
+  &lt;!-- 注释掉原来文件存储的方式 --&gt;
+  &lt;!--
+  &lt;repository name="LocalUsers" class="org.apache.james.userrepository.UsersFileRepository"&gt;
+	 &lt;destination URL="file://var/users/"/&gt;
+  &lt;/repository&gt;
+	 --&gt;
+  
+  &lt;!-- 改为数据库的方式 --&gt;
+  &lt;repository name="LocalUsers" class="org.apache.james.userrepository.JamesUsersJdbcRepository" destinationURL="db://maildb/mail_users"&gt;
+	 &lt;sqlFile&gt;file://conf/sqlResources.xml&lt;/sqlFile&gt;
+  &lt;/repository&gt;
+
+&lt;/users-store&gt;</code></pre> 
+<h3> 2.、配置数据库信息</h3> 
+<p>找到&lt;data-source&gt;标签，根据具体数据库类型进行配置，下面已国产达梦数据库为例</p> 
+<p style="text-align:center;"><img alt="" src="https://images2.imgbox.com/c3/68/62EVB7cG_o.jpg"></p> 
+<blockquote> 
+ <p>maildb：数据源名称 </p> 
+</blockquote> 
+<pre><code class="language-XML">&lt;data-source name="maildb" class="org.apache.james.util.dbcp.JdbcDataSource"&gt;
+	&lt;driver&gt;dm.jdbc.driver.DmDriver&lt;/driver&gt;
+	&lt;dburl&gt;jdbc:dm://127.0.0.1:5236/test_mail&lt;/dburl&gt;
+		&lt;user&gt;test&lt;/user&gt;
+	&lt;password&gt;test123&lt;/password&gt;
+	&lt;max&gt;50&lt;/max&gt;
+&lt;/data-source&gt;</code></pre> 
+<h3>3、添加依赖包</h3> 
+<p>因为我用的是达梦数据库，james里面没有这个数据库的依赖包，所以需要额外添加，如果是mysql、oracle常用的数据库就不需要再额外添加，因为james已经支持。</p> 
+<p>找到james-2.3.2\lib，然后把需要的依赖包放进去</p> 
+<p style="text-align:center;"><img alt="" src="https://images2.imgbox.com/d8/87/DJ107gKQ_o.jpg"></p> 
+<h3>4、创建用户表</h3> 
+<p>正常情况下会自动创建，sql语句在<code>james-2.3.2\apps\james\conf\sqlResources.xml</code></p> 
+<p><code>如果不会自动创建，那么自己把sql语句复制出来执行</code></p> 
+<pre><code class="language-sql">CREATE TABLE "MAIL_USERS"
+(
+	"USERNAME" VARCHAR2(64) NOT NULL,
+	"PWDHASH" VARCHAR2(50),
+	"PWDALGORITHM" VARCHAR2(20),
+	"USEFORWARDING" NUMBER(1,0),
+	"FORWARDDESTINATION" VARCHAR2(255),
+	"USEALIAS" NUMBER(1,0),
+	"ALIAS" VARCHAR2(255),
+	PRIMARY KEY("USERNAME")
+);
+
+COMMENT ON TABLE "MAIL_USERS" IS 'James邮件用户';
+COMMENT ON COLUMN "MAIL_USERS"."PWDALGORITHM" IS '加密方式，默认SHA';
+COMMENT ON COLUMN "MAIL_USERS"."PWDHASH" IS '加密后的密码';
+COMMENT ON COLUMN "MAIL_USERS"."USERNAME" IS '邮箱帐号';</code></pre> 
+<hr> 
+<h2> 2.James密码是如何加密验证的</h2> 
+<p>        当你通过telnet添加新用户时，比如add user test 123456，你可以查看数据库中的记录，username字段是test，pwdhash是加密后的密码，pwdalgorithm字段是“SHA”，显然用的是SHA加密方式。</p> 
+<p style="text-align:center;"><img alt="" src="https://images2.imgbox.com/d3/ef/f5tSzaNq_o.jpg"></p> 
+<p>        让我们看下james源码是如何实现的，网上找到apache-james-2.3.2-src.zip源码文件，版本根据自己的来，然后用idea打开。</p> 
+<p>        我们找到org.apache.james.userrepository.DefaultUser类</p> 
+<p>        第一个方法verifyPassword()是用来做密码认证，传入的参数是明文密码，通过DigestUtil.digestString()方法，转换成密文密码，然后与数据库中密码作比较，返回比较结果。请注意这里的DigestUtil.digestString()方法，在后面还在提到。</p> 
+<p>        第二个方法setPassword()是用于密码转换的，把明文转成密文，用的同样是DigestUtil.digestString()方法。</p> 
+<p style="text-align:center;"><img alt="" src="https://images2.imgbox.com/85/88/RrCExAIK_o.jpg"></p> 
+<p>        让我们再看下 org.apache.james.security.DigestUtil类，我们可以看到digestString加密的方法。</p> 
+<p><img alt="" src="https://images2.imgbox.com/d5/f8/wUjYXZ7B_o.jpg"></p> 
+<p>        如果需要在自己的项目里去添加或修改用户的信息，这时候密码处理的逻辑肯定需要跟james一致，这时候我们把这个加密的方法拷贝用就行了 。</p> 
+<p>        创建个DigestUtil类，然后调用DigestUtil.digestString()来获得加密后的密码。</p> 
+<pre><code class="language-java">package com.mail;
+
+import javax.mail.MessagingException;
+import javax.mail.internet.MimeUtility;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+
+public class DigestUtil {
+
+    public static String digestString(String pass, String algorithm )
+            throws NoSuchAlgorithmException  {
+
+        MessageDigest md;
+        ByteArrayOutputStream bos;
+
+        try {
+            md = MessageDigest.getInstance(algorithm);
+            byte[] digest = md.digest(pass.getBytes("iso-8859-1"));
+            bos = new ByteArrayOutputStream();
+            OutputStream encodedStream = MimeUtility.encode(bos, "base64");
+            encodedStream.write(digest);
+            return bos.toString("iso-8859-1");
+        } catch (IOException ioe) {
+            throw new RuntimeException("Fatal error: " + ioe);
+        } catch (MessagingException me) {
+            throw new RuntimeException("Fatal error: " + me);
+        }
+    }
+
+    
+    private DigestUtil() {}
+}
+</code></pre> 
+<p>        加密支持的算法有MD5、SHA、SHA-256等 ，如果你想知道支持哪些算法，可以通过下面的代码列出所有支持的算法：</p> 
+<pre><code class="language-java">import java.security.Security;
+import java.security.Provider;
+import java.security.Provider.Service;
+ 
+public class ListAlgorithms {
+    public static void main(String[] args) {
+        for(Provider provider: Security.getProviders()) {
+            for(Service service: provider.getServices()) {
+                if ("MessageDigest".equals(service.getType())) {
+                    System.out.println(service.getAlgorithm());
+                }
+            }
+        }
+    }
+}</code></pre> 
+<hr> 
+<h2>3.总结</h2> 
+<blockquote> 
+ <p>        集成java mail直接用明文帐号密码连接就行了，因为james会自己去加密验证，其他软件通过pop3配置，密码也是用明文就行了。</p> 
+ <p>        如果觉得这种连接方式不安全有两种解决方案：</p> 
+ <ol><li>修改james源码，比较麻烦。</li><li>密码在web端加密，传输到自己后台再解密，然后用解密后的密码连接james。</li></ol> 
+</blockquote> 
+<pre><code class="language-java">import javax.mail.*;
+import javax.mail.internet.*;
+import java.util.*;
+ 
+public class SendEmail {
+    public static void main(String[] args) {
+        String host = "smtp.example.com"; // SMTP服务器地址
+        String username = "your-username"; // 用户名
+        String password = "your-password"; // 密码
+ 
+        Properties props = new Properties();
+        props.put("mail.smtp.host", host);
+        props.put("mail.smtp.auth", "true");
+ 
+        Session session = Session.getInstance(props, new Authenticator() {
+            @Override
+            protected PasswordAuthentication getPasswordAuthentication() {
+                return new PasswordAuthentication(username, password);
+            }
+        });
+ 
+        try {
+            Message message = new MimeMessage(session);
+            message.setFrom(new InternetAddress("from@example.com"));
+            message.setRecipients(Message.RecipientType.TO, InternetAddress.parse("to@example.com"));
+            message.setSubject("Email Subject");
+            message.setText("Email Body");
+ 
+            Transport.send(message);
+ 
+            System.out.println("Email sent successfully");
+        } catch (MessagingException e) {
+            throw new RuntimeException("Error sending email", e);
+        }
+    }
+}</code></pre> 
+<p style="text-align:center;"> <img alt="" src="https://images2.imgbox.com/25/71/gEnglmBJ_o.png"></p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/01ff4492b6f8a2e0c651198c931fbf58/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">【JS】JavaScript的隐式类型转换详解</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/08adad90f297dfd17fcc1656dfb54b1e/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">【JS】如何避免输入中文拼音时触发input事件</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

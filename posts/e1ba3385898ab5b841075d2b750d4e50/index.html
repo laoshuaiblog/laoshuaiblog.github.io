@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Spring AOP基础组件 AbstractAutoProxyCreator - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/e1ba3385898ab5b841075d2b750d4e50/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="Spring AOP基础组件 AbstractAutoProxyCreator">
+  <meta property="og:description" content="相关阅读 Spring AOP基础组件 AdviceSpring AOP基础组件 AdvisorSpring AOP基础组件 AopProxySpring AOP基础组件 AopProxyFactory 简介 使用AOP代理对象包装有资格的Bean的BeanPostProcessor实现，再调用Bean之前会委派给特定的拦截器；
+AbstractAutoProxyCreator会区分两种拦截器：
+通用拦截器，被所有它创建的代理所共享，通过interceptorNames属性配置，可以没有；特定拦截器，只应用于特定的Bean实例； 继承自ProxyProcessorSupport，具有ProxyConfig中动态代理相关的配置属性；
+实现了SmartInstantiationAwareBeanPostProcessor接口，实现了实例化前后置处理，属性的后置处理；
+拦截器都是通过Bean name而不是Bean 引用进行配置，这方便正确地处理多例类型的Advisor、Interceptor；
+子类可以重写判断Bean是否可以被代理的策略，比如：根据类型，根据Bean name，根据BeanDefinition等；也可以添加额外的拦截器；
+源码 public abstract class AbstractAutoProxyCreator extends ProxyProcessorSupport implements SmartInstantiationAwareBeanPostProcessor, BeanFactoryAware { // 表示不代理 @Nullable protected static final Object[] DO_NOT_PROXY = null; // 表示无特定拦截器 protected static final Object[] PROXY_WITHOUT_ADDITIONAL_INTERCEPTORS = new Object[0]; // 默认是GlobalAdvisorAdapterRegistry private AdvisorAdapterRegistry advisorAdapterRegistry = GlobalAdvisorAdapterRegistry.getInstance(); // 通用拦截器的Bean name，默认无通用拦截器 private String[] interceptorNames = new String[0]; // 通用拦截器是否在特定拦截器之前应用标识，默认为true private boolean applyCommonInterceptorsFirst = true; @Override @Nullable public Class&amp;lt;?">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2022-02-16T20:53:14+08:00">
+    <meta property="article:modified_time" content="2022-02-16T20:53:14+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">Spring AOP基础组件 AbstractAutoProxyCreator</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-dark">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <h2><a id="_0"></a>相关阅读</h2> 
+<ul><li><a href="https://blog.csdn.net/xing_hung/article/details/122830200">Spring AOP基础组件 Advice</a></li><li><a href="https://blog.csdn.net/xing_hung/article/details/122830287">Spring AOP基础组件 Advisor</a></li><li><a href="https://blog.csdn.net/xing_hung/article/details/122870299">Spring AOP基础组件 AopProxy</a></li><li><a href="https://blog.csdn.net/xing_hung/article/details/122870271">Spring AOP基础组件 AopProxyFactory</a></li></ul> 
+<h2><a id="_6"></a>简介</h2> 
+<p>使用AOP代理对象包装有资格的Bean的<code>BeanPostProcessor</code>实现，再调用Bean之前会委派给特定的拦截器；<br> <code>AbstractAutoProxyCreator</code>会区分两种拦截器：</p> 
+<ol><li>通用拦截器，被所有它创建的代理所共享，通过<code>interceptorNames</code>属性配置，可以没有；</li><li>特定拦截器，只应用于特定的Bean实例；</li></ol> 
+<p>继承自<code>ProxyProcessorSupport</code>，具有<code>ProxyConfig</code>中动态代理相关的配置属性；<br> 实现了<code>SmartInstantiationAwareBeanPostProcessor</code>接口，实现了实例化前后置处理，属性的后置处理；<br> 拦截器都是通过Bean name而不是Bean 引用进行配置，这方便正确地处理多例类型的<code>Advisor</code>、<code>Interceptor</code>；<br> 子类可以重写判断Bean是否可以被代理的策略，比如：根据类型，根据Bean name，根据<code>BeanDefinition</code>等；也可以添加额外的拦截器；</p> 
+<h2><a id="_17"></a>源码</h2> 
+<pre><code class="prism language-java"><span class="token keyword">public</span> <span class="token keyword">abstract</span> <span class="token keyword">class</span> <span class="token class-name">AbstractAutoProxyCreator</span> <span class="token keyword">extends</span> <span class="token class-name">ProxyProcessorSupport</span>
+        <span class="token keyword">implements</span> <span class="token class-name">SmartInstantiationAwareBeanPostProcessor</span><span class="token punctuation">,</span> <span class="token class-name">BeanFactoryAware</span> <span class="token punctuation">{<!-- --></span>
+
+    <span class="token comment">// 表示不代理</span>
+    <span class="token annotation punctuation">@Nullable</span>
+    <span class="token keyword">protected</span> <span class="token keyword">static</span> <span class="token keyword">final</span> <span class="token class-name">Object</span><span class="token punctuation">[</span><span class="token punctuation">]</span> DO_NOT_PROXY <span class="token operator">=</span> <span class="token keyword">null</span><span class="token punctuation">;</span>
+
+    <span class="token comment">// 表示无特定拦截器</span>
+    <span class="token keyword">protected</span> <span class="token keyword">static</span> <span class="token keyword">final</span> <span class="token class-name">Object</span><span class="token punctuation">[</span><span class="token punctuation">]</span> PROXY_WITHOUT_ADDITIONAL_INTERCEPTORS <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">Object</span><span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span><span class="token punctuation">;</span>
+
+    <span class="token comment">// 默认是GlobalAdvisorAdapterRegistry</span>
+    <span class="token keyword">private</span> <span class="token class-name">AdvisorAdapterRegistry</span> advisorAdapterRegistry <span class="token operator">=</span> <span class="token class-name">GlobalAdvisorAdapterRegistry</span><span class="token punctuation">.</span><span class="token function">getInstance</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token comment">// 通用拦截器的Bean name，默认无通用拦截器</span>
+    <span class="token keyword">private</span> <span class="token class-name">String</span><span class="token punctuation">[</span><span class="token punctuation">]</span> interceptorNames <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">String</span><span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span><span class="token punctuation">;</span>
+
+    <span class="token comment">// 通用拦截器是否在特定拦截器之前应用标识，默认为true</span>
+    <span class="token keyword">private</span> <span class="token keyword">boolean</span> applyCommonInterceptorsFirst <span class="token operator">=</span> <span class="token boolean">true</span><span class="token punctuation">;</span>
+
+
+    <span class="token annotation punctuation">@Override</span>
+    <span class="token annotation punctuation">@Nullable</span>
+    <span class="token keyword">public</span> <span class="token class-name">Class</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token operator">?</span><span class="token punctuation">&gt;</span></span> <span class="token function">predictBeanType</span><span class="token punctuation">(</span><span class="token class-name">Class</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token operator">?</span><span class="token punctuation">&gt;</span></span> beanClass<span class="token punctuation">,</span> <span class="token class-name">String</span> beanName<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">.</span>proxyTypes<span class="token punctuation">.</span><span class="token function">isEmpty</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token comment">// 当前缓存信息为空，则直接返回null</span>
+            <span class="token keyword">return</span> <span class="token keyword">null</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        <span class="token class-name">Object</span> cacheKey <span class="token operator">=</span> <span class="token function">getCacheKey</span><span class="token punctuation">(</span>beanClass<span class="token punctuation">,</span> beanName<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token comment">// 尝试从缓存中获取</span>
+        <span class="token keyword">return</span> <span class="token keyword">this</span><span class="token punctuation">.</span>proxyTypes<span class="token punctuation">.</span><span class="token function">get</span><span class="token punctuation">(</span>cacheKey<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token comment">// Bean实例化前处理</span>
+    <span class="token annotation punctuation">@Override</span>
+    <span class="token keyword">public</span> <span class="token class-name">Object</span> <span class="token function">postProcessBeforeInstantiation</span><span class="token punctuation">(</span><span class="token class-name">Class</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token operator">?</span><span class="token punctuation">&gt;</span></span> beanClass<span class="token punctuation">,</span> <span class="token class-name">String</span> beanName<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token class-name">Object</span> cacheKey <span class="token operator">=</span> <span class="token function">getCacheKey</span><span class="token punctuation">(</span>beanClass<span class="token punctuation">,</span> beanName<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span><span class="token class-name">StringUtils</span><span class="token punctuation">.</span><span class="token function">hasLength</span><span class="token punctuation">(</span>beanName<span class="token punctuation">)</span> <span class="token operator">||</span> <span class="token operator">!</span><span class="token keyword">this</span><span class="token punctuation">.</span>targetSourcedBeans<span class="token punctuation">.</span><span class="token function">contains</span><span class="token punctuation">(</span>beanName<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">.</span>advisedBeans<span class="token punctuation">.</span><span class="token function">containsKey</span><span class="token punctuation">(</span>cacheKey<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                <span class="token comment">// 已经处理过，直接返回null</span>
+                <span class="token keyword">return</span> <span class="token keyword">null</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">isInfrastructureClass</span><span class="token punctuation">(</span>beanClass<span class="token punctuation">)</span> <span class="token operator">||</span> <span class="token function">shouldSkip</span><span class="token punctuation">(</span>beanClass<span class="token punctuation">,</span> beanName<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                <span class="token comment">// 基础的类型或者不需要代理的类</span>
+                <span class="token keyword">this</span><span class="token punctuation">.</span>advisedBeans<span class="token punctuation">.</span><span class="token function">put</span><span class="token punctuation">(</span>cacheKey<span class="token punctuation">,</span> <span class="token class-name">Boolean</span><span class="token punctuation">.</span>FALSE<span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token keyword">return</span> <span class="token keyword">null</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+        <span class="token punctuation">}</span>
+
+        <span class="token class-name">TargetSource</span> targetSource <span class="token operator">=</span> <span class="token function">getCustomTargetSource</span><span class="token punctuation">(</span>beanClass<span class="token punctuation">,</span> beanName<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>targetSource <span class="token operator">!=</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token comment">// 如果存在targetSource，则需要创建代理</span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token class-name">StringUtils</span><span class="token punctuation">.</span><span class="token function">hasLength</span><span class="token punctuation">(</span>beanName<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                <span class="token keyword">this</span><span class="token punctuation">.</span>targetSourcedBeans<span class="token punctuation">.</span><span class="token function">add</span><span class="token punctuation">(</span>beanName<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+            <span class="token comment">// 获取特定于该Bean的拦截器，没有则返回PROXY_WITHOUT_ADDITIONAL_INTERCEPTORS</span>
+            <span class="token class-name">Object</span><span class="token punctuation">[</span><span class="token punctuation">]</span> specificInterceptors <span class="token operator">=</span> <span class="token function">getAdvicesAndAdvisorsForBean</span><span class="token punctuation">(</span>beanClass<span class="token punctuation">,</span> beanName<span class="token punctuation">,</span> targetSource<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token comment">// 创建代理</span>
+            <span class="token class-name">Object</span> proxy <span class="token operator">=</span> <span class="token function">createProxy</span><span class="token punctuation">(</span>beanClass<span class="token punctuation">,</span> beanName<span class="token punctuation">,</span> specificInterceptors<span class="token punctuation">,</span> targetSource<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token comment">// 缓存代理的类型</span>
+            <span class="token keyword">this</span><span class="token punctuation">.</span>proxyTypes<span class="token punctuation">.</span><span class="token function">put</span><span class="token punctuation">(</span>cacheKey<span class="token punctuation">,</span> proxy<span class="token punctuation">.</span><span class="token function">getClass</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token keyword">return</span> proxy<span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+
+        <span class="token keyword">return</span> <span class="token keyword">null</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token annotation punctuation">@Override</span>
+    <span class="token keyword">public</span> <span class="token class-name">Object</span> <span class="token function">postProcessAfterInitialization</span><span class="token punctuation">(</span><span class="token annotation punctuation">@Nullable</span> <span class="token class-name">Object</span> bean<span class="token punctuation">,</span> <span class="token class-name">String</span> beanName<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>bean <span class="token operator">!=</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token class-name">Object</span> cacheKey <span class="token operator">=</span> <span class="token function">getCacheKey</span><span class="token punctuation">(</span>bean<span class="token punctuation">.</span><span class="token function">getClass</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> beanName<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">.</span>earlyProxyReferences<span class="token punctuation">.</span><span class="token function">remove</span><span class="token punctuation">(</span>cacheKey<span class="token punctuation">)</span> <span class="token operator">!=</span> bean<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                <span class="token comment">// 如果Bean被代理过，则需要创建代理</span>
+                <span class="token keyword">return</span> <span class="token function">wrapIfNecessary</span><span class="token punctuation">(</span>bean<span class="token punctuation">,</span> beanName<span class="token punctuation">,</span> cacheKey<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+        <span class="token punctuation">}</span>
+        <span class="token keyword">return</span> bean<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token keyword">protected</span> <span class="token class-name">Object</span> <span class="token function">wrapIfNecessary</span><span class="token punctuation">(</span><span class="token class-name">Object</span> bean<span class="token punctuation">,</span> <span class="token class-name">String</span> beanName<span class="token punctuation">,</span> <span class="token class-name">Object</span> cacheKey<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token class-name">StringUtils</span><span class="token punctuation">.</span><span class="token function">hasLength</span><span class="token punctuation">(</span>beanName<span class="token punctuation">)</span> <span class="token operator">&amp;&amp;</span> <span class="token keyword">this</span><span class="token punctuation">.</span>targetSourcedBeans<span class="token punctuation">.</span><span class="token function">contains</span><span class="token punctuation">(</span>beanName<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token comment">// TargetSource无需包装</span>
+            <span class="token keyword">return</span> bean<span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token class-name">Boolean</span><span class="token punctuation">.</span>FALSE<span class="token punctuation">.</span><span class="token function">equals</span><span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">.</span>advisedBeans<span class="token punctuation">.</span><span class="token function">get</span><span class="token punctuation">(</span>cacheKey<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token comment">// 不需要代理无需包装</span>
+            <span class="token keyword">return</span> bean<span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">isInfrastructureClass</span><span class="token punctuation">(</span>bean<span class="token punctuation">.</span><span class="token function">getClass</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token operator">||</span> <span class="token function">shouldSkip</span><span class="token punctuation">(</span>bean<span class="token punctuation">.</span><span class="token function">getClass</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> beanName<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token comment">// 基础的类型或者不需要代理的类，无需包装</span>
+            <span class="token keyword">this</span><span class="token punctuation">.</span>advisedBeans<span class="token punctuation">.</span><span class="token function">put</span><span class="token punctuation">(</span>cacheKey<span class="token punctuation">,</span> <span class="token class-name">Boolean</span><span class="token punctuation">.</span>FALSE<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token keyword">return</span> bean<span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+
+        <span class="token comment">// 获取特定于Bean的拦截器，如果为null则无需代理</span>
+        <span class="token class-name">Object</span><span class="token punctuation">[</span><span class="token punctuation">]</span> specificInterceptors <span class="token operator">=</span> <span class="token function">getAdvicesAndAdvisorsForBean</span><span class="token punctuation">(</span>bean<span class="token punctuation">.</span><span class="token function">getClass</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> beanName<span class="token punctuation">,</span> <span class="token keyword">null</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>specificInterceptors <span class="token operator">!=</span> DO_NOT_PROXY<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token comment">// 存在特定拦截器（空数组也算存在），则需要创建代理</span>
+            <span class="token keyword">this</span><span class="token punctuation">.</span>advisedBeans<span class="token punctuation">.</span><span class="token function">put</span><span class="token punctuation">(</span>cacheKey<span class="token punctuation">,</span> <span class="token class-name">Boolean</span><span class="token punctuation">.</span>TRUE<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token comment">// 创建代理</span>
+            <span class="token class-name">Object</span> proxy <span class="token operator">=</span> <span class="token function">createProxy</span><span class="token punctuation">(</span>
+                    bean<span class="token punctuation">.</span><span class="token function">getClass</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> beanName<span class="token punctuation">,</span> specificInterceptors<span class="token punctuation">,</span> <span class="token keyword">new</span> <span class="token class-name">SingletonTargetSource</span><span class="token punctuation">(</span>bean<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token comment">// 缓存代理类型</span>
+            <span class="token keyword">this</span><span class="token punctuation">.</span>proxyTypes<span class="token punctuation">.</span><span class="token function">put</span><span class="token punctuation">(</span>cacheKey<span class="token punctuation">,</span> proxy<span class="token punctuation">.</span><span class="token function">getClass</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token keyword">return</span> proxy<span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+
+        <span class="token comment">// 不存在特定拦截器，无需包装</span>
+        <span class="token comment">// 缓存不包装的类型</span>
+        <span class="token keyword">this</span><span class="token punctuation">.</span>advisedBeans<span class="token punctuation">.</span><span class="token function">put</span><span class="token punctuation">(</span>cacheKey<span class="token punctuation">,</span> <span class="token class-name">Boolean</span><span class="token punctuation">.</span>FALSE<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">return</span> bean<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token comment">// 是否是不需要代理的基础类型</span>
+    <span class="token keyword">protected</span> <span class="token keyword">boolean</span> <span class="token function">isInfrastructureClass</span><span class="token punctuation">(</span><span class="token class-name">Class</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token operator">?</span><span class="token punctuation">&gt;</span></span> beanClass<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token comment">// 默认Advice、Pointcut、Advisor、AopInfrastructureBeans无需代理</span>
+        <span class="token comment">// 子类可重写该逻辑</span>
+        <span class="token keyword">boolean</span> retVal <span class="token operator">=</span> <span class="token class-name">Advice</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">.</span><span class="token function">isAssignableFrom</span><span class="token punctuation">(</span>beanClass<span class="token punctuation">)</span> <span class="token operator">||</span>
+                <span class="token class-name">Pointcut</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">.</span><span class="token function">isAssignableFrom</span><span class="token punctuation">(</span>beanClass<span class="token punctuation">)</span> <span class="token operator">||</span>
+                <span class="token class-name">Advisor</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">.</span><span class="token function">isAssignableFrom</span><span class="token punctuation">(</span>beanClass<span class="token punctuation">)</span> <span class="token operator">||</span>
+                <span class="token class-name">AopInfrastructureBean</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">.</span><span class="token function">isAssignableFrom</span><span class="token punctuation">(</span>beanClass<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>retVal <span class="token operator">&amp;&amp;</span> logger<span class="token punctuation">.</span><span class="token function">isTraceEnabled</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            logger<span class="token punctuation">.</span><span class="token function">trace</span><span class="token punctuation">(</span><span class="token string">"Did not attempt to auto-proxy infrastructure class ["</span> <span class="token operator">+</span> beanClass<span class="token punctuation">.</span><span class="token function">getName</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">+</span> <span class="token string">"]"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        <span class="token keyword">return</span> retVal<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token comment">// 自动代理是否需要跳过本类</span>
+    <span class="token keyword">protected</span> <span class="token keyword">boolean</span> <span class="token function">shouldSkip</span><span class="token punctuation">(</span><span class="token class-name">Class</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token operator">?</span><span class="token punctuation">&gt;</span></span> beanClass<span class="token punctuation">,</span> <span class="token class-name">String</span> beanName<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">return</span> <span class="token class-name">AutoProxyUtils</span><span class="token punctuation">.</span><span class="token function">isOriginalInstance</span><span class="token punctuation">(</span>beanName<span class="token punctuation">,</span> beanClass<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token comment">// 获取定制的TargetSource</span>
+    <span class="token annotation punctuation">@Nullable</span>
+    <span class="token keyword">protected</span> <span class="token class-name">TargetSource</span> <span class="token function">getCustomTargetSource</span><span class="token punctuation">(</span><span class="token class-name">Class</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token operator">?</span><span class="token punctuation">&gt;</span></span> beanClass<span class="token punctuation">,</span> <span class="token class-name">String</span> beanName<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">.</span>customTargetSourceCreators <span class="token operator">!=</span> <span class="token keyword">null</span> <span class="token operator">&amp;&amp;</span>
+                <span class="token keyword">this</span><span class="token punctuation">.</span>beanFactory <span class="token operator">!=</span> <span class="token keyword">null</span> <span class="token operator">&amp;&amp;</span> <span class="token keyword">this</span><span class="token punctuation">.</span>beanFactory<span class="token punctuation">.</span><span class="token function">containsBean</span><span class="token punctuation">(</span>beanName<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token comment">// 存在定制的TargetSourceCreator，则尝试获取定制的TargetSource</span>
+            <span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token class-name">TargetSourceCreator</span> tsc <span class="token operator">:</span> <span class="token keyword">this</span><span class="token punctuation">.</span>customTargetSourceCreators<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                <span class="token class-name">TargetSource</span> ts <span class="token operator">=</span> tsc<span class="token punctuation">.</span><span class="token function">getTargetSource</span><span class="token punctuation">(</span>beanClass<span class="token punctuation">,</span> beanName<span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token keyword">if</span> <span class="token punctuation">(</span>ts <span class="token operator">!=</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                    <span class="token keyword">if</span> <span class="token punctuation">(</span>logger<span class="token punctuation">.</span><span class="token function">isTraceEnabled</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                        logger<span class="token punctuation">.</span><span class="token function">trace</span><span class="token punctuation">(</span><span class="token string">"TargetSourceCreator ["</span> <span class="token operator">+</span> tsc <span class="token operator">+</span>
+                                <span class="token string">"] found custom TargetSource for bean with name '"</span> <span class="token operator">+</span> beanName <span class="token operator">+</span> <span class="token string">"'"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+                    <span class="token punctuation">}</span>
+                    <span class="token keyword">return</span> ts<span class="token punctuation">;</span>
+                <span class="token punctuation">}</span>
+            <span class="token punctuation">}</span>
+        <span class="token punctuation">}</span>
+
+        <span class="token comment">// 没有发现定制的TargetSource</span>
+        <span class="token keyword">return</span> <span class="token keyword">null</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token keyword">protected</span> <span class="token class-name">Object</span> <span class="token function">createProxy</span><span class="token punctuation">(</span><span class="token class-name">Class</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token operator">?</span><span class="token punctuation">&gt;</span></span> beanClass<span class="token punctuation">,</span> <span class="token annotation punctuation">@Nullable</span> <span class="token class-name">String</span> beanName<span class="token punctuation">,</span>
+            <span class="token annotation punctuation">@Nullable</span> <span class="token class-name">Object</span><span class="token punctuation">[</span><span class="token punctuation">]</span> specificInterceptors<span class="token punctuation">,</span> <span class="token class-name">TargetSource</span> targetSource<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">.</span>beanFactory <span class="token keyword">instanceof</span> <span class="token class-name">ConfigurableListableBeanFactory</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token class-name">AutoProxyUtils</span><span class="token punctuation">.</span><span class="token function">exposeTargetClass</span><span class="token punctuation">(</span><span class="token punctuation">(</span><span class="token class-name">ConfigurableListableBeanFactory</span><span class="token punctuation">)</span> <span class="token keyword">this</span><span class="token punctuation">.</span>beanFactory<span class="token punctuation">,</span> beanName<span class="token punctuation">,</span> beanClass<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+
+        <span class="token class-name">ProxyFactory</span> proxyFactory <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">ProxyFactory</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        proxyFactory<span class="token punctuation">.</span><span class="token function">copyFrom</span><span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>proxyFactory<span class="token punctuation">.</span><span class="token function">isProxyTargetClass</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token comment">// 处理引介通知</span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token class-name">Proxy</span><span class="token punctuation">.</span><span class="token function">isProxyClass</span><span class="token punctuation">(</span>beanClass<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                <span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token class-name">Class</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token operator">?</span><span class="token punctuation">&gt;</span></span> ifc <span class="token operator">:</span> beanClass<span class="token punctuation">.</span><span class="token function">getInterfaces</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                    proxyFactory<span class="token punctuation">.</span><span class="token function">addInterface</span><span class="token punctuation">(</span>ifc<span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token punctuation">}</span>
+            <span class="token punctuation">}</span>
+        <span class="token punctuation">}</span>
+        <span class="token keyword">else</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token comment">// 未设置proxyTargetClass标识，则进行默认检查</span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">shouldProxyTargetClass</span><span class="token punctuation">(</span>beanClass<span class="token punctuation">,</span> beanName<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                <span class="token comment">// 设置proxyTargetClass标识</span>
+                proxyFactory<span class="token punctuation">.</span><span class="token function">setProxyTargetClass</span><span class="token punctuation">(</span><span class="token boolean">true</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+            <span class="token keyword">else</span> <span class="token punctuation">{<!-- --></span>
+                <span class="token comment">// 评估是否有可用的代理接口</span>
+                <span class="token function">evaluateProxyInterfaces</span><span class="token punctuation">(</span>beanClass<span class="token punctuation">,</span> proxyFactory<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+        <span class="token punctuation">}</span>
+
+        <span class="token comment">// 根据通用拦截器和特定拦截器创建Advisor</span>
+        <span class="token class-name">Advisor</span><span class="token punctuation">[</span><span class="token punctuation">]</span> advisors <span class="token operator">=</span> <span class="token function">buildAdvisors</span><span class="token punctuation">(</span>beanName<span class="token punctuation">,</span> specificInterceptors<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        proxyFactory<span class="token punctuation">.</span><span class="token function">addAdvisors</span><span class="token punctuation">(</span>advisors<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        proxyFactory<span class="token punctuation">.</span><span class="token function">setTargetSource</span><span class="token punctuation">(</span>targetSource<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token comment">// 可由子类实现定制化处理</span>
+        <span class="token function">customizeProxyFactory</span><span class="token punctuation">(</span>proxyFactory<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        proxyFactory<span class="token punctuation">.</span><span class="token function">setFrozen</span><span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">.</span>freezeProxy<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">advisorsPreFiltered</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token comment">// 设置preFiltered标识，表示拦截器都有效</span>
+            proxyFactory<span class="token punctuation">.</span><span class="token function">setPreFiltered</span><span class="token punctuation">(</span><span class="token boolean">true</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+
+        <span class="token comment">// Use original ClassLoader if bean class not locally loaded in overriding class loader</span>
+        <span class="token class-name">ClassLoader</span> classLoader <span class="token operator">=</span> <span class="token function">getProxyClassLoader</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>classLoader <span class="token keyword">instanceof</span> <span class="token class-name">SmartClassLoader</span> <span class="token operator">&amp;&amp;</span> classLoader <span class="token operator">!=</span> beanClass<span class="token punctuation">.</span><span class="token function">getClassLoader</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            classLoader <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token punctuation">(</span><span class="token class-name">SmartClassLoader</span><span class="token punctuation">)</span> classLoader<span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">getOriginalClassLoader</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        <span class="token comment">// 通过ProxyFactory创建代理</span>
+        <span class="token keyword">return</span> proxyFactory<span class="token punctuation">.</span><span class="token function">getProxy</span><span class="token punctuation">(</span>classLoader<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token keyword">protected</span> <span class="token class-name">Advisor</span><span class="token punctuation">[</span><span class="token punctuation">]</span> <span class="token function">buildAdvisors</span><span class="token punctuation">(</span><span class="token annotation punctuation">@Nullable</span> <span class="token class-name">String</span> beanName<span class="token punctuation">,</span> <span class="token annotation punctuation">@Nullable</span> <span class="token class-name">Object</span><span class="token punctuation">[</span><span class="token punctuation">]</span> specificInterceptors<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token comment">// 根据Bean name获取通用拦截器</span>
+        <span class="token class-name">Advisor</span><span class="token punctuation">[</span><span class="token punctuation">]</span> commonInterceptors <span class="token operator">=</span> <span class="token function">resolveInterceptorNames</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        <span class="token class-name">List</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Object</span><span class="token punctuation">&gt;</span></span> allInterceptors <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">ArrayList</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token punctuation">&gt;</span></span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>specificInterceptors <span class="token operator">!=</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token comment">// 特定拦截器存在（空数组认为也存在）时，才考虑添加拦截器</span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span>specificInterceptors<span class="token punctuation">.</span>length <span class="token operator">&gt;</span> <span class="token number">0</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                <span class="token comment">// 添加特定拦截器</span>
+                allInterceptors<span class="token punctuation">.</span><span class="token function">addAll</span><span class="token punctuation">(</span><span class="token class-name">Arrays</span><span class="token punctuation">.</span><span class="token function">asList</span><span class="token punctuation">(</span>specificInterceptors<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span>commonInterceptors<span class="token punctuation">.</span>length <span class="token operator">&gt;</span> <span class="token number">0</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                <span class="token comment">// 添加通用拦截器到合适位置</span>
+                <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">.</span>applyCommonInterceptorsFirst<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                    allInterceptors<span class="token punctuation">.</span><span class="token function">addAll</span><span class="token punctuation">(</span><span class="token number">0</span><span class="token punctuation">,</span> <span class="token class-name">Arrays</span><span class="token punctuation">.</span><span class="token function">asList</span><span class="token punctuation">(</span>commonInterceptors<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token punctuation">}</span>
+                <span class="token keyword">else</span> <span class="token punctuation">{<!-- --></span>
+                    allInterceptors<span class="token punctuation">.</span><span class="token function">addAll</span><span class="token punctuation">(</span><span class="token class-name">Arrays</span><span class="token punctuation">.</span><span class="token function">asList</span><span class="token punctuation">(</span>commonInterceptors<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token punctuation">}</span>
+            <span class="token punctuation">}</span>
+        <span class="token punctuation">}</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>logger<span class="token punctuation">.</span><span class="token function">isTraceEnabled</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token keyword">int</span> nrOfCommonInterceptors <span class="token operator">=</span> commonInterceptors<span class="token punctuation">.</span>length<span class="token punctuation">;</span>
+            <span class="token keyword">int</span> nrOfSpecificInterceptors <span class="token operator">=</span> <span class="token punctuation">(</span>specificInterceptors <span class="token operator">!=</span> <span class="token keyword">null</span> <span class="token operator">?</span> specificInterceptors<span class="token punctuation">.</span>length <span class="token operator">:</span> <span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            logger<span class="token punctuation">.</span><span class="token function">trace</span><span class="token punctuation">(</span><span class="token string">"Creating implicit proxy for bean '"</span> <span class="token operator">+</span> beanName <span class="token operator">+</span> <span class="token string">"' with "</span> <span class="token operator">+</span> nrOfCommonInterceptors <span class="token operator">+</span>
+                    <span class="token string">" common interceptors and "</span> <span class="token operator">+</span> nrOfSpecificInterceptors <span class="token operator">+</span> <span class="token string">" specific interceptors"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+
+        <span class="token class-name">Advisor</span><span class="token punctuation">[</span><span class="token punctuation">]</span> advisors <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">Advisor</span><span class="token punctuation">[</span>allInterceptors<span class="token punctuation">.</span><span class="token function">size</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">]</span><span class="token punctuation">;</span>
+        <span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token keyword">int</span> i <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span> i <span class="token operator">&lt;</span> allInterceptors<span class="token punctuation">.</span><span class="token function">size</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span> i<span class="token operator">++</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token comment">// 适配拦截器为Advisor</span>
+            advisors<span class="token punctuation">[</span>i<span class="token punctuation">]</span> <span class="token operator">=</span> <span class="token keyword">this</span><span class="token punctuation">.</span>advisorAdapterRegistry<span class="token punctuation">.</span><span class="token function">wrap</span><span class="token punctuation">(</span>allInterceptors<span class="token punctuation">.</span><span class="token function">get</span><span class="token punctuation">(</span>i<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        <span class="token keyword">return</span> advisors<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token comment">// 获取特定于Bean的拦截器</span>
+    <span class="token annotation punctuation">@Nullable</span>
+    <span class="token keyword">protected</span> <span class="token keyword">abstract</span> <span class="token class-name">Object</span><span class="token punctuation">[</span><span class="token punctuation">]</span> <span class="token function">getAdvicesAndAdvisorsForBean</span><span class="token punctuation">(</span><span class="token class-name">Class</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token operator">?</span><span class="token punctuation">&gt;</span></span> beanClass<span class="token punctuation">,</span> <span class="token class-name">String</span> beanName<span class="token punctuation">,</span>
+            <span class="token annotation punctuation">@Nullable</span> <span class="token class-name">TargetSource</span> customTargetSource<span class="token punctuation">)</span> <span class="token keyword">throws</span> <span class="token class-name">BeansException</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<h2><a id="_268"></a>实现子类</h2> 
+<pre><code class="prism language-java"><span class="token keyword">public</span> <span class="token keyword">abstract</span> <span class="token keyword">class</span> <span class="token class-name">AbstractAutoProxyCreator</span> <span class="token keyword">extends</span> <span class="token class-name">ProxyProcessorSupport</span> <span class="token keyword">implements</span> <span class="token class-name">SmartInstantiationAwareBeanPostProcessor</span><span class="token punctuation">,</span> <span class="token class-name">BeanFactoryAware</span>
+    <span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">BeanNameAutoProxyCreator</span> <span class="token keyword">extends</span> <span class="token class-name">AbstractAutoProxyCreator</span>
+    <span class="token keyword">public</span> <span class="token keyword">abstract</span> <span class="token keyword">class</span> <span class="token class-name">AbstractAdvisorAutoProxyCreator</span> <span class="token keyword">extends</span> <span class="token class-name">AbstractAutoProxyCreator</span>
+        <span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">DefaultAdvisorAutoProxyCreator</span> <span class="token keyword">extends</span> <span class="token class-name">AbstractAdvisorAutoProxyCreator</span> <span class="token keyword">implements</span> <span class="token class-name">BeanNameAware</span>
+        <span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">InfrastructureAdvisorAutoProxyCreator</span> <span class="token keyword">extends</span> <span class="token class-name">AbstractAdvisorAutoProxyCreator</span>
+        <span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">AspectJAwareAdvisorAutoProxyCreator</span> <span class="token keyword">extends</span> <span class="token class-name">AbstractAdvisorAutoProxyCreator</span>
+            <span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">AnnotationAwareAspectJAutoProxyCreator</span> <span class="token keyword">extends</span> <span class="token class-name">AspectJAwareAdvisorAutoProxyCreator</span>
+</code></pre> 
+<h3><a id="BeanNameAutoProxyCreator_279"></a>BeanNameAutoProxyCreator</h3> 
+<h4><a id="_280"></a>简介</h4> 
+<p>基于Bean name来判断是否需要进行代理，支持通配符<code>*</code>匹配；<br> 当需要代理时，<code>BeanNameAutoProxyCreator</code>就返回<code>PROXY_WITHOUT_ADDITIONAL_INTERCEPTORS</code>，否则返回<code>null</code>，仅使用通用拦截器，通过<code>interceptorNames</code>属性设置；</p> 
+<h4><a id="_284"></a>核心代码</h4> 
+<pre><code class="prism language-java"><span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">BeanNameAutoProxyCreator</span> <span class="token keyword">extends</span> <span class="token class-name">AbstractAutoProxyCreator</span> <span class="token punctuation">{<!-- --></span>
+
+    <span class="token keyword">private</span> <span class="token keyword">static</span> <span class="token keyword">final</span> <span class="token class-name">String</span><span class="token punctuation">[</span><span class="token punctuation">]</span> NO_ALIASES <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">String</span><span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span><span class="token punctuation">;</span>
+
+    <span class="token comment">// 需要代理的Bean name，支持通配符*</span>
+    <span class="token annotation punctuation">@Nullable</span>
+    <span class="token keyword">private</span> <span class="token class-name">List</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">String</span><span class="token punctuation">&gt;</span></span> beanNames<span class="token punctuation">;</span>
+
+
+    <span class="token annotation punctuation">@Override</span>
+    <span class="token keyword">protected</span> <span class="token class-name">TargetSource</span> <span class="token function">getCustomTargetSource</span><span class="token punctuation">(</span><span class="token class-name">Class</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token operator">?</span><span class="token punctuation">&gt;</span></span> beanClass<span class="token punctuation">,</span> <span class="token class-name">String</span> beanName<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token comment">// 需要匹配配置的名称</span>
+        <span class="token keyword">return</span> <span class="token punctuation">(</span><span class="token function">isSupportedBeanName</span><span class="token punctuation">(</span>beanClass<span class="token punctuation">,</span> beanName<span class="token punctuation">)</span> <span class="token operator">?</span>
+                <span class="token keyword">super</span><span class="token punctuation">.</span><span class="token function">getCustomTargetSource</span><span class="token punctuation">(</span>beanClass<span class="token punctuation">,</span> beanName<span class="token punctuation">)</span> <span class="token operator">:</span> <span class="token keyword">null</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token annotation punctuation">@Override</span>
+    <span class="token annotation punctuation">@Nullable</span>
+    <span class="token keyword">protected</span> <span class="token class-name">Object</span><span class="token punctuation">[</span><span class="token punctuation">]</span> <span class="token function">getAdvicesAndAdvisorsForBean</span><span class="token punctuation">(</span>
+            <span class="token class-name">Class</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token operator">?</span><span class="token punctuation">&gt;</span></span> beanClass<span class="token punctuation">,</span> <span class="token class-name">String</span> beanName<span class="token punctuation">,</span> <span class="token annotation punctuation">@Nullable</span> <span class="token class-name">TargetSource</span> targetSource<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token comment">// 匹配配置的名称则需要代理（空拦截器数组），否则不需要</span>
+        <span class="token keyword">return</span> <span class="token punctuation">(</span><span class="token function">isSupportedBeanName</span><span class="token punctuation">(</span>beanClass<span class="token punctuation">,</span> beanName<span class="token punctuation">)</span> <span class="token operator">?</span>
+                PROXY_WITHOUT_ADDITIONAL_INTERCEPTORS <span class="token operator">:</span> DO_NOT_PROXY<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token keyword">private</span> <span class="token keyword">boolean</span> <span class="token function">isSupportedBeanName</span><span class="token punctuation">(</span><span class="token class-name">Class</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token operator">?</span><span class="token punctuation">&gt;</span></span> beanClass<span class="token punctuation">,</span> <span class="token class-name">String</span> beanName<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">.</span>beanNames <span class="token operator">!=</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token comment">// 判断是否是FactoryBean类型</span>
+            <span class="token keyword">boolean</span> isFactoryBean <span class="token operator">=</span> <span class="token class-name">FactoryBean</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">.</span><span class="token function">isAssignableFrom</span><span class="token punctuation">(</span>beanClass<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token comment">// 遍历配置的Bean name</span>
+            <span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token class-name">String</span> mappedName <span class="token operator">:</span> <span class="token keyword">this</span><span class="token punctuation">.</span>beanNames<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                <span class="token keyword">if</span> <span class="token punctuation">(</span>isFactoryBean<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                    <span class="token comment">// 如果是FactoryBean，则Bean name会有前缀&amp;</span>
+                    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>mappedName<span class="token punctuation">.</span><span class="token function">startsWith</span><span class="token punctuation">(</span><span class="token class-name">BeanFactory</span><span class="token punctuation">.</span>FACTORY_BEAN_PREFIX<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                        <span class="token keyword">continue</span><span class="token punctuation">;</span>
+                    <span class="token punctuation">}</span>
+                    <span class="token comment">// 去掉前缀&amp;，再进行后续匹配逻辑</span>
+                    mappedName <span class="token operator">=</span> mappedName<span class="token punctuation">.</span><span class="token function">substring</span><span class="token punctuation">(</span><span class="token class-name">BeanFactory</span><span class="token punctuation">.</span>FACTORY_BEAN_PREFIX<span class="token punctuation">.</span><span class="token function">length</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token punctuation">}</span>
+                <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">isMatch</span><span class="token punctuation">(</span>beanName<span class="token punctuation">,</span> mappedName<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                    <span class="token comment">// 匹配上，则表示支持该Bean name</span>
+                    <span class="token keyword">return</span> <span class="token boolean">true</span><span class="token punctuation">;</span>
+                <span class="token punctuation">}</span>
+            <span class="token punctuation">}</span>
+
+            <span class="token class-name">BeanFactory</span> beanFactory <span class="token operator">=</span> <span class="token function">getBeanFactory</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token comment">// 获取该Bean name的别名</span>
+            <span class="token class-name">String</span><span class="token punctuation">[</span><span class="token punctuation">]</span> aliases <span class="token operator">=</span> <span class="token punctuation">(</span>beanFactory <span class="token operator">!=</span> <span class="token keyword">null</span> <span class="token operator">?</span> beanFactory<span class="token punctuation">.</span><span class="token function">getAliases</span><span class="token punctuation">(</span>beanName<span class="token punctuation">)</span> <span class="token operator">:</span> NO_ALIASES<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token comment">// 遍历别名，进行匹配</span>
+            <span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token class-name">String</span> alias <span class="token operator">:</span> aliases<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                <span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token class-name">String</span> mappedName <span class="token operator">:</span> <span class="token keyword">this</span><span class="token punctuation">.</span>beanNames<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">isMatch</span><span class="token punctuation">(</span>alias<span class="token punctuation">,</span> mappedName<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                        <span class="token comment">// 别名匹配上，则表示支持该Bean name</span>
+                        <span class="token keyword">return</span> <span class="token boolean">true</span><span class="token punctuation">;</span>
+                    <span class="token punctuation">}</span>
+                <span class="token punctuation">}</span>
+            <span class="token punctuation">}</span>
+        <span class="token punctuation">}</span>
+        <span class="token keyword">return</span> <span class="token boolean">false</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token keyword">protected</span> <span class="token keyword">boolean</span> <span class="token function">isMatch</span><span class="token punctuation">(</span><span class="token class-name">String</span> beanName<span class="token punctuation">,</span> <span class="token class-name">String</span> mappedName<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token comment">// 借助PatternMatchUtils实现通配符*匹配</span>
+        <span class="token keyword">return</span> <span class="token class-name">PatternMatchUtils</span><span class="token punctuation">.</span><span class="token function">simpleMatch</span><span class="token punctuation">(</span>mappedName<span class="token punctuation">,</span> beanName<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<h3><a id="AbstractAdvisorAutoProxyCreator_354"></a>AbstractAdvisorAutoProxyCreator</h3> 
+<h4><a id="_355"></a>简介</h4> 
+<p>借助<code>AopUtils</code>查找可以应用于指定Bean的特定<code>Advisor</code>，并支持子类添加额外的<code>Advisor</code>；<br> 返回的<code>Advisor</code>数组是经过<code>AnnotationAwareOrderComparator</code>排序的，如果匹配的<code>Advisor</code>未标注@<code>Order</code>注解或者未实现<code>Ordered</code>接口，则会放在advisor chain的尾部，且无序；</p> 
+<h4><a id="_359"></a>核心代码</h4> 
+<pre><code class="prism language-java"><span class="token keyword">public</span> <span class="token keyword">abstract</span> <span class="token keyword">class</span> <span class="token class-name">AbstractAdvisorAutoProxyCreator</span> <span class="token keyword">extends</span> <span class="token class-name">AbstractAutoProxyCreator</span> <span class="token punctuation">{<!-- --></span>
+    
+    <span class="token annotation punctuation">@Override</span>
+    <span class="token annotation punctuation">@Nullable</span>
+    <span class="token keyword">protected</span> <span class="token class-name">Object</span><span class="token punctuation">[</span><span class="token punctuation">]</span> <span class="token function">getAdvicesAndAdvisorsForBean</span><span class="token punctuation">(</span>
+            <span class="token class-name">Class</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token operator">?</span><span class="token punctuation">&gt;</span></span> beanClass<span class="token punctuation">,</span> <span class="token class-name">String</span> beanName<span class="token punctuation">,</span> <span class="token annotation punctuation">@Nullable</span> <span class="token class-name">TargetSource</span> targetSource<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+
+        <span class="token class-name">List</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Advisor</span><span class="token punctuation">&gt;</span></span> advisors <span class="token operator">=</span> <span class="token function">findEligibleAdvisors</span><span class="token punctuation">(</span>beanClass<span class="token punctuation">,</span> beanName<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>advisors<span class="token punctuation">.</span><span class="token function">isEmpty</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token keyword">return</span> DO_NOT_PROXY<span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        <span class="token keyword">return</span> advisors<span class="token punctuation">.</span><span class="token function">toArray</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token keyword">protected</span> <span class="token class-name">List</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Advisor</span><span class="token punctuation">&gt;</span></span> <span class="token function">findEligibleAdvisors</span><span class="token punctuation">(</span><span class="token class-name">Class</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token operator">?</span><span class="token punctuation">&gt;</span></span> beanClass<span class="token punctuation">,</span> <span class="token class-name">String</span> beanName<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token comment">// 获取BeanFactory中所有的Advisor Bean</span>
+        <span class="token class-name">List</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Advisor</span><span class="token punctuation">&gt;</span></span> candidateAdvisors <span class="token operator">=</span> <span class="token function">findCandidateAdvisors</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token comment">// 获取可以应用到指定Bean的Advisor Bean</span>
+        <span class="token class-name">List</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Advisor</span><span class="token punctuation">&gt;</span></span> eligibleAdvisors <span class="token operator">=</span> <span class="token function">findAdvisorsThatCanApply</span><span class="token punctuation">(</span>candidateAdvisors<span class="token punctuation">,</span> beanClass<span class="token punctuation">,</span> beanName<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token comment">// 扩展Advisor</span>
+        <span class="token function">extendAdvisors</span><span class="token punctuation">(</span>eligibleAdvisors<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>eligibleAdvisors<span class="token punctuation">.</span><span class="token function">isEmpty</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token comment">// 排序</span>
+            eligibleAdvisors <span class="token operator">=</span> <span class="token function">sortAdvisors</span><span class="token punctuation">(</span>eligibleAdvisors<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        <span class="token keyword">return</span> eligibleAdvisors<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token keyword">protected</span> <span class="token class-name">List</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Advisor</span><span class="token punctuation">&gt;</span></span> <span class="token function">findCandidateAdvisors</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token class-name">Assert</span><span class="token punctuation">.</span><span class="token function">state</span><span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">.</span>advisorRetrievalHelper <span class="token operator">!=</span> <span class="token keyword">null</span><span class="token punctuation">,</span> <span class="token string">"No BeanFactoryAdvisorRetrievalHelper available"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token comment">// 借助BeanFactoryAdvisorRetrievalHelper实现获取BeanFactory中所有的Advisor Bean</span>
+        <span class="token keyword">return</span> <span class="token keyword">this</span><span class="token punctuation">.</span>advisorRetrievalHelper<span class="token punctuation">.</span><span class="token function">findAdvisorBeans</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token keyword">protected</span> <span class="token class-name">List</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Advisor</span><span class="token punctuation">&gt;</span></span> <span class="token function">findAdvisorsThatCanApply</span><span class="token punctuation">(</span>
+            <span class="token class-name">List</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Advisor</span><span class="token punctuation">&gt;</span></span> candidateAdvisors<span class="token punctuation">,</span> <span class="token class-name">Class</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token operator">?</span><span class="token punctuation">&gt;</span></span> beanClass<span class="token punctuation">,</span> <span class="token class-name">String</span> beanName<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+
+        <span class="token class-name">ProxyCreationContext</span><span class="token punctuation">.</span><span class="token function">setCurrentProxiedBeanName</span><span class="token punctuation">(</span>beanName<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">try</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token comment">// 借助AopUtils获取可以应用到指定Bean的Advisor Bean</span>
+            <span class="token keyword">return</span> <span class="token class-name">AopUtils</span><span class="token punctuation">.</span><span class="token function">findAdvisorsThatCanApply</span><span class="token punctuation">(</span>candidateAdvisors<span class="token punctuation">,</span> beanClass<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        <span class="token keyword">finally</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token class-name">ProxyCreationContext</span><span class="token punctuation">.</span><span class="token function">setCurrentProxiedBeanName</span><span class="token punctuation">(</span><span class="token keyword">null</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token keyword">protected</span> <span class="token keyword">boolean</span> <span class="token function">isEligibleAdvisorBean</span><span class="token punctuation">(</span><span class="token class-name">String</span> beanName<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token comment">// 指定的Advisor都有资格在首位进行代理</span>
+        <span class="token keyword">return</span> <span class="token boolean">true</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token keyword">protected</span> <span class="token class-name">List</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Advisor</span><span class="token punctuation">&gt;</span></span> <span class="token function">sortAdvisors</span><span class="token punctuation">(</span><span class="token class-name">List</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Advisor</span><span class="token punctuation">&gt;</span></span> advisors<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token comment">// 默认使用AnnotationAwareOrderComparator进行排序，子类可重写排序逻辑</span>
+        <span class="token class-name">AnnotationAwareOrderComparator</span><span class="token punctuation">.</span><span class="token function">sort</span><span class="token punctuation">(</span>advisors<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">return</span> advisors<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token comment">// 扩展Advisor，子类可重写来添加额外的Advisor</span>
+    <span class="token keyword">protected</span> <span class="token keyword">void</span> <span class="token function">extendAdvisors</span><span class="token punctuation">(</span><span class="token class-name">List</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Advisor</span><span class="token punctuation">&gt;</span></span> candidateAdvisors<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token punctuation">}</span>
+
+    <span class="token annotation punctuation">@Override</span>
+    <span class="token keyword">protected</span> <span class="token keyword">boolean</span> <span class="token function">advisorsPreFiltered</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token comment">// 总是返回true</span>
+        <span class="token keyword">return</span> <span class="token boolean">true</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<h3><a id="DefaultAdvisorAutoProxyCreator_431"></a>DefaultAdvisorAutoProxyCreator</h3> 
+<h4><a id="_432"></a>简介</h4> 
+<p><code>AbstractAdvisorAutoProxyCreator</code>的默认实现，重写了<code>isEligibleAdvisorBean</code>方法，支持根据配置的Bean name前缀过滤<code>Advisor</code> Bean；</p> 
+<h4><a id="_435"></a>核心代码</h4> 
+<pre><code class="prism language-java"><span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">DefaultAdvisorAutoProxyCreator</span> <span class="token keyword">extends</span> <span class="token class-name">AbstractAdvisorAutoProxyCreator</span> <span class="token keyword">implements</span> <span class="token class-name">BeanNameAware</span> <span class="token punctuation">{<!-- --></span>
+
+    <span class="token keyword">public</span> <span class="token keyword">static</span> <span class="token keyword">final</span> <span class="token class-name">String</span> SEPARATOR <span class="token operator">=</span> <span class="token string">"."</span><span class="token punctuation">;</span>
+
+    <span class="token comment">// 开启前缀匹配标识</span>
+    <span class="token keyword">private</span> <span class="token keyword">boolean</span> usePrefix <span class="token operator">=</span> <span class="token boolean">false</span><span class="token punctuation">;</span>
+
+    <span class="token class-name">Advisor</span> <span class="token class-name">Bean</span> name前缀
+    <span class="token annotation punctuation">@Nullable</span>
+    <span class="token keyword">private</span> <span class="token class-name">String</span> advisorBeanNamePrefix<span class="token punctuation">;</span>
+
+
+    <span class="token annotation punctuation">@Override</span>
+    <span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">setBeanName</span><span class="token punctuation">(</span><span class="token class-name">String</span> name<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token comment">// If no infrastructure bean name prefix has been set, override it.</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">.</span>advisorBeanNamePrefix <span class="token operator">==</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token comment">// 设置Advisor Bean name前缀</span>
+            <span class="token keyword">this</span><span class="token punctuation">.</span>advisorBeanNamePrefix <span class="token operator">=</span> name <span class="token operator">+</span> SEPARATOR<span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token annotation punctuation">@Override</span>
+    <span class="token keyword">protected</span> <span class="token keyword">boolean</span> <span class="token function">isEligibleAdvisorBean</span><span class="token punctuation">(</span><span class="token class-name">String</span> beanName<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span><span class="token function">isUsePrefix</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token comment">// 未开启前缀匹配，则全满足</span>
+            <span class="token keyword">return</span> <span class="token boolean">true</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        <span class="token class-name">String</span> prefix <span class="token operator">=</span> <span class="token function">getAdvisorBeanNamePrefix</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token comment">// 开启前缀匹配，则Advisor Bean name必须以配置的前缀为前缀才满足</span>
+        <span class="token keyword">return</span> <span class="token punctuation">(</span>prefix <span class="token operator">!=</span> <span class="token keyword">null</span> <span class="token operator">&amp;&amp;</span> beanName<span class="token punctuation">.</span><span class="token function">startsWith</span><span class="token punctuation">(</span>prefix<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<h3><a id="InfrastructureAdvisorAutoProxyCreator_471"></a>InfrastructureAdvisorAutoProxyCreator</h3> 
+<h4><a id="_472"></a>简介</h4> 
+<p><code>InfrastructureAdvisorAutoProxyCreator</code>重写了<code>isEligibleAdvisorBean</code>方法，仅允许<code>ROLE_INFRASTRUCTURE</code>类型的<code>Advisor</code> Bean；</p> 
+<h4><a id="_475"></a>核心代码</h4> 
+<pre><code class="prism language-java"><span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">InfrastructureAdvisorAutoProxyCreator</span> <span class="token keyword">extends</span> <span class="token class-name">AbstractAdvisorAutoProxyCreator</span> <span class="token punctuation">{<!-- --></span>
+
+    <span class="token annotation punctuation">@Override</span>
+    <span class="token keyword">protected</span> <span class="token keyword">boolean</span> <span class="token function">isEligibleAdvisorBean</span><span class="token punctuation">(</span><span class="token class-name">String</span> beanName<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">return</span> <span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">.</span>beanFactory <span class="token operator">!=</span> <span class="token keyword">null</span> <span class="token operator">&amp;&amp;</span> <span class="token keyword">this</span><span class="token punctuation">.</span>beanFactory<span class="token punctuation">.</span><span class="token function">containsBeanDefinition</span><span class="token punctuation">(</span>beanName<span class="token punctuation">)</span> <span class="token operator">&amp;&amp;</span>
+                <span class="token comment">// 仅ROLE_INFRASTRUCTURE的Advisor Bean满足</span>
+                <span class="token keyword">this</span><span class="token punctuation">.</span>beanFactory<span class="token punctuation">.</span><span class="token function">getBeanDefinition</span><span class="token punctuation">(</span>beanName<span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">getRole</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">==</span> <span class="token class-name">BeanDefinition</span><span class="token punctuation">.</span>ROLE_INFRASTRUCTURE<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<h3><a id="AspectJAwareAdvisorAutoProxyCreator_488"></a>AspectJAwareAdvisorAutoProxyCreator</h3> 
+<h4><a id="_489"></a>简介</h4> 
+<p>暴露AspectJ调用上下文，且支持AspectJ的<code>Advice</code>优先级规则；<br> 解析aop 命名空间的配置信息时生成；</p> 
+<h4><a id="_493"></a>核心代码</h4> 
+<pre><code class="prism language-java"><span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">AspectJAwareAdvisorAutoProxyCreator</span> <span class="token keyword">extends</span> <span class="token class-name">AbstractAdvisorAutoProxyCreator</span> <span class="token punctuation">{<!-- --></span>
+
+    <span class="token keyword">private</span> <span class="token keyword">static</span> <span class="token keyword">final</span> <span class="token class-name">Comparator</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Advisor</span><span class="token punctuation">&gt;</span></span> DEFAULT_PRECEDENCE_COMPARATOR <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">AspectJPrecedenceComparator</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+
+    <span class="token annotation punctuation">@Override</span>
+    <span class="token keyword">protected</span> <span class="token class-name">List</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Advisor</span><span class="token punctuation">&gt;</span></span> <span class="token function">sortAdvisors</span><span class="token punctuation">(</span><span class="token class-name">List</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Advisor</span><span class="token punctuation">&gt;</span></span> advisors<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token class-name">List</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">PartiallyComparableAdvisorHolder</span><span class="token punctuation">&gt;</span></span> partiallyComparableAdvisors <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">ArrayList</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token punctuation">&gt;</span></span><span class="token punctuation">(</span>advisors<span class="token punctuation">.</span><span class="token function">size</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token class-name">Advisor</span> advisor <span class="token operator">:</span> advisors<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            partiallyComparableAdvisors<span class="token punctuation">.</span><span class="token function">add</span><span class="token punctuation">(</span>
+                    <span class="token comment">// 使用PartiallyComparableAdvisorHolder包装Advisor，以便后续排序</span>
+                    <span class="token keyword">new</span> <span class="token class-name">PartiallyComparableAdvisorHolder</span><span class="token punctuation">(</span>advisor<span class="token punctuation">,</span> DEFAULT_PRECEDENCE_COMPARATOR<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        <span class="token comment">// 使用AspectJPrecedenceComparator排序</span>
+        <span class="token class-name">List</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">PartiallyComparableAdvisorHolder</span><span class="token punctuation">&gt;</span></span> sorted <span class="token operator">=</span> <span class="token class-name">PartialOrder</span><span class="token punctuation">.</span><span class="token function">sort</span><span class="token punctuation">(</span>partiallyComparableAdvisors<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>sorted <span class="token operator">!=</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token comment">// 存在排序结果</span>
+            <span class="token class-name">List</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Advisor</span><span class="token punctuation">&gt;</span></span> result <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">ArrayList</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token punctuation">&gt;</span></span><span class="token punctuation">(</span>advisors<span class="token punctuation">.</span><span class="token function">size</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token comment">// 提取排序后的Advisor链表</span>
+            <span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token class-name">PartiallyComparableAdvisorHolder</span> pcAdvisor <span class="token operator">:</span> sorted<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                result<span class="token punctuation">.</span><span class="token function">add</span><span class="token punctuation">(</span>pcAdvisor<span class="token punctuation">.</span><span class="token function">getAdvisor</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+            <span class="token keyword">return</span> result<span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        <span class="token keyword">else</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token comment">// 排序失败，则使用父类排序方法</span>
+            <span class="token keyword">return</span> <span class="token keyword">super</span><span class="token punctuation">.</span><span class="token function">sortAdvisors</span><span class="token punctuation">(</span>advisors<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token annotation punctuation">@Override</span>
+    <span class="token keyword">protected</span> <span class="token keyword">void</span> <span class="token function">extendAdvisors</span><span class="token punctuation">(</span><span class="token class-name">List</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Advisor</span><span class="token punctuation">&gt;</span></span> candidateAdvisors<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token comment">// 添加ExposeInvocationInterceptor如果需要的话，以便支持AspectJ切点表达式和AspectJ通知</span>
+        <span class="token class-name">AspectJProxyUtils</span><span class="token punctuation">.</span><span class="token function">makeAdvisorChainAspectJCapableIfNecessary</span><span class="token punctuation">(</span>candidateAdvisors<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token annotation punctuation">@Override</span>
+    <span class="token keyword">protected</span> <span class="token keyword">boolean</span> <span class="token function">shouldSkip</span><span class="token punctuation">(</span><span class="token class-name">Class</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token operator">?</span><span class="token punctuation">&gt;</span></span> beanClass<span class="token punctuation">,</span> <span class="token class-name">String</span> beanName<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token class-name">List</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Advisor</span><span class="token punctuation">&gt;</span></span> candidateAdvisors <span class="token operator">=</span> <span class="token function">findCandidateAdvisors</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token class-name">Advisor</span> advisor <span class="token operator">:</span> candidateAdvisors<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token comment">// 如果是AspectJPointcutAdvisor Bean，则需要跳过</span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span>advisor <span class="token keyword">instanceof</span> <span class="token class-name">AspectJPointcutAdvisor</span> <span class="token operator">&amp;&amp;</span>
+                    <span class="token punctuation">(</span><span class="token punctuation">(</span><span class="token class-name">AspectJPointcutAdvisor</span><span class="token punctuation">)</span> advisor<span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">getAspectName</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">equals</span><span class="token punctuation">(</span>beanName<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                <span class="token keyword">return</span> <span class="token boolean">true</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+        <span class="token punctuation">}</span>
+        <span class="token comment">// 再调用父类方法进行判断</span>
+        <span class="token keyword">return</span> <span class="token keyword">super</span><span class="token punctuation">.</span><span class="token function">shouldSkip</span><span class="token punctuation">(</span>beanClass<span class="token punctuation">,</span> beanName<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+
+    <span class="token comment">// 支持Advisor比较</span>
+    <span class="token keyword">private</span> <span class="token keyword">static</span> <span class="token keyword">class</span> <span class="token class-name">PartiallyComparableAdvisorHolder</span> <span class="token keyword">implements</span> <span class="token class-name">PartialComparable</span> <span class="token punctuation">{<!-- --></span>
+
+        <span class="token keyword">private</span> <span class="token keyword">final</span> <span class="token class-name">Advisor</span> advisor<span class="token punctuation">;</span>
+
+        <span class="token keyword">private</span> <span class="token keyword">final</span> <span class="token class-name">Comparator</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Advisor</span><span class="token punctuation">&gt;</span></span> comparator<span class="token punctuation">;</span>
+
+        <span class="token keyword">public</span> <span class="token class-name">PartiallyComparableAdvisorHolder</span><span class="token punctuation">(</span><span class="token class-name">Advisor</span> advisor<span class="token punctuation">,</span> <span class="token class-name">Comparator</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Advisor</span><span class="token punctuation">&gt;</span></span> comparator<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token keyword">this</span><span class="token punctuation">.</span>advisor <span class="token operator">=</span> advisor<span class="token punctuation">;</span>
+            <span class="token keyword">this</span><span class="token punctuation">.</span>comparator <span class="token operator">=</span> comparator<span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+
+        <span class="token annotation punctuation">@Override</span>
+        <span class="token keyword">public</span> <span class="token keyword">int</span> <span class="token function">compareTo</span><span class="token punctuation">(</span><span class="token class-name">Object</span> obj<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token class-name">Advisor</span> otherAdvisor <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token punctuation">(</span><span class="token class-name">PartiallyComparableAdvisorHolder</span><span class="token punctuation">)</span> obj<span class="token punctuation">)</span><span class="token punctuation">.</span>advisor<span class="token punctuation">;</span>
+            <span class="token keyword">return</span> <span class="token keyword">this</span><span class="token punctuation">.</span>comparator<span class="token punctuation">.</span><span class="token function">compare</span><span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">.</span>advisor<span class="token punctuation">,</span> otherAdvisor<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+
+        <span class="token annotation punctuation">@Override</span>
+        <span class="token keyword">public</span> <span class="token keyword">int</span> <span class="token function">fallbackCompareTo</span><span class="token punctuation">(</span><span class="token class-name">Object</span> obj<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+
+        <span class="token keyword">public</span> <span class="token class-name">Advisor</span> <span class="token function">getAdvisor</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token keyword">return</span> <span class="token keyword">this</span><span class="token punctuation">.</span>advisor<span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<h3><a id="AnnotationAwareAspectJAutoProxyCreator_576"></a>AnnotationAwareAspectJAutoProxyCreator</h3> 
+<h4><a id="_577"></a>简介</h4> 
+<p>处理AspectJ注解定义的切面以及Spring的<code>Advisor</code>；<br> 如果定义了<code>&lt;aop:include&gt;</code>元素，则仅那些名称于包含模式匹配的@AspectJ Bean才会被当作定义用于Spring自动代理的切面；</p> 
+<h4><a id="_581"></a>核心代码</h4> 
+<pre><code class="prism language-java"><span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">AnnotationAwareAspectJAutoProxyCreator</span> <span class="token keyword">extends</span> <span class="token class-name">AspectJAwareAdvisorAutoProxyCreator</span> <span class="token punctuation">{<!-- --></span>
+
+    <span class="token comment">// 配置的模式，正则形式</span>
+    <span class="token annotation punctuation">@Nullable</span>
+    <span class="token keyword">private</span> <span class="token class-name">List</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Pattern</span><span class="token punctuation">&gt;</span></span> includePatterns<span class="token punctuation">;</span>
+
+
+    <span class="token comment">// 设置模式</span>
+    <span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">setIncludePatterns</span><span class="token punctuation">(</span><span class="token class-name">List</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">String</span><span class="token punctuation">&gt;</span></span> patterns<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">this</span><span class="token punctuation">.</span>includePatterns <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">ArrayList</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token punctuation">&gt;</span></span><span class="token punctuation">(</span>patterns<span class="token punctuation">.</span><span class="token function">size</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token class-name">String</span> patternText <span class="token operator">:</span> patterns<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token keyword">this</span><span class="token punctuation">.</span>includePatterns<span class="token punctuation">.</span><span class="token function">add</span><span class="token punctuation">(</span><span class="token class-name">Pattern</span><span class="token punctuation">.</span><span class="token function">compile</span><span class="token punctuation">(</span>patternText<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token annotation punctuation">@Override</span>
+    <span class="token keyword">protected</span> <span class="token class-name">List</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Advisor</span><span class="token punctuation">&gt;</span></span> <span class="token function">findCandidateAdvisors</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token comment">// Add all the Spring advisors found according to superclass rules.</span>
+        <span class="token class-name">List</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Advisor</span><span class="token punctuation">&gt;</span></span> advisors <span class="token operator">=</span> <span class="token keyword">super</span><span class="token punctuation">.</span><span class="token function">findCandidateAdvisors</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token comment">// Build Advisors for all AspectJ aspects in the bean factory.</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">.</span>aspectJAdvisorsBuilder <span class="token operator">!=</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token comment">// 为所有AspectJ切面构建Advisor</span>
+            advisors<span class="token punctuation">.</span><span class="token function">addAll</span><span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">.</span>aspectJAdvisorsBuilder<span class="token punctuation">.</span><span class="token function">buildAspectJAdvisors</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        <span class="token keyword">return</span> advisors<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token annotation punctuation">@Override</span>
+    <span class="token keyword">protected</span> <span class="token keyword">boolean</span> <span class="token function">isInfrastructureClass</span><span class="token punctuation">(</span><span class="token class-name">Class</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token operator">?</span><span class="token punctuation">&gt;</span></span> beanClass<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">return</span> <span class="token punctuation">(</span><span class="token keyword">super</span><span class="token punctuation">.</span><span class="token function">isInfrastructureClass</span><span class="token punctuation">(</span>beanClass<span class="token punctuation">)</span> <span class="token operator">||</span>
+                <span class="token comment">// AspectJ切面类也认为是基础类型</span>
+                <span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">.</span>aspectJAdvisorFactory <span class="token operator">!=</span> <span class="token keyword">null</span> <span class="token operator">&amp;&amp;</span> <span class="token keyword">this</span><span class="token punctuation">.</span>aspectJAdvisorFactory<span class="token punctuation">.</span><span class="token function">isAspect</span><span class="token punctuation">(</span>beanClass<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token keyword">protected</span> <span class="token keyword">boolean</span> <span class="token function">isEligibleAspectBean</span><span class="token punctuation">(</span><span class="token class-name">String</span> beanName<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">.</span>includePatterns <span class="token operator">==</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token comment">// 未配置匹配模式，则认为都满足</span>
+            <span class="token keyword">return</span> <span class="token boolean">true</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        <span class="token keyword">else</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token comment">// 配置了匹配模式，则必须匹配上配置的模式才认为满足</span>
+            <span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token class-name">Pattern</span> pattern <span class="token operator">:</span> <span class="token keyword">this</span><span class="token punctuation">.</span>includePatterns<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                <span class="token keyword">if</span> <span class="token punctuation">(</span>pattern<span class="token punctuation">.</span><span class="token function">matcher</span><span class="token punctuation">(</span>beanName<span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">matches</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                    <span class="token keyword">return</span> <span class="token boolean">true</span><span class="token punctuation">;</span>
+                <span class="token punctuation">}</span>
+            <span class="token punctuation">}</span>
+            <span class="token keyword">return</span> <span class="token boolean">false</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+
+
+    <span class="token comment">// 将AspectJ切面转换为Advisor的适配器</span>
+    <span class="token keyword">private</span> <span class="token keyword">class</span> <span class="token class-name">BeanFactoryAspectJAdvisorsBuilderAdapter</span> <span class="token keyword">extends</span> <span class="token class-name">BeanFactoryAspectJAdvisorsBuilder</span> <span class="token punctuation">{<!-- --></span>
+
+        <span class="token keyword">public</span> <span class="token class-name">BeanFactoryAspectJAdvisorsBuilderAdapter</span><span class="token punctuation">(</span>
+                <span class="token class-name">ListableBeanFactory</span> beanFactory<span class="token punctuation">,</span> <span class="token class-name">AspectJAdvisorFactory</span> advisorFactory<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+
+            <span class="token keyword">super</span><span class="token punctuation">(</span>beanFactory<span class="token punctuation">,</span> advisorFactory<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+
+        <span class="token annotation punctuation">@Override</span>
+        <span class="token keyword">protected</span> <span class="token keyword">boolean</span> <span class="token function">isEligibleBean</span><span class="token punctuation">(</span><span class="token class-name">String</span> beanName<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token keyword">return</span> <span class="token class-name">AnnotationAwareAspectJAutoProxyCreator</span><span class="token punctuation">.</span><span class="token keyword">this</span><span class="token punctuation">.</span><span class="token function">isEligibleAspectBean</span><span class="token punctuation">(</span>beanName<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/36a6e8986056d1dae0dce3e022a3c6fa/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">2022JDK安装配置</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/da55bf6c4a27f401b9edc4dbef16542b/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">Verilog实现常见电路（二）</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

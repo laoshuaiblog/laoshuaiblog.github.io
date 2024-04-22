@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Redis源码分析（十四）——持久化RDB - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/6f0a7af6fe9b0d9c34b563bb81c09a01/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="Redis源码分析（十四）——持久化RDB">
+  <meta property="og:description" content="Redis在系统正常运行情况下，是将数据库数据以数据结构的形式维持在内存中的，为了让这些数据在Redis重启之后以及在系统故障等特殊情况下依然可用，Redis提供了RDB和AOF两种持久化模式。在此介绍RDB模式。
+在Redis运行时，RDB程序将内存中的数据按照配置的模式快照保存到磁盘文件中（每次保存的都是服务器中所有非空数据库中的所有键值对以及过期时间等数据），在Redis重启时，RDB程序可以通过载入RDB文件来还原数据库的状态。 该RDB文件的保存和载入过程主要用两个核心函数完成： rdbSave:生成RDB文件保存到磁盘；rdbLoad：将RDB文件中的数据重新载入到内存中。
+在进行RDB文件保存或载入过程实际是对内存与磁盘的I/O操作。I/O操作的API函数主要由rio.c/rio.h文件完成。
+_rio结构如下：
+RIO API 接口和状态 持久化的IO操作 ：内存缓冲buf&amp;lt;——&amp;gt;文件 */ struct _rio { /* Backend functions. * Since this functions do not tolerate short writes or reads the return * value is simplified to: zero on error, non zero on complete success. */ //成功返回非零。失败返回零 size_t (*read)(struct _rio *, void *buf, size_t len); size_t (*write)(struct _rio *, const void *buf, size_t len); off_t (*tell)(struct _rio *);//文件指针移动操作 /* The update_cksum method if not NULL is used to compute the checksum of * all the data that was read or written so far.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2014-10-27T10:48:31+08:00">
+    <meta property="article:modified_time" content="2014-10-27T10:48:31+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">Redis源码分析（十四）——持久化RDB</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <p><span style="white-space:pre"></span>     <span style="font-size:18px">Redis在系统正常运行情况下，是将数据库数据以数据结构的形式维持在内存中的，为了让这些数据在Redis重启之后以及在系统故障等特殊情况下依然可用，Redis提供了RDB和AOF两种持久化模式。在此介绍RDB模式。</span></p> 
+<p><span style="font-size:18px"><span style="white-space:pre"></span>在Redis运行时，RDB程序将内存中的数据按照配置的模式快照保存到磁盘文件中（每次保存的都是服务器中所有非空数据库中的所有键值对以及过期时间等数据），在Redis重启时，RDB程序可以通过载入RDB文件来还原数据库的状态。  该RDB文件的保存和载入过程主要用两个核心函数完成： rdbSave:生成RDB文件保存到磁盘；rdbLoad：将RDB文件中的数据重新载入到内存中。</span></p> 
+<p><span style="font-size:18px"><span style="white-space:pre"></span>在进行RDB文件保存或载入过程实际是对内存与磁盘的I/O操作。I/O操作的API函数主要由rio.c/rio.h文件完成。</span></p> 
+<p><span style="font-size:18px"><span style="color:#3333ff"><strong>_rio结构如下：</strong></span></span></p> 
+<p><span style="font-size:18px"></span></p> 
+<pre><code class="language-cpp"> RIO API 接口和状态   持久化的IO操作 ：内存缓冲buf&lt;——&gt;文件
+ */
+struct _rio {
+
+    /* Backend functions.
+     * Since this functions do not tolerate short writes or reads the return
+     * value is simplified to: zero on error, non zero on complete success. */
+    //成功返回非零。失败返回零  
+    size_t (*read)(struct _rio *, void *buf, size_t len);
+    size_t (*write)(struct _rio *, const void *buf, size_t len);
+    off_t (*tell)(struct _rio *);//文件指针移动操作
+
+    /* The update_cksum method if not NULL is used to compute the checksum of
+     * all the data that was read or written so far. The method should be
+     * designed so that can be called with the current checksum, and the buf
+     * and len fields pointing to the new block of data to add to the checksum
+     * computation. */
+    // 校验和计算函数，每次有写入/读取新数据时都要计算一次。 检验和： 写入文件时写在末尾，在读取文件时根据检验和进行检验
+    void (*update_cksum)(struct _rio *, const void *buf, size_t len);
+
+    /* The current checksum */
+    // 当前校验和
+    uint64_t cksum;
+
+    /* number of bytes read or written */
+	//已经 读/写的字节数
+    size_t processed_bytes;
+
+    /* maximum single read or write chunk size */
+	//每次最多能处理的字符数
+    size_t max_processing_chunk;
+
+    /* Backend-specific vars. */
+	// 可以是一个内存中的字符串，也可以是一个文件描述符
+    union {
+
+        struct {
+            // 缓存指针
+            sds ptr;
+            // 偏移量
+            off_t pos;
+        } buffer;   
+
+        struct {
+            // 被打开文件的指针
+            FILE *fp;
+            // 最近一次 fsync()（AOF同步写入到磁盘） 以来，写入的字节量
+            off_t buffered; /* Bytes written since last fsync. */
+            // 写入多少字节之后，才会自动执行一次 fsync()
+            off_t autosync; /* fsync after 'autosync' bytes written. */
+        } file;
+    } io;
+};</code></pre> 
+<span style="white-space:pre"> </span> 
+<br> 
+<br> 
+<p></p> 
+<p><strong><span style="font-size:18px; color:#3333ff">保存：</span></strong></p> 
+<p><span style="font-size:18px"><span style="font-weight:bold; color:rgb(51,51,255); white-space:pre"></span>保存过程主要由rdbSave函数完成，它负责把内存中的数据以RDB格式保存到磁盘中，如果RDB文件已经存在则新的RDB文件将替换已有的RDB文件。</span></p> 
+<p><span style="font-size:18px"><span style="font-weight:bold; color:rgb(51,51,255); white-space:pre"></span>RDB文件保存过程可由两个命令完成：SAVE和BGSAVE。 </span></p> 
+<p><span style="font-size:18px">**其中SAVE直接调用rdbSave函数，这将阻塞Redis主进程，直到保存过程完成，在保存期间服务器不能处理客户端的任何请求。</span></p> 
+<p><span style="font-size:18px">**而BGSAVE命令则是由fork出的一个子进程来完成的，由子进程调用rdbSave函数，而主进程继续客户端的任何请求。当子进程保存完成后向主进程发送信号，通知保存完成。</span></p> 
+<p><span style="font-size:18px"><span style="white-space:pre"></span></span></p> 
+<p><span style="white-space:pre"></span><span style="font-size:18px">在分析以上各命令实现函数之前需要理解RDB文件的基本格式，以及个数据类型在RDB文件的存放格式。   </span></p> 
+<p><span style="font-size:18px; color:#3366ff">一个RDB文件的结构如下：</span></p> 
+<p style="text-align:center"><span style="font-size:18px; color:#3366ff"><img src="https://images2.imgbox.com/d4/5c/Jwqgcb3S_o.png" alt=""><br> </span></p> 
+<p style="text-align:left"><span style="color:#cc6600"><span style="font-size:18px">_</span><span style="font-size:18px">REDIS:</span></span></p> 
+<p style="text-align:left"><span style="font-size:18px"><span style="white-space:pre"></span>是整个文件的开始。 以五个字符保存“REDIS”。</span></p> 
+<p style="text-align:left"><span style="font-size:18px; color:#cc9933">RDB_VERSINON:</span></p> 
+<p style="text-align:left"><span style="font-size:18px"><span style="white-space:pre"></span>以一个四字节的整数，记录了该文件的RDB版本号。 由于不同的版本的    RDB文件互不相容，因此在读取RDB文件时需要根据版本号来选择不同的读入方式。</span></p> 
+<p style="text-align:left"><span style="font-size:18px; color:#ff6600">DB_DATA：</span></p> 
+<p style="text-align:left"><span style="font-size:18px">这部分对应服务器中的一个非空数据库，每个非空数据库出现一次该本部分。</span></p> 
+<p style="text-align:left"><span style="font-size:18px; color:#ff6600">SELECT_DB：</span></p> 
+<p style="text-align:left"><span style="font-size:18px"><span style="white-space:pre"></span>保存在跟在其后的键值所属的数据库编号。在读文件时，根据该编号来切换数据库，确保把数据读入到服务器对应的数据库中。</span></p> 
+<p style="text-align:left"><span style="font-size:18px; color:#ff6600">KEY_VALUE_PAIRS:</span></p> 
+<p style="text-align:left"><span style="font-size:18px">每个键值对的结构如下：</span></p> 
+<p style="text-align:left"><span style="font-size:18px"><img src="https://images2.imgbox.com/b7/0f/Hixo4jWv_o.png" alt="">其中过期时间域当该键没有设置过期时间，则没有该域。</span></p> 
+<p style="text-align:left"><span style="font-size:18px"><strong>值得注意的是：</strong>VALUE域的值的保存：根据不同的编码方式，以及值的大小长度会采取具体不用的格式，比如：对于整型编码的值，如果能够表示为8、16或32位的整数，则用整数类型来保存； 如果字符窜长度大于20，并且服务器开启了LZF压缩功能，则将保存压缩之后的数据； 而对于其他长度的值则以普通直接序列来保存。 RDB在节约空间这一点上应该是做到了极致！ </span></p> 
+<p style="text-align:left"><span style="font-size:18px"><span style="color:#ff6600">EOF:  </span></span></p> 
+<p style="text-align:left"><span style="font-size:18px"><span style="white-space:pre"></span>标志数据库内容的结尾（不是文件的结尾），值为255.</span></p> 
+<p style="text-align:left"><span style="font-size:18px"><span style="color:#ff6600">CHECK_SUM：</span></span></p> 
+<p style="text-align:left"><span style="font-size:18px"> <span style="white-space:pre"> </span>在写入RDB文件时将校验和存入RDB文件末尾，当读取文件时根据它的值对内容进行校验。</span></p> 
+<p style="text-align:left"><span style="font-size:18px"><br> </span></p> 
+<p style="text-align:left"><span style="font-size:18px"><span style="color:#3333ff"><strong>载入：</strong></span></span></p> 
+<p style="text-align:left"><span style="font-size:18px"><span style="font-weight:bold; color:rgb(51,51,255); white-space:pre"></span>当Redis服务器开启时，rdbLoad函数就会执行，读取RDB文件，并将文件内容载入到内存中。 一般，由于AOF文件保存的频率比RDB文件更高，因此AOF中的数据比RDB文件中的数据要更新，所以在载入时如果打开了AOF功能，那么程序优先载入AOF文件来还原数据，只有在AOF功能没有打开时才会载入RDB文件。</span></p> 
+<p style="text-align:left"><span style="font-size:18px"><br> </span></p> 
+<p style="text-align:left"><span style="font-size:18px; color:#3333ff"><strong>保存和载入的主要函数如下：</strong></span></p> 
+<p style="text-align:left"><span style="font-size:18px; color:#3333ff"><strong><br> </strong></span></p> 
+<p style="text-align:left"><span style="font-size:18px; color:#3333ff"><strong>SAVE:</strong></span></p> 
+<p style="text-align:left"><span style="font-size:18px; color:#3333ff"><strong></strong></span></p> 
+<pre><code class="language-cpp">/* Save the DB on disk. Return REDIS_ERR on error, REDIS_OK on success 
+ *
+ * 将数据库保存到磁盘上。
+ *
+ * 保存成功返回 REDIS_OK ，出错/失败返回 REDIS_ERR 。
+ SAVE:将阻塞主进程，知道写入磁盘完成 ： 创建临时文件，并初始化； 按RDB文件格式将服务器所有非空数据库数据写入文件；fsync到磁盘，用临时RDB文件代替原来文件；记录日志；更新服务器相关设置
+ */
+int rdbSave(char *filename) {
+    dictIterator *di = NULL;
+    dictEntry *de;
+    char tmpfile[256];
+    char magic[10];
+    int j;
+    long long now = mstime();
+    FILE *fp;
+    rio rdb;
+    uint64_t cksum;
+
+    // 创建临时文件
+    snprintf(tmpfile,256,"temp-%d.rdb", (int) getpid());
+    fp = fopen(tmpfile,"w");
+    if (!fp) {
+        redisLog(REDIS_WARNING, "Failed opening .rdb for saving: %s",
+            strerror(errno));
+        return REDIS_ERR;
+    }
+
+    // 初始化 I/O
+    rioInitWithFile(&amp;rdb,fp);
+
+    // 设置校验和函数
+    if (server.rdb_checksum)
+        rdb.update_cksum = rioGenericUpdateChecksum;
+
+    // 写入 RDB 版本号
+    snprintf(magic,sizeof(magic),"REDIS%04d",REDIS_RDB_VERSION);
+    if (rdbWriteRaw(&amp;rdb,magic,9) == -1) goto werr;
+
+    // 遍历所有数据库
+    for (j = 0; j &lt; server.dbnum; j++) {
+
+        // 指向数据库
+        redisDb *db = server.db+j;
+
+        // 指向数据库键空间
+        dict *d = db-&gt;dict;
+
+        // 跳过空数据库
+        if (dictSize(d) == 0) continue;
+
+        // 创建键空间迭代器
+        di = dictGetSafeIterator(d);
+        if (!di) {
+            fclose(fp);
+            return REDIS_ERR;
+        }
+
+        /* Write the SELECT DB opcode 
+         *
+         * 写入 DB 选择器
+         */
+        if (rdbSaveType(&amp;rdb,REDIS_RDB_OPCODE_SELECTDB) == -1) goto werr;
+        if (rdbSaveLen(&amp;rdb,j) == -1) goto werr;
+
+        /* Iterate this DB writing every entry 
+         *
+         * 遍历数据库，并写入每个键值对的数据
+         */
+        while((de = dictNext(di)) != NULL) {
+            sds keystr = dictGetKey(de);
+            robj key, *o = dictGetVal(de);
+            long long expire;
+            
+            // 根据 keystr ，在栈中创建一个 key 对象
+            initStaticStringObject(key,keystr);
+
+            // 获取键的过期时间
+            expire = getExpire(db,&amp;key);
+
+            // 保存键值对数据 以及过期时间
+            if (rdbSaveKeyValuePair(&amp;rdb,&amp;key,o,expire,now) == -1) goto werr;
+        }
+        dictReleaseIterator(di);
+    }
+    di = NULL; /* So that we don't release it again on error. */
+
+    /* EOF opcode 
+     *
+     * 写入 EOF 代码
+     */
+    if (rdbSaveType(&amp;rdb,REDIS_RDB_OPCODE_EOF) == -1) goto werr;
+
+    /* CRC64 checksum. It will be zero if checksum computation is disabled, the
+     * loading code skips the check in this case. 
+     *
+     * CRC64 校验和。
+     *
+     * 如果校验和功能已关闭，那么 rdb.cksum 将为 0 ，
+     * 在这种情况下， RDB 载入时会跳过校验和检查。
+     */
+    cksum = rdb.cksum;
+    memrev64ifbe(&amp;cksum);
+    rioWrite(&amp;rdb,&amp;cksum,8);
+
+    /* Make sure data will not remain on the OS's output buffers */
+    // 冲洗缓存，确保数据已写入磁盘
+    if (fflush(fp) == EOF) goto werr;
+    if (fsync(fileno(fp)) == -1) goto werr;
+    if (fclose(fp) == EOF) goto werr;
+
+    /* Use RENAME to make sure the DB file is changed atomically only
+     * if the generate DB file is ok. 
+     *
+     * 使用 RENAME ，原子性地对临时文件进行改名，覆盖原来的 RDB 文件。
+     */
+    if (rename(tmpfile,filename) == -1) {
+        redisLog(REDIS_WARNING,"Error moving temp DB file on the final destination: %s", strerror(errno));
+        unlink(tmpfile);
+        return REDIS_ERR;
+    }
+
+    // 写入完成，打印日志
+    redisLog(REDIS_NOTICE,"DB saved on disk");
+
+    // 清零数据库脏状态
+    server.dirty = 0;
+
+    // 记录最后一次完成 SAVE 的时间
+    server.lastsave = time(NULL);
+
+    // 记录最后一次执行 SAVE 的状态
+    server.lastbgsave_status = REDIS_OK;
+
+    return REDIS_OK;
+
+werr:
+    // 关闭文件
+    fclose(fp);
+    // 删除文件
+    unlink(tmpfile);
+
+    redisLog(REDIS_WARNING,"Write error saving DB on disk: %s", strerror(errno));
+
+    if (di) dictReleaseIterator(di);
+
+    return REDIS_ERR;
+}</code></pre> 
+<p></p> 
+<p style="text-align:left"><span style="font-size:18px; color:#3333ff"><strong><br> </strong></span></p> BGSAVE: 
+<br> 
+<pre><code class="language-cpp">//BGSAVE:创建子进程，在子进程中调用rdbSave函数完成写入磁盘。
+int rdbSaveBackground(char *filename) {
+    pid_t childpid;
+    long long start;
+
+    // 如果 BGSAVE 已经在执行，那么出错
+    if (server.rdb_child_pid != -1) return REDIS_ERR;
+
+    // 记录 BGSAVE 执行前的数据库被修改次数
+    server.dirty_before_bgsave = server.dirty;
+
+    // 最近一次尝试执行 BGSAVE 的时间
+    server.lastbgsave_try = time(NULL);
+
+    // fork() 开始前的时间，记录 fork() 返回耗时用
+    start = ustime();
+
+    if ((childpid = fork()) == 0) {
+        int retval;
+
+        /* Child */
+
+        // 关闭网络连接 fd
+        closeListeningSockets(0);
+
+        // 设置进程的标题，方便识别
+        redisSetProcTitle("redis-rdb-bgsave");
+
+        // 执行保存操作
+        retval = rdbSave(filename);
+
+        // 打印 copy-on-write 时使用的内存数
+        if (retval == REDIS_OK) {
+            size_t private_dirty = zmalloc_get_private_dirty();
+
+            if (private_dirty) {
+                redisLog(REDIS_NOTICE,
+                    "RDB: %zu MB of memory used by copy-on-write",
+                    private_dirty/(1024*1024));
+            }
+        }
+
+        // 向父进程发送信号
+        exitFromChild((retval == REDIS_OK) ? 0 : 1);
+
+    } else {
+
+        /* Parent */
+
+        // 计算 fork() 执行的时间
+        server.stat_fork_time = ustime()-start;
+
+        // 如果 fork() 出错，那么报告错误
+        if (childpid == -1) {
+            server.lastbgsave_status = REDIS_ERR;
+            redisLog(REDIS_WARNING,"Can't save in background: fork: %s",
+                strerror(errno));
+            return REDIS_ERR;
+        }
+
+        // 打印 BGSAVE 开始的日志
+        redisLog(REDIS_NOTICE,"Background saving started by pid %d",childpid);
+
+        // 记录数据库开始 BGSAVE 的时间
+        server.rdb_save_time_start = time(NULL);
+
+        // 记录负责执行 BGSAVE 的子进程 ID
+        server.rdb_child_pid = childpid;
+
+        // 关闭自动 rehash
+        updateDictResizePolicy();
+
+        return REDIS_OK;
+    }
+
+    return REDIS_OK; /* unreached */
+}</code></pre> 
+<br> 
+<br> 
+<p style="text-align:left"><span style="font-size:18px; color:#3333ff"><strong>ldbLoad:</strong></span></p> 
+<p style="text-align:left"><span style="font-size:18px"></span></p> 
+<pre><code class="language-cpp">/*
+ * 将给定 rdb 中保存的数据载入到数据库中：
+ 打开RDB文件并初始化；
+ 设置服务器为载入状态；
+ 读入版本号等验证内容并校验；
+ 读入每个数据库的每个键值对及过期时间并关联到服务器数据库（处理过期的键值）；
+ 校验 校验和；
+ 关闭RDB文件，服务器从载入状态退出
+ */
+int rdbLoad(char *filename) {
+    uint32_t dbid;
+    int type, rdbver;
+    redisDb *db = server.db+0;
+    char buf[1024];
+    long long expiretime, now = mstime();
+    FILE *fp;
+    rio rdb;
+
+    // 打开 rdb 文件
+    if ((fp = fopen(filename,"r")) == NULL) return REDIS_ERR;
+
+    // 初始化写入流
+    rioInitWithFile(&amp;rdb,fp);
+    rdb.update_cksum = rdbLoadProgressCallback;
+    rdb.max_processing_chunk = server.loading_process_events_interval_bytes;
+    if (rioRead(&amp;rdb,buf,9) == 0) goto eoferr;
+    buf[9] = '\0';
+
+    // 检查版本号
+    if (memcmp(buf,"REDIS",5) != 0) {
+        fclose(fp);
+        redisLog(REDIS_WARNING,"Wrong signature trying to load DB from file");
+        errno = EINVAL;
+        return REDIS_ERR;
+    }
+    rdbver = atoi(buf+5);
+    if (rdbver &lt; 1 || rdbver &gt; REDIS_RDB_VERSION) {
+        fclose(fp);
+        redisLog(REDIS_WARNING,"Can't handle RDB format version %d",rdbver);
+        errno = EINVAL;
+        return REDIS_ERR;
+    }
+
+    // 将服务器状态调整到开始载入状态
+    startLoading(fp);
+    while(1) {
+        robj *key, *val;
+        expiretime = -1;
+
+        /* Read type. 
+         *
+         * 读入类型指示，决定该如何读入之后跟着的数据。
+         *
+         * 这个指示可以是 rdb.h 中定义的所有以
+         * REDIS_RDB_TYPE_* 为前缀的常量的其中一个
+         * 或者所有以 REDIS_RDB_OPCODE_* 为前缀的常量的其中一个
+         */
+        if ((type = rdbLoadType(&amp;rdb)) == -1) goto eoferr;
+
+        // 读入过期时间值
+        if (type == REDIS_RDB_OPCODE_EXPIRETIME) {
+
+            // 以秒计算的过期时间
+
+            if ((expiretime = rdbLoadTime(&amp;rdb)) == -1) goto eoferr;
+
+            /* We read the time so we need to read the object type again. 
+             *
+             * 在过期时间之后会跟着一个键值对，我们要读入这个键值对的类型
+             */
+            if ((type = rdbLoadType(&amp;rdb)) == -1) goto eoferr;
+
+            /* the EXPIRETIME opcode specifies time in seconds, so convert
+             * into milliseconds. 
+             *
+             * 将格式转换为毫秒*/
+            expiretime *= 1000;
+        } else if (type == REDIS_RDB_OPCODE_EXPIRETIME_MS) {
+
+            // 以毫秒计算的过期时间
+
+            /* Milliseconds precision expire times introduced with RDB
+             * version 3. */
+            if ((expiretime = rdbLoadMillisecondTime(&amp;rdb)) == -1) goto eoferr;
+
+            /* We read the time so we need to read the object type again.
+             *
+             * 在过期时间之后会跟着一个键值对，我们要读入这个键值对的类型
+             */
+            if ((type = rdbLoadType(&amp;rdb)) == -1) goto eoferr;
+        }
+            
+        // 读入数据 EOF （不是 rdb 文件的 EOF）
+        if (type == REDIS_RDB_OPCODE_EOF)
+            break;
+
+        /* Handle SELECT DB opcode as a special case 
+         *
+         * 读入切换数据库指示
+         */
+        if (type == REDIS_RDB_OPCODE_SELECTDB) {
+
+            // 读入数据库号码
+            if ((dbid = rdbLoadLen(&amp;rdb,NULL)) == REDIS_RDB_LENERR)
+                goto eoferr;
+
+            // 检查数据库号码的正确性
+            if (dbid &gt;= (unsigned)server.dbnum) {
+                redisLog(REDIS_WARNING,"FATAL: Data file was created with a Redis server configured to handle more than %d databases. Exiting\n", server.dbnum);
+                exit(1);
+            }
+
+            // 在程序内容切换数据库
+            db = server.db+dbid;
+
+            // 跳过
+            continue;
+        }
+
+        /* Read key 
+         *
+         * 读入键
+         */
+        if ((key = rdbLoadStringObject(&amp;rdb)) == NULL) goto eoferr;
+
+        /* Read value 
+         *
+         * 读入值
+         */
+        if ((val = rdbLoadObject(type,&amp;rdb)) == NULL) goto eoferr;
+
+        /* Check if the key already expired. This function is used when loading
+         * an RDB file from disk, either at startup, or when an RDB was
+         * received from the master. In the latter case, the master is
+         * responsible for key expiry. If we would expire keys here, the
+         * snapshot taken by the master may not be reflected on the slave. 
+         *
+         * 如果服务器为主节点的话，
+         * 那么在键已经过期的时候，不再将它们关联到数据库中去
+         */
+        if (server.masterhost == NULL &amp;&amp; expiretime != -1 &amp;&amp; expiretime &lt; now) {
+            decrRefCount(key);
+            decrRefCount(val);
+            // 跳过
+            continue;
+        }
+
+        /* Add the new object in the hash table 
+         *
+         * 将键值对关联到数据库中
+         */
+        dbAdd(db,key,val);
+
+        /* Set the expire time if needed 
+         *
+         * 设置过期时间
+         */
+        if (expiretime != -1) setExpire(db,key,expiretime);
+
+        decrRefCount(key);
+    }
+
+    /* Verify the checksum if RDB version is &gt;= 5 
+     *
+     * 如果 RDB 版本 &gt;= 5 ，那么比对校验和
+     */
+    if (rdbver &gt;= 5 &amp;&amp; server.rdb_checksum) {
+        uint64_t cksum, expected = rdb.cksum;
+
+        // 读入文件的校验和
+        if (rioRead(&amp;rdb,&amp;cksum,8) == 0) goto eoferr;
+        memrev64ifbe(&amp;cksum);
+
+        // 比对校验和
+        if (cksum == 0) {
+            redisLog(REDIS_WARNING,"RDB file was saved with checksum disabled: no check performed.");
+        } else if (cksum != expected) {
+            redisLog(REDIS_WARNING,"Wrong RDB checksum. Aborting now.");
+            exit(1);
+        }
+    }
+
+    // 关闭 RDB 
+    fclose(fp);
+
+    // 服务器从载入状态中退出
+    stopLoading();
+
+    return REDIS_OK;
+
+eoferr: /* unexpected end of file is handled here with a fatal exit */
+    redisLog(REDIS_WARNING,"Short read or OOM loading DB. Unrecoverable error, aborting now.");
+    exit(1);
+    return REDIS_ERR; /* Just to avoid warning */
+}</code></pre> 
+<br> 
+<br> 
+<p></p> 
+<p><strong><br> </strong></p> 
+<p><strong><br> </strong></p> 
+<p><strong><br> </strong></p> 
+<p><strong><br> </strong></p> 
+<p><strong><br> </strong></p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/62e1a89942248b6afc5a1f014d48ca22/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">数轴点覆盖</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/ad52a968380c781647496b778921c8dd/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">iOS中，在类的源文件(.m)中，@interface部分的作用？</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

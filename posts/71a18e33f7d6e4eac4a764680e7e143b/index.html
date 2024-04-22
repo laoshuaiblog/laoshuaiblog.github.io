@@ -1,0 +1,880 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>【数据结构初阶】单链表 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/71a18e33f7d6e4eac4a764680e7e143b/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="【数据结构初阶】单链表">
+  <meta property="og:description" content="各位读者老爷好，鼠鼠我又来了哈。鼠鼠我呀现在来基于C语言实现一下单链表，希望对你有所帮助！
+目录
+1.链表的概念及结构
+2.链表的分类
+3.无头单向非循环链表的实现
+3.1.单链表打印 3.2.单链表尾插
+3.3.单链表头插
+3.4.单链表尾删
+3.5.单链表头删
+3.6.单链表查找
+3.7.单链表在pos位置之和插入值
+3.8.单链表删除pos位置之后的值 3.9.在pos的前面插入值
+3.10.删除pos位置的值
+3.11.销毁单链表
+4.单链表的小应用
+4.1.slist.h
+4.2.slist.c
+4.3.test.c
+5.ending 鼠鼠我上次浅谈了顺序表。但是吧，Any coin has two sides。
+顺序表有一些缺陷：
+1.尾部插入效率还不错。头部或者中间插入删除，需要挪动数据，效率低下。
+2.顺序表满了以后只能扩容。扩容是有一定消耗的，扩容一般是存在一定的空间浪费：一次扩得越多，可能浪费越多；一次扩得少，可能需要频繁扩容。
+当然，顺序表也有它的优势：
+得益于它的物理空间连续，顺序表支持随机的下标访问。 So，我们有链表（也是线性表）可以避免顺序表的缺陷，那我们先来看看链表哈！
+1.链表的概念及结构 概念：链表是一种物理存储结构上非连续、非顺序的存储结构，数据元素的逻辑顺序是通过链表
+中的指针链接次序实现的 。
+不带头非循环单向链表的逻辑结构如下图：
+链表是由节点（或者结点）构成的。这些个节点一般是动态内存申请得来的，所以每个节点的地址没有关联，是随机的，可能动态申请的时候申请到了连续的空间，更多可能是申请到不连续的空间，也就是说链表的物理结构不一定连续，。既然每个节点的地址是随机的，那我们如何管理链表呢？ 其实也很简单，拿不带头非循环单向链表来说，如上逻辑结构可知，只要节点有俩个数据域即可，一个数据域存放所需存入的值（即有效数据），另一个数据域存放下一个节点的地址（最后一个节点保存空指针）。这样我们就可以通过第一个节点找到第二个节点、第二个节点找到第三个节点……这样就可以管理链表了。
+了解了链表的特点，那我们对于数据的增删改等操作，更改节点内存储的地址即可，不必挪动数据。而且节点是一个个动态申请得到的，想要多少就申请多少，自然就避免了扩容有浪费的情况。这样子就很好避免的顺序表的缺陷！
+画图方便理解：
+2.链表的分类 实际中链表的结构非常多样，以下情况组合起来就有8种链表结构：
+1.单向或者双向
+2.带头（哨兵位）或者不带头
+3.循环或者非循环
+虽然有这么多的链表的结构，但是我们实际中最常用还是两种结构：
+1. 无头单向非循环链表：结构简单，一般不会单独用来存数据。实际中更多是作为其他数据结构的子结构，如哈希桶、图的邻接表等等。另外这种结构在笔试面试中出现很多。
+2. 带头双向循环链表：结构最复杂，一般用在单独存储数据。实际中使用的链表数据结构，都是带头双向循环链表。另外这个结构虽然结构复杂，但是使用代码实现以后会发现结构会带来很多优势，实现反而简单了。
+咱们这篇博客实现的是无头单向非循环链表。 3.无头单向非循环链表的实现 具体我们实现这些无头单向非循环链表（以下简称单链表）的增删查改等等功能：
+typedef int SLTDateType; //有效数据类型，方便后续维护代码 //定义单链表节点 typedef struct SListNode { SLTDateType data; //有效数据 struct SListNode* next; //下一个节点的地址 }SListNode; // 单链表打印 void SListPrint (SListNode * plist); // 单链表尾插 void SListPushBack(SListNode** pplist, SLTDateType x); // 单链表的头插 void SListPushFront(SListNode** pplist, SLTDateType x); // 单链表的尾删 void SListPopBack(SListNode** pplist); // 单链表头删 void SListPopFront(SListNode** pplist); // 单链表查找 SListNode* SListFind(SListNode* plist, SLTDateType x); // 单链表在pos位置之后插入值 void SListInsertAfter(SListNode* pos, SLTDateType x); // 单链表删除pos位置之后的值 void SListEraseAfter(SListNode* pos); // 在pos的前面插入值 void SLTInsert(SListNode** pphead, SListNode* pos, SLTDateType x); // 删除pos位置的值 void SLTErase(SListNode** pphead, SListNode* pos); //销毁单链表 void SLTDestroy(SListNode** pphead); 好了好了，一个个来实现吧！">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2024-03-09T17:03:11+08:00">
+    <meta property="article:modified_time" content="2024-03-09T17:03:11+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">【数据结构初阶】单链表</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <p>各位读者老爷好，鼠鼠我又来了哈。鼠鼠我呀现在来基于C语言实现一下单链表，希望对你有所帮助！</p> 
+<p class="img-center"><img alt="" height="249" src="https://images2.imgbox.com/6c/c8/iuVacOTC_o.jpg" width="249"></p> 
+<p id="main-toc"><strong>目录</strong></p> 
+<p id="1.%E9%93%BE%E8%A1%A8%E7%9A%84%E6%A6%82%E5%BF%B5%E5%8F%8A%E7%BB%93%E6%9E%84-toc" style="margin-left:40px;"><a href="#1.%E9%93%BE%E8%A1%A8%E7%9A%84%E6%A6%82%E5%BF%B5%E5%8F%8A%E7%BB%93%E6%9E%84" rel="nofollow">1.链表的概念及结构</a></p> 
+<p id="2.%E9%93%BE%E8%A1%A8%E7%9A%84%E5%88%86%E7%B1%BB-toc" style="margin-left:40px;"><a href="#2.%E9%93%BE%E8%A1%A8%E7%9A%84%E5%88%86%E7%B1%BB" rel="nofollow">2.链表的分类</a></p> 
+<p id="3.%E6%97%A0%E5%A4%B4%E5%8D%95%E5%90%91%E9%9D%9E%E5%BE%AA%E7%8E%AF%E9%93%BE%E8%A1%A8%E7%9A%84%E5%AE%9E%E7%8E%B0-toc" style="margin-left:40px;"><a href="#3.%E6%97%A0%E5%A4%B4%E5%8D%95%E5%90%91%E9%9D%9E%E5%BE%AA%E7%8E%AF%E9%93%BE%E8%A1%A8%E7%9A%84%E5%AE%9E%E7%8E%B0" rel="nofollow">3.无头单向非循环链表的实现</a></p> 
+<p id="3.1.%E5%8D%95%E9%93%BE%E8%A1%A8%E6%89%93%E5%8D%B0%C2%A0-toc" style="margin-left:80px;"><a href="#3.1.%E5%8D%95%E9%93%BE%E8%A1%A8%E6%89%93%E5%8D%B0%C2%A0" rel="nofollow">3.1.单链表打印 </a></p> 
+<p id="3.2.%E5%8D%95%E9%93%BE%E8%A1%A8%E5%B0%BE%E6%8F%92-toc" style="margin-left:80px;"><a href="#3.2.%E5%8D%95%E9%93%BE%E8%A1%A8%E5%B0%BE%E6%8F%92" rel="nofollow">3.2.单链表尾插</a></p> 
+<p id="3.3.%E5%8D%95%E9%93%BE%E8%A1%A8%E5%A4%B4%E6%8F%92-toc" style="margin-left:80px;"><a href="#3.3.%E5%8D%95%E9%93%BE%E8%A1%A8%E5%A4%B4%E6%8F%92" rel="nofollow">3.3.单链表头插</a></p> 
+<p id="3.4.%E5%8D%95%E9%93%BE%E8%A1%A8%E5%B0%BE%E5%88%A0-toc" style="margin-left:80px;"><a href="#3.4.%E5%8D%95%E9%93%BE%E8%A1%A8%E5%B0%BE%E5%88%A0" rel="nofollow">3.4.单链表尾删</a></p> 
+<p id="3.5.%E5%8D%95%E9%93%BE%E8%A1%A8%E5%A4%B4%E5%88%A0-toc" style="margin-left:80px;"><a href="#3.5.%E5%8D%95%E9%93%BE%E8%A1%A8%E5%A4%B4%E5%88%A0" rel="nofollow">3.5.单链表头删</a></p> 
+<p id="3.6.%E5%8D%95%E9%93%BE%E8%A1%A8%E6%9F%A5%E6%89%BE-toc" style="margin-left:80px;"><a href="#3.6.%E5%8D%95%E9%93%BE%E8%A1%A8%E6%9F%A5%E6%89%BE" rel="nofollow">3.6.单链表查找</a></p> 
+<p id="3.7.%E5%8D%95%E9%93%BE%E8%A1%A8%E5%9C%A8pos%E4%BD%8D%E7%BD%AE%E4%B9%8B%E5%92%8C%E6%8F%92%E5%85%A5%E5%80%BC-toc" style="margin-left:80px;"><a href="#3.7.%E5%8D%95%E9%93%BE%E8%A1%A8%E5%9C%A8pos%E4%BD%8D%E7%BD%AE%E4%B9%8B%E5%92%8C%E6%8F%92%E5%85%A5%E5%80%BC" rel="nofollow">3.7.单链表在pos位置之和插入值</a></p> 
+<p id="3.8.%E5%8D%95%E9%93%BE%E8%A1%A8%E5%88%A0%E9%99%A4pos%E4%BD%8D%E7%BD%AE%E4%B9%8B%E5%90%8E%E7%9A%84%E5%80%BC%C2%A0-toc" style="margin-left:80px;"><a href="#3.8.%E5%8D%95%E9%93%BE%E8%A1%A8%E5%88%A0%E9%99%A4pos%E4%BD%8D%E7%BD%AE%E4%B9%8B%E5%90%8E%E7%9A%84%E5%80%BC%C2%A0" rel="nofollow">3.8.单链表删除pos位置之后的值 </a></p> 
+<p id="3.9.%E5%9C%A8pos%E7%9A%84%E5%89%8D%E9%9D%A2%E6%8F%92%E5%85%A5%E5%80%BC-toc" style="margin-left:80px;"><a href="#3.9.%E5%9C%A8pos%E7%9A%84%E5%89%8D%E9%9D%A2%E6%8F%92%E5%85%A5%E5%80%BC" rel="nofollow">3.9.在pos的前面插入值</a></p> 
+<p id="3.10.%E5%88%A0%E9%99%A4pos%E4%BD%8D%E7%BD%AE%E7%9A%84%E5%80%BC-toc" style="margin-left:80px;"><a href="#3.10.%E5%88%A0%E9%99%A4pos%E4%BD%8D%E7%BD%AE%E7%9A%84%E5%80%BC" rel="nofollow">3.10.删除pos位置的值</a></p> 
+<p id="3.11.%E9%94%80%E6%AF%81%E5%8D%95%E9%93%BE%E8%A1%A8-toc" style="margin-left:80px;"><a href="#3.11.%E9%94%80%E6%AF%81%E5%8D%95%E9%93%BE%E8%A1%A8" rel="nofollow">3.11.销毁单链表</a></p> 
+<p id="4.%E5%8D%95%E9%93%BE%E8%A1%A8%E7%9A%84%E5%B0%8F%E5%BA%94%E7%94%A8-toc" style="margin-left:40px;"><a href="#4.%E5%8D%95%E9%93%BE%E8%A1%A8%E7%9A%84%E5%B0%8F%E5%BA%94%E7%94%A8" rel="nofollow">4.单链表的小应用</a></p> 
+<p id="4.1.slist.h-toc" style="margin-left:80px;"><a href="#4.1.slist.h" rel="nofollow">4.1.slist.h</a></p> 
+<p id="4.2.slist.c-toc" style="margin-left:80px;"><a href="#4.2.slist.c" rel="nofollow">4.2.slist.c</a></p> 
+<p id="4.3.test.c-toc" style="margin-left:80px;"><a href="#4.3.test.c" rel="nofollow">4.3.test.c</a></p> 
+<p id="5.ending%C2%A0-toc" style="margin-left:40px;"><a href="#5.ending%C2%A0" rel="nofollow">5.ending </a></p> 
+<p>鼠鼠我上次浅谈了顺序表。但是吧，Any coin has two sides。</p> 
+<p>顺序表有一些缺陷：</p> 
+<blockquote> 
+ <p>1.尾部插入效率还不错。头部或者中间插入删除，需要挪动数据，效率低下。</p> 
+ <p></p> 
+ <p>2.顺序表满了以后只能扩容。扩容是有一定消耗的，扩容一般是存在一定的空间浪费：一次扩得越多，可能浪费越多；一次扩得少，可能需要频繁扩容。</p> 
+</blockquote> 
+<p>当然，顺序表也有它的优势：</p> 
+<blockquote> 
+ <p>得益于它的物理空间连续，顺序表支持随机的下标访问。 </p> 
+</blockquote> 
+<p>So，我们有链表（也是线性表）可以避免顺序表的缺陷，那我们先来看看链表哈！</p> 
+<h3 id="1.%E9%93%BE%E8%A1%A8%E7%9A%84%E6%A6%82%E5%BF%B5%E5%8F%8A%E7%BB%93%E6%9E%84">1.链表的概念及结构</h3> 
+<p>概念：链表是一种物理存储结构上非连续、非顺序的存储结构，数据元素的逻辑顺序是通过链表<br> 中的指针链接次序实现的 。</p> 
+<p>不带头非循环单向链表的逻辑结构如下图：</p> 
+<blockquote> 
+ <p style="text-align:center;"><img alt="" class="left" src="https://images2.imgbox.com/95/6f/PgQMaq51_o.png"><br><br>  </p> 
+</blockquote> 
+<p>链表是由节点（或者结点）构成的。这些个节点一般是动态内存申请得来的，所以每个节点的地址没有关联，是随机的，可能动态申请的时候申请到了连续的空间，更多可能是申请到不连续的空间，也就是说链表的物理结构不一定连续，。既然每个节点的地址是随机的，那我们如何管理链表呢？ </p> 
+<p class="img-center"><img alt="" height="232" src="https://images2.imgbox.com/47/55/HNiFFK0K_o.jpg" width="295"></p> 
+<p>其实也很简单，拿不带头非循环单向链表来说，如上逻辑结构可知，只要节点有俩个数据域即可，一个数据域存放所需存入的值（即有效数据），另一个数据域存放下一个节点的地址（最后一个节点保存空指针）。这样我们就可以通过第一个节点找到第二个节点、第二个节点找到第三个节点……这样就可以管理链表了。</p> 
+<blockquote> 
+ <p>了解了链表的特点，那我们对于数据的增删改等操作，更改节点内存储的地址即可，不必挪动数据。而且节点是一个个动态申请得到的，想要多少就申请多少，自然就避免了扩容有浪费的情况。这样子就很好避免的顺序表的缺陷！</p> 
+</blockquote> 
+<p>画图方便理解：</p> 
+<blockquote> 
+ <p style="text-align:center;"><img alt="" class="left" src="https://images2.imgbox.com/3c/04/gj1YIB3P_o.png"></p> 
+</blockquote> 
+<h3 id="2.%E9%93%BE%E8%A1%A8%E7%9A%84%E5%88%86%E7%B1%BB">2.链表的分类</h3> 
+<p>实际中链表的结构非常多样，以下情况组合起来就有8种链表结构：</p> 
+<p>1.单向或者双向</p> 
+<blockquote> 
+ <p class="img-center"><img alt="" height="148" src="https://images2.imgbox.com/84/c6/NbEWxhwn_o.png" width="516"></p> 
+</blockquote> 
+<p>2.带头（哨兵位）或者不带头</p> 
+<blockquote> 
+ <p class="img-center"><img alt="" height="147" src="https://images2.imgbox.com/cc/71/AnYUuYbR_o.png" width="479"></p> 
+</blockquote> 
+<p>3.循环或者非循环</p> 
+<blockquote> 
+ <p class="img-center"><img alt="" height="290" src="https://images2.imgbox.com/5f/4d/6RMUyTag_o.png" width="688"></p> 
+</blockquote> 
+<blockquote> 
+ <p> 虽然有这么多的链表的结构，但是我们实际中最常用还是两种结构：</p> 
+ <p></p> 
+ <p>1. 无头单向非循环链表：结构简单，一般不会单独用来存数据。实际中更多是作为其他数据结构的子结构，如哈希桶、图的邻接表等等。另外这种结构在笔试面试中出现很多。</p> 
+ <p></p> 
+ <p>2. 带头双向循环链表：结构最复杂，一般用在单独存储数据。实际中使用的链表数据结构，都是带头双向循环链表。另外这个结构虽然结构复杂，但是使用代码实现以后会发现结构会带来很多优势，实现反而简单了。</p> 
+</blockquote> 
+<p><span style="color:#fe2c24;">咱们这篇博客实现的是无头单向非循环链表。 </span></p> 
+<h3 id="3.%E6%97%A0%E5%A4%B4%E5%8D%95%E5%90%91%E9%9D%9E%E5%BE%AA%E7%8E%AF%E9%93%BE%E8%A1%A8%E7%9A%84%E5%AE%9E%E7%8E%B0">3.无头单向非循环链表的实现</h3> 
+<p>具体我们实现这些无头单向非循环链表（以下简称单链表）的增删查改等等功能：</p> 
+<pre><code class="language-cs">typedef int SLTDateType;     //有效数据类型，方便后续维护代码
+
+//定义单链表节点
+typedef struct SListNode
+{
+	SLTDateType data;     //有效数据
+	struct SListNode* next;  //下一个节点的地址
+}SListNode;
+
+// 单链表打印
+void SListPrint  (SListNode * plist);
+
+// 单链表尾插
+void SListPushBack(SListNode** pplist, SLTDateType x);
+
+// 单链表的头插
+void SListPushFront(SListNode** pplist, SLTDateType x);
+
+// 单链表的尾删
+void SListPopBack(SListNode** pplist);
+
+// 单链表头删
+void SListPopFront(SListNode** pplist);
+
+// 单链表查找
+SListNode* SListFind(SListNode* plist, SLTDateType x);
+
+// 单链表在pos位置之后插入值
+void SListInsertAfter(SListNode* pos, SLTDateType x);
+
+// 单链表删除pos位置之后的值
+void SListEraseAfter(SListNode* pos);
+
+// 在pos的前面插入值
+void SLTInsert(SListNode** pphead, SListNode* pos, SLTDateType x);
+
+// 删除pos位置的值
+void SLTErase(SListNode** pphead, SListNode* pos);
+
+//销毁单链表
+void SLTDestroy(SListNode** pphead);</code></pre> 
+<p>好了好了，一个个来实现吧！</p> 
+<h4 id="3.1.%E5%8D%95%E9%93%BE%E8%A1%A8%E6%89%93%E5%8D%B0%C2%A0">3.1.单链表打印 </h4> 
+<pre><code class="language-cs">//单链表打印
+void SListPrint(SListNode* plist)
+{
+		SListNode* cur = plist;
+		while (cur != NULL)
+		{
+			printf("%d-&gt;", cur-&gt;data);
+			cur = cur-&gt;next;
+		}
+		printf("NULL\n");
+}</code></pre> 
+<p>这个打印的实现还是很简单的，我们只要遍历单链表在将每个节点的数据打印出来即可。</p> 
+<h4 id="3.2.%E5%8D%95%E9%93%BE%E8%A1%A8%E5%B0%BE%E6%8F%92">3.2.单链表尾插</h4> 
+<pre><code class="language-cs">//动态申请一个节点
+SListNode* BuySListNode(SLTDateType x)
+{
+	SListNode* newnode = (SListNode*)malloc(sizeof(SListNode));
+	if (newnode == NULL)
+	{
+		perror("malloc fail");
+		exit(-1);
+	}
+	newnode-&gt;data = x;
+	newnode-&gt;next = NULL;
+	return newnode;
+}
+//单链表尾插
+void SListPushBack(SListNode** pplist, SLTDateType x)
+{
+	assert(pplist);
+	if (*pplist == NULL)//单链表为空
+	{
+		*pplist = BuySListNode(x);
+	}
+	else//单链表不为空
+	{
+		SListNode* tail = *pplist;
+		while (tail-&gt;next != NULL)//找尾
+		{
+			tail = tail-&gt;next;
+		}
+		SListNode* newnode = BuySListNode(x);
+		tail-&gt;next = newnode;
+	}
+}</code></pre> 
+<p>这个尾插的实现来说，正常情况下先找到单链表的最后一个节点（找尾），在让最后一个节点存储新申请节点的地址即可，所以要调用动态申请一个节点的函数（BuySListNode），这个函数已经让新申请的节点存储空指针和需要保存的数据了。 但是要区别单链表是否为空（如果不加以区分单链表是否为空的话就会访问空指针），如果为空的话直接让*pplist保存新申请的节点地址即可。</p> 
+<h4 id="3.3.%E5%8D%95%E9%93%BE%E8%A1%A8%E5%A4%B4%E6%8F%92">3.3.单链表头插</h4> 
+<pre><code class="language-cs">//动态申请一个节点
+SListNode* BuySListNode(SLTDateType x)
+{
+	SListNode* newnode = (SListNode*)malloc(sizeof(SListNode));
+	if (newnode == NULL)
+	{
+		perror("malloc fail");
+		exit(-1);
+	}
+	newnode-&gt;data = x;
+	newnode-&gt;next = NULL;
+	return newnode;
+}
+//单链表头插
+void SListPushFront(SListNode** pplist, SLTDateType x)
+{
+	assert(pplist);
+	SListNode* newnode = BuySListNode(x);
+	newnode-&gt;next = *pplist;
+	*pplist = newnode;
+}</code></pre> 
+<p>对于头插的实现，只要让新申请的节点 存储原来*pplist的地址，让*pplist保存新申请的节点的地址即可。</p> 
+<h4 id="3.4.%E5%8D%95%E9%93%BE%E8%A1%A8%E5%B0%BE%E5%88%A0">3.4.单链表尾删</h4> 
+<pre><code class="language-cs">//单链表尾删
+void SListPopBack(SListNode** pplist)
+{
+	assert(pplist);
+	assert(*pplist);
+	SListNode* tail = *pplist;
+	SListNode* fronttail = *pplist;
+	while (tail-&gt;next != NULL)//找尾节点和尾节点前一个节点
+	{
+		fronttail = tail;
+		tail = tail-&gt;next;
+	}
+	if (fronttail-&gt;next == NULL)//一个节点
+	{
+		*pplist = NULL;
+		free(tail);
+		tail = NULL;
+		fronttail = NULL;
+	}
+	else//多个节点
+	{
+		free(tail);
+		tail = NULL;
+		fronttail-&gt;next = NULL;
+	}
+}</code></pre> 
+<p>对于尾删，我们要区分单链表为空、单链表有一个节点和单链表有多个节点的情况。如果单链表为空就不能删除，断言即可。单链表一个节点的话，让*pplist保存空指针，free掉尾节点（也是头节点）。 单链表有多个节点的话，free掉尾节点，让尾节点前一个节点保存空指针即可。（如果不区分一个节点和多个节点的情况，一律按多个节点情况来处理的话，当只有一个节点时，fronttail会成为野指针。）。</p> 
+<h4 id="3.5.%E5%8D%95%E9%93%BE%E8%A1%A8%E5%A4%B4%E5%88%A0">3.5.单链表头删</h4> 
+<pre><code class="language-cs">//单链表头删
+void SListPopFront(SListNode** pplist)
+{
+	assert(pplist);
+	assert(*pplist);
+	SListNode* next = (*pplist)-&gt;next;
+	free(*pplist);
+	*pplist = next;
+}</code></pre> 
+<p>这个简单，只要free掉头节点（free掉之前需要保存头节点下一个节点地址，不然的话就找不到头节点下一个节点了），*pplist保存头节点下一个节点地址即可。 </p> 
+<h4 id="3.6.%E5%8D%95%E9%93%BE%E8%A1%A8%E6%9F%A5%E6%89%BE">3.6.单链表查找</h4> 
+<pre><code class="language-cs">//单链表查找
+SListNode* SListFind(SListNode* plist, SLTDateType x)
+{
+	SListNode* cur = plist;
+	while (cur != NULL)
+	{
+		if (cur-&gt;data == x)
+		{
+			return cur;
+		}
+		cur = cur-&gt;next;
+	}
+	return NULL;
+}</code></pre> 
+<p>这个实现的话，只要遍历单链表找到单链表节点中第一个出现的与x相等的val ，再返回该节点的地址即可，找不到就返回空指针。</p> 
+<h4 id="3.7.%E5%8D%95%E9%93%BE%E8%A1%A8%E5%9C%A8pos%E4%BD%8D%E7%BD%AE%E4%B9%8B%E5%92%8C%E6%8F%92%E5%85%A5%E5%80%BC">3.7.单链表在pos位置之和插入值</h4> 
+<pre><code class="language-cs">//动态申请一个节点
+SListNode* BuySListNode(SLTDateType x)
+{
+	SListNode* newnode = (SListNode*)malloc(sizeof(SListNode));
+	if (newnode == NULL)
+	{
+		perror("malloc fail");
+		exit(-1);
+	}
+	newnode-&gt;data = x;
+	newnode-&gt;next = NULL;
+	return newnode;
+}
+// 单链表在pos位置之后插入值
+void SListInsertAfter(SListNode* pos, SLTDateType x)
+{
+	assert(pos);
+	SListNode* newnode = BuySListNode(x);
+	SListNode* next = pos-&gt;next;
+	pos-&gt;next = newnode;
+	newnode-&gt;next = next;
+}</code></pre> 
+<p>实现这个功能的话，我们需要知道pos的值（这个值是某个节点的地址，可以通过单链表查找获得），然后的话让pos指向的节点存储新申请节点的地址，新申请的节点存储pos指向的节点的下一个节点的地址即可（这个地址记得提前用变量存储下来，如果在改变pos指向的节点存储的地址之前没有存储下来的话，就找不到pos指向节点的下一个节点了）。</p> 
+<h4 id="3.8.%E5%8D%95%E9%93%BE%E8%A1%A8%E5%88%A0%E9%99%A4pos%E4%BD%8D%E7%BD%AE%E4%B9%8B%E5%90%8E%E7%9A%84%E5%80%BC%C2%A0">3.8.单链表删除pos位置之后的值 </h4> 
+<pre><code class="language-cs">// 单链表删除pos位置之后的值
+void SListEraseAfter(SListNode* pos)
+{
+	assert(pos);
+	assert(pos-&gt;next);//防止删pos指向尾节点 
+	SListNode* next = pos-&gt;next-&gt;next;
+	free(pos-&gt;next);
+	pos-&gt;next = next;
+}</code></pre> 
+<p>这里需要注意防止单链表为空和防止pos指向尾节点（尾节点后面为空，不可删），断言即可。这个实现大致就是让pos指向的节点存储pos指向节点的后两个节点的地址，free掉pos指向节点后一个节点即可。</p> 
+<h4 id="3.9.%E5%9C%A8pos%E7%9A%84%E5%89%8D%E9%9D%A2%E6%8F%92%E5%85%A5%E5%80%BC">3.9.在pos的前面插入值</h4> 
+<pre><code class="language-cs">//动态申请一个节点
+SListNode* BuySListNode(SLTDateType x)
+{
+	SListNode* newnode = (SListNode*)malloc(sizeof(SListNode));
+	if (newnode == NULL)
+	{
+		perror("malloc fail");
+		exit(-1);
+	}
+	newnode-&gt;data = x;
+	newnode-&gt;next = NULL;
+	return newnode;
+}
+// 在pos的前面插入值
+void SLTInsert(SListNode** pphead, SListNode* pos, SLTDateType x)
+{
+	assert(pphead);
+	assert((!*pphead &amp;&amp; !pos) || (*pphead &amp;&amp; pos));
+	if (*pphead == pos)
+	{
+		SListPushBack(pphead, x);
+	}
+	else
+	{
+		SListNode* frontpos = *pphead;
+		while (frontpos-&gt;next != pos)//找pos前一个节点
+		{
+			frontpos = frontpos-&gt;next;
+		}
+		SListNode* newnode = BuySListNode(x);
+		SListNode* next = frontpos-&gt;next;
+		frontpos-&gt;next = newnode;
+		newnode-&gt;next = next;
+	}
+}</code></pre> 
+<p>如果单链表为空，直接调用单链表尾插（单链表头插也行）即可。不为空就找到pos指向节点的前一个节点，让pos指向节点的前一个节点存储新申请节点地址，让新申请节点存储pos指向节点的地址即可。 </p> 
+<h4 id="3.10.%E5%88%A0%E9%99%A4pos%E4%BD%8D%E7%BD%AE%E7%9A%84%E5%80%BC">3.10.删除pos位置的值</h4> 
+<pre><code class="language-cs">// 删除pos位置的值
+void SLTErase(SListNode** pphead, SListNode* pos)
+{
+	assert(pphead);
+	assert(*pphead);//没有节点
+	assert(pos);
+	if ((*pphead)-&gt;next == NULL)//一个节点
+	{
+		SListPopFront(pphead);
+	}
+	else
+	{
+		SListNode* frontpos = *pphead;
+		while (frontpos-&gt;next != pos)//找pos前一个节点
+		{
+			frontpos = frontpos-&gt;next;
+		}
+		SListNode* next = pos-&gt;next;
+		free(pos);
+		frontpos-&gt;next = next;
+	}
+}</code></pre> 
+<p>注意断言，防止单链表为空，为空不能删除。如果单链表有一个节点，直接调用单链表头删（单链表尾删也行）即可。如果有单链表有多个节点，大致的话让pos指向的节点前一个节点存储pos指向节点后一个节点地址，free掉pos指向节点即可。</p> 
+<h4 id="3.11.%E9%94%80%E6%AF%81%E5%8D%95%E9%93%BE%E8%A1%A8">3.11.销毁单链表</h4> 
+<pre><code class="language-cs">//销毁单链表
+void SLTDestroy(SListNode** pphead)
+{
+	assert(pphead);
+	SListNode* cur = *pphead;
+	while (cur)
+	{
+		SListNode* next = cur-&gt;next;
+		free(cur);
+		cur = next;
+	}
+	*pphead = NULL;
+}</code></pre> 
+<p>如果不再使用单链表的话，可以销毁单链表。虽然单链表是动态申请的，不手动销毁的话结束程序也会自动销毁 ，但手动销毁是一个好习惯。这个实现也简单，遍历单链表一一销毁节点即可。</p> 
+<h3 id="4.%E5%8D%95%E9%93%BE%E8%A1%A8%E7%9A%84%E5%B0%8F%E5%BA%94%E7%94%A8">4.单链表的小应用</h3> 
+<p>对于上面的单链表增删查改等等实现来说，鼠鼠我讲解的只是大概思想，我们只要懂得这些思想再注意一些细节就可完成上面代码的实现。单链表的实现不是唯一的，上面代码只是一种参考，最重要要懂得单链表的含义和增删查改等等思想。</p> 
+<p>鼠鼠我还是一样，写了一个工程来验证单链表增删查改等等功能的实现，有兴趣的读者老爷可以将以下三个文件（上面的实现代码都在slist.c里面了）放到一个工程玩玩！</p> 
+<h4 id="4.1.slist.h">4.1.slist.h</h4> 
+<pre><code class="language-cs">#pragma once
+#include&lt;stdio.h&gt;
+#include&lt;assert.h&gt;
+#include&lt;stdlib.h&gt;
+
+typedef int SLTDateType;
+
+
+typedef struct SListNode
+{
+	SLTDateType data;
+	struct SListNode* next;
+}SListNode;
+
+
+// 单链表打印
+void SListPrint  (SListNode * plist);
+
+
+// 单链表尾插
+void SListPushBack(SListNode** pplist, SLTDateType x);
+
+
+// 单链表的头插
+void SListPushFront(SListNode** pplist, SLTDateType x);
+
+
+// 单链表的尾删
+void SListPopBack(SListNode** pplist);
+
+
+// 单链表头删
+void SListPopFront(SListNode** pplist);
+
+
+// 单链表查找
+SListNode* SListFind(SListNode* plist, SLTDateType x);
+
+
+// 单链表在pos位置之后插入值
+void SListInsertAfter(SListNode* pos, SLTDateType x);
+
+
+// 单链表删除pos位置之后的值
+void SListEraseAfter(SListNode* pos);
+
+
+// 在pos的前面插入值
+void SLTInsert(SListNode** pphead, SListNode* pos, SLTDateType x);
+
+
+// 删除pos位置的值
+void SLTErase(SListNode** pphead, SListNode* pos);
+
+
+//销毁单链表
+void SLTDestroy(SListNode** pphead);</code></pre> 
+<h4 id="4.2.slist.c">4.2.slist.c</h4> 
+<pre><code class="language-cs">#define _CRT_SECURE_NO_WARNINGS
+#include"slist.h"
+
+
+//动态申请一个节点
+SListNode* BuySListNode(SLTDateType x)
+{
+	SListNode* newnode = (SListNode*)malloc(sizeof(SListNode));
+	if (newnode == NULL)
+	{
+		perror("malloc fail");
+		exit(-1);
+	}
+	newnode-&gt;data = x;
+	newnode-&gt;next = NULL;
+	return newnode;
+}
+
+//单链表尾插
+void SListPushBack(SListNode** pplist, SLTDateType x)
+{
+	assert(pplist);
+	if (*pplist == NULL)//单链表为空
+	{
+		*pplist = BuySListNode(x);
+	}
+	else//单链表不为空
+	{
+		SListNode* tail = *pplist;
+		while (tail-&gt;next != NULL)//找尾
+		{
+			tail = tail-&gt;next;
+		}
+		SListNode* newnode = BuySListNode(x);
+		tail-&gt;next = newnode;
+	}
+}
+
+//单链表打印
+void SListPrint(SListNode* plist)
+{
+		SListNode* cur = plist;
+		while (cur != NULL)
+		{
+			printf("%d-&gt;", cur-&gt;data);
+			cur = cur-&gt;next;
+		}
+		printf("NULL\n");
+}
+
+//单链表头插
+void SListPushFront(SListNode** pplist, SLTDateType x)
+{
+	assert(pplist);
+	SListNode* newnode = BuySListNode(x);
+	newnode-&gt;next = *pplist;
+	*pplist = newnode;
+}
+
+//单链表尾删
+void SListPopBack(SListNode** pplist)
+{
+	assert(pplist);
+	assert(*pplist);
+	SListNode* tail = *pplist;
+	SListNode* fronttail = *pplist;
+	while (tail-&gt;next != NULL)//找尾节点和尾节点前一个节点
+	{
+		fronttail = tail;
+		tail = tail-&gt;next;
+	}
+	if (fronttail-&gt;next == NULL)//一个节点
+	{
+		*pplist = NULL;
+		free(tail);
+		tail = NULL;
+		fronttail = NULL;
+	}
+	else//多个节点
+	{
+		free(tail);
+		tail = NULL;
+		fronttail-&gt;next = NULL;
+	}
+}
+
+//单链表头删
+void SListPopFront(SListNode** pplist)
+{
+	assert(pplist);
+	assert(*pplist);
+	SListNode* next = (*pplist)-&gt;next;
+	free(*pplist);
+	*pplist = next;
+}
+
+//单链表查找
+SListNode* SListFind(SListNode* plist, SLTDateType x)
+{
+	SListNode* cur = plist;
+	while (cur != NULL)
+	{
+		if (cur-&gt;data == x)
+		{
+			return cur;
+		}
+		cur = cur-&gt;next;
+	}
+	return NULL;
+}
+
+// 单链表在pos位置之后插入值
+void SListInsertAfter(SListNode* pos, SLTDateType x)
+{
+	assert(pos);
+	SListNode* newnode = BuySListNode(x);
+	SListNode* next = pos-&gt;next;
+	pos-&gt;next = newnode;
+	newnode-&gt;next = next;
+}
+
+// 单链表删除pos位置之后的值
+void SListEraseAfter(SListNode* pos)
+{
+	assert(pos);
+	assert(pos-&gt;next);//防止删pos指向尾节点 
+	SListNode* next = pos-&gt;next-&gt;next;
+	free(pos-&gt;next);
+	pos-&gt;next = next;
+}
+
+// 在pos的前面插入值
+void SLTInsert(SListNode** pphead, SListNode* pos, SLTDateType x)
+{
+	assert(pphead);
+	assert((!*pphead &amp;&amp; !pos) || (*pphead &amp;&amp; pos));
+	if (*pphead == pos)
+	{
+		SListPushBack(pphead, x);
+	}
+	else
+	{
+		SListNode* frontpos = *pphead;
+		while (frontpos-&gt;next != pos)//找pos前一个节点
+		{
+			frontpos = frontpos-&gt;next;
+		}
+		SListNode* newnode = BuySListNode(x);
+		SListNode* next = frontpos-&gt;next;
+		frontpos-&gt;next = newnode;
+		newnode-&gt;next = next;
+	}
+}
+
+// 删除pos位置的值
+void SLTErase(SListNode** pphead, SListNode* pos)
+{
+	assert(pphead);
+	assert(*pphead);//没有节点
+	assert(pos);
+	if ((*pphead)-&gt;next == NULL)//一个节点
+	{
+		SListPopFront(pphead);
+	}
+	else
+	{
+		SListNode* frontpos = *pphead;
+		while (frontpos-&gt;next != pos)//找pos前一个节点
+		{
+			frontpos = frontpos-&gt;next;
+		}
+		SListNode* next = pos-&gt;next;
+		free(pos);
+		frontpos-&gt;next = next;
+	}
+}
+
+//销毁单链表
+void SLTDestroy(SListNode** pphead)
+{
+	assert(pphead);
+	SListNode* cur = *pphead;
+	while (cur)
+	{
+		SListNode* next = cur-&gt;next;
+		free(cur);
+		cur = next;
+	}
+	*pphead = NULL;
+}</code></pre> 
+<h4 id="4.3.test.c">4.3.test.c</h4> 
+<pre><code class="language-cs">#define _CRT_SECURE_NO_WARNINGS
+#include"slist.h"
+void menu()
+{
+	printf("**********************\n");
+	printf("********0.退出********\n");
+	printf("****1.头插  2.头删****\n");
+	printf("****3.尾插  4.尾删****\n");
+	printf("****5.查找  6.打印****\n");
+	printf("*7.在pos位置之后插入值\n");
+	printf("*8.删除pos位置之后的值\n");
+	printf("*9.在pos的前面插入值**\n");
+	printf("*10.删除pos位置的值***\n");
+	printf("**********************\n");
+}
+int main()
+{
+	SListNode* pplist = NULL;
+	int input;
+	do
+	{
+		menu();
+		printf("请输入你想操作的数字：-&gt;");
+		scanf("%d", &amp;input);
+		if (input == 0)
+		{
+			SLTDestroy(&amp;pplist);
+			printf("\n");
+			break;
+		}
+		else if (input == 1)
+		{
+			int number = 0;
+			printf("请输入你要头插数据的个数：-&gt;");
+			scanf("%d", &amp;number);
+			printf("请输入你要头插的数据：-&gt;");
+			while (number--)
+			{
+				SLTDateType x = 0;
+				scanf("%d", &amp;x);
+				SListPushFront(&amp;pplist, x);
+			}
+			printf("\n");
+		}
+		else if (input == 2)
+		{
+			SListPopFront(&amp;pplist);
+			printf("\n");
+		}
+		else if (input == 3)
+		{
+			int  number = 0;
+			printf("请输入你要尾插数据的个数：-&gt;");
+			scanf("%d", &amp;number);
+			printf("请输入你要尾插的数据：-&gt;");
+			int i = 0;
+			for (i = 0; i &lt; number; i++)
+			{
+				SLTDateType x = 0;
+				scanf("%d", &amp;x);
+				SListPushBack(&amp;pplist, x);
+			}
+			printf("\n");
+		}
+		else if (input == 4)
+		{
+			SListPopBack(&amp;pplist);
+			printf("\n");
+		}
+		else if (input == 5)
+		{
+			SLTDateType x = 0;
+			printf("请输入你要查找的值：-&gt;");
+			scanf("%d", &amp;x);
+			SListNode* p = SListFind(pplist, x);
+			if (p != NULL)
+			{
+				printf("你要查找的值地址是%p\n", p);
+			}
+			else
+			{
+				printf("找不到！\n");
+			}
+			printf("\n");
+		}
+		else if (input == 6)
+		{
+			SListPrint(pplist);
+			printf("\n");
+		}
+		else if (input == 7)
+		{
+			SLTDateType x = 0,pos = 0;
+			printf("请分别输入你要插入的值及pos指向的值：-&gt;");
+			scanf("%d %d", &amp;x, &amp;pos);
+			SListInsertAfter( SListFind(pplist,pos), x);
+			printf("\n");
+		}
+		else if (input == 8)
+		{
+			SLTDateType pos = 0;
+			printf("请输入pos指向的值：-&gt;");
+			scanf("%d", &amp;pos);
+			SListEraseAfter(SListFind(pplist, pos));
+			printf("\n");
+		}
+		else if (input == 9)
+		{
+			SLTDateType x = 0, pos = 0;
+			printf("请分别输入你要插入的值及pos指向的值：-&gt;");
+			scanf("%d %d", &amp;x, &amp;pos);
+			SLTInsert(&amp;pplist, SListFind(pplist, pos), x);
+			printf("\n");
+		}
+		else if (input == 10)
+		{
+			SLTDateType pos = 0;
+			printf("请输入pos指向的值：-&gt;");
+			scanf("%d", &amp;pos);
+			SLTErase(&amp;pplist, SListFind(pplist, pos));
+			printf("\n");
+		}
+		else
+		{
+			printf("输入错误，请重新输入：-&gt;");
+		}
+	} while (input);
+	return 0;
+}</code></pre> 
+<h3 id="5.ending%C2%A0">5.ending </h3> 
+<p>鼠鼠我呀不怎么会写博客，读者老爷看到这里如果觉得不好就多多包涵，看看图一乐也不是不行。当然如有不足，恳请斧正哈！</p> 
+<p class="img-center"><img alt="" src="https://images2.imgbox.com/ed/aa/XwVRn0cH_o.png"></p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/b073df0b858268266643bbcd3f2057b4/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">ES6语法（七）Promise</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/cffdf1a98077b597a59b69857a3a69a2/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">【零基础C语言】指针解析3</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

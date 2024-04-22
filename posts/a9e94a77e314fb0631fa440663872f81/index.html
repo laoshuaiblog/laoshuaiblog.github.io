@@ -1,0 +1,933 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>C&#43;&#43; list详解及模拟实现 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/a9e94a77e314fb0631fa440663872f81/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="C&#43;&#43; list详解及模拟实现">
+  <meta property="og:description" content="目录
+本节目标
+1. list的介绍及使用
+1.2 list的使用
+2.list的模拟实现 1.对list进行初步的实现
+2.头插和任意位置的插入
+3.pos节点的删除，头删，尾删
+4.销毁list和析构函数
+5.const迭代器
+6.拷贝构造和赋值操作
+3.完整代码 本节目标 1. list的介绍及使用
+2. list的深度剖析及模拟实现
+3. list与vector的对比
+1. list的介绍及使用 1. list是可以在常数范围内在任意位置进行插入和删除的序列式容器，并且该容器可以前后双向迭代。
+2. list的底层是双向链表结构，双向链表中每个元素存储在互不相关的独立节点中，在节点中通过指针指向其前一个元素和后一个元素。
+3. list与forward_list非常相似：最主要的不同在于forward_list是单链表，只能朝前迭代，已让其更简单高效。
+4. 与其他的序列式容器相比(array，vector，deque)，list通常在任意位置进行插入、移除元素的执行效率更好。
+5. 与其他序列式容器相比，list和forward_list最大的缺陷是不支持任意位置的随机访问，比如：要访问list的第6个元素，必须从已知的位置(比如头部或者尾部)迭代到该位置，在这段位置上迭代需要线性的时间开销；list还需要一些额外的空间，以保存每个节点的相关联信息(对于存储类型较小元素的大list来说这可能是一个重要的因素)
+1.2 list的使用 list中的接口比较多，此处类似，只需要掌握如何正确的使用，然后再去深入研究背后的原理，已达到可扩展的能力。以下为list中一些常见的重要接口。
+1.list的构造
+构造函数（ (constructor)）接口说明list (size_type n, const value_type&amp;amp; val = value_type())构造的list中包含n个值为val的元素list()构造空的listlist (const list&amp;amp; x)拷贝构造函数list (InputIterator first, InputIterator last)用[first, last)区间中的元素构造list 代码演示：
+void TestList1() { list&amp;lt;int&amp;gt; l1; // 构造空的l1 list&amp;lt;int&amp;gt; l2(4, 100); // l2中放4个值为100的元素 list&amp;lt;int&amp;gt; l3(l2.begin(), l2.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2024-03-21T15:12:37+08:00">
+    <meta property="article:modified_time" content="2024-03-21T15:12:37+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">C&#43;&#43; list详解及模拟实现</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <p id="main-toc"><strong>目录</strong></p> 
+<p id="%E6%9C%AC%E8%8A%82%E7%9B%AE%E6%A0%87-toc" style="margin-left:0px;"><a href="#%E6%9C%AC%E8%8A%82%E7%9B%AE%E6%A0%87" rel="nofollow">本节目标</a></p> 
+<p id="%C2%A01.%20list%E7%9A%84%E4%BB%8B%E7%BB%8D%E5%8F%8A%E4%BD%BF%E7%94%A8-toc" style="margin-left:0px;"><a href="#%C2%A01.%20list%E7%9A%84%E4%BB%8B%E7%BB%8D%E5%8F%8A%E4%BD%BF%E7%94%A8" rel="nofollow"> 1. list的介绍及使用</a></p> 
+<p id="1.2%20list%E7%9A%84%E4%BD%BF%E7%94%A8-toc" style="margin-left:40px;"><a href="#1.2%20list%E7%9A%84%E4%BD%BF%E7%94%A8" rel="nofollow">1.2 list的使用</a></p> 
+<p id="2.list%E7%9A%84%E6%A8%A1%E6%8B%9F%E5%AE%9E%E7%8E%B0%C2%A0-toc" style="margin-left:0px;"><a href="#2.list%E7%9A%84%E6%A8%A1%E6%8B%9F%E5%AE%9E%E7%8E%B0%C2%A0" rel="nofollow">2.list的模拟实现 </a></p> 
+<p id="1.%E5%AF%B9list%E8%BF%9B%E8%A1%8C%E5%88%9D%E6%AD%A5%E7%9A%84%E5%AE%9E%E7%8E%B0-toc" style="margin-left:40px;"><a href="#1.%E5%AF%B9list%E8%BF%9B%E8%A1%8C%E5%88%9D%E6%AD%A5%E7%9A%84%E5%AE%9E%E7%8E%B0" rel="nofollow">1.对list进行初步的实现</a></p> 
+<p id="2.%E5%A4%B4%E6%8F%92%E5%92%8C%E4%BB%BB%E6%84%8F%E4%BD%8D%E7%BD%AE%E7%9A%84%E6%8F%92%E5%85%A5-toc" style="margin-left:40px;"><a href="#2.%E5%A4%B4%E6%8F%92%E5%92%8C%E4%BB%BB%E6%84%8F%E4%BD%8D%E7%BD%AE%E7%9A%84%E6%8F%92%E5%85%A5" rel="nofollow">2.头插和任意位置的插入</a></p> 
+<p id="3.pos%E8%8A%82%E7%82%B9%E7%9A%84%E5%88%A0%E9%99%A4%EF%BC%8C%E5%A4%B4%E5%88%A0%EF%BC%8C%E5%B0%BE%E5%88%A0-toc" style="margin-left:40px;"><a href="#3.pos%E8%8A%82%E7%82%B9%E7%9A%84%E5%88%A0%E9%99%A4%EF%BC%8C%E5%A4%B4%E5%88%A0%EF%BC%8C%E5%B0%BE%E5%88%A0" rel="nofollow">3.pos节点的删除，头删，尾删</a></p> 
+<p id="4.%E9%94%80%E6%AF%81list%E5%92%8C%E6%9E%90%E6%9E%84%E5%87%BD%E6%95%B0-toc" style="margin-left:40px;"><a href="#4.%E9%94%80%E6%AF%81list%E5%92%8C%E6%9E%90%E6%9E%84%E5%87%BD%E6%95%B0" rel="nofollow">4.销毁list和析构函数</a></p> 
+<p id="5.const%E8%BF%AD%E4%BB%A3%E5%99%A8-toc" style="margin-left:40px;"><a href="#5.const%E8%BF%AD%E4%BB%A3%E5%99%A8" rel="nofollow">5.const迭代器</a></p> 
+<p id="6.%E6%8B%B7%E8%B4%9D%E6%9E%84%E9%80%A0%E5%92%8C%E8%B5%8B%E5%80%BC%E6%93%8D%E4%BD%9C-toc" style="margin-left:40px;"><a href="#6.%E6%8B%B7%E8%B4%9D%E6%9E%84%E9%80%A0%E5%92%8C%E8%B5%8B%E5%80%BC%E6%93%8D%E4%BD%9C" rel="nofollow">6.拷贝构造和赋值操作</a></p> 
+<p id="3.%E5%AE%8C%E6%95%B4%E4%BB%A3%E7%A0%81%C2%A0-toc" style="margin-left:0px;"><a href="#3.%E5%AE%8C%E6%95%B4%E4%BB%A3%E7%A0%81%C2%A0" rel="nofollow">3.完整代码 </a></p> 
+<hr id="hr-toc"> 
+<h2 style="background-color:transparent;">本节目标</h2> 
+<blockquote> 
+ <p>1. list的介绍及使用<br> 2. list的深度剖析及模拟实现<br> 3. list与vector的对比</p> 
+</blockquote> 
+<hr> 
+<h2 id="%C2%A01.%20list%E7%9A%84%E4%BB%8B%E7%BB%8D%E5%8F%8A%E4%BD%BF%E7%94%A8"> 1. list的介绍及使用</h2> 
+<blockquote> 
+ <p>1. list是可以在常数范围内在任意位置进行插入和删除的序列式容器，并且该容器可以前后双向迭代。<br> 2. list的底层是双向链表结构，双向链表中每个元素存储在互不相关的独立节点中，在节点中通过指针指向其前一个元素和后一个元素。<br> 3. list与forward_list非常相似：最主要的不同在于forward_list是单链表，只能朝前迭代，已让其更简单高效。<br> 4. 与其他的序列式容器相比(array，vector，deque)，list通常在任意位置进行插入、移除元素的执行效率更好。<br> 5. 与其他序列式容器相比，list和forward_list最大的缺陷是不支持任意位置的随机访问，比如：要访问list的第6个元素，必须从已知的位置(比如头部或者尾部)迭代到该位置，在这段位置上迭代需要线性的时间开销；list还需要一些额外的空间，以保存每个节点的相关联信息(对于存储类型较小元素的大list来说这可能是一个重要的因素)<br><img alt="" height="474" src="https://images2.imgbox.com/c2/ca/Dsh7IGDW_o.png" width="675"></p> 
+</blockquote> 
+<h3></h3> 
+<hr> 
+<h3 id="1.2%20list%E7%9A%84%E4%BD%BF%E7%94%A8" style="background-color:transparent;">1.2 list的使用</h3> 
+<blockquote> 
+ <p>list中的接口比较多，此处类似，只需要掌握如何正确的使用，然后再去深入研究背后的原理，已达到可扩展的能力。以下为list中一些<strong>常见的重要接口。</strong><br><br>  1.list的构造</p> 
+ <table><tbody><tr><td>构造函数（ (constructor)）</td><td>接口说明</td></tr><tr><td>list (size_type n, const value_type&amp; val = value_type())</td><td>构造的list中包含n个值为val的元素</td></tr><tr><td>list()</td><td>构造空的list</td></tr><tr><td>list (const list&amp; x)</td><td>拷贝构造函数</td></tr><tr><td>list (InputIterator first, InputIterator last)</td><td>用[first, last)区间中的元素构造list</td></tr></tbody></table> 
+ <p><img alt="" height="312" src="https://images2.imgbox.com/48/d5/I45PWQRn_o.png" width="1068"></p> 
+ <p>代码演示：</p> 
+ <pre><code class="language-cpp">void TestList1()
+{
+    list&lt;int&gt; l1;                         // 构造空的l1
+    list&lt;int&gt; l2(4, 100);                 // l2中放4个值为100的元素
+    list&lt;int&gt; l3(l2.begin(), l2.end());  // 用l2的[begin(), end()）左闭右开的区间构造l3
+    list&lt;int&gt; l4(l3);                    // 用l3拷贝构造l4
+
+    // 以数组为迭代器区间构造l5
+    int array[] = { 16,2,77,29 };
+    list&lt;int&gt; l5(array, array + sizeof(array) / sizeof(int));
+
+    // 列表格式初始化C++11
+    list&lt;int&gt; l6{ 1, 2, 3, 4, 5 };
+
+    // 用迭代器方式打印l5中的元素
+    list&lt;int&gt;::iterator it = l5.begin();
+    while (it != l5.end())
+    {
+        cout &lt;&lt; *it &lt;&lt; " ";
+        ++it;
+    }
+    cout &lt;&lt; endl;
+
+    // C++11范围for的方式遍历
+    for (auto&amp; e : l5)
+        cout &lt;&lt; e &lt;&lt; " ";
+
+    cout &lt;&lt; endl;
+}</code></pre> 
+ <p><img alt="" height="104" src="https://images2.imgbox.com/d9/f5/MIzBfpn7_o.png" width="543"></p> 
+ <hr> 
+ <p><strong>2.list iterator的使用</strong></p> 
+ <table><tbody><tr><td>函数声明</td><td>接口说明</td></tr><tr><td>begin +<br> end</td><td>返回第一个元素的迭代器+返回最后一个元素下一个位置的迭代器</td></tr><tr><td>rbegin +<br> rend</td><td>返回第一个元素的reverse_iterator,即end位置，返回最后一个元素下一个位置的<br> reverse_iterator,即begin位置</td></tr></tbody></table> 
+ <p><strong>【注意】<br> 1. begin与end为正向迭代器，对迭代器执行++操作，迭代器向后移动<br> 2. rbegin(end)与rend(begin)为反向迭代器，对迭代器执行++操作，迭代器向前移动</strong><br> 代码演示：</p> 
+ <pre><code class="language-cpp">// list迭代器的使用
+// 注意：遍历链表只能用迭代器和范围for
+void PrintList(const list&lt;int&gt;&amp; l)
+{
+    // 注意这里调用的是list的 begin() const，返回list的const_iterator对象
+    for (list&lt;int&gt;::const_iterator it = l.begin(); it != l.end(); ++it)
+    {
+        cout &lt;&lt; *it &lt;&lt; " ";
+        // *it = 10; 编译不通过
+    }
+
+    cout &lt;&lt; endl;
+}</code></pre> 
+ <pre><code class="language-cpp">void TestList2()
+{
+    int array[] = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 0 };
+    list&lt;int&gt; l(array, array + sizeof(array) / sizeof(array[0]));
+    // 使用正向迭代器正向list中的元素
+    // list&lt;int&gt;::iterator it = l.begin();   // C++98中语法
+    auto it = l.begin();                     // C++11之后推荐写法
+    while (it != l.end())
+    {
+        cout &lt;&lt; *it &lt;&lt; " ";
+        ++it;
+    }
+    cout &lt;&lt; endl;
+
+    // 使用反向迭代器逆向打印list中的元素
+    // list&lt;int&gt;::reverse_iterator rit = l.rbegin();
+    auto rit = l.rbegin();
+    while (rit != l.rend())
+    {
+        cout &lt;&lt; *rit &lt;&lt; " ";
+        ++rit;
+    }
+    cout &lt;&lt; endl;
+}</code></pre> 
+ <img alt="" height="89" src="https://images2.imgbox.com/0c/3b/76oSHkSV_o.png" width="637"> 
+ <hr> 
+ <p><strong>3.list capacity</strong></p> 
+ <table><tbody><tr><td>函数声明</td><td>接口说明</td></tr><tr><td>empty</td><td>检测list是否为空，是返回true，否则返回false</td></tr><tr><td>size</td><td>返回list中有效节点的个数</td></tr></tbody></table> 
+ <hr> 
+ <p><strong>4.list element access</strong></p> 
+ <table><tbody><tr><td>函数声明</td><td>接口说明</td></tr><tr><td>front</td><td>返回list的第一个节点中值的引用</td></tr><tr><td>back</td><td>返回list的最后一个节点中值的引用</td></tr></tbody></table> 
+ <p>代码演示：</p> 
+ <pre><code class="language-cpp">void TestList3()
+{
+    int array[] = { 1, 2, 3 };
+    list&lt;int&gt; L(array, array + sizeof(array) / sizeof(array[0]));
+
+    // 在list的尾部插入4，头部插入0
+    L.push_back(4);
+    L.push_front(0);
+    PrintList(L);
+
+    // 删除list尾部节点和头部节点
+    L.pop_back();
+    L.pop_front();
+    PrintList(L);
+}
+</code></pre> 
+ <p><img alt="" height="105" src="https://images2.imgbox.com/2d/97/1nFQsPOn_o.png" width="670"></p> 
+ <hr> 
+ <p><strong>5.list modifiers</strong></p> 
+ <table><tbody><tr><td>函数声明</td><td>接口说明</td></tr><tr><td>push_front</td><td>在list首元素前插入值为val的元素</td></tr><tr><td>pop_front</td><td>删除list中第一个元素</td></tr><tr><td>push_back</td><td>在list尾部插入值为val的元素</td></tr><tr><td>pop_back</td><td>删除list中最后一个元素</td></tr><tr><td>insert</td><td>在list position 位置中插入值为val的元素</td></tr><tr><td>erase</td><td>删除list position位置的元素</td></tr><tr><td>swap</td><td>交换两个list中的元素</td></tr><tr><td>clear</td><td>清空list中的有效元素</td></tr></tbody></table> 
+ <p>代码演示：</p> 
+ <pre><code class="language-cpp">// insert /erase 
+void TestList4()
+{
+    int array1[] = { 1, 2, 3 };
+    list&lt;int&gt; L(array1, array1 + sizeof(array1) / sizeof(array1[0]));
+
+    // 获取链表中第二个节点
+    auto pos = ++L.begin();
+    cout &lt;&lt; *pos &lt;&lt; endl;
+
+    // 在pos前插入值为4的元素
+    L.insert(pos, 4);
+    PrintList(L);
+
+    // 在pos前插入5个值为5的元素
+    L.insert(pos, 5, 5);
+    PrintList(L);
+
+    // 在pos前插入[v.begin(), v.end)区间中的元素
+    vector&lt;int&gt; v{ 7, 8, 9 };
+    L.insert(pos, v.begin(), v.end());
+    PrintList(L);
+
+    // 删除pos位置上的元素
+    L.erase(pos);
+    PrintList(L);
+
+    // 删除list中[begin, end)区间中的元素，即删除list中的所有元素
+    L.erase(L.begin(), L.end());
+    PrintList(L);
+}
+</code></pre> 
+ <p><img alt="" height="152" src="https://images2.imgbox.com/38/05/wL4kzM1E_o.png" width="735"></p> 
+ <p></p> 
+ <pre><code class="language-cpp">// resize/swap/clear
+void TestList5()
+{
+    // 用数组来构造list
+    int array1[] = { 1, 2, 3 };
+    list&lt;int&gt; l1(array1, array1 + sizeof(array1) / sizeof(array1[0]));
+    PrintList(l1);
+
+    // 交换l1和l2中的元素
+    list&lt;int&gt; l2;
+    l1.swap(l2);
+    PrintList(l1);
+    PrintList(l2);
+
+    // 将l2中的元素清空
+    l2.clear();
+    cout &lt;&lt; l2.size() &lt;&lt; endl;
+}</code></pre> 
+ <p><img alt="" height="127" src="https://images2.imgbox.com/3b/f9/E1VkL2vM_o.png" width="749"></p> 
+ <hr> 
+ <p><strong>1.2.6 list的迭代器失效</strong><br> 前面说过，此处大家可将迭代器暂时理解成类似于指针，<strong>迭代器失效即迭代器所指向的节点的无效，即该节点被删除了。因为list的底层结构为带头结点的双向循环链表，因此在list中进行插入时是不会导致list的迭代器失效的，只有在删除时才会失效，并且失效的只是指向被删除节点的迭代器，其他迭代器不会受到影响。</strong></p> 
+ <pre><code class="language-cpp">void TestListIterator1()
+{
+	int array[] = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 0 };
+	list&lt;int&gt; l(array, array + sizeof(array) / sizeof(array[0]));
+	auto it = l.begin();
+	while (it != l.end())
+	{
+		// erase()函数执行后，it所指向的节点已被删除，因此it无效，在下一次使用it时，必须先给其赋值
+			l.erase(it);
+		++it;
+	}
+}</code></pre> 
+ <p><br><img alt="" height="83" src="https://images2.imgbox.com/a4/67/X2lAemrI_o.png" width="616"></p> 
+ <p>下面是修正的代码：</p> 
+ <pre><code class="language-cpp">// 改正
+void TestListIterator()
+{
+	int array[] = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 0 };
+	list&lt;int&gt; l(array, array + sizeof(array) / sizeof(array[0]));
+	auto it = l.begin();
+	while (it != l.end())
+	{
+		l.erase(it++); // it = l.erase(it);
+	}
+}</code></pre> 
+ <p></p> 
+</blockquote> 
+<hr> 
+<h2 id="2.list%E7%9A%84%E6%A8%A1%E6%8B%9F%E5%AE%9E%E7%8E%B0%C2%A0">2.list的模拟实现 </h2> 
+<blockquote> 
+ <h3 id="1.%E5%AF%B9list%E8%BF%9B%E8%A1%8C%E5%88%9D%E6%AD%A5%E7%9A%84%E5%AE%9E%E7%8E%B0"><strong>1.对list进行初步的实现</strong></h3> 
+ <p></p> 
+ <pre><code class="language-cpp">namespace my_list
+{
+	//list节点的结构
+	template&lt;class T&gt;
+	struct ListNode
+	{
+		ListNode&lt;T&gt;* _next;
+		ListNode&lt;T&gt;* _prev;
+		T _data;
+		//构造走列表 
+		ListNode(const T&amp; x = T())
+			:_next(nullptr)
+			, _prev(nullptr)
+			, _data(x)
+		{}
+	};
+	
+	template&lt;class T&gt;
+	struct __list_iterator
+	{
+		typedef ListNode&lt;T&gt; Node;
+		typedef __list_iterator&lt;T&gt; self;
+		Node* _node;
+		//构造迭代器
+		__list_iterator(Node* x)
+			:_node(x)
+		{}
+
+		// ++it
+		self&amp; operator++()
+		{
+			_node = _node-&gt;_next;
+			return *this;
+		}
+		self operator++(int)
+		{
+			
+			self tmp(*this);
+
+			_node = _node-&gt;_next;
+
+			return tmp;
+		}
+
+		self&amp; operator--()
+		{
+			_node = _node-&gt;_prev;
+			return *this;
+		}
+
+
+		T&amp; operator*()
+		{
+			return _node-&gt;_data;
+		}
+		T&amp; operator*()
+		{
+			return _node-&gt;_data;
+		}
+		bool operator!=(const self&amp; s)
+		{
+			return _node != s._node;
+		}
+	};
+
+	//对list成员函数进行模拟实现
+	template&lt;class T&gt;
+	class list
+	{
+		typedef ListNode&lt;T&gt; Node;
+	public:
+		typedef __list_iterator&lt;T&gt; iterator;
+		list()
+		{
+			_head = new Node;
+			_head-&gt;_next = _head;
+			_head-&gt;_prev = _head;
+		}
+		iterator begin()
+		{
+			//return iterator(_head-&gt;_next);
+			return _head-&gt;_next;
+		}
+
+		iterator end()
+		{
+			return _head;
+		}
+		void push_back(const T&amp; x)
+		{
+			Node* newnode = new Node(x);
+			Node* tail = _head-&gt;_prev;
+
+			tail-&gt;_next = newnode;
+			newnode-&gt;_prev = tail;
+			newnode-&gt;_next = _head;
+			_head-&gt;_prev = newnode;
+		}
+	private:
+		Node* _head;
+	};
+
+}</code></pre> 
+ <p>这段代码是对C++中的双向链表list的简单模拟实现。以下是对其实现逻辑的解释：</p> 
+ <p>1. 在namespace my_list中定义了ListNode结构体，用于表示链表节点，包含指向前一个节点和后一个节点的指针，以及存储数据的成员变量_data。</p> 
+ <p></p> 
+ <p>2. 定义了__list_iterator结构体，<strong>用于封装list的迭代器</strong>。该结构体包含一个指向ListNode的指针_node，并重载了operator++/--（前置++（返回之后的值）和后置++（返回之前的值），后置++调用了拷贝构造）、operator*和operator!=等操作。</p> 
+ <p><strong>(Node*没办法重载，只有自定义类型才支持重载，我们只能进行封装）</strong></p> 
+ <p></p> 
+ <p>3. 定义了list类，包含内部类iterator作为迭代器类型。list类中有构造函数初始化头节点_head，begin()返回第一个节点的迭代器，end()返回尾节点的迭代器，push_back()在链表尾部插入新节点。</p> 
+ <p>总体逻辑是通过定义节点结构体、迭代器结构体和链表类，实现了简单的双向链表功能，并提供了对链表进行遍历和插入操作的接口。</p> 
+ <p> test_list1函数演示了如何使用该简单链表实现，创建链表对象lt，插入几个元素，然后通过迭代器遍历输出链表中的元素。</p> 
+ <pre><code class="language-cpp">	void test_list1()
+	{
+		list&lt;int&gt; lt;
+		lt.push_back(1);
+		lt.push_back(2);
+		lt.push_back(3);
+		lt.push_back(4);
+
+		list&lt;int&gt;::iterator it = lt.begin();
+		while (it != lt.end())
+		{
+
+			cout &lt;&lt; *it &lt;&lt; " ";
+			++it;
+		}
+		cout &lt;&lt; endl;
+
+	}</code></pre> 
+ <p><img alt="" height="75" src="https://images2.imgbox.com/d6/cd/oJwTVjQ2_o.png" width="664"></p> 
+ <hr> 
+ <h3 id="2.%E5%A4%B4%E6%8F%92%E5%92%8C%E4%BB%BB%E6%84%8F%E4%BD%8D%E7%BD%AE%E7%9A%84%E6%8F%92%E5%85%A5"><strong>2.头插和任意位置的插入</strong></h3> 
+ <pre><code class="language-cpp">		iterator insert(iterator pos, const T&amp; x)
+		{
+			Node* cur = pos._node;
+			Node* prev = cur-&gt;_prev;
+			Node* newnode = new Node(x);
+
+			// prev newnode cur
+			prev-&gt;_next = newnode;
+			newnode-&gt;_prev = prev;
+			newnode-&gt;_next = cur;
+			cur-&gt;_prev = newnode;
+
+			//return iterator(newnode);
+			return newnode;
+		}
+		void push_front(const T&amp; x)
+		{
+			insert(begin(), x);
+		}</code></pre> 
+ <p>1. insert函数：<br> - 获取当前迭代器pos指向的节点cur以及其前一个节点prev。<br> - 创建一个新的节点newnode，存储值为x。<br> - 将prev节点的_next指针指向newnode，建立prev和newnode之间的连接。<br> - 将newnode的_prev指针指向prev，将newnode的_next指针指向cur，建立newnode和cur之间的连接。<br> - 返回一个新的迭代器，指向插入的newnode节点。</p> 
+ <p>2. push_front函数：<br> - 调用insert函数，在链表头部（即begin()位置）插入值为x的新节点。<br> - 通过调用insert(begin(), x)实现在链表头部插入新节点的功能。</p> 
+ <hr> 
+ <h3 id="3.pos%E8%8A%82%E7%82%B9%E7%9A%84%E5%88%A0%E9%99%A4%EF%BC%8C%E5%A4%B4%E5%88%A0%EF%BC%8C%E5%B0%BE%E5%88%A0"><strong>3.pos节点的删除，头删，尾删</strong></h3> 
+ <p></p> 
+ <pre><code class="language-cpp">		iterator erase(iterator pos)
+		{
+			assert(pos != end());
+
+			Node* cur = pos._node;
+			Node* prev = cur-&gt;_prev;
+			Node* next = cur-&gt;_next;
+			prev-&gt;_next = next;
+			next-&gt;_prev = prev;
+
+			delete cur;
+
+			return next;
+		}
+		void pop_back()
+		{
+			erase(--end());
+		}
+
+		void pop_front()
+		{
+			erase(begin());
+		}</code></pre> 
+ <p>在这段代码中， iterator erase(iterator pos) 函数的目的是从容器中删除给定位置的元素。在双向链表中，当删除一个节点后，需要重新连接前一个节点和后一个节点，然后删除当前节点。在这段代码中， return next; 返回的是下一个节点的迭代器，因为在删除当前节点后，下一个节点就变成了当前位置。<strong>这样做是为了防止迭代器失效，方便在调用 erase 函数后继续遍历容器中的元素。</strong></p> 
+ <p>测试：</p> 
+ <pre><code class="language-cpp">	void test_list1()
+	{
+		list&lt;int&gt; lt;
+		lt.push_back(1);
+		lt.push_back(2);
+		lt.push_back(3);
+		lt.push_back(4);
+		lt.pop_back();
+		lt.pop_front();
+		list&lt;int&gt;::iterator it = lt.begin();
+		while (it != lt.end())
+		{
+
+			cout &lt;&lt; *it &lt;&lt; " ";
+			++it;
+		}
+		cout &lt;&lt; endl;
+
+	}</code></pre> 
+ <p><img alt="" height="64" src="https://images2.imgbox.com/e4/6b/1yEMjvK6_o.png" width="564"></p> 
+ <hr> 
+ <h3 id="4.%E9%94%80%E6%AF%81list%E5%92%8C%E6%9E%90%E6%9E%84%E5%87%BD%E6%95%B0"><strong>4.销毁list和析构函数</strong></h3> 
+ <p></p> 
+ <pre><code class="language-cpp">		void clear()
+		{
+			iterator it = begin();
+			while (it != end())
+			{
+				it = erase(it);
+			}
+		}
+
+		~list()
+		{
+			clear();
+
+			delete _head;
+			_head = nullptr;
+		}</code></pre> 
+ <p>在这段代码中， clear() 函数用于清空整个双向链表，它通过循环调用 erase() 函数来一个一个删除链表中的元素，直到链表为空。而在析构函数 ~list() 中，首先调用了 clear() 函数来确保在销毁链表之前先清空所有元素，然后删除链表的头节点 _head 并将其置为 nullptr ，以释放链表占用的内存空间。这样的设计确保了在销毁链表对象时，会正确地释放链表中所有节点的内存，并避免内存泄漏问题。</p> 
+ <hr> 
+ <h3 id="5.const%E8%BF%AD%E4%BB%A3%E5%99%A8">5.const迭代器</h3> 
+ <p>const迭代器和普通迭代器最大的区别就是将T&amp; operator*前面加上const，让指针指向的内容不能被修改。但需要注意：<strong>const迭代器不是一个const的对象，const对象自己可以修改，只是让指向的类容不能修改</strong></p> 
+ <pre><code class="language-cpp">	template&lt;class T, class Ref&gt;
+	struct __list_iterator
+	{
+		typedef ListNode&lt;T&gt; Node;
+		typedef __list_iterator&lt;T, Ref&gt; self;
+		Node* _node;
+
+		__list_iterator(Node* x)
+			:_node(x)
+		{}
+
+		// ++it
+		self&amp; operator++()
+		{
+			_node = _node-&gt;_next;
+			return *this;
+		}
+
+		// it++
+		self operator++(int)
+		{
+			//__list_iterator&lt;T&gt; tmp(*this);
+			self tmp(*this);
+
+			_node = _node-&gt;_next;
+
+			return tmp;
+		}
+
+		self&amp; operator--()
+		{
+			_node = _node-&gt;_prev;
+			return *this;
+		}
+
+		self operator--(int)
+		{
+			self tmp(*this);
+
+			_node = _node-&gt;_prev;
+
+			return tmp;
+		}
+
+		Ref operator*()
+		{
+			return _node-&gt;_data;
+		}
+
+		bool operator!=(const self&amp; s)
+		{
+			return _node != s._node;
+		}
+
+		bool operator==(const self&amp; s)
+		{
+			return _node == s._node;
+		}
+	};</code></pre> 
+ <p><strong>这里的操作是通过参数的不同重载了这个类，所以才在这里多加一个参数</strong></p> 
+ <h3 id="%E2%80%8B%E7%BC%96%E8%BE%91"><img alt="" height="577" src="https://images2.imgbox.com/6f/8b/e6f8VPD0_o.png" width="1076"></h3> 
+ <h3 id="6.%E6%8B%B7%E8%B4%9D%E6%9E%84%E9%80%A0%E5%92%8C%E8%B5%8B%E5%80%BC%E6%93%8D%E4%BD%9C" style="background-color:transparent;">6.拷贝构造和赋值操作</h3> 
+ <pre><code class="language-cpp">		//拷贝构造 lt1(lt)
+		list(const list&lt;T&gt;&amp; lt)
+		{
+
+			_head = new node;
+			_head-&gt;_next = _head;
+			_head-&gt;_prev = _head;
+ 
+			将lt的元素全部尾插到新链表
+			for (const auto&amp; e : lt)
+			{
+				push_back(e);
+			}
+		}
+
+</code></pre> 
+ <p><strong><span style="color:#956fe7;">拷贝构造函数，</span></strong>用于复制另一个链表 lt 的所有元素到新链表中。首先创建一个新的头节点 _head，并将其前驱和后继都指向自身，然后通过循环遍历 lt 中的每个元素，将其依次尾插到新链表中。这样就实现了将另一个链表的所有元素复制到新链表的功能。</p> 
+ <p><span style="color:#fe2c24;"><strong>赋值操作的传统写法</strong></span></p> 
+ <pre><code class="language-cpp">        
+		list&lt;T&gt; operator=(const list&lt;T&gt;&amp; lt)
+		{
+            //链表已存在，只需将节点尾插进去即可
+			if(this != lt)
+			{
+				for (auto&amp; e : lt)
+				{
+					push_back(e);
+				}
+			}
+		}</code></pre> 
+ <p>链表存在，直接尾插就行了。</p> 
+ <p><strong><span style="color:#fe2c24;">现代写法</span></strong></p> 
+ <pre><code class="language-cpp">		list&lt;T&gt;&amp; operator=(list&lt;T&gt;&amp; lt)
+		{
+			swap(_head, lt-&gt;_head);
+			return *this;
+		}
+        template &lt;class T&gt; void swap ( T&amp; a, T&amp; b )
+        {
+            T c(a); 
+            a=b; 
+            b=c;
+        }</code></pre> 
+ <p><span style="color:#956fe7;"><strong>赋值运算符函数</strong></span>，用于将另一个链表 lt 的内容与当前链表进行交换。在函数内部，调用了一个名为 swap 的模板函数，用于交换两个对象的值。在这里，通过将当前链表的头节点和另一个链表的头节点进行交换，实现了两个链表内容的交换。</p> 
+</blockquote> 
+<hr> 
+<h2 id="3.%E5%AE%8C%E6%95%B4%E4%BB%A3%E7%A0%81%C2%A0">3.完整代码 </h2> 
+<pre><code class="language-cpp">#include&lt;iostream&gt;
+#include&lt;assert.h&gt;
+using namespace std;
+
+namespace delia
+{
+	template&lt;class T&gt;
+	struct _list_node
+	{
+		T _val;
+		_list_node&lt;T&gt;* _prev;
+		_list_node&lt;T&gt;* _next;
+
+		_list_node(const T&amp; val = T())
+			:_val(val)
+			, _prev(nullptr)
+			, _next(nullptr)
+		{};
+	};
+
+	template&lt;class T, class Ref&gt;
+	struct _list_iterator//使用_list_iterator类来封装node*
+	{
+		typedef _list_node&lt;T&gt; node;
+		typedef _list_iterator&lt;T, Ref&gt; self;
+
+		node* _pnode;
+
+		//构造函数
+		_list_iterator(node* pnode)
+			:_pnode(pnode)
+		{}
+
+		//拷贝构造、赋值运算符重载、析构函数，编译器默认生成即可
+
+		//解引用，返回左值，是拷贝，因此要用引用返回
+		Ref operator*()
+		{
+			return _pnode-&gt;_val;
+		}
+
+		//!=重载
+		bool operator!=(const self&amp; s) const
+		{
+			return _pnode != s._pnode;
+		}
+
+		//==重载
+		bool operator==(const self&amp; s) const
+		{
+			return _pnode == s._pnode;
+		}
+
+		//前置++  it.operator(&amp;it)
+		self&amp; operator++()
+		{
+			_pnode = _pnode-&gt;_next;
+			return *this;
+		}
+
+		//后置++ 返回++之前的值  it.operator(&amp;it,0)
+		self operator++(int)
+		{
+			self tmp(*this);
+			_pnode = _pnode-&gt;_next;
+			return tmp;
+		}
+
+		//前置--  it.operator(&amp;it)
+		self&amp; operator--()
+		{
+			_pnode = _pnode-&gt;prev;
+			return *this;
+		}
+
+		//后置++ 返回++之前的值  it.operator(&amp;it,0)
+		self operator--(int)//临时对象不能用引用返回，所以self没有加&amp;
+		{
+			self tmp(*this);
+			_pnode = _pnode-&gt;_prev;
+			return tmp;
+		}
+	};
+
+	template&lt;class T&gt;
+	class list
+	{
+		typedef _list_node&lt;T&gt; node;
+	public:
+		typedef _list_iterator&lt;T, T&amp;, T*&gt; iterator;//重命名迭代器
+		typedef _list_iterator&lt;T, const T&amp;, const T*&gt; const_iterator;//重命名const迭代器
+
+		//构造函数
+		list()
+		{
+			_head = new node;//会调_list_node的构造函数
+			_head-&gt;_next = _head;//整个链表只有头节点，先构造一个没有实际节点的链表
+			_head-&gt;_prev = _head;//整个链表只有头节点，先构造一个没有实际节点的链表
+		}
+
+		//拷贝构造 lt1(lt)
+		list(const list&lt;T&gt;&amp; lt)
+		{
+			
+			_head = new node;
+			_head-&gt;_next = _head;
+			_head-&gt;_prev = _head;
+
+			//将lt的元素全部尾插到新链表
+			for (const auto&amp; e : lt)
+			{
+				push_back(e);
+			}
+		}
+
+		//赋值重载
+		list&lt;T&gt;&amp;operator=(list&lt;T&gt;&amp;lt)
+		{
+			swap(_head, lt._head);
+			return *this;
+		}
+		template &lt;class T&gt; void swap(T&amp; a, T&amp; b)
+		{
+			T c(a);
+			a = b;
+			b = c;
+		}
+		//析构
+		~list()
+		{
+			clear();
+			delete _head;
+			_head = nullptr;
+		}
+
+		iterator begin()
+		{
+			return iterator(_head-&gt;_next);
+		}
+
+		iterator end()
+		{
+			return iterator(_head);//尾节点的下一个节点位置即头节点
+		}
+
+		const_iterator begin() const
+		{
+			return const_iterator(_head-&gt;_next);
+		}
+
+		const_iterator end() const
+		{
+			return const_iterator(_head);//尾节点的下一个节点位置即头节点
+		}
+
+		//插入节点
+		void insert(iterator pos, const T&amp; x)
+		{
+			assert(pos._pnode);
+			node* newnode = new node(x);//构造节点
+
+			node* prev = pos._pnode-&gt;_prev;
+
+			//插入节点
+			newnode-&gt;_next = pos._pnode;
+			pos._pnode-&gt;_prev = newnode;
+			prev-&gt;_next = newnode;
+			newnode-&gt;_prev = prev;
+
+		}
+
+		//删除节点
+		iterator erase(iterator pos)
+		{
+			assert(pos._pnode);//判断该位置节点是否存在
+			assert(pos != end());//end()是最后一个节点的下一个节点位置，也就是头节点，头节点不能删，需要断言
+
+			node* prev = pos._pnode-&gt;_prev;//pos位置节点的前一个节点
+			node* next = pos._pnode-&gt;_next;//pos位置节点的后一个节点
+
+			//删除节点
+			delete pos._pnode;
+			prev-&gt;_next = next;
+			next-&gt;_prev = prev;
+
+			return iterator(next);//删除之后pos失效，把下一个位置的迭代器给它
+		}
+
+		void clear()
+		{
+			iterator it = begin();
+			while (it != end())
+			{
+				erase(it++);
+			}
+		}
+
+		//头插
+		void push_front(const T&amp; x)
+		{
+			insert(begin(), x);
+		}
+
+		//尾插
+		void push_back(const T&amp; x)
+		{
+			insert(end()--, x);
+		}
+
+		//头删
+		void pop_front()
+		{
+			erase(begin());
+		}
+
+		//尾删
+		void pop_back()
+		{
+			erase(--end());
+		}
+
+		//判空
+		bool empty()
+		{
+			return _head-&gt;_next == _head;
+		}
+
+		//求节点个数
+		size_t size()
+		{
+			iterator it = begin();
+			size_t sz = 0;
+			while (it != end())//时间复杂度O(N)
+			{
+				it++;
+				sz++;
+			}
+
+			return sz;
+		}
+	private:
+		node* _head;
+	};
+
+	void PrintList(const list&lt;int&gt;&amp; lt)
+	{
+		list&lt;int&gt;::const_iterator it = lt.begin();
+		while (it != lt.end())
+		{
+			cout &lt;&lt; it._pnode-&gt;_val &lt;&lt; " ";
+			it++;
+		}
+		cout &lt;&lt; endl;
+	}
+}</code></pre> 
+<p></p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/b4a2bc4982e398ac4c0dd65ddce3efaf/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">leetcode每日一题1969</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/ac8b8ac1cb969aacbf27ddecdd2b4e80/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">【视觉语言大模型&#43;LLaVA1.0】大语言模型视觉助手（视觉指令调优）GPT4-Vision丐版</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

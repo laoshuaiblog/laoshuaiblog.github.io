@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>segment fault异常及常见定位手段 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/0bff1da1912a91ba7376d6244ee263cb/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="segment fault异常及常见定位手段">
+  <meta property="og:description" content="问题背景 最近boot中遇到个用户态程序的segment fault异常，除了一句“Segment fault”打印外无其他任何打印。该问题复现概率较低，定位起来比较棘手。我们的boot是个经过裁剪的最小linux系统，由于bootflash大小的限制，加上在boot阶段也没有挂载其他储存设备，所以没有没法放gdb、动态库等体积较大的调试工具。本文以linux 3.10内核和mips cpu小系统为基础，记录下对这个问题的研究总结。
+segment fault 异常处理流程 用户态程序由于系统调用或异常等原因，系统陷入内核，并伴随着CPU特权的切换和从用户态栈到内核态栈的切换，内核调用SAVE_ALL保存陷入内核前的现场（即pt_regs结构）到内核栈上，然后内核通过查找异常跳转表或系统调用跳转表获得相应的处理程序入口，处理完成后，给用户态程序发送SIGSEGV信号，并通过pt_regs恢复现场返回到用户态程序，用户态程序收到SIGSEGV信号并进行处理。至此，完成全部处理流程。
+可见异常前的现场信息，即pt_regs是个很重要的信息，其具体定义如下，包括CPU通用寄存器、error pc、error cause、bad address等信息。
+在linux kernel中，如下场景都会触发pt_regs压栈动作：
+tlb异常NMI中断中断异常系统调用　struct pt_regs { #ifdef CONFIG_32BIT /* Pad bytes for argument save space on the stack. */ unsigned long pad0[6]; #endif /* Saved main processor registers. */ unsigned long regs[32]; /* Saved special registers. */ unsigned long cp0_status; unsigned long hi; unsigned long lo; #ifdef CONFIG_CPU_HAS_SMARTMIPS unsigned long acx; #endif unsigned long cp0_badvaddr; unsigned long cp0_cause; unsigned long cp0_epc; #ifdef CONFIG_MIPS_MT_SMTC unsigned long cp0_tcstatus; #endif /* CONFIG_MIPS_MT_SMTC */ } __attribute__ ((aligned (8))); segment fault 常见触发源 内核会依据下列条件来判断是否发生了用户态段错误，并上报SIGSEGV信息给用户态task：">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2017-12-13T17:39:00+08:00">
+    <meta property="article:modified_time" content="2017-12-13T17:39:00+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">segment fault异常及常见定位手段</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <div id="cnblogs_post_body" class="blogpost-body"> 
+ <h2>问题背景</h2> 
+ <p>最近boot中遇到个用户态程序的<a href="https://en.wikipedia.org/wiki/Segmentation_fault" rel="nofollow">segment fault</a>异常，除了一句“Segment fault”打印外无其他任何打印。该问题复现概率较低，定位起来比较棘手。我们的boot是个经过裁剪的最小linux系统，由于bootflash大小的限制，加上在boot阶段也没有挂载其他储存设备，所以没有没法放gdb、动态库等体积较大的调试工具。本文以linux 3.10内核和mips cpu小系统为基础，记录下对这个问题的研究总结。</p> 
+ <h2>segment fault 异常处理流程</h2> 
+ <p>用户态程序由于系统调用或异常等原因，系统陷入内核，并伴随着CPU特权的切换和从用户态栈到内核态栈的切换，内核调用SAVE_ALL保存陷入内核前的现场（即pt_regs结构）到内核栈上，然后内核通过查找异常跳转表或系统调用跳转表获得相应的处理程序入口，处理完成后，给用户态程序发送SIGSEGV信号，并通过pt_regs恢复现场返回到用户态程序，用户态程序收到SIGSEGV信号并进行处理。至此，完成全部处理流程。</p> 
+ <p>可见异常前的现场信息，即pt_regs是个很重要的信息，其具体定义如下，包括CPU通用寄存器、error pc、error cause、bad address等信息。</p> 
+ <p>在linux kernel中，如下场景都会触发pt_regs压栈动作：</p> 
+ <ul><li>tlb异常</li><li>NMI中断</li><li>中断</li><li>异常</li><li>系统调用　</li></ul> 
+ <div class="cnblogs_code"> 
+  <pre><span style="color:#0000ff;">struct</span><span style="color:#000000;"> pt_regs {
+#ifdef CONFIG_32BIT
+    </span><span style="color:#008000;">/*</span><span style="color:#008000;"> Pad bytes for argument save space on the stack. </span><span style="color:#008000;">*/</span><span style="color:#000000;">
+    unsigned </span><span style="color:#0000ff;">long</span> pad0[<span style="color:#800080;">6</span><span style="color:#000000;">];
+</span><span style="color:#0000ff;">#endif</span>
+
+    <span style="color:#008000;">/*</span><span style="color:#008000;"> Saved main processor registers. </span><span style="color:#008000;">*/</span><span style="color:#000000;">
+    unsigned </span><span style="color:#0000ff;">long</span> regs[<span style="color:#800080;">32</span><span style="color:#000000;">];
+
+    </span><span style="color:#008000;">/*</span><span style="color:#008000;"> Saved special registers. </span><span style="color:#008000;">*/</span><span style="color:#000000;">
+    unsigned </span><span style="color:#0000ff;">long</span><span style="color:#000000;"> cp0_status;
+    unsigned </span><span style="color:#0000ff;">long</span><span style="color:#000000;"> hi;
+    unsigned </span><span style="color:#0000ff;">long</span><span style="color:#000000;"> lo;
+#ifdef CONFIG_CPU_HAS_SMARTMIPS
+    unsigned </span><span style="color:#0000ff;">long</span><span style="color:#000000;"> acx;
+</span><span style="color:#0000ff;">#endif</span><span style="color:#000000;">
+    unsigned </span><span style="color:#0000ff;">long</span><span style="color:#000000;"> cp0_badvaddr;
+    unsigned </span><span style="color:#0000ff;">long</span><span style="color:#000000;"> cp0_cause;
+    unsigned </span><span style="color:#0000ff;">long</span><span style="color:#000000;"> cp0_epc;
+#ifdef CONFIG_MIPS_MT_SMTC
+    unsigned </span><span style="color:#0000ff;">long</span><span style="color:#000000;"> cp0_tcstatus;
+</span><span style="color:#0000ff;">#endif</span> /* CONFIG_MIPS_MT_SMTC */<span style="color:#000000;">
+} __attribute__ ((aligned (</span><span style="color:#800080;">8</span>)));</pre> 
+ </div> 
+ <p> </p> 
+ <h2>segment fault 常见触发源</h2> 
+ <p>内核会依据下列条件来判断是否发生了用户态段错误，并上报SIGSEGV信息给用户态task：</p> 
+ <ul><li>用户态数据段的地址越界</li><li>用户态代码段的指令读取异常</li><li>访问操作与所访问的内存页面权限不匹配</li><li>非对齐访问（一般是上报SIGBUS，但mips会上报SIGSEGV）</li></ul> 
+ <p>导致段错误的常见编程范式有：</p> 
+ <ul><li>使用未初始化变量</li><li>使用已释放的内存</li><li>数组越界</li><li>多进程下使用不可重入函数</li><li>内存被踩（如栈被踩导致pc或数据寻址错误等）</li></ul> 
+ <h2>segment fault 常用定位手段</h2> 
+ <p>最佳的定位手段是能直接定位到产生异常的代码，差一点的，至少能提供相关信息，通过分析能间接定位到异常代码。segment fault的定位手段还是比较丰富的，但也各有优缺点，需要根据具体场景进行选用。</p> 
+ <h3>gdb</h3> 
+ <p>gdb的优点是调试手段丰富，可以逐步跟踪调试，适用于稳定复现的故障。缺点是故障必须能必现。</p> 
+ <h3><a href="https://en.wikipedia.org/wiki/Core_dump" rel="nofollow">coredump</a></h3> 
+ <p>coredump的优点是对于偶现的段错误故障，内核会导出一个coredump文件，然后可以用gdb离线调试coredump文件来定位。缺点是如果环境对段错误等异常有重启保护，coredump文件需要有地方存储。</p> 
+ <h3><a href="https://www.gnu.org/software/libc/manual/html_node/Backtraces.html" rel="nofollow">用户态backtrace</a></h3> 
+ <p>glibc的execinfo库提供一套接口：backtrace、backtrace_symbols，可以通过这套接口，捕获到SIGSEGV异常后打印异常发生时的backtrace。缺点是依赖glibc的excinfo，而各CPU对其实现支持情况不一。</p> 
+ <h3>内核态backtrace</h3> 
+ <p>内核态call trace打印一般通过stack_dump来打印，由于linux的内核态栈和用户态栈是独立分开了，所以stack_dump并不支持用户态call trace打印。但内核提供了save_stack_trace_user/print_stack_trace接口，可以在异常处理程序中打印用户态进程的调用链。缺点是这套接口在arch下实现，而各CPU对其实现支持情况不一。</p> 
+ <h3><a href="http://man.he.net/man1/catchsegv" rel="nofollow">catchsegv</a></h3> 
+ <p>catchsegv是libc提供的支持段错误back trace打印脚本，可以在发生SIGSEGV时直接打印出异常点的backtrace。缺点是依赖libc的libSegFault.so和addr2line工具。</p> 
+ <h3>pt_regs</h3> 
+ <p>如前文所说，pt_regs对象提供了异常发生时的error pc、error cause、bad address等信息，反汇编用户程序后，通过error pc等信息可以找到具体的异常汇编指令和函数，分析汇编代码找到对应的C代码。缺点是需要人工分析汇编代码。</p> 
+ <h2>解决方案</h2> 
+ <p>回到本文一开始的问题，由于bootflash大小的限制，加上在boot阶段也没有挂载其他储存设备，gdb、coredump、catchsegv都没法用；libc对mipc arch下的backtrace实现有问题，用户态backtrace也没法用；mips arch内核没有实现内核态backtrace的接口，所以也没法用。所以只剩下打印pt_regs这一条路了，在上报SIGSEGV前，调用打印即可。虽然mips arch也没有实现打印方法，不过实现很简单，具体实现如下：</p> 
+ <div class="cnblogs_code"> 
+  <pre><span style="color:#0000ff;">static</span> inline <span style="color:#0000ff;">void</span><span style="color:#000000;">
+show_signal_msg(</span><span style="color:#0000ff;">struct</span> pt_regs *regs, unsigned <span style="color:#0000ff;">long</span><span style="color:#000000;"> error_code,
+        unsigned </span><span style="color:#0000ff;">long</span> address, <span style="color:#0000ff;">struct</span> task_struct *<span style="color:#000000;">tsk)
+{
+    unsigned </span><span style="color:#0000ff;">long</span> sp = regs-&gt;regs[<span style="color:#800080;">29</span><span style="color:#000000;">];    
+    unsigned </span><span style="color:#0000ff;">long</span> pc = regs-&gt;<span style="color:#000000;">cp0_epc;
+
+    </span><span style="color:#0000ff;">if</span> (!<span style="color:#000000;">unhandled_signal(tsk, SIGSEGV))
+        </span><span style="color:#0000ff;">return</span><span style="color:#000000;">;
+
+    </span><span style="color:#0000ff;">if</span> (!<span style="color:#000000;">printk_ratelimit())
+        </span><span style="color:#0000ff;">return</span><span style="color:#000000;">;
+
+    printk(</span><span style="color:#800000;">"</span><span style="color:#800000;">%s%s[%d]: segfault at %lx ip %p sp %p error %lx</span><span style="color:#800000;">"</span><span style="color:#000000;">,
+        task_pid_nr(tsk) </span>&gt; <span style="color:#800080;">1</span> ?<span style="color:#000000;"> KERN_INFO : KERN_EMERG,
+        tsk</span>-&gt;<span style="color:#000000;">comm, task_pid_nr(tsk), address,
+        (</span><span style="color:#0000ff;">void</span> *)pc, (<span style="color:#0000ff;">void</span> *<span style="color:#000000;">)sp, error_code);
+
+    print_vma_addr(KERN_CONT </span><span style="color:#800000;">"</span><span style="color:#800000;"> in </span><span style="color:#800000;">"</span><span style="color:#000000;">, pc);
+
+    printk(KERN_CONT </span><span style="color:#800000;">"</span><span style="color:#800000;">\n</span><span style="color:#800000;">"</span><span style="color:#000000;">);
+}</span></pre> 
+ </div> 
+ <p> </p> 
+ <p>实例演示：</p> 
+ <blockquote> 
+  <p>模拟segv：<br>const char* p = "abcd";<br>*(char*)p = 'a';<br>内核打印：<br> 4:&lt;6&gt;lxImage[1813]: segfault at 1200e5e98 ip 0000000120012628 sp 000000ffffb08140 error 1 4:&lt;c&gt; in lxImage[120000000+124000] 4:&lt;c&gt;<br><br>反汇编获知在 BSP_RstReason_Print 函数中sb v1,0(v0) 指令对地址1200e5e98写操作引起segment fault异常<br>00000001200125a0 &lt;BSP_RstReason_Print&gt;:<br>...<br> 120012628: a0430000 sb v1,0(v0) <br></p> 
+ </blockquote> 
+</div> 
+<p>转载于:https://www.cnblogs.com/wahaha02/p/8034112.html</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/02ad6ca72fc41845263a940ec98dd3f2/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">凑微分公式</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/91e41749526bb969f67859bdf6a9a0ae/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">css基础知识</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

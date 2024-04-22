@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>【数据结构初阶】双向链表 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/4e861349e8ebccd839d71371faccaec5/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="【数据结构初阶】双向链表">
+  <meta property="og:description" content="各位读者老爷好，很高兴你又来读本鼠鼠的博客。鼠鼠我呀基于C语言实现一下双向链表，有兴趣的读者老爷可以瞅瞅哈！
+目录
+1.定义双向链表节点
+2.初始化哨兵位
+3.双向链表销毁
+4.双向链表打印
+5.双向链表在pos的前面进行插入
+6.双向链表删除pos位置的节点 7.双向链表尾插
+8.双向链表尾删
+9.双向链表头插 10.双向链表头删 11.双向链表查找
+12.双向链表的小应用
+12.1.list.h
+12.2.list.c
+12.3.test.c:
+13.ending 好哈，我们上篇文章浅谈过链表的分类，其中讲到：
+虽然有这么多的链表的结构，但是我们实际中最常用还是两种结构：
+1. 无头单向非循环链表：结构简单，一般不会单独用来存数据。实际中更多是作为其他数据结构的子结构，如哈希桶、图的邻接表等等。另外这种结构在笔试面试中出现很多。
+2. 带头双向循环链表：结构最复杂，一般用在单独存储数据。实际中使用的链表数据结构，都是带头双向循环链表。另外这个结构虽然结构复杂，但是使用代码实现以后会发现结构会带来很多优势，实现反而简单了。
+那咱们上篇文章实现过了无头单向非循环链表 ，那这篇博客自然要实现带头双向循环链表了。
+对于带头双向循环链表，好像听起来挺难的，但其实实现起来比无头单向非循环链表简单不是一星半点儿，咱们可以在接下来的代码中体会到，我们可以先来看看带头双向循环链表的逻辑结构如下图：
+咱们可以看到有一个指针plist指向哨兵位（也就是头），所有节点均有三个数据域，分别存储所需存储的数据、前一个节点的地址和后一个节点的地址，我们通过地址即可找到想要的节点。这里讲的前后节点只是逻辑上的“前后”，实际上在内存中这些个节点通过保存的地址形成了循环，没有所谓的前后之分，那这个链表改重哪里开始呢？
+其实就是从哨兵位开始的，让plist指向哨兵位，让哨兵位当“头”，也就在逻辑上形成了“前后”。
+带头双向循环链表带哨兵位是有优势的，虽然哨兵位不存储有效数据，好似浪费了一个节点的空间，但是因为无论什么时候该链表都不可能为空，对于该链表的增删改等操作不用另外考虑空链表的情况 。带头双向循环链表的哨兵位是不能删除的。
+以下带头双向循环链表简称双向链表。我们实现双向链表以下功能：
+typedef int LTDataType; typedef struct ListNode { LTDataType data; struct ListNode* next; struct ListNode* prev; }ListNode; //初始化哨兵位 ListNode* LTInit(void); // 双向链表销毁 void ListDestory(ListNode* pHead); // 双向链表打印 void ListPrint(ListNode* pHead); // 双向链表在pos的前面进行插入 void ListInsert(ListNode* pos, LTDataType x); // 双向链表删除pos位置的节点 void ListErase(ListNode* pos); // 双向链表尾插 void ListPushBack(ListNode* pHead, LTDataType x); // 双向链表尾删 void ListPopBack(ListNode* pHead); // 双向链表头插 void ListPushFront(ListNode* pHead, LTDataType x); // 双向链表头删 void ListPopFront(ListNode* pHead); // 双向链表查找 ListNode* ListFind(ListNode* pHead, LTDataType x); 1.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2024-03-06T15:02:19+08:00">
+    <meta property="article:modified_time" content="2024-03-06T15:02:19+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">【数据结构初阶】双向链表</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <p>各位读者老爷好，很高兴你又来读本鼠鼠的博客。鼠鼠我呀基于C语言实现一下双向链表，有兴趣的读者老爷可以瞅瞅哈！</p> 
+<p class="img-center"><img alt="" height="254" src="https://images2.imgbox.com/d0/f4/6PjZEcBd_o.jpg" width="254"></p> 
+<p id="main-toc"><strong>目录</strong></p> 
+<p id="1.%E5%AE%9A%E4%B9%89%E5%8F%8C%E5%90%91%E9%93%BE%E8%A1%A8%E8%8A%82%E7%82%B9-toc" style="margin-left:40px;"><a href="#1.%E5%AE%9A%E4%B9%89%E5%8F%8C%E5%90%91%E9%93%BE%E8%A1%A8%E8%8A%82%E7%82%B9" rel="nofollow">1.定义双向链表节点</a></p> 
+<p id="2.%E5%88%9D%E5%A7%8B%E5%8C%96%E5%93%A8%E5%85%B5%E4%BD%8D-toc" style="margin-left:40px;"><a href="#2.%E5%88%9D%E5%A7%8B%E5%8C%96%E5%93%A8%E5%85%B5%E4%BD%8D" rel="nofollow">2.初始化哨兵位</a></p> 
+<p id="3.%E5%8F%8C%E5%90%91%E9%93%BE%E8%A1%A8%E9%94%80%E6%AF%81-toc" style="margin-left:40px;"><a href="#3.%E5%8F%8C%E5%90%91%E9%93%BE%E8%A1%A8%E9%94%80%E6%AF%81" rel="nofollow">3.双向链表销毁</a></p> 
+<p id="4.%E5%8F%8C%E5%90%91%E9%93%BE%E8%A1%A8%E6%89%93%E5%8D%B0-toc" style="margin-left:40px;"><a href="#4.%E5%8F%8C%E5%90%91%E9%93%BE%E8%A1%A8%E6%89%93%E5%8D%B0" rel="nofollow">4.双向链表打印</a></p> 
+<p id="5.%E5%8F%8C%E5%90%91%E9%93%BE%E8%A1%A8%E5%9C%A8pos%E7%9A%84%E5%89%8D%E9%9D%A2%E8%BF%9B%E8%A1%8C%E6%8F%92%E5%85%A5-toc" style="margin-left:40px;"><a href="#5.%E5%8F%8C%E5%90%91%E9%93%BE%E8%A1%A8%E5%9C%A8pos%E7%9A%84%E5%89%8D%E9%9D%A2%E8%BF%9B%E8%A1%8C%E6%8F%92%E5%85%A5" rel="nofollow">5.双向链表在pos的前面进行插入</a></p> 
+<p id="6.%E5%8F%8C%E5%90%91%E9%93%BE%E8%A1%A8%E5%88%A0%E9%99%A4pos%E4%BD%8D%E7%BD%AE%E7%9A%84%E8%8A%82%E7%82%B9%C2%A0-toc" style="margin-left:40px;"><a href="#6.%E5%8F%8C%E5%90%91%E9%93%BE%E8%A1%A8%E5%88%A0%E9%99%A4pos%E4%BD%8D%E7%BD%AE%E7%9A%84%E8%8A%82%E7%82%B9%C2%A0" rel="nofollow">6.双向链表删除pos位置的节点 </a></p> 
+<p id="7.%E5%8F%8C%E5%90%91%E9%93%BE%E8%A1%A8%E5%B0%BE%E6%8F%92-toc" style="margin-left:40px;"><a href="#7.%E5%8F%8C%E5%90%91%E9%93%BE%E8%A1%A8%E5%B0%BE%E6%8F%92" rel="nofollow">7.双向链表尾插</a></p> 
+<p id="8.%E5%8F%8C%E5%90%91%E9%93%BE%E8%A1%A8%E5%B0%BE%E5%88%A0-toc" style="margin-left:40px;"><a href="#8.%E5%8F%8C%E5%90%91%E9%93%BE%E8%A1%A8%E5%B0%BE%E5%88%A0" rel="nofollow">8.双向链表尾删</a></p> 
+<p id="9.%E5%8F%8C%E5%90%91%E9%93%BE%E8%A1%A8%E5%A4%B4%E6%8F%92%C2%A0-toc" style="margin-left:40px;"><a href="#9.%E5%8F%8C%E5%90%91%E9%93%BE%E8%A1%A8%E5%A4%B4%E6%8F%92%C2%A0" rel="nofollow">9.双向链表头插 </a></p> 
+<p id="10.%E5%8F%8C%E5%90%91%E9%93%BE%E8%A1%A8%E5%A4%B4%E5%88%A0%C2%A0-toc" style="margin-left:40px;"><a href="#10.%E5%8F%8C%E5%90%91%E9%93%BE%E8%A1%A8%E5%A4%B4%E5%88%A0%C2%A0" rel="nofollow">10.双向链表头删 </a></p> 
+<p id="11.%E5%8F%8C%E5%90%91%E9%93%BE%E8%A1%A8%E6%9F%A5%E6%89%BE-toc" style="margin-left:40px;"><a href="#11.%E5%8F%8C%E5%90%91%E9%93%BE%E8%A1%A8%E6%9F%A5%E6%89%BE" rel="nofollow">11.双向链表查找</a></p> 
+<p id="12.%E5%8F%8C%E5%90%91%E9%93%BE%E8%A1%A8%E7%9A%84%E5%B0%8F%E5%BA%94%E7%94%A8-toc" style="margin-left:40px;"><a href="#12.%E5%8F%8C%E5%90%91%E9%93%BE%E8%A1%A8%E7%9A%84%E5%B0%8F%E5%BA%94%E7%94%A8" rel="nofollow">12.双向链表的小应用</a></p> 
+<p id="12.1.list.h-toc" style="margin-left:80px;"><a href="#12.1.list.h" rel="nofollow">12.1.list.h</a></p> 
+<p id="12.2.list.c-toc" style="margin-left:80px;"><a href="#12.2.list.c" rel="nofollow">12.2.list.c</a></p> 
+<p id="12.3.test.c%3A-toc" style="margin-left:80px;"><a href="#12.3.test.c%3A" rel="nofollow">12.3.test.c:</a></p> 
+<p id="13.ending%C2%A0-toc" style="margin-left:40px;"><a href="#13.ending%C2%A0" rel="nofollow">13.ending </a></p> 
+<p>好哈，我们上篇文章浅谈过链表的分类，其中讲到：</p> 
+<blockquote> 
+ <p>虽然有这么多的链表的结构，但是我们实际中最常用还是两种结构：</p> 
+ <p>1. 无头单向非循环链表：结构简单，一般不会单独用来存数据。实际中更多是作为其他数据结构的子结构，如哈希桶、图的邻接表等等。另外这种结构在笔试面试中出现很多。</p> 
+ <p>2. 带头双向循环链表：结构最复杂，一般用在单独存储数据。实际中使用的链表数据结构，都是带头双向循环链表。另外这个结构虽然结构复杂，但是使用代码实现以后会发现结构会带来很多优势，实现反而简单了。</p> 
+</blockquote> 
+<p>那咱们上篇文章实现过了无头单向非循环链表 ，那这篇博客自然要实现<span style="color:#fe2c24;">带头双向循环链表</span>了。</p> 
+<p>对于带头双向循环链表，好像听起来挺难的，但其实实现起来比无头单向非循环链表简单不是一星半点儿，咱们可以在接下来的代码中体会到，我们可以先来看看带头双向循环链表的逻辑结构如下图：</p> 
+<blockquote> 
+ <p><img alt="" class="left" src="https://images2.imgbox.com/f0/9f/s32v2rlG_o.png"></p> 
+</blockquote> 
+<blockquote> 
+ <p>咱们可以看到有一个指针plist指向哨兵位（也就是头），所有节点均有三个数据域，分别存储所需存储的数据、前一个节点的地址和后一个节点的地址，我们通过地址即可找到想要的节点。这里讲的前后节点只是逻辑上的“前后”，实际上在内存中这些个节点通过保存的地址形成了循环，没有所谓的前后之分，那这个链表改重哪里开始呢？</p> 
+ <p></p> 
+ <p>其实就是从哨兵位开始的，让plist指向哨兵位，让哨兵位当“头”，也就在逻辑上形成了“前后”。</p> 
+</blockquote> 
+<blockquote> 
+ <p>带头双向循环链表带哨兵位是有优势的，虽然哨兵位不存储有效数据，好似浪费了一个节点的空间，但是因为无论什么时候该链表都不可能为空，对于该链表的增删改等操作不用另外考虑空链表的情况 。带头双向循环链表的哨兵位是不能删除的。</p> 
+</blockquote> 
+<p>以下带头双向循环链表简称双向链表。我们实现双向链表以下功能：</p> 
+<pre><code class="language-cs">typedef int LTDataType;
+
+typedef struct ListNode
+{
+	LTDataType data;
+	struct ListNode* next;
+	struct ListNode* prev;
+}ListNode;
+
+
+//初始化哨兵位
+ListNode* LTInit(void);
+
+// 双向链表销毁
+void ListDestory(ListNode* pHead);
+
+// 双向链表打印
+void ListPrint(ListNode* pHead);
+
+// 双向链表在pos的前面进行插入
+void ListInsert(ListNode* pos, LTDataType x);
+
+// 双向链表删除pos位置的节点
+void ListErase(ListNode* pos);
+
+// 双向链表尾插
+void ListPushBack(ListNode* pHead, LTDataType x);
+
+// 双向链表尾删
+void ListPopBack(ListNode* pHead);
+
+// 双向链表头插
+void ListPushFront(ListNode* pHead, LTDataType x);
+
+// 双向链表头删
+void ListPopFront(ListNode* pHead);
+
+// 双向链表查找
+ListNode* ListFind(ListNode* pHead, LTDataType x);</code></pre> 
+<h3 id="1.%E5%AE%9A%E4%B9%89%E5%8F%8C%E5%90%91%E9%93%BE%E8%A1%A8%E8%8A%82%E7%82%B9">1.定义双向链表节点</h3> 
+<pre><code class="language-cs">typedef int LTDataType;
+
+typedef struct ListNode
+{
+	LTDataType data;
+	struct ListNode* next;
+	struct ListNode* prev;
+}ListNode;</code></pre> 
+<p>由上分析可知，该链表节点需要包含三个数据域，所以我们定义结构体，结构体成员data用来存储需存储数据、结构体成员next用来存储后一个节点地址、结构体成员prev用来存储前一个节点地址。至于为什么要把int重命名成LTDataType，那是因为如果需存储数据的类型如果有所变化的话，我们只需更改此处的int更改成需存储数据的类型即可，极大方便后续的代码维护。</p> 
+<h3 id="2.%E5%88%9D%E5%A7%8B%E5%8C%96%E5%93%A8%E5%85%B5%E4%BD%8D">2.初始化哨兵位</h3> 
+<pre><code class="language-cs">//创建双向链表节点
+ListNode* ListCreate(LTDataType x)
+{
+	ListNode* newnode = (ListNode*)malloc(sizeof(ListNode));
+	if (newnode == NULL)
+	{
+		perror("malloc fail-&gt;");
+		exit(-1);
+	}
+	newnode-&gt;data = x;
+	newnode-&gt;next = NULL;
+	newnode-&gt;prev = NULL;
+	return newnode;
+}
+
+//初始化哨兵位
+ListNode* LTInit(void)
+{
+	ListNode* head = ListCreate(-1);
+	head-&gt;next = head;
+	head-&gt;prev = head;
+	return head;
+}</code></pre> 
+<p>创建双向链表的时候我们需要初始化哨兵位，初始化哨兵位就需要创建节点，所以我们需要调用ListCreate函数（LIstCreate函数参数是需存储数据，动态申请一个节点，返回这个节点地址。），将哨兵位的next和prev存储哨兵位自己的地址才符合双向带头循环链表的特点，哨兵位的data随便赋值即可。</p> 
+<blockquote> 
+ <p style="text-align:center;"><img alt="" class="right" height="313" src="https://images2.imgbox.com/cb/98/1XTCmS6K_o.png" width="347">大概这样式的啦！</p> 
+</blockquote> 
+<h3 id="3.%E5%8F%8C%E5%90%91%E9%93%BE%E8%A1%A8%E9%94%80%E6%AF%81">3.双向链表销毁</h3> 
+<pre><code class="language-cs">//双向链表销毁
+void ListDestory(ListNode*pHead)
+{
+	ListNode* cur = pHead-&gt;next;
+	while (cur != pHead)
+	{
+		ListNode* next = cur-&gt;next;
+		free(cur);
+		cur = next;
+	}
+	free(pHead);
+	pHead = NULL;
+	cur = NULL;
+}</code></pre> 
+<p>当我们不在使用双向链表的时候，好习惯是主动释放双向链表的空间。我们从哨兵位后一个节点开始遍历释放节点空间，最后再单独释放哨兵位空间。</p> 
+<h3 id="4.%E5%8F%8C%E5%90%91%E9%93%BE%E8%A1%A8%E6%89%93%E5%8D%B0">4.双向链表打印</h3> 
+<pre><code class="language-cs">//双向链表打印
+void ListPrint(ListNode* pHead)
+{
+	ListNode* cur = pHead-&gt;next;
+	printf("哨兵位&lt;——&gt;");
+	while (cur != pHead)
+	{
+		printf("%d&lt;——&gt;", cur-&gt;data);
+		cur = cur-&gt;next;
+	}
+	printf("\n");
+}</code></pre> 
+<p>大概思想是从哨兵位后一个节点开始遍历打印节点中需存储的数据即可（无需打印哨兵位的数据，因为那是无效数据，上面的写法很完美打印出了所有有效数据，当cur等于pHead时不进入循环内，自然不打印哨兵位的数据了。）。</p> 
+<h3 id="5.%E5%8F%8C%E5%90%91%E9%93%BE%E8%A1%A8%E5%9C%A8pos%E7%9A%84%E5%89%8D%E9%9D%A2%E8%BF%9B%E8%A1%8C%E6%8F%92%E5%85%A5">5.双向链表在pos的前面进行插入</h3> 
+<pre><code class="language-cs">//创建双向链表节点
+ListNode* ListCreate(LTDataType x)
+{
+	ListNode* newnode = (ListNode*)malloc(sizeof(ListNode));
+	if (newnode == NULL)
+	{
+		perror("malloc fail-&gt;");
+		exit(-1);
+	}
+	newnode-&gt;data = x;
+	newnode-&gt;next = NULL;
+	newnode-&gt;prev = NULL;
+	return newnode;
+}
+
+// 双向链表在pos的前面进行插入
+void ListInsert(ListNode* pos, LTDataType x)
+{
+	assert(pos);
+	ListNode* newnode = ListCreate(x);
+	newnode-&gt;prev = pos-&gt;prev;
+	pos-&gt;prev-&gt;next = newnode;
+	newnode-&gt;next = pos;
+	pos-&gt;prev = newnode;
+}</code></pre> 
+<p>好好好，这个功能的实现来说，只需要通过pos-&gt;prev找到pos指向节点的前一个节点，并让新申请节点（调用ListCreate函数）的prev存储前一个节点的地址；让前一个节点的next存储新申请节点的地址；让新申请节点的next存储pos指向节点的地址；让pos指向节点的prev存储新申请节点的地址即可。</p> 
+<p>读者老爷请看图：</p> 
+<blockquote> 
+ <p style="text-align:center;"><img alt="" class="left" src="https://images2.imgbox.com/11/54/hb8pPMx2_o.png"></p> 
+</blockquote> 
+<h3 id="6.%E5%8F%8C%E5%90%91%E9%93%BE%E8%A1%A8%E5%88%A0%E9%99%A4pos%E4%BD%8D%E7%BD%AE%E7%9A%84%E8%8A%82%E7%82%B9%C2%A0">6.双向链表删除pos位置的节点 </h3> 
+<pre><code class="language-cs">// 双向链表删除pos位置的节点
+void ListErase(ListNode* pos)
+{
+	assert(pos);
+	if (pos-&gt;next == pos)
+	{
+		printf("不可删除哨兵位\n");
+	}
+	//防止删除哨兵位
+	assert(pos-&gt;next != pos);
+	ListNode* posnext = pos-&gt;next;
+	ListNode* posprev = pos-&gt;prev;
+	posnext-&gt;prev = posprev;
+	posprev-&gt;next = posnext;
+	free(pos);
+	pos = NULL;
+}</code></pre> 
+<p>这个功能的实现也不难！我们只要分别通过pos-&gt;next和pos-&gt;prev找到pos指向节点的后一个节点和前一个节点；让后一个节点的prev存储前一个节点的地址；让前一个节点的next存储后一个节点的地址；再释放掉pos指向节点的空间。注意要断言防止删除哨兵位（当pos指向哨兵位时，pos-&gt;next等于pos，所以assert条件为假就报错了。）！ </p> 
+<p>读者老爷请看图：</p> 
+<blockquote> 
+ <p style="text-align:center;"><img alt="" class="left" src="https://images2.imgbox.com/59/ac/c63xnSOF_o.png"></p> 
+</blockquote> 
+<h3 id="7.%E5%8F%8C%E5%90%91%E9%93%BE%E8%A1%A8%E5%B0%BE%E6%8F%92">7.双向链表尾插</h3> 
+<pre><code class="language-cs">//创建双向链表节点
+ListNode* ListCreate(LTDataType x)
+{
+	ListNode* newnode = (ListNode*)malloc(sizeof(ListNode));
+	if (newnode == NULL)
+	{
+		perror("malloc fail-&gt;");
+		exit(-1);
+	}
+	newnode-&gt;data = x;
+	newnode-&gt;next = NULL;
+	newnode-&gt;prev = NULL;
+	return newnode;
+}
+
+// 双向链表尾插
+void ListPushBack(ListNode* pHead, LTDataType x)
+{
+	assert(pHead);
+
+	//法一
+	ListNode* tail = pHead-&gt;prev;
+	ListNode* newnode = ListCreate(x);
+	tail-&gt;next = newnode;
+	newnode-&gt;prev = tail;
+	newnode-&gt;next = pHead;
+	pHead-&gt;prev = newnode;
+
+	//法二
+	//ListInsert(pHead, x);
+}</code></pre> 
+<p>对于尾插，因为pHead指向哨兵位，所以通过pHead-&gt;prev找到双向链表尾节点；调用ListCreate函数申请一个新节点；让尾节点的next存储新申请节点的地址；让新申请节点的prev存储尾节点地址；让新申请节点的next存储pHead；让pHead的prev存储新申请节点地址即可。</p> 
+<p>也可以直接调用前面实现过的“双向链表再pos的前面进行插入”函数，将哨兵位的地址(pHead)和所需存储数据传参进去即可。</p> 
+<h3 id="8.%E5%8F%8C%E5%90%91%E9%93%BE%E8%A1%A8%E5%B0%BE%E5%88%A0">8.双向链表尾删</h3> 
+<pre><code class="language-cs">//双向链表尾删
+void ListPopBack(ListNode* pHead)
+{
+	assert(pHead);
+	if (pHead-&gt;next == pHead)
+	{
+		printf("不可删除哨兵位\n");
+	}
+	//防止删除哨兵位
+	assert(pHead-&gt;next != pHead);
+
+	//法一
+	/*ListNode* tail = pHead-&gt;prev;
+	ListNode* tailprev = tail-&gt;prev;
+	tailprev-&gt;next = pHead;
+	pHead-&gt;prev = tailprev;
+	free(tail);
+	tail = NULL;*/
+
+	//法二
+	ListErase(pHead-&gt;prev);
+}</code></pre> 
+<p>对于双向链表尾删，要注意断言防止删除哨兵位！对于这个功能实现的思想大致来说就是通过pHead-&gt;prev找到尾节点；再通过尾节点的prev找到尾节点的前一个节点；让尾节点的前一个节点的next存储pHead；让pHead指向的节点（哨兵位）的prev存储位节点的前一个节点的地址；再释放掉pos指向的节点的空间即可。</p> 
+<p>也可以直接调用前面实现的“双向链表删除pos位置的节点”函数，传入pHead-&gt;prev(尾节点的地址)即可。</p> 
+<h3 id="9.%E5%8F%8C%E5%90%91%E9%93%BE%E8%A1%A8%E5%A4%B4%E6%8F%92%C2%A0">9.双向链表头插 </h3> 
+<pre><code class="language-cs">//创建双向链表节点
+ListNode* ListCreate(LTDataType x)
+{
+	ListNode* newnode = (ListNode*)malloc(sizeof(ListNode));
+	if (newnode == NULL)
+	{
+		perror("malloc fail-&gt;");
+		exit(-1);
+	}
+	newnode-&gt;data = x;
+	newnode-&gt;next = NULL;
+	newnode-&gt;prev = NULL;
+	return newnode;
+}
+
+// 双向链表头插
+void ListPushFront(ListNode* pHead, LTDataType x)
+{
+	assert(pHead);
+
+	//法一
+	ListNode* newnode = ListCreate(x);
+	ListNode* head = pHead-&gt;next;
+	newnode-&gt;next = head;
+	head-&gt;prev = newnode;
+	newnode-&gt;prev = pHead;
+	pHead-&gt;next = newnode;
+
+	//法二
+	//ListInsert(pHead-&gt;next, x);
+}</code></pre> 
+<p>对于双向链表头插，我们是往哨兵位的后一个节点的前面插入，使得插入的新申请节点成为哨兵位后一个节点。具体分析鼠鼠我就不分析了，很简单啦！也可以直接调用前面实现过的“双向链表再pos的前面进行插入”函数哈！</p> 
+<h3 id="10.%E5%8F%8C%E5%90%91%E9%93%BE%E8%A1%A8%E5%A4%B4%E5%88%A0%C2%A0">10.双向链表头删 </h3> 
+<pre><code class="language-cs">// 双向链表头删
+void ListPopFront(ListNode* pHead)
+{
+	assert(pHead);
+	if (pHead-&gt;next == pHead)
+	{
+		printf("不可删除哨兵位\n");
+	}
+	//防止删除哨兵位
+	assert(pHead-&gt;prev != pHead);
+
+	//法一
+	ListNode* head = pHead-&gt;next;
+	pHead-&gt;next = head-&gt;next;
+	head-&gt;next-&gt;prev = pHead;
+	free(head);
+	head = NULL;
+
+	//法二
+	//ListErase(pHead-&gt;next);
+}</code></pre> 
+<p>头删的含义也是删除哨兵位后一个节点啦！我们只要做好相应节点的链接再释放哨兵位后一个节点就行了。也可以直接调用前面实现过的“双向链表删除pos位置的节点”函数。很简单，鼠鼠我偷个懒，就不分析了。</p> 
+<h3 id="11.%E5%8F%8C%E5%90%91%E9%93%BE%E8%A1%A8%E6%9F%A5%E6%89%BE">11.双向链表查找</h3> 
+<pre><code class="language-cs">// 双向链表查找
+ListNode* ListFind(ListNode* pHead, LTDataType x)
+{
+	ListNode* cur = pHead-&gt;next;
+	while (cur != pHead)
+	{
+		if (cur-&gt;data == x)
+		{
+			return cur;
+		}
+		cur = cur-&gt;next;
+	}
+	return NULL;
+}</code></pre> 
+<p>我们只要遍历查找除了哨兵位之外的所有节点的需存储数据即可，如果有需存储数据与需查找数据一致我们就返回该节点的地址，找不到就返回空指针。简简单单啦！对了，哨兵位的需存储数据本身是无效数据，当然不用查找了。</p> 
+<h3 id="12.%E5%8F%8C%E5%90%91%E9%93%BE%E8%A1%A8%E7%9A%84%E5%B0%8F%E5%BA%94%E7%94%A8">12.双向链表的小应用</h3> 
+<p>老样子了，鼠鼠我呀写了三个文件，有兴趣的读者老爷可以将这三个文件放到同一个工程下面玩玩，可以更加深刻的理解上面代码的功能！</p> 
+<h4 id="12.1.list.h">12.1.list.h</h4> 
+<pre><code class="language-cs">#pragma once
+#include&lt;stdio.h&gt;
+#include&lt;assert.h&gt;
+#include&lt;stdlib.h&gt;
+
+typedef int LTDataType;
+
+typedef struct ListNode
+{
+	LTDataType data;
+	struct ListNode* next;
+	struct ListNode* prev;
+}ListNode;
+
+
+//初始化哨兵位
+ListNode* LTInit(void);
+
+// 双向链表销毁
+void ListDestory(ListNode* pHead);
+
+// 双向链表打印
+void ListPrint(ListNode* pHead);
+
+// 双向链表在pos的前面进行插入
+void ListInsert(ListNode* pos, LTDataType x);
+
+// 双向链表删除pos位置的节点
+void ListErase(ListNode* pos);
+
+// 双向链表尾插
+void ListPushBack(ListNode* pHead, LTDataType x);
+
+// 双向链表尾删
+void ListPopBack(ListNode* pHead);
+
+// 双向链表头插
+void ListPushFront(ListNode* pHead, LTDataType x);
+
+// 双向链表头删
+void ListPopFront(ListNode* pHead);
+
+// 双向链表查找
+ListNode* ListFind(ListNode* pHead, LTDataType x);
+</code></pre> 
+<h4 id="12.2.list.c">12.2.list.c</h4> 
+<pre><code class="language-cs">#define _CRT_SECURE_NO_WARNINGS
+#include"list.h"
+
+//创建双向链表节点
+ListNode* ListCreate(LTDataType x)
+{
+	ListNode* newnode = (ListNode*)malloc(sizeof(ListNode));
+	if (newnode == NULL)
+	{
+		perror("malloc fail-&gt;");
+		exit(-1);
+	}
+	newnode-&gt;data = x;
+	newnode-&gt;next = NULL;
+	newnode-&gt;prev = NULL;
+	return newnode;
+}
+
+
+//初始化哨兵位
+ListNode* LTInit(void)
+{
+	ListNode* head = ListCreate(-1);
+	head-&gt;next = head;
+	head-&gt;prev = head;
+	return head;
+}
+
+
+//双向链表销毁
+void ListDestory(ListNode*pHead)
+{
+	ListNode* cur = pHead-&gt;next;
+	while (cur != pHead)
+	{
+		ListNode* next = cur-&gt;next;
+		free(cur);
+		cur = next;
+	}
+	free(pHead);
+	pHead = NULL;
+	cur = NULL;
+}
+
+
+//双向链表打印
+void ListPrint(ListNode* pHead)
+{
+	ListNode* cur = pHead-&gt;next;
+	printf("哨兵位&lt;——&gt;");
+	while (cur != pHead)
+	{
+		printf("%d&lt;——&gt;", cur-&gt;data);
+		cur = cur-&gt;next;
+	}
+	printf("\n");
+}
+
+
+// 双向链表尾插
+void ListPushBack(ListNode* pHead, LTDataType x)
+{
+	assert(pHead);
+
+	//法一
+	ListNode* tail = pHead-&gt;prev;
+	ListNode* newnode = ListCreate(x);
+	tail-&gt;next = newnode;
+	newnode-&gt;prev = tail;
+	newnode-&gt;next = pHead;
+	pHead-&gt;prev = newnode;
+
+	//法二
+	//ListInsert(pHead, x);
+}
+
+
+//双向链表尾删
+void ListPopBack(ListNode* pHead)
+{
+	assert(pHead);
+	if (pHead-&gt;next == pHead)
+	{
+		printf("不可删除哨兵位\n");
+	}
+	//防止删除哨兵位
+	assert(pHead-&gt;next != pHead);
+
+	//法一
+	/*ListNode* tail = pHead-&gt;prev;
+	ListNode* tailprev = tail-&gt;prev;
+	tailprev-&gt;next = pHead;
+	pHead-&gt;prev = tailprev;
+	free(tail);
+	tail = NULL;*/
+
+	//法二
+	ListErase(pHead-&gt;prev);
+}
+
+
+// 双向链表头插
+void ListPushFront(ListNode* pHead, LTDataType x)
+{
+	assert(pHead);
+
+	//法一
+	ListNode* newnode = ListCreate(x);
+	ListNode* head = pHead-&gt;next;
+	newnode-&gt;next = head;
+	head-&gt;prev = newnode;
+	newnode-&gt;prev = pHead;
+	pHead-&gt;next = newnode;
+
+	//法二
+	//ListInsert(pHead-&gt;next, x);
+}
+
+
+// 双向链表头删
+void ListPopFront(ListNode* pHead)
+{
+	assert(pHead);
+	if (pHead-&gt;next == pHead)
+	{
+		printf("不可删除哨兵位\n");
+	}
+	//防止删除哨兵位
+	assert(pHead-&gt;prev != pHead);
+
+	//法一
+	ListNode* head = pHead-&gt;next;
+	pHead-&gt;next = head-&gt;next;
+	head-&gt;next-&gt;prev = pHead;
+	free(head);
+	head = NULL;
+
+	//法二
+	//ListErase(pHead-&gt;next);
+}
+
+
+// 双向链表查找
+ListNode* ListFind(ListNode* pHead, LTDataType x)
+{
+	ListNode* cur = pHead-&gt;next;
+	while (cur != pHead)
+	{
+		if (cur-&gt;data == x)
+		{
+			return cur;
+		}
+		cur = cur-&gt;next;
+	}
+	return NULL;
+}
+
+
+// 双向链表在pos的前面进行插入
+void ListInsert(ListNode* pos, LTDataType x)
+{
+	assert(pos);
+	ListNode* newnode = ListCreate(x);
+	newnode-&gt;prev = pos-&gt;prev;
+	pos-&gt;prev-&gt;next = newnode;
+	newnode-&gt;next = pos;
+	pos-&gt;prev = newnode;
+}
+
+
+// 双向链表删除pos位置的节点
+void ListErase(ListNode* pos)
+{
+	assert(pos);
+	if (pos-&gt;next == pos)
+	{
+		printf("不可删除哨兵位\n");
+	}
+	//防止删除哨兵位
+	assert(pos-&gt;next != pos);
+	ListNode* posnext = pos-&gt;next;
+	ListNode* posprev = pos-&gt;prev;
+	posnext-&gt;prev = posprev;
+	posprev-&gt;next = posnext;
+	free(pos);
+	pos = NULL;
+}</code></pre> 
+<h4 id="12.3.test.c%3A">12.3.test.c:</h4> 
+<pre><code class="language-cs">#define _CRT_SECURE_NO_WARNINGS
+#include"list.h"
+void menu()
+{
+	printf("******************************\n");
+	printf("************0.退出************\n");
+	printf("*******1.头插****2.尾插*******\n");
+	printf("*******3.头删****4.尾删*******\n");
+	printf("*******5.查找****6.打印*******\n");
+	printf("*7.双向链表在pos的前面进行插入\n");
+	printf("**8.双向链表删除pos位置的节点*\n");
+}
+int main()
+{
+	ListNode* plist = LTInit();
+	int input = 0;
+	do
+	{
+		menu();
+		printf("请输入你想要的操作的代表数字：-&gt;");
+		scanf("%d", &amp;input);
+		printf("\n");
+		switch (input)
+		{
+		case 0:
+		{
+			ListDestory(plist);
+			plist = NULL;
+			printf("\n");
+			break;
+		}
+		case 1:
+		{
+			int i = 0;
+			printf("请输入你想头插的数据个数：-&gt;");
+			scanf("%d", &amp;i);
+			int j = 0;
+			printf("请输入你想头插的数据：-&gt;");
+			for (j = 0; j &lt; i; j++)
+			{
+				LTDataType x = 0;
+				scanf("%d", &amp;x);
+				ListPushFront(plist, x);
+			}
+			printf("\n");
+			break;
+		}
+		case 2:
+		{
+
+			int i = 0;
+			printf("请输入你想尾插的数据个数：-&gt;");
+			scanf("%d", &amp;i);
+			int j = 0;
+			printf("请输入你想尾插的数据：-&gt;");
+			for (j = 0; j &lt; i; j++)
+			{
+				LTDataType x = 0;
+				scanf("%d", &amp;x);
+				ListPushBack(plist, x);
+			}
+			printf("\n");
+			break;
+		}
+		case 3:
+		{
+			ListPopFront(plist);
+			printf("\n");
+			break;
+		}
+		case 4:
+		{
+			ListPopBack(plist);
+			printf("\n");
+			break;
+		}
+		case 5:
+		{
+			LTDataType x = 0;
+			printf("请输入你想查找的数据：-&gt;");
+			scanf("%d", &amp;x);
+			ListNode* ret = ListFind(plist, x);
+			if (ret != NULL)
+			{
+				printf("找到了，该节点地址是%p\n", ret);
+			}
+			else
+			{
+				printf("找不到\n");
+			}
+			printf("\n");
+			break;
+		}
+		case 6:
+		{
+			ListPrint(plist);
+			printf("\n");
+			break;
+		}
+		case 7:
+		{
+			LTDataType n = 0, x = 0;
+			printf("请分别输入你想插入的数据和pos指向节点的数据：-&gt;");
+			scanf("%d %d", &amp;x, &amp;n);
+			ListInsert(ListFind(plist,n), x);
+			printf("\n");
+			break;
+		}
+		case 8:
+		{
+			LTDataType x = 0;
+			printf("请输入pos指向节点的数据：-&gt;");
+			scanf("%d", &amp;x);
+			ListErase(ListFind(plist,x));
+			printf("\n");
+			break;
+		}
+		}
+	} while (input);
+	return 0;
+}</code></pre> 
+<h3 id="13.ending%C2%A0" style="background-color:transparent;">13.ending </h3> 
+<p>好好好，看到这里的话，读者老爷如果觉得文章有不好的地方，恳请斧正，谢谢！</p> 
+<p class="img-center"><img alt="" src="https://images2.imgbox.com/0f/5b/5TiJnrxm_o.jpg"></p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/c2b5eebd02ebf7aaf9824c15fec8b70e/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">【数据结构初阶】顺序表</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/30c25e324fe40afba5c2d2b63f32dba1/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">linux服务器查询系统版本，内存，存储等命令</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

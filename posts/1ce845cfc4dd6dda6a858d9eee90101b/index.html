@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>昇腾modelzoo复现yolov4_v2（模型后处理） - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/1ce845cfc4dd6dda6a858d9eee90101b/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="昇腾modelzoo复现yolov4_v2（模型后处理）">
+  <meta property="og:description" content="6.pth2onnx.py import sys import onnx import os import argparse import numpy as np import cv2 import onnxruntime import torch from tool.utils import * from models import Yolov4 def detect(session, image_src): IN_IMAGE_H = session.get_inputs()[0].shape[2] IN_IMAGE_W = session.get_inputs()[0].shape[3] # Input resized = cv2.resize(image_src, (IN_IMAGE_W, IN_IMAGE_H), interpolation=cv2.INTER_LINEAR) img_in = cv2.cvtColor(resized, cv2.COLOR_BGR2RGB) img_in = np.transpose(img_in, (2, 0, 1)).astype(np.float32) img_in = np.expand_dims(img_in, axis=0) img_in /= 255.0 print(&#34;Shape of the network input: &#34;, img_in.shape) # Compute input_name = session.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2021-07-09T15:21:38+08:00">
+    <meta property="article:modified_time" content="2021-07-09T15:21:38+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">昇腾modelzoo复现yolov4_v2（模型后处理）</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <h3>6.pth2onnx.py</h3> 
+<pre><code class="language-python">import sys
+import onnx
+import os
+import argparse
+import numpy as np
+import cv2
+import onnxruntime
+import torch
+
+from tool.utils import *
+from models import Yolov4
+
+def detect(session, image_src):
+    IN_IMAGE_H = session.get_inputs()[0].shape[2]
+    IN_IMAGE_W = session.get_inputs()[0].shape[3]
+
+    # Input
+    resized = cv2.resize(image_src, (IN_IMAGE_W, IN_IMAGE_H), interpolation=cv2.INTER_LINEAR)
+    img_in = cv2.cvtColor(resized, cv2.COLOR_BGR2RGB)
+    img_in = np.transpose(img_in, (2, 0, 1)).astype(np.float32)
+    img_in = np.expand_dims(img_in, axis=0)
+    img_in /= 255.0
+    print("Shape of the network input: ", img_in.shape)
+
+    # Compute
+    input_name = session.get_inputs()[0].name
+
+    outputs = session.run(None, {input_name: img_in})
+
+    np.save("data/test2/conv_sbbox.npy", outputs[0])
+    np.save("data/test2/conv_mbbox.npy", outputs[1])
+    np.save("data/test2/conv_lbbox.npy", outputs[2])
+
+    boxes = post_processing(img_in, 0.4, 0.6, outputs)
+
+    num_classes = 80
+    if num_classes == 20:
+        namesfile = 'data/voc.names'
+    elif num_classes == 80:
+        namesfile = 'data/coco.names'
+    else:
+        namesfile = 'data/names'
+
+    namesfile="data/dataset/coins.names"
+    class_names = load_class_names(namesfile)
+    plot_boxes_cv2(image_src, boxes[0], savename='result/predictions_onnx.jpg', class_names=class_names)
+
+def transform_to_onnx(weight_file, batch_size, n_classes, IN_IMAGE_H, IN_IMAGE_W, onnx_file_name):
+    
+    model = Yolov4(n_classes=n_classes, inference=True)
+
+    pretrained_dict = torch.load(weight_file, map_location=torch.device('cpu'))
+    model.load_state_dict(pretrained_dict)
+
+    input_names = ["input"]
+    output_names = ['boxes', 'confs']
+
+    dynamic = False
+    if batch_size &lt;= 0:
+        dynamic = True
+    
+    if dynamic:
+        x = torch.randn((1, 3, IN_IMAGE_H, IN_IMAGE_W), requires_grad=True)
+        dynamic_axes = {"input": {0: "batch_size"}, "boxes": {0: "batch_size"}, "confs": {0: "batch_size"}}
+        # Export the model
+        torch.onnx.export(model,
+                          x,
+                          onnx_file_name,
+                          export_params=True,
+                          opset_version=11,
+                          do_constant_folding=True,
+                          input_names=input_names, output_names=output_names,
+                          dynamic_axes=dynamic_axes)
+
+        print('Onnx model exporting done')
+        return onnx_file_name
+
+    else:
+        x = torch.randn((batch_size, 3, IN_IMAGE_H, IN_IMAGE_W), requires_grad=True)
+        # Export the model
+        print('Export the onnx model ...')
+        torch.onnx.export(model,
+                          x,
+                          onnx_file_name,
+                          export_params=True,
+                          opset_version=11,
+                          do_constant_folding=True,
+                          input_names=input_names, output_names=output_names,
+                          dynamic_axes=None)
+
+        print('Onnx model exporting done')
+        return onnx_file_name
+
+def transform_to_onnx2(weight_file, batch_size, n_classes, IN_IMAGE_H, IN_IMAGE_W, onnx_file_name):
+    model = Yolov4(n_classes=n_classes, inference=False)  # inference改为False即可去除后处理算子
+    pretrained_dict = torch.load(weight_file, map_location=torch.device('cpu'))
+    model.load_state_dict(pretrained_dict)
+    input_names = ["input"]
+    output_names = ['feature_map_1', 'feature_map_2', 'feature_map_3']  # 输出节点改为三个
+
+    dynamic = False
+    if batch_size &lt;= 0:
+        dynamic = True
+
+    if dynamic:
+        x = torch.randn((1, 3, IN_IMAGE_H, IN_IMAGE_W), requires_grad=True)
+        onnx_file_name = "yolov4_-1_3_{}_{}_dynamic.onnx".format(IN_IMAGE_H, IN_IMAGE_W)
+        dynamic_axes = {"input": {0: "-1"}, "feature_map_1": {0: "-1"},
+                        "feature_map_2": {0: "-1"}, "feature_map_3": {0: "-1"}}
+        # Export the model
+        print('Export the onnx model ...')
+        torch.onnx.export(model,
+                          x,
+                          onnx_file_name,
+                          export_params=True,
+                          opset_version=11,
+                          do_constant_folding=True,
+                          input_names=input_names, output_names=output_names,
+                          dynamic_axes=dynamic_axes)
+    else:
+        x = torch.randn((batch_size, 3, IN_IMAGE_H, IN_IMAGE_W), requires_grad=True)
+        torch.onnx.export(model,
+                          x,
+                          onnx_file_name,
+                          export_params=True,
+                          opset_version=11,
+                          do_constant_folding=True,
+                          input_names=input_names, output_names=output_names,
+                          dynamic_axes=None)
+
+    print('Onnx model exporting done')
+    return onnx_file_name
+
+
+
+if __name__ == '__main__':
+    # 参数
+    IN_IMAGE_W=416
+    IN_IMAGE_H=416
+    n_classes=3
+    batch_size=1
+    image_path="data/test/test.jpg"
+    weight_file='data/model1/yolov4_20.pth'
+    onnx_file_name = 'data/model1/yolov4_20_v2.onnx'
+
+    # 转onnx
+    transform_to_onnx2(weight_file, batch_size, n_classes, IN_IMAGE_H, IN_IMAGE_W, onnx_file_name)
+    
+    # # 检测
+    # session = onnxruntime.InferenceSession(onnx_file_name)
+    # image_src = cv2.imread(image_path)
+    # detect(session, image_src)</code></pre> 
+<hr> 
+<h3></h3> 
+<h3>7.test_onnx.py</h3> 
+<pre><code class="language-python">import sys
+import onnx
+import os
+import argparse
+import numpy as np
+import cv2
+import onnxruntime
+import torch
+
+import colorsys
+from PIL import Image, ImageDraw, ImageFont
+import post_process as post_process
+
+
+def letterbox_image2(image, size, letterbox):
+    # INTER_NEAREST:最邻近插值,INTER_LINEAR:双线性插值,INTER_CUBIC:4x4像素邻域内的双立方插值,INTER_LANCZOS4:8x8像素邻域内的Lanczos插值
+    if letterbox:
+        ih, iw = image.shape[0:2]
+        w, h = size
+        scale = min(w/iw, h/ih)
+        nw = int(iw*scale)
+        nh = int(ih*scale)
+
+        image = cv2.resize(image, (nw,nh), interpolation=cv2.INTER_LINEAR)
+        img = np.ones((w, h,3),dtype=np.uint8)
+        img[:,:]=128
+        img[(h-nh)//2:(h-nh)//2+nh, (w-nw)//2:(w-nw)//2+nw]=image
+    else:
+        img = cv2.resize(image, size, interpolation=cv2.INTER_LINEAR) 
+
+    # cv2.imshow('img',img)
+    # cv2.waitKey(0) 
+    return img
+
+def letterbox_image(image, size):
+    iw, ih = image.size
+    w, h = size
+    scale = min(w/iw, h/ih)
+    nw = int(iw*scale)
+    nh = int(ih*scale)
+
+    image = image.resize((nw,nh), Image.BICUBIC)
+    new_image = Image.new('RGB', size, (128,128,128))
+    new_image.paste(image, ((w-nw)//2, (h-nh)//2))
+    # new_image.show()
+
+    return new_image
+
+
+if __name__ == '__main__':
+    # 参数
+    conf_thres=0.4
+    nms_thres=0.6
+    anchors_path='data/dataset/coco_anchors.names'
+    classes_path='data/dataset/coins.names'
+
+    image_path="data/test/test.jpg"
+    weight_file='data/model1/yolov4_20.pth'
+    onnx_file_name = 'data/model1/yolov4_20_v2.onnx'
+    
+
+    # 备注：img1是工程预处理，img2是自己写的，img3是atlas的om模型输入数据
+    # letterbox=True时，img1=img2!=img3，letterbox=False时，img2=img3!=img1 （由于cv和PIL的resize不一样，有小误差）
+    # img1:原代码预处理
+    letterbox=False
+    image_src = cv2.imread(image_path)
+    img1 = cv2.cvtColor(image_src, cv2.COLOR_BGR2RGB)
+    img1 = letterbox_image2(img1, (416,416), letterbox)
+    img1 = np.transpose(img1, (2, 0, 1)).astype(np.float32) / 255.0
+    img1 = np.expand_dims(img1, axis=0)
+    print(img1.shape)
+
+    # img2:自己写的预处理，参考yolov3的
+    image_src2 = Image.open(image_path)
+    if letterbox:
+        crop_img = np.array(letterbox_image(image_src2, (416,416)))
+    else:
+        crop_img = image_src2.convert('RGB')
+        crop_img = crop_img.resize((416,416), Image.BILINEAR)  #NEAREST:最低质量，BILINEAR:双线性，BICUBIC:三次样条插值，ANTIALIAS:最高质量
+    
+    photo = np.array(crop_img,dtype = np.float32) / 255.0
+    photo = np.transpose(photo, (2, 0, 1))
+    img2 = np.expand_dims(photo, axis=0)
+    print(img2.shape)
+    
+    # # img3: om模型的数据输入，atc转换时截断到input层得到的数据
+    # img3=np.load("data/test2/input.npy")
+    # print(img3.shape)
+
+
+    # Compute
+    session = onnxruntime.InferenceSession(onnx_file_name)
+    input_name = session.get_inputs()[0].name
+    outputs = session.run(None, {input_name: img2})
+    # print(len(outputs))
+    conv_sbbox=outputs[0]
+    conv_mbbox=outputs[1]
+    conv_lbbox=outputs[2]
+
+    input_size=(416, 416)
+    class_names = post_process.get_class(classes_path)
+    decode_sbbox=post_process.DecodeBox2(post_process.get_anchors(anchors_path)[0], len(class_names),  input_size, conv_sbbox)
+    decode_mbbox=post_process.DecodeBox2(post_process.get_anchors(anchors_path)[1], len(class_names),  input_size, conv_mbbox)
+    decode_lbbox=post_process.DecodeBox2(post_process.get_anchors(anchors_path)[2], len(class_names),  input_size, conv_lbbox)
+    output = np.concatenate([decode_sbbox, decode_mbbox, decode_lbbox], 1)
+    print(decode_sbbox.shape, decode_mbbox.shape, decode_lbbox.shape, output.shape)
+
+    batch_detections = post_process.non_max_suppression2(output, len(class_names), conf_thres=conf_thres, nms_thres=nms_thres)
+    print(batch_detections)
+    try:
+        batch_detections = np.array(batch_detections[0])
+        bbox_nums=np.array(batch_detections[0]).shape[0]
+    except:
+        print("没有检测结果！")
+        exit()
+        
+    image = Image.open(image_path)
+    boxes, top_conf, top_label=post_process.Regression(batch_detections, conf_thres, image, letterbox)
+    post_process.draw_box(boxes, top_conf, top_label, class_names, image)</code></pre> 
+<hr> 
+<p></p> 
+<h3>8.tranform2.py</h3> 
+<pre><code class="language-python">import cv2
+import numpy as np
+import os
+import colorsys
+from PIL import Image, ImageDraw, ImageFont
+import post_process as post_process
+
+
+conf_thres=0.4
+nms_thres=0.6
+letterbox=False
+anchors_path='data/dataset/coco_anchors.names'
+classes_path='data/dataset/coins.names'
+
+
+if __name__ == '__main__':
+    img_path="data/test/test.jpg"
+    image = Image.open(img_path)
+    img=post_process.get_imgges(image, letterbox)
+
+    # model_path="data/model4/test.pth"
+    # outputs=prediect(img)
+    # conv_sbbox=outputs[0].detach().numpy()
+    # conv_mbbox=outputs[1].detach().numpy()
+    # conv_lbbox=outputs[2].detach().numpy()
+    # np.save("data/test/conv_sbbox.npy", conv_sbbox)
+    # np.save("data/test/conv_mbbox.npy", conv_mbbox)
+    # np.save("data/test/conv_lbbox.npy", conv_lbbox)
+
+    conv_sbbox=np.load("data/test2/conv_sbbox.npy")
+    conv_mbbox=np.load("data/test2/conv_mbbox.npy")
+    conv_lbbox=np.load("data/test2/conv_lbbox.npy")
+    print(conv_sbbox.shape, conv_mbbox.shape, conv_lbbox.shape)
+
+    
+    input_size=(416, 416)
+    class_names = post_process.get_class(classes_path)
+    decode_sbbox=post_process.DecodeBox2(post_process.get_anchors(anchors_path)[0], len(class_names),  input_size, conv_sbbox)
+    decode_mbbox=post_process.DecodeBox2(post_process.get_anchors(anchors_path)[1], len(class_names),  input_size, conv_mbbox)
+    decode_lbbox=post_process.DecodeBox2(post_process.get_anchors(anchors_path)[2], len(class_names),  input_size, conv_lbbox)
+    output = np.concatenate([decode_sbbox, decode_mbbox, decode_lbbox], 1)
+    print(decode_sbbox.shape, decode_mbbox.shape, decode_lbbox.shape, output.shape)
+
+    batch_detections = post_process.non_max_suppression2(output, len(class_names), conf_thres=conf_thres, nms_thres=nms_thres)
+    print(batch_detections)
+    try:
+        batch_detections = np.array(batch_detections[0])
+        bbox_nums=np.array(batch_detections[0]).shape[0]
+    except:
+        print("没有检测结果！")
+        exit()
+
+    boxes, top_conf, top_label=post_process.Regression(batch_detections, conf_thres, image, letterbox)
+    post_process.draw_box(boxes, top_conf, top_label, class_names, image)
+
+
+    
+</code></pre> 
+<hr> 
+<h3></h3> 
+<h3>9.post_process.py</h3> 
+<pre><code class="language-python">import cv2
+import numpy as np
+import os
+import colorsys
+from PIL import Image, ImageDraw, ImageFont
+
+
+
+def get_class(classes_path):
+    classes_path = os.path.expanduser(classes_path)
+    with open(classes_path) as f:
+        class_names = f.readlines()
+    class_names = [c.strip() for c in class_names]
+    return class_names
+
+def get_anchors(anchors_path):
+    anchors_path = os.path.expanduser(anchors_path)
+    with open(anchors_path) as f:
+        anchors = f.readline()
+    anchors = [float(x) for x in anchors.split(',')]
+    return np.array(anchors).reshape([-1, 3, 2])[::-1,:,:]
+
+def sigmoid(x):
+    x_ravel = x.ravel()  # 将numpy数组展平
+    length = len(x_ravel)
+    y = []
+    for index in range(length):
+        if x_ravel[index] &gt;= 0:
+            y.append(1.0 / (1 + np.exp(-x_ravel[index])))
+        else:
+            y.append(np.exp(x_ravel[index]) / (np.exp(x_ravel[index]) + 1))
+    return np.array(y).reshape(x.shape)
+
+def letterbox_image(image, size):
+    iw, ih = image.size
+    w, h = size
+    scale = min(w/iw, h/ih)
+    nw = int(iw*scale)
+    nh = int(ih*scale)
+
+    image = image.resize((nw,nh), Image.BICUBIC)
+    new_image = Image.new('RGB', size, (128,128,128))
+    new_image.paste(image, ((w-nw)//2, (h-nh)//2))
+    return new_image
+
+# 数据处理
+def get_imgges(image, letterbox):
+    if letterbox:
+        crop_img = np.array(letterbox_image(image, (416,416)))
+    else:
+        crop_img = image.convert('RGB')
+        crop_img = crop_img.resize((416,416), Image.BICUBIC)
+
+    photo = np.array(crop_img,dtype = np.float32) / 255.0
+    photo = np.transpose(photo, (2, 0, 1))
+    img = [photo]
+    img=np.asarray(img)
+
+    return img
+
+
+def DecodeBox2(anchors, num_classes, img_size, input):
+    anchors = anchors
+    num_anchors = len(anchors)
+    num_classes = num_classes
+    bbox_attrs = 5 + num_classes
+    img_size = img_size
+
+    batch_size = input.shape[0]
+    input_height = input.shape[2]
+    input_width = input.shape[3]
+    # print(batch_size, input_height, input_width, input.shape)
+
+    stride_h = img_size[1] / input_height
+    stride_w = img_size[0] / input_width
+
+    scaled_anchors = [(anchor_width / stride_w, anchor_height / stride_h) for anchor_width, anchor_height in anchors]
+
+    # prediction = input.view(batch_size, num_anchors, bbox_attrs, input_height, input_width).permute(0, 1, 3, 4, 2).contiguous()
+    a = input.reshape(batch_size, num_anchors, bbox_attrs, input_height, input_width).transpose(0, 1, 3, 4, 2)
+    prediction = np.copy(a)
+    # print(prediction, prediction.shape)
+
+    # 先验框的中心位置的调整参数
+    x = sigmoid(prediction[..., 0])  
+    y = sigmoid(prediction[..., 1])
+    # 先验框的宽高调整参数
+    w = prediction[..., 2]
+    h = prediction[..., 3]
+    # 获得置信度，是否有物体
+    conf = sigmoid(prediction[..., 4])
+    # 种类置信度
+    pred_cls = sigmoid(prediction[..., 5:])
+
+    #   生成网格，先验框中心，网格左上角 
+    grid_x = np.linspace(0, input_width - 1, input_width)
+    grid_x = np.tile(np.tile(grid_x, (input_height, 1)), (batch_size * num_anchors, 1, 1))
+    grid_x = grid_x.reshape(x.shape).astype(np.float16)
+
+    grid_y = np.linspace(0, input_height - 1, input_height)
+    grid_y = np.tile(np.tile(grid_y, (input_width, 1)).T, (batch_size * num_anchors, 1, 1))
+    grid_y = grid_y.reshape(y.shape).astype(np.float16)
+    # print(grid_y, grid_y.shape)
+
+    # #   按照网格格式生成先验框的宽高 
+    anchor_w = np.array(scaled_anchors).astype(np.float16)[:,0].reshape(len(scaled_anchors),1)  # len(scaled_anchors)=3
+    anchor_h = np.array(scaled_anchors).astype(np.float16)[:,1].reshape(len(scaled_anchors),1)
+    anchor_w = np.tile(np.tile(anchor_w, (batch_size, 1)), (1, 1, input_height * input_width)).reshape(w.shape)
+    anchor_h = np.tile(np.tile(anchor_h, (batch_size, 1)), (1, 1, input_height * input_width)).reshape(h.shape)
+    # print(anchor_w,anchor_h)
+    # print(anchor_w.shape, anchor_h.shape)
+
+    #----------------------------------------------------------#
+    #   利用预测结果对先验框进行调整
+    #   首先调整先验框的中心，从先验框中心向右下角偏移
+    #   再调整先验框的宽高。
+    #----------------------------------------------------------#
+    pred_boxes = np.zeros(shape=prediction[..., :4].shape)
+    pred_boxes[..., 0] = x.data + grid_x
+    pred_boxes[..., 1] = y.data + grid_y
+    pred_boxes[..., 2] = np.exp(w.data) * anchor_w
+    pred_boxes[..., 3] = np.exp(h.data) * anchor_h
+    # print(pred_boxes)
+
+    #----------------------------------------------------------#
+    #   将输出结果调整成相对于输入图像大小
+    #----------------------------------------------------------#
+    _scale=np.array([stride_w, stride_h] * 2).astype(np.float16)
+    output = np.concatenate((pred_boxes.reshape(batch_size, -1, 4) * _scale,
+        conf.reshape(batch_size, -1, 1), pred_cls.reshape(batch_size, -1, num_classes)), -1)
+    
+    return output      
+
+def yolo_correct_boxes(top, left, bottom, right, input_shape, image_shape):
+    new_shape = image_shape*np.min(input_shape/image_shape)
+
+    offset = (input_shape-new_shape)/2./input_shape
+    scale = input_shape/new_shape
+
+    box_yx = np.concatenate(((top+bottom)/2,(left+right)/2),axis=-1)/input_shape
+    box_hw = np.concatenate((bottom-top,right-left),axis=-1)/input_shape
+
+    box_yx = (box_yx - offset) * scale
+    box_hw *= scale
+
+    box_mins = box_yx - (box_hw / 2.)
+    box_maxes = box_yx + (box_hw / 2.)
+    boxes =  np.concatenate([
+        box_mins[:, 0:1],
+        box_mins[:, 1:2],
+        box_maxes[:, 0:1],
+        box_maxes[:, 1:2]
+    ],axis=-1)
+    boxes *= np.concatenate([image_shape, image_shape],axis=-1)
+    return boxes
+
+
+def bbox_iou2(box1, box2, x1y1x2y2=True):
+    """
+        计算IOU
+    """
+    if not x1y1x2y2:
+        b1_x1, b1_x2 = box1[:, 0] - box1[:, 2] / 2, box1[:, 0] + box1[:, 2] / 2
+        b1_y1, b1_y2 = box1[:, 1] - box1[:, 3] / 2, box1[:, 1] + box1[:, 3] / 2
+        b2_x1, b2_x2 = box2[:, 0] - box2[:, 2] / 2, box2[:, 0] + box2[:, 2] / 2
+        b2_y1, b2_y2 = box2[:, 1] - box2[:, 3] / 2, box2[:, 1] + box2[:, 3] / 2
+    else:
+        b1_x1, b1_y1, b1_x2, b1_y2 = box1[:, 0], box1[:, 1], box1[:, 2], box1[:, 3]
+        b2_x1, b2_y1, b2_x2, b2_y2 = box2[:, 0], box2[:, 1], box2[:, 2], box2[:, 3]
+
+    inter_rect_x1 = np.maximum(b1_x1, b2_x1)
+    inter_rect_y1 = np.maximum(b1_y1, b2_y1)
+    inter_rect_x2 = np.minimum(b1_x2, b2_x2)
+    inter_rect_y2 = np.minimum(b1_y2, b2_y2)
+
+    data1=inter_rect_x2 - inter_rect_x1 + 1
+    data2=inter_rect_y2 - inter_rect_y1 + 1
+    inter_area = np.clip(data1, a_min=0, a_max=max(data1)) * np.clip(data2, a_min=0, a_max=max(data2))
+    
+    b1_area = (b1_x2 - b1_x1 + 1) * (b1_y2 - b1_y1 + 1)
+    b2_area = (b2_x2 - b2_x1 + 1) * (b2_y2 - b2_y1 + 1)
+
+    iou = inter_area / (b1_area + b2_area - inter_area + 1e-16)
+
+    return iou
+     
+def non_max_suppression2(prediction, num_classes, conf_thres=0.5, nms_thres=0.4):
+    box_corner = np.zeros(shape=prediction.shape)
+    box_corner[:, :, 0] = prediction[:, :, 0] - prediction[:, :, 2] / 2
+    box_corner[:, :, 1] = prediction[:, :, 1] - prediction[:, :, 3] / 2
+    box_corner[:, :, 2] = prediction[:, :, 0] + prediction[:, :, 2] / 2
+    box_corner[:, :, 3] = prediction[:, :, 1] + prediction[:, :, 3] / 2
+    prediction[:, :, :4] = box_corner[:, :, :4]
+
+    output = [None for _ in range(len(prediction))]
+    for image_i, image_pred in enumerate(prediction):
+        data=image_pred[:, 5:5 + num_classes]
+        class_conf=np.max(data, axis=1).reshape(len(data),1)
+        class_pred=data.argmax(axis=1).reshape(len(data),1)
+
+        #----------------------------------------------------------#
+        #   利用置信度进行第一轮筛选
+        #----------------------------------------------------------#
+        conf_mask = (image_pred[:, 4] * class_conf[:, 0] &gt;= conf_thres).squeeze()
+
+        #----------------------------------------------------------#
+        #   根据置信度进行预测结果的筛选
+        #----------------------------------------------------------#
+        image_pred = image_pred[conf_mask]
+        class_conf = class_conf[conf_mask]
+        class_pred = class_pred[conf_mask]
+
+        if len(image_pred)&lt;=0:
+            continue
+
+        # detections  [num_anchors, 7]   7的内容为：x1, y1, x2, y2, obj_conf, class_conf, class_pred
+        detections = np.concatenate((image_pred[:, :5], class_conf.astype(np.float16), class_pred.astype(np.float16)), 1)
+
+        # 获得预测结果中包含的所有种类
+        unique_labels = np.unique(detections[:, -1])
+
+        for c in unique_labels:
+            detections_class = detections[detections[:, -1] == c]
+            
+            # # 按照存在物体的置信度排序
+            conf_sort_index = np.argsort(-(detections_class[:, 4]*detections_class[:, 5]), axis=0)
+            detections_class = detections_class[conf_sort_index]
+
+            # 进行非极大抑制
+            max_detections = []
+            while detections_class.shape[0]&gt;0:
+                # 取出这一类置信度最高的，一步一步往下判断，判断重合程度是否大于nms_thres，如果是则去除掉
+                max_detections.append(np.expand_dims(detections_class[0],axis=0))
+                if len(detections_class) == 1:
+                    break
+                
+                ious = bbox_iou2(max_detections[-1], detections_class[1:])
+                detections_class = detections_class[1:][ious &lt; nms_thres]
+                
+            # 堆叠
+            max_detections = np.concatenate(max_detections)
+
+            # Add max detections to outputs
+            output[image_i] = max_detections if output[image_i] is None else np.concatenate((output[image_i], max_detections))
+
+    return output
+
+def prediect(img):
+    # 模型加载
+    device = torch.device('cpu')
+    model=torch.load(model_path)
+    model=model.to(device)
+
+    # 模型预测
+    # img = torch.from_numpy(img)
+    img = torch.tensor(img, dtype=torch.float32)
+    torch.no_grad()
+    outputs = model(img)
+
+    return outputs
+
+def Regression(batch_detections, confidence, image, letterbox):
+    # 检测框处理
+    top_index = batch_detections[:,4] * batch_detections[:,5] &gt; confidence
+    top_conf = batch_detections[top_index,4]*batch_detections[top_index,5]
+    top_label = np.array(batch_detections[top_index,-1],np.int32)
+    top_bboxes = np.array(batch_detections[top_index,:4])
+    top_xmin, top_ymin, top_xmax, top_ymax = np.expand_dims(top_bboxes[:,0],-1),np.expand_dims(top_bboxes[:,1],-1),np.expand_dims(top_bboxes[:,2],-1),np.expand_dims(top_bboxes[:,3],-1)
+
+    #-----------------------------------------------------------------#
+    image_shape = np.array(np.shape(image)[0:2])
+    if letterbox:
+        boxes = yolo_correct_boxes(top_ymin,top_xmin,top_ymax,top_xmax,np.array([416,416]),image_shape)
+    else:
+        top_xmin = top_xmin / 416 * image_shape[1]
+        top_ymin = top_ymin / 416 * image_shape[0]
+        top_xmax = top_xmax / 416 * image_shape[1]
+        top_ymax = top_ymax / 416 * image_shape[0]
+        boxes = np.concatenate([top_ymin,top_xmin,top_ymax,top_xmax], axis=-1)
+
+    return boxes.astype(np.int), top_conf, top_label
+
+def draw_box(boxes, top_conf, top_label, class_names, image):
+    font = ImageFont.truetype(font='model_data/simhei.ttf',size=np.floor(3e-2 * np.shape(image)[1] + 0.5).astype('int32'))
+    thickness = max((np.shape(image)[0] + np.shape(image)[1]) // 416, 1)
+
+    # 画框设置不同的颜色
+    hsv_tuples = [(x / len(class_names), 1., 1.)
+    for x in range(len(class_names))]
+    colors = list(map(lambda x: colorsys.hsv_to_rgb(*x), hsv_tuples))
+    colors = list(map(lambda x: (int(x[0] * 255), int(x[1] * 255), int(x[2] * 255)),colors))
+
+    for i, c in enumerate(top_label):
+        predicted_class = class_names[c]
+        score = top_conf[i]
+
+        top, left, bottom, right = boxes[i]
+        top = top - 5
+        left = left - 5
+        bottom = bottom + 5
+        right = right + 5
+
+        top = max(0, np.floor(top + 0.5).astype('int32'))
+        left = max(0, np.floor(left + 0.5).astype('int32'))
+        bottom = min(np.shape(image)[0], np.floor(bottom + 0.5).astype('int32'))
+        right = min(np.shape(image)[1], np.floor(right + 0.5).astype('int32'))
+
+        # 画框框
+        label = '{} {:.2f}'.format(predicted_class, score)
+        draw = ImageDraw.Draw(image)
+        label_size = draw.textsize(label, font)
+        label = label.encode('utf-8')
+        print(label, top, left, bottom, right)
+        
+        if top - label_size[1] &gt;= 0:
+            text_origin = np.array([left, top - label_size[1]])
+        else:
+            text_origin = np.array([left, top + 1])
+
+        for i in range(thickness):
+            draw.rectangle(
+                [left + i, top + i, right - i, bottom - i],
+                outline=colors[class_names.index(predicted_class)])
+        draw.rectangle(
+            [tuple(text_origin), tuple(text_origin + label_size)],
+            fill=colors[class_names.index(predicted_class)])
+        draw.text(text_origin, str(label,'UTF-8'), fill=(0, 0, 0), font=font)
+    # image.show()</code></pre> 
+<p></p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/08906e77c0cf861f273b6a1ab6c4564a/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">昇腾modelzoo复现yolov4_v1（模型训练&#43;网络定义）</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/e1ab95ce0f4781492524ff04c68f6ca8/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">JAVA集合——可维护插入、大小、访问顺序的Map集合</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

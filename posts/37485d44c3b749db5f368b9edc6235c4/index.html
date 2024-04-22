@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>【Android NDK 开发】NDK 交叉编译 ( Ubuntu 中交叉编译动态库 | Android Studio 中配置使用第三方动态库 ) - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/37485d44c3b749db5f368b9edc6235c4/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="【Android NDK 开发】NDK 交叉编译 ( Ubuntu 中交叉编译动态库 | Android Studio 中配置使用第三方动态库 )">
+  <meta property="og:description" content="文章目录 I . 动态库 与 静态库II . 编译动态库III. Android Studio 使用第三方动态库IV . Android Studio 关键代码V . 博客资源 I . 动态库 与 静态库 1 . 函数库分类 : ① 动态库 , ② 静态库 ;
+2 . 静态库 :
+编译链接时 , 将整个库文件打包到可执行文件中 , 造成可执行文件较大 , 但运行时不需要库文件 ;
+Android 与 Linux 静态库 后缀为 “.a” ;
+3 . 动态库 :
+编译链接时 , 不将库打包入可执行文件中 , 在程序运行时调用到该库时才链接加载该动态库 ;
+Android 与 Linux 静态库 后缀为 “.so” ;
+4 .">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2020-02-11T00:13:31+08:00">
+    <meta property="article:modified_time" content="2020-02-11T00:13:31+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">【Android NDK 开发】NDK 交叉编译 ( Ubuntu 中交叉编译动态库 | Android Studio 中配置使用第三方动态库 )</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-tomorrow-night-eighties">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <p></p> 
+<div class="toc"> 
+ <h4>文章目录</h4> 
+ <ul><li><ul><li><ul><li><ul><li><a href="#I______9" rel="nofollow">I . 动态库 与 静态库</a></li><li><a href="#II___49" rel="nofollow">II . 编译动态库</a></li><li><a href="#III_Android_Studio__121" rel="nofollow">III. Android Studio 使用第三方动态库</a></li><li><a href="#IV__Android_Studio__209" rel="nofollow">IV . Android Studio 关键代码</a></li><li><a href="#V___345" rel="nofollow">V . 博客资源</a></li></ul> 
+   </li></ul> 
+  </li></ul> 
+ </li></ul> 
+</div> 
+<p></p> 
+<br> 
+<br> 
+<h5><a id="I______9"></a>I . 动态库 与 静态库</h5> 
+<hr> 
+<br> 
+<p><strong>1 . 函数库分类 :</strong> <font color="blue">① 动态库 , <font color="red">② 静态库 ;</font></font></p> 
+<br> 
+<p><strong>2 . 静态库 :</strong></p> 
+<p><font color="blue">编译链接时 , 将整个库文件打包到可执行文件中 , 造成可执行文件较大 , 但运行时不需要库文件 ;</font></p> 
+<p><font color="purple">Android 与 Linux 静态库 后缀为 <font color="red">“.a” ;</font></font></p> 
+<br> 
+<p><strong>3 . 动态库 :</strong></p> 
+<p><font color="blue">编译链接时 , 不将库打包入可执行文件中 , 在程序运行时调用到该库时才链接加载该动态库 ;</font></p> 
+<p><font color="purple">Android 与 Linux 静态库 后缀为 <font color="red">“.so” ;</font></font></p> 
+<br> 
+<p><strong>4 . 静态库与动态库对比 :</strong></p> 
+<p><strong>① 静态库时间效率高 :</strong> <font color="green">执行时没有动态链接的操作 , 所有的代码都在可执行文件内部 , 时间消耗少 ;</font></p> 
+<p><strong>② 动态库空间效率高 :</strong> <font color="brown">动态库如果被多个程序调用 , 只要有一个动态库在内存中即可 ;</font></p> 
+<br> 
+<br> 
+<h5><a id="II___49"></a>II . 编译动态库</h5> 
+<hr> 
+<br> 
+<p><strong>1 . 要编译的源文件 :</strong> <font color="blue">add.c 源文件 ;</font></p> 
+<pre><code class="prism language-cpp"><span class="token macro property">#<span class="token directive keyword">include</span> <span class="token string">&lt;stdio.h&gt;</span></span>
+
+<span class="token keyword">int</span> <span class="token function">add</span><span class="token punctuation">(</span><span class="token keyword">int</span> a<span class="token punctuation">,</span> <span class="token keyword">int</span> b<span class="token punctuation">)</span><span class="token punctuation">{<!-- --></span>
+	<span class="token keyword">return</span> a <span class="token operator">+</span> b<span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<br> 
+<p><strong>2 . 共享动态库编译参数 :</strong> <font color="blue">编译动态库需要添加 <font color="red">“-fPIC” <font color="blue">和 <font color="magenta">“-shared” <font color="blue">两个参数 ;</font></font></font></font></font></p> 
+<br> 
+<p><strong>3 . 编译命令 :</strong></p> 
+<br> 
+<p><strong>① 设置 编译器 临时环境变量 :</strong></p> 
+<p><font color="blue">export <font color="red">CC<font color="blue">=<font color="blue">/home/book/NDK/android-ndk-r17c/toolchains/arm-linux-androideabi-4.9/prebuilt/linux-x86_64/bin/arm-linux-androideabi-gcc</font></font></font></font></p> 
+<br> 
+<p><strong>② 设置指定 头文件和函数库 的临时环境变量 :</strong></p> 
+<p><font color="blue">export <font color="red">HEAD_LIB<font color="blue">="<font color="green">--sysroot=/home/book/NDK/android-ndk-r17c/platforms/android-21/arch-arm <font color="purple">-isystem /home/book/NDK/android-ndk-r17c/sysroot/usr/include <font color="red">-isystem /home/book/NDK/android-ndk-r17c/sysroot/usr/include/arm-linux-androideabi"</font></font></font></font></font></font></p> 
+<br> 
+<p><strong>③ 最终命令 :</strong></p> 
+<p><font color="blue">$CC <font color="green">$HEAD_LIB <font color="red">-fPIC <font color="magenta">-shared <font color="purple">add.c <font color="orange">-o libadd.so</font></font></font></font></font></font></p> 
+<br> 
+<p><strong>4 . 编译结果 :</strong> <font color="blue">在该目录下生成了 libadd.so 动态库 ;</font></p> 
+<pre><code class="prism language-shell">book@book-virtual-machine:~/NDK$ <span class="token function">export</span> CC<span class="token operator">=</span>/home/book/NDK/android-ndk-r17c/toolchains/arm-linux-androideabi-4.9/prebuilt/linux-x86_64/bin/arm-linux-androideabi-gcc
+book@book-virtual-machine:~/NDK$ <span class="token function">export</span> HEAD_LIB<span class="token operator">=</span><span class="token string">"--sysroot=/home/book/NDK/android-ndk-r17c/platforms/android-21/arch-arm -isystem /home/book/NDK/android-ndk-r17c/sysroot/usr/include -isystem /home/book/NDK/android-ndk-r17c/sysroot/usr/include/arm-linux-androideabi"</span>
+book@book-virtual-machine:~/NDK$ <span class="token variable">$CC</span> <span class="token variable">$HEAD_LIB</span>  -fPIC -shared add.c -o libadd.so 
+book@book-virtual-machine:~/NDK$ <span class="token function">ls</span>
+add.c             android-ndk-r17c-linux-x86_64.zip  libadd.so
+android-ndk-r17c  a.out                              main.c
+book@book-virtual-machine:~/NDK$ 
+</code></pre> 
+<p><img src="https://images2.imgbox.com/ba/20/CyJdOxIG_o.png" alt="在这里插入图片描述"></p> 
+<br> 
+<p><font color="red"><strong>目录中的 libadd.so 就是编译完成的动态库 , 该动态库可以放到 Android Studio 项目中使用 ;</strong></font></p> 
+<br> 
+<br> 
+<h5><a id="III_Android_Studio__121"></a>III. Android Studio 使用第三方动态库</h5> 
+<hr> 
+<br> 
+<p><strong>1 . 拷贝动态库 :</strong></p> 
+<p><font color="blue">在 AS 项目的 main 目录下 , 创建 <font color="red"><strong>jniLibs/armeabi-v7a</strong> <font color="blue">目录 , 将 libadd.so 拷贝到该目录中 ;</font></font></font></p> 
+<p><img src="https://images2.imgbox.com/79/b7/absSPPJb_o.png" alt="在这里插入图片描述"></p> 
+<br> 
+<p><strong>2 . CMakeLists.txt 中配置动态库 :</strong></p> 
+<p><strong>配置示例 :</strong></p> 
+<pre><code class="prism language-shell"><span class="token comment"># 设置变量</span>
+<span class="token comment"># CMAKE_CXX_FLAGS 表示会将 C++ 的参数传给编译器</span>
+<span class="token comment"># CMAKE_C_FLAGS 表示会将 C 参数传给编译器</span>
+
+<span class="token comment"># 参数设置 : 传递 CMAKE_CXX_FLAGS C+= 参数给编译器时 , 在 该参数后面指定库的路径</span>
+<span class="token comment">#   CMAKE_SOURCE_DIR 指的是当前的文件地址</span>
+<span class="token comment">#   -L 参数指定动态库的查找路径</span>
+set<span class="token punctuation">(</span>CMAKE_CXX_FLAGS <span class="token string">"<span class="token variable">${CMAKE_CXX_FLAGS}</span> -L<span class="token variable">${CMAKE_SOURCE_DIR}</span>/../jniLibs/armeabi-v7a"</span><span class="token punctuation">)</span>
+</code></pre> 
+<br> 
+<p><strong>3 . Module 级别的 build.gradle 中配置动态库 :</strong></p> 
+<p><font color="blue">在 android -&gt; defaultConfig -&gt; externalNativeBuild -&gt; cmake 下添加 <code>abiFilters "armeabi-v7a"</code> 配置 ;</font></p> 
+<pre><code class="prism language-java">defaultConfig <span class="token punctuation">{<!-- --></span>
+        <span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+        externalNativeBuild <span class="token punctuation">{<!-- --></span>
+            cmake <span class="token punctuation">{<!-- --></span>
+                cppFlags <span class="token string">""</span>
+                abiFilters <span class="token string">"armeabi-v7a"</span>
+            <span class="token punctuation">}</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+</code></pre> 
+<br> 
+<p><strong>4 . 在 C++ 中调用该库 :</strong></p> 
+<br> 
+<p><strong>① 首先声明该动态库中的方法 :</strong></p> 
+<p><strong>注意 :</strong> <font color="blue">这是在 C++ 语言中调用 C 语言方法 , 要使用 <code>extern "C"{}</code> 兼容 C 和 C++ 调用 ;</font></p> 
+<pre><code class="prism language-cpp"><span class="token comment">//调用 libadd.so 动态库中的方法</span>
+<span class="token keyword">extern</span> <span class="token string">"C"</span> <span class="token punctuation">{<!-- --></span>    <span class="token comment">//注意在 C++ 中调用 C 语言方法 , 需要做兼容设置</span>
+    <span class="token keyword">extern</span> <span class="token keyword">int</span> <span class="token function">add</span><span class="token punctuation">(</span><span class="token keyword">int</span> a<span class="token punctuation">,</span> <span class="token keyword">int</span> b<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<br> 
+<p><strong>② 调用动态库中的函数 :</strong> <font color="red">之后就可以在该 C++ 文件中任意使用该方法了 ;</font></p> 
+<br> 
+<p><strong>5 . 执行结果 :</strong></p> 
+<pre><code class="prism language-shell">01-25 19:40:27.444 5929-5929/kim.hsl.makeflie I/JNI_TAG: libadd.so <span class="token keyword">:</span> <span class="token function">sum</span> <span class="token operator">=</span> 3
+</code></pre> 
+<br> 
+<br> 
+<h5><a id="IV__Android_Studio__209"></a>IV . Android Studio 关键代码</h5> 
+<hr> 
+<br> 
+<p><strong>1 . CMakeLists.txt 配置文件 :</strong><br> <img src="https://images2.imgbox.com/fc/a1/t7h9rpCC_o.png" alt="在这里插入图片描述"></p> 
+<pre><code class="prism language-shell">cmake_minimum_required<span class="token punctuation">(</span>VERSION 3.4.1<span class="token punctuation">)</span>
+
+add_library<span class="token punctuation">(</span> <span class="token comment"># Sets the name of the library.</span>
+        native-lib
+
+        <span class="token comment"># Sets the library as a shared library.</span>
+        SHARED
+
+        <span class="token comment"># Provides a relative path to your source file(s).</span>
+        native-lib.cpp<span class="token punctuation">)</span>
+
+
+<span class="token comment"># 到预设的目录查找 log 库 , 将找到的路径赋值给 log-lib</span>
+<span class="token comment">#   这个路径是 NDK 的 ndk-bundle\platforms\android-29\arch-arm\usr\lib\liblog.so</span>
+<span class="token comment">#   不同的 Android 版本号 和 CPU 架构 需要到对应的目录中查找 , 此处是 29 版本 32 位 ARM 架构的日志库</span>
+find_library<span class="token punctuation">(</span>
+        log-lib
+
+        log<span class="token punctuation">)</span>
+
+
+<span class="token comment"># 设置变量</span>
+<span class="token comment"># CMAKE_CXX_FLAGS 表示会将 C++ 的参数传给编译器</span>
+<span class="token comment"># CMAKE_C_FLAGS 表示会将 C 参数传给编译器</span>
+
+<span class="token comment"># 参数设置 : 传递 CMAKE_CXX_FLAGS C+= 参数给编译器时 , 在 该参数后面指定库的路径</span>
+<span class="token comment">#   CMAKE_SOURCE_DIR 指的是当前的文件地址</span>
+<span class="token comment">#   -L 参数指定动态库的查找路径</span>
+set<span class="token punctuation">(</span>CMAKE_CXX_FLAGS <span class="token string">"<span class="token variable">${CMAKE_CXX_FLAGS}</span> -L<span class="token variable">${CMAKE_SOURCE_DIR}</span>/../jniLibs/armeabi-v7a"</span><span class="token punctuation">)</span>
+
+target_link_libraries<span class="token punctuation">(</span>
+        native-lib
+
+        <span class="token comment"># 表示要链接 libadd.so 动态库</span>
+        add
+
+        <span class="token variable">${log-lib}</span><span class="token punctuation">)</span>
+</code></pre> 
+<br> 
+<br> 
+<p><strong>2 . native-lib 本地 C++ 文件 :</strong><br> <img src="https://images2.imgbox.com/32/4d/9qKsykit_o.png" alt="在这里插入图片描述"></p> 
+<pre><code class="prism language-cpp"><span class="token macro property">#<span class="token directive keyword">include</span> <span class="token string">&lt;jni.h&gt;</span></span>
+<span class="token macro property">#<span class="token directive keyword">include</span> <span class="token string">&lt;string&gt;</span></span>
+
+<span class="token macro property">#<span class="token directive keyword">include</span> <span class="token string">&lt;android/log.h&gt;</span></span>
+
+<span class="token comment">//调用 libadd.so 动态库中的方法</span>
+<span class="token keyword">extern</span> <span class="token string">"C"</span> <span class="token punctuation">{<!-- --></span>    <span class="token comment">//注意在 C++ 中调用 C 语言方法 , 需要做兼容设置</span>
+    <span class="token keyword">extern</span> <span class="token keyword">int</span> <span class="token function">add</span><span class="token punctuation">(</span><span class="token keyword">int</span> a<span class="token punctuation">,</span> <span class="token keyword">int</span> b<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">extern</span> <span class="token string">"C"</span> JNIEXPORT jstring JNICALL
+<span class="token function">Java_kim_hsl_makeflie_MainActivity_stringFromJNI</span><span class="token punctuation">(</span>
+        JNIEnv <span class="token operator">*</span>env<span class="token punctuation">,</span>
+        jobject <span class="token comment">/* this */</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    std<span class="token operator">::</span>string hello <span class="token operator">=</span> <span class="token string">"Hello from C++"</span><span class="token punctuation">;</span>
+
+    <span class="token comment">//调用动态库中的函数</span>
+    <span class="token keyword">int</span> sum <span class="token operator">=</span> <span class="token function">add</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">,</span> <span class="token number">2</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token comment">//打印计算结果</span>
+    <span class="token function">__android_log_print</span><span class="token punctuation">(</span>ANDROID_LOG_INFO<span class="token punctuation">,</span> <span class="token string">"JNI_TAG"</span><span class="token punctuation">,</span> <span class="token string">"libadd.so : sum = %d"</span><span class="token punctuation">,</span> sum<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">return</span> env<span class="token operator">-</span><span class="token operator">&gt;</span><span class="token function">NewStringUTF</span><span class="token punctuation">(</span>hello<span class="token punctuation">.</span><span class="token function">c_str</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+</code></pre> 
+<p><strong>3 . Module 级别的 build.gradle 配置文件 :</strong></p> 
+<p><img src="https://images2.imgbox.com/ed/2b/GrttVRTl_o.png" alt="在这里插入图片描述"></p> 
+<pre><code class="prism language-java">apply plugin<span class="token operator">:</span> <span class="token string">'com.android.application'</span>
+
+android <span class="token punctuation">{<!-- --></span>
+    compileSdkVersion <span class="token number">29</span>
+    buildToolsVersion <span class="token string">"29.0.0"</span>
+    defaultConfig <span class="token punctuation">{<!-- --></span>
+        applicationId <span class="token string">"kim.hsl.makeflie"</span>
+        minSdkVersion <span class="token number">15</span>
+        targetSdkVersion <span class="token number">29</span>
+        versionCode <span class="token number">1</span>
+        versionName <span class="token string">"1.0"</span>
+        testInstrumentationRunner <span class="token string">"androidx.test.runner.AndroidJUnitRunner"</span>
+        externalNativeBuild <span class="token punctuation">{<!-- --></span>
+            cmake <span class="token punctuation">{<!-- --></span>
+                cppFlags <span class="token string">""</span>
+                abiFilters <span class="token string">"armeabi-v7a"</span>
+            <span class="token punctuation">}</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+    buildTypes <span class="token punctuation">{<!-- --></span>
+        release <span class="token punctuation">{<!-- --></span>
+            minifyEnabled <span class="token boolean">false</span>
+            proguardFiles <span class="token function">getDefaultProguardFile</span><span class="token punctuation">(</span><span class="token string">'proguard-android-optimize.txt'</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token string">'proguard-rules.pro'</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+    externalNativeBuild <span class="token punctuation">{<!-- --></span>
+        cmake <span class="token punctuation">{<!-- --></span>
+            path <span class="token string">"src/main/cpp/CMakeLists.txt"</span>
+            version <span class="token string">"3.10.2"</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+
+dependencies <span class="token punctuation">{<!-- --></span>
+    implementation <span class="token function">fileTree</span><span class="token punctuation">(</span>dir<span class="token operator">:</span> <span class="token string">'libs'</span><span class="token punctuation">,</span> include<span class="token operator">:</span> <span class="token punctuation">[</span><span class="token string">'*.jar'</span><span class="token punctuation">]</span><span class="token punctuation">)</span>
+    implementation <span class="token string">'androidx.appcompat:appcompat:1.1.0'</span>
+    implementation <span class="token string">'androidx.constraintlayout:constraintlayout:1.1.3'</span>
+    testImplementation <span class="token string">'junit:junit:4.12'</span>
+    androidTestImplementation <span class="token string">'androidx.test:runner:1.2.0'</span>
+    androidTestImplementation <span class="token string">'androidx.test.espresso:espresso-core:3.2.0'</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<br> 
+<br> 
+<h5><a id="V___345"></a>V . 博客资源</h5> 
+<hr> 
+<br> 
+<p><strong>CSDN 博客地址 :</strong> <a href="https://hanshuliang.blog.csdn.net/article/details/104255990" rel="nofollow">【Android NDK 开发】NDK 交叉编译 ( Ubuntu 中交叉编译动态库 | Android Studio 中配置使用第三方动态库 )</a></p> 
+<p><strong>博客资源下载地址 :</strong> <a href="https://download.csdn.net/download/han1202012/12148685">https://download.csdn.net/download/han1202012/12148685</a></p> 
+<p><strong>示例代码 GitHub 地址 :</strong> <a href="https://github.com/han1202012/004_NDK_Makeflie">https://github.com/han1202012/004_NDK_Makeflie</a></p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/2f9d15ad978572c06a3a1f0e73510af4/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">LaTeX写UESTC毕业论文遇到的问题集锦</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/4fdb28e4f0beb35303a10885f7464241/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">Rabbitmq报错pika.exceptions.IncompatibleProtocolError: StreamLostError: (&#39;Transport indicated EOF&#39;,)</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

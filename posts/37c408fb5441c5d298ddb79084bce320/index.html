@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Java 内存区域 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/37c408fb5441c5d298ddb79084bce320/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="Java 内存区域">
+  <meta property="og:description" content="JVM介绍：
+1） JVM学习总结，全面介绍运行时数据区域、各类垃圾收集器的原理使用、内存分配回收策略
+2） JVM学习总结，虚拟机性能监控、故障处理工具：jps、jstat、jinfo、jmap、Visual VM、jstack等
+文章目录 前言一、Java运行时数据区1. 程序计数器（Program Counter Register）2. 虚拟机栈（VM Stack）3. 本地方法栈（Native Method Stacks）4. 堆（Heap）5. 方法区（Method Area）6. 运行时常量池（Runtime Constant Pool） 二、虚拟机中的对象1. 对象的创建（普通Java对象）2. 对象的内存布局3. 对象的访问定位 前言 内容参考自《深入理解Java虚拟机 JVM高级特性与最佳实践》第三版第一章，供自己学习做笔记使用。
+一、Java运行时数据区 Java虚拟机在执行Java程序的过程中会把它所管理的内存划分为若干个不同的数据区域，这些区域有各自的用途，根据《Java虚拟机规范的规定》，Java虚拟机所管理的内存将会包括以下几个运行时数据区域：
+1. 程序计数器（Program Counter Register） 程序计数器是一块较小的内存空间，他可以看作是当前线程所执行字节码的行号指示器。在Java虚拟机的概念模型中，字节码解释器的工作就是通过改变这个计数器的值来选取下一条需要执行的字节码指令，它是程序控制流的指示器，分支、循环、跳转、异常处理、线程恢复等基础功能都需要依赖这个计数器来完成。
+2. 虚拟机栈（VM Stack） 虚拟机栈的生命周期与线程相同，虚拟机栈描述的是Java方法执行的线程内存模型：每个方法被执行的时候，Java都会同步创建一个栈帧（Stack Frame）用于存储局部变量表、操作数栈、动态连接、方法出口等信息。每个方法被调用直至执行完毕的过程，就对应一个栈帧在虚拟机中从入栈到出栈的过程。
+局部变量表中存放了编译期可知的各种Java虚拟机基本数据类型（byte、short、char、int、long、float、double、boolean）、对象引用（reference类型，它并不等同于对象本身，可能是一个指向对象起始地址的引用指针，也可能是指向一个代表对象的句柄或者其他榆次对象相关的位置）和returnAddress类型（指向了一条字节码指令的地址）。
+局部变量表所需的内存空间在编译期间完成分配，当进入一个方法时，这个方法需要在栈帧中分配多大的局部变量空间是完全确定的，在方法运行期间是不会改变局部变量表的大小的。在《Java虚拟机规范》中，对这个内存区域规定了两类异常状况：如果线程请求的栈深度大于虚拟机所允许的深度，则会抛出StackOverflowError异常；如果Java虚拟机支持动态扩展，当栈无法扩展时无法申请到足够的内存空间时则会OutOfMemoryError异常。
+3. 本地方法栈（Native Method Stacks） 本地方法栈与虚拟机栈的作用基本上是一致的，区别在于虚拟机栈为虚拟机执行Java方法服务，而本地方法栈则是为虚拟机使用到的本地（Native）方法服务。对应本地方法栈的实现，《Java虚拟机规范》中并未强制规定，由虚拟机自己根据需求实现，有的Java虚拟机例如Hot-Spot虚拟机就直接将本地方法栈和虚拟机栈合二为一。与虚拟机栈相同的是，本地方法栈也会出现两类异常状况。
+4. 堆（Heap） 对于Java应用程序来说，Java堆（Heap）是虚拟机所管理的内存中最大的一块区域，Java堆是被所有线程共享的一块内存区域，在虚拟机启动时创建。此内存存在的唯一目的就是存放对象实例，几乎所有的对象实例都在堆上分配空间、存放。
+5. 方法区（Method Area） 方法区与Java堆一样，是各个线程共享的内存区域，它用于存放已被虚拟机加载的类型信息、常量、静态变量、即时编译器编译后的代码缓存等数据。
+6. 运行时常量池（Runtime Constant Pool） 运行时常量池（Runtime Constant Pool）是方法区的一部分，Class文件中除了有类的版本、字段、方法、接口等描述信息外，还有一项信息是常量池表（Constant Pool Tabel），用于存放编译器内生成的各种字面量与符号引用，这部分内容将在内加载后存放到方法区的运行时常量池中。
+二、虚拟机中的对象 1. 对象的创建（普通Java对象） 2. 对象的内存布局 在HotSpot 虚拟机中，对象在堆内存中的存储布局可以分为三个部分：对象头（Header）、实例数据（Instance Data）和对齐填充（Padding）；">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2023-04-08T19:47:02+08:00">
+    <meta property="article:modified_time" content="2023-04-08T19:47:02+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">Java 内存区域</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-tomorrow-night">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <blockquote> 
+ <p>JVM介绍：<br> 1） <a href="https://blog.csdn.net/zy_zhangruichen/article/details/128771670">JVM学习总结，全面介绍运行时数据区域、各类垃圾收集器的原理使用、内存分配回收策略</a><br> 2） <a href="https://blog.csdn.net/zy_zhangruichen/article/details/129101881">JVM学习总结，虚拟机性能监控、故障处理工具：jps、jstat、jinfo、jmap、Visual VM、jstack等</a></p> 
+</blockquote> 
+<p></p> 
+<div class="toc"> 
+ <h4>文章目录</h4> 
+ <ul><li><a href="#_8" rel="nofollow">前言</a></li><li><a href="#Java_15" rel="nofollow">一、Java运行时数据区</a></li><li><ul><li><a href="#1_Program_Counter_Register_18" rel="nofollow">1. 程序计数器（Program Counter Register）</a></li><li><a href="#2_VM_Stack_22" rel="nofollow">2. 虚拟机栈（VM Stack）</a></li><li><a href="#3_Native_Method_Stacks_30" rel="nofollow">3. 本地方法栈（Native Method Stacks）</a></li><li><a href="#4_Heap_34" rel="nofollow">4. 堆（Heap）</a></li><li><a href="#5_Method_Area_38" rel="nofollow">5. 方法区（Method Area）</a></li><li><a href="#6_Runtime_Constant_Pool_42" rel="nofollow">6. 运行时常量池（Runtime Constant Pool）</a></li></ul> 
+  </li><li><a href="#_47" rel="nofollow">二、虚拟机中的对象</a></li><li><ul><li><a href="#1_Java_48" rel="nofollow">1. 对象的创建（普通Java对象）</a></li><li><a href="#2__50" rel="nofollow">2. 对象的内存布局</a></li><li><a href="#3__59" rel="nofollow">3. 对象的访问定位</a></li></ul> 
+ </li></ul> 
+</div> 
+<p></p> 
+<hr> 
+<h2><a id="_8"></a>前言</h2> 
+<p>内容参考自《深入理解Java虚拟机 JVM高级特性与最佳实践》第三版第一章，供自己学习做笔记使用。</p> 
+<hr> 
+<h2><a id="Java_15"></a>一、Java运行时数据区</h2> 
+<p>  Java虚拟机在执行Java程序的过程中会把它所管理的内存划分为若干个不同的数据区域，这些区域有各自的用途，根据《Java虚拟机规范的规定》，Java虚拟机所管理的内存将会包括以下几个运行时数据区域：<br> <img src="https://images2.imgbox.com/1a/ca/j8i6Xdyi_o.png" alt="在这里插入图片描述"></p> 
+<h3><a id="1_Program_Counter_Register_18"></a>1. 程序计数器（Program Counter Register）</h3> 
+<p>  程序计数器是一块较小的内存空间，他可以看作是当前线程所执行字节码的行号指示器。在Java虚拟机的概念模型中，字节码解释器的工作就是通过改变这个计数器的值来选取下一条需要执行的字节码指令，它是程序控制流的指示器，分支、循环、跳转、异常处理、线程恢复等基础功能都需要依赖这个计数器来完成。</p> 
+<h3><a id="2_VM_Stack_22"></a>2. 虚拟机栈（VM Stack）</h3> 
+<p>  虚拟机栈的生命周期与线程相同，虚拟机栈描述的是Java方法执行的线程内存模型：每个方法被执行的时候，Java都会同步创建一个栈帧（Stack Frame）用于存储局部变量表、操作数栈、动态连接、方法出口等信息。每个方法被调用直至执行完毕的过程，就对应一个栈帧在虚拟机中从入栈到出栈的过程。</p> 
+<p>  局部变量表中存放了编译期可知的各种Java虚拟机基本数据类型（byte、short、char、int、long、float、double、boolean）、对象引用（reference类型，它并不等同于对象本身，可能是一个指向对象起始地址的引用指针，也可能是指向一个代表对象的句柄或者其他榆次对象相关的位置）和returnAddress类型（指向了一条字节码指令的地址）。</p> 
+<p>  局部变量表所需的内存空间在编译期间完成分配，当进入一个方法时，这个方法需要在栈帧中分配多大的局部变量空间是完全确定的，在方法运行期间是不会改变局部变量表的大小的。在《Java虚拟机规范》中，对这个内存区域规定了两类异常状况：如果线程请求的栈深度大于虚拟机所允许的深度，则会抛出StackOverflowError异常；如果Java虚拟机支持动态扩展，当栈无法扩展时无法申请到足够的内存空间时则会OutOfMemoryError异常。</p> 
+<h3><a id="3_Native_Method_Stacks_30"></a>3. 本地方法栈（Native Method Stacks）</h3> 
+<p>  本地方法栈与虚拟机栈的作用基本上是一致的，区别在于虚拟机栈为虚拟机执行Java方法服务，而本地方法栈则是为虚拟机使用到的本地（Native）方法服务。对应本地方法栈的实现，《Java虚拟机规范》中并未强制规定，由虚拟机自己根据需求实现，有的Java虚拟机例如<code>Hot-Spot虚拟机</code>就直接将本地方法栈和虚拟机栈合二为一。与虚拟机栈相同的是，本地方法栈也会出现两类异常状况。</p> 
+<h3><a id="4_Heap_34"></a>4. 堆（Heap）</h3> 
+<p>  对于Java应用程序来说，Java堆（Heap）是虚拟机所管理的内存中最大的一块区域，Java堆是被所有线程共享的一块内存区域，在虚拟机启动时创建。此内存存在的唯一目的就是存放对象实例，几乎所有的对象实例都在堆上分配空间、存放。</p> 
+<h3><a id="5_Method_Area_38"></a>5. 方法区（Method Area）</h3> 
+<p>  方法区与Java堆一样，是各个线程共享的内存区域，它用于存放已被虚拟机加载的类型信息、常量、静态变量、即时编译器编译后的代码缓存等数据。</p> 
+<h3><a id="6_Runtime_Constant_Pool_42"></a>6. 运行时常量池（Runtime Constant Pool）</h3> 
+<p>  运行时常量池（Runtime Constant Pool）是方法区的一部分，Class文件中除了有类的版本、字段、方法、接口等描述信息外，还有一项信息是常量池表（Constant Pool Tabel），用于存放编译器内生成的各种字面量与符号引用，这部分内容将在内加载后存放到方法区的运行时常量池中。</p> 
+<h2><a id="_47"></a>二、虚拟机中的对象</h2> 
+<h3><a id="1_Java_48"></a>1. 对象的创建（普通Java对象）</h3> 
+<p><img src="https://images2.imgbox.com/7d/69/uc3FTPec_o.png" alt="在这里插入图片描述"></p> 
+<h3><a id="2__50"></a>2. 对象的内存布局</h3> 
+<p>  在HotSpot 虚拟机中，对象在堆内存中的存储布局可以分为三个部分：对象头（Header）、实例数据（Instance Data）和对齐填充（Padding）；<br> <img src="https://images2.imgbox.com/80/c5/XmEVGdoc_o.png" alt="在这里插入图片描述"><br>   HotSpot 虚拟机对象的对象头部分包括两类信息，第一类是用于存储对象自身的运行时数据，如哈希码（HashCode）、GC分代年龄、锁状态标志，线程持有的锁、偏向线程ID、偏向时间戳等了另外一部分是类型指针，即对象指向它的类型元数据的指针，Java虚拟机通过这个指针来确定该对象是哪个类的实例。</p> 
+<p>  实例数据部分是对象真正存储的有效信息，即我们在程序代码里面所定义的各种类型的字段内容，无论是从父类继承下来的，还是在子类中定义的字段都必须记录起来。</p> 
+<p>  对象的第三部分是对齐填充，这并不是必然存在的，也没有特别的含义，它仅仅起着占位符的作用。</p> 
+<h3><a id="3__59"></a>3. 对象的访问定位</h3> 
+<p>  创建对象自然是为了后续使用对象，Java程序会通过栈上的reference数据来操作堆上的具体对象，对象的具体访问方式也是由虚拟机实现而定的，主流的访问方式主要有使用句柄和直接指针两种。<br> <img src="https://images2.imgbox.com/1a/a2/xjjQUeFA_o.png" alt="在这里插入图片描述"><br> <img src="https://images2.imgbox.com/c8/5a/175Toy5y_o.png" alt="在这里插入图片描述"></p> 
+<ul><li>使用句柄来访问的最大好处就是reference中存储的是稳定句柄地址，在对象被移动（垃圾收集时移动对象是非常普遍的行为）时只会改变句柄中的实例数据指针，而reference本身不需要被修改。</li><li>使用直接指针来访问最大的好处就是速度更快，它节省了一次指针定位的时间开销，由于对象访问在Java中非常频繁，因此这类开销积少成多也是一项极为可观的执行成本，对于虚拟机HotSpot而言，它主要使用第二种方式进行对象访问，但从整个软件开发的范围来看，在各种语言、框架中使用句柄来访问的情况也十分常见。</li></ul>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/e7fc3eed72b2328ef543c96df090d975/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">如何设计秒杀系统（三）</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/2f3faf46b8e769a7c66803475a2c9797/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">小米电视无法访问 SAMBA 4.15.13 共享文件</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

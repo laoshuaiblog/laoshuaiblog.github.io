@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>利用GEE和站点坐标处理MODIS的LAI数据 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/825e4972ba7a217e4cb81edd0217054f/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="利用GEE和站点坐标处理MODIS的LAI数据">
+  <meta property="og:description" content="最近要用到LAI数据，结合各位前辈的分享和向GPT请教，突击了一晚上。因为我最终要得到的是站点的数据，并且想直接得到.csv格式，省掉用Arcgis处理tiff文件。最终的代码如下：
+我尝试了MOD15A2H和MCD15A3H，两个数据集，一个8天，一个4天尺度，结果差别不是很大，可以根据实际需求选择。
+// 设置站点的经纬度坐标 var siteCoordinates = ee.Geometry.Point([276.6529, 41.6285]); // 请用实际的经纬度替换 lon 和 lat // 根据站点坐标创建一个缓冲区 var siteBuffer = siteCoordinates.buffer(500); // 缓冲区半径为 500 米，可以根据实际情况调整 // 以站点为中心加载 MODIS 数据集 var dataset = ee.ImageCollection(&#34;MODIS/061/MOD15A2H&#34;) .filterBounds(siteBuffer) .filterDate(&#39;2011-01-01&#39;, &#39;2013-12-31&#39;) .select(&#39;Lai_500m&#39;); // 在地图上显示站点和 MODIS 数据 Map.centerObject(siteBuffer, 6); Map.addLayer(siteBuffer, {color: &#39;red&#39;}, &#39;Site Buffer&#39;); Map.addLayer(dataset, {bands: [&#39;Lai_500m&#39;], min: 0, max: 100}, &#39;MODIS LAI&#39;); // 定义一个函数，用于在每个图像上进行采样 var sampleImage = function(image) { // 使用 reduceRegion 采样 var sampledValue = image.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2024-01-31T22:57:12+08:00">
+    <meta property="article:modified_time" content="2024-01-31T22:57:12+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">利用GEE和站点坐标处理MODIS的LAI数据</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <p>        最近要用到LAI数据，结合各位前辈的分享和向GPT请教，突击了一晚上。因为我最终要得到的是站点的数据，并且想直接得到.csv格式，省掉用Arcgis处理tiff文件。最终的代码如下：</p> 
+<p>        我尝试了MOD15A2H和MCD15A3H，两个数据集，一个8天，一个4天尺度，结果差别不是很大，可以根据实际需求选择。</p> 
+<pre><code class="language-java">// 设置站点的经纬度坐标
+var siteCoordinates = ee.Geometry.Point([276.6529, 41.6285]); // 请用实际的经纬度替换 lon 和 lat
+
+// 根据站点坐标创建一个缓冲区
+var siteBuffer = siteCoordinates.buffer(500); // 缓冲区半径为 500 米，可以根据实际情况调整
+
+// 以站点为中心加载 MODIS 数据集
+var dataset = ee.ImageCollection("MODIS/061/MOD15A2H")
+    .filterBounds(siteBuffer)
+    .filterDate('2011-01-01', '2013-12-31')
+    .select('Lai_500m');
+
+// 在地图上显示站点和 MODIS 数据
+Map.centerObject(siteBuffer, 6);
+Map.addLayer(siteBuffer, {color: 'red'}, 'Site Buffer');
+Map.addLayer(dataset, {bands: ['Lai_500m'], min: 0, max: 100}, 'MODIS LAI');
+
+// 定义一个函数，用于在每个图像上进行采样
+var sampleImage = function(image) {
+    // 使用 reduceRegion 采样
+    var sampledValue = image.reduceRegion({
+        reducer: ee.Reducer.mean(), // 这里使用均值作为采样统计量，你可以根据需要选择其他统计量
+        geometry: siteBuffer,
+        scale: 500, // 500 米的分辨率，根据数据集调整
+    });
+
+    // 乘以 0.1 来获取真实的 LAI 值
+    var laiValue = sampledValue.getNumber('Lai_500m').multiply(0.1);
+
+    // 为每个样本点添加经纬度信息和真实的 LAI 值
+    return ee.Feature(siteCoordinates).set('LAI', laiValue);
+};
+
+// 对数据集中的每个图像进行采样
+var sampledData = dataset.map(sampleImage);
+
+// 打印样本点的 LAI 值，以便检查
+print("LAIValues", sampledData);
+
+// 导出样本点数据为 CSV 文件
+Export.table.toDrive({
+    collection: sampledData,
+    description: "MODIS_LAI_Samples",
+    folder: "MODIS_Data",
+    fileFormat: "CSV"
+});</code></pre> 
+<p></p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/9f0c65f0a9b0fed545b8a088e197bd37/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">SSH 远程登录报错：Permission denied, please try again. 解决办法</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/9e85eed79c6d0848013c0ce15560ebcd/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">SpringBoot 集成 ClickHouse</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

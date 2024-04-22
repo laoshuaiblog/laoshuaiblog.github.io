@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>大批量数据快速写入数据库 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/98bb28f081cd35f9330362d4b5704b26/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="大批量数据快速写入数据库">
+  <meta property="og:description" content="最近由于项目需要存储传感器采集的海量数据，考虑使用clickhouse进行存储和分析。
+于是打算做一下性能测试。做测试之前，肯定得有数据，所以就打算造些数据。于是编写java代码模拟一天的数据（约5千万条）插入。
+首先是导入驱动
+&amp;lt;dependency&amp;gt; &amp;lt;groupId&amp;gt;ru.yandex.clickhouse&amp;lt;/groupId&amp;gt; &amp;lt;artifactId&amp;gt;clickhouse-jdbc&amp;lt;/artifactId&amp;gt; &amp;lt;version&amp;gt;0.3.1&amp;lt;/version&amp;gt; &amp;lt;/dependency&amp;gt; 一开始使用拼接sql的方式，每个sql拼接18000条数据,sql语句大致如下
+insert into tab_test values(*,*,*),(*,*,*) 然后通过如下方法执行
+Statement.execute(sql); 执行一次插入需要4到5秒种，也就是一秒钟写入大概6K的数据，感觉这个写入速度有点低，照这个样子，一天的测试数据要好几个小时呢。
+后来在网上找，看到有人用prepareStatement.executeBatch()来做，于是就想着试试看，最后测试结果，写入性能稳定在10W/s左右，一天的数据500多秒就写完了。
+于是网上查了下原因，是因为prepareStatement采用的预编译机制，也就是数据库只编译一次sql，后面就只发送参数就可以了。而Statement.execute每次都要发送全量的sql语句，数据也要解析语句，所以性能就慢了。这个是jdbc的特性，对所有的数据库都这样，看来还是数据库基础不扎实啊。所以大家以后如果在mysql又大批量数据需要写入的时候，尽量采用prepareStatement来执行，不过要注意的是mysql4.1之前的版本事不支持prepare Statement特性的，使用prepareStatement反而会降低性能。
+最后，在写入clickhouse数据的时候，最好采用批量数据插入，官方建议一次不少于1000条，不然性能很差。
+完整代码如下
+import ch.qos.logback.classic.Level; import ch.qos.logback.classic.Logger; import ch.qos.logback.classic.LoggerContext; import lombok.extern.slf4j.Slf4j; import org.apache.commons.lang3.StringUtils; import org.apache.http.client.utils.DateUtils; import org.slf4j.LoggerFactory; import ru.yandex.clickhouse.except.ClickHouseUnknownException; import java.net.SocketException; import java.sql.Connection; import java.sql.DriverManager; import java.sql.PreparedStatement; import java.sql.Statement; import java.util.Date; import java.util.List; import java.util.Random; import java.util.UUID; @Slf4j public class ClickhouseJDBC { static { LoggerContext loggerContext = (LoggerContext) LoggerFactory.getILoggerFactory(); List&amp;lt;Logger&amp;gt; loggerList = loggerContext.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2022-08-16T18:25:23+08:00">
+    <meta property="article:modified_time" content="2022-08-16T18:25:23+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">大批量数据快速写入数据库</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-dark">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <p>最近由于项目需要存储传感器采集的海量数据，考虑使用clickhouse进行存储和分析。</p> 
+<p>于是打算做一下性能测试。做测试之前，肯定得有数据，所以就打算造些数据。于是编写java代码模拟一天的数据（约5千万条）插入。</p> 
+<p>首先是导入驱动</p> 
+<pre><code>        &lt;dependency&gt;
+            &lt;groupId&gt;ru.yandex.clickhouse&lt;/groupId&gt;
+            &lt;artifactId&gt;clickhouse-jdbc&lt;/artifactId&gt;
+            &lt;version&gt;0.3.1&lt;/version&gt;
+        &lt;/dependency&gt;
+</code></pre> 
+<p>一开始使用拼接sql的方式，每个sql拼接18000条数据,sql语句大致如下</p> 
+<pre><code>insert into tab_test values(*,*,*),(*,*,*)
+</code></pre> 
+<p>然后通过如下方法执行</p> 
+<pre><code>Statement.execute(sql);
+</code></pre> 
+<p>执行一次插入需要4到5秒种，也就是一秒钟写入大概6K的数据，感觉这个写入速度有点低，照这个样子，一天的测试数据要好几个小时呢。</p> 
+<p>后来在网上找，看到有人用prepareStatement.executeBatch()来做，于是就想着试试看，最后测试结果，写入性能稳定在10W/s左右，一天的数据500多秒就写完了。</p> 
+<p><em><strong>于是网上查了下原因，是因为prepareStatement采用的预编译机制，也就是数据库只编译一次sql，后面就只发送参数就可以了。而Statement.execute每次都要发送全量的sql语句，数据也要解析语句，所以性能就慢了。这个是jdbc的特性，对所有的数据库都这样，看来还是数据库基础不扎实啊。所以大家以后如果在mysql又大批量数据需要写入的时候，尽量采用prepareStatement来执行，不过要注意的是mysql4.1之前的版本事不支持prepare Statement特性的，使用prepareStatement反而会降低性能。</strong></em></p> 
+<p>最后，在写入clickhouse数据的时候，最好采用批量数据插入，官方建议一次不少于1000条，不然性能很差。</p> 
+<p>完整代码如下</p> 
+<pre><code class="prism language-java"><span class="token keyword">import</span> <span class="token namespace">ch<span class="token punctuation">.</span>qos<span class="token punctuation">.</span>logback<span class="token punctuation">.</span>classic<span class="token punctuation">.</span></span><span class="token class-name">Level</span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token namespace">ch<span class="token punctuation">.</span>qos<span class="token punctuation">.</span>logback<span class="token punctuation">.</span>classic<span class="token punctuation">.</span></span><span class="token class-name">Logger</span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token namespace">ch<span class="token punctuation">.</span>qos<span class="token punctuation">.</span>logback<span class="token punctuation">.</span>classic<span class="token punctuation">.</span></span><span class="token class-name">LoggerContext</span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token namespace">lombok<span class="token punctuation">.</span>extern<span class="token punctuation">.</span>slf4j<span class="token punctuation">.</span></span><span class="token class-name">Slf4j</span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token namespace">org<span class="token punctuation">.</span>apache<span class="token punctuation">.</span>commons<span class="token punctuation">.</span>lang3<span class="token punctuation">.</span></span><span class="token class-name">StringUtils</span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token namespace">org<span class="token punctuation">.</span>apache<span class="token punctuation">.</span>http<span class="token punctuation">.</span>client<span class="token punctuation">.</span>utils<span class="token punctuation">.</span></span><span class="token class-name">DateUtils</span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token namespace">org<span class="token punctuation">.</span>slf4j<span class="token punctuation">.</span></span><span class="token class-name">LoggerFactory</span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token namespace">ru<span class="token punctuation">.</span>yandex<span class="token punctuation">.</span>clickhouse<span class="token punctuation">.</span>except<span class="token punctuation">.</span></span><span class="token class-name">ClickHouseUnknownException</span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token namespace">java<span class="token punctuation">.</span>net<span class="token punctuation">.</span></span><span class="token class-name">SocketException</span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token namespace">java<span class="token punctuation">.</span>sql<span class="token punctuation">.</span></span><span class="token class-name">Connection</span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token namespace">java<span class="token punctuation">.</span>sql<span class="token punctuation">.</span></span><span class="token class-name">DriverManager</span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token namespace">java<span class="token punctuation">.</span>sql<span class="token punctuation">.</span></span><span class="token class-name">PreparedStatement</span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token namespace">java<span class="token punctuation">.</span>sql<span class="token punctuation">.</span></span><span class="token class-name">Statement</span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token namespace">java<span class="token punctuation">.</span>util<span class="token punctuation">.</span></span><span class="token class-name">Date</span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token namespace">java<span class="token punctuation">.</span>util<span class="token punctuation">.</span></span><span class="token class-name">List</span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token namespace">java<span class="token punctuation">.</span>util<span class="token punctuation">.</span></span><span class="token class-name">Random</span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token namespace">java<span class="token punctuation">.</span>util<span class="token punctuation">.</span></span>UUID<span class="token punctuation">;</span>
+
+<span class="token annotation punctuation">@Slf4j</span>
+<span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">ClickhouseJDBC</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">static</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token class-name">LoggerContext</span> loggerContext <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token class-name">LoggerContext</span><span class="token punctuation">)</span> <span class="token class-name">LoggerFactory</span><span class="token punctuation">.</span><span class="token function">getILoggerFactory</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token class-name">List</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Logger</span><span class="token punctuation">&gt;</span></span> loggerList <span class="token operator">=</span> loggerContext<span class="token punctuation">.</span><span class="token function">getLoggerList</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        loggerList<span class="token punctuation">.</span><span class="token function">forEach</span><span class="token punctuation">(</span>logger <span class="token operator">-&gt;</span> <span class="token punctuation">{<!-- --></span>
+            logger<span class="token punctuation">.</span><span class="token function">setLevel</span><span class="token punctuation">(</span><span class="token class-name">Level</span><span class="token punctuation">.</span>INFO<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token keyword">private</span> <span class="token keyword">static</span> <span class="token class-name">Connection</span> conn <span class="token punctuation">;</span>
+    <span class="token keyword">private</span> <span class="token keyword">static</span> <span class="token class-name">Statement</span> stmt<span class="token punctuation">;</span>
+    <span class="token keyword">private</span> <span class="token keyword">static</span> <span class="token class-name">PreparedStatement</span> prepareStatement <span class="token operator">=</span> <span class="token keyword">null</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">public</span> <span class="token keyword">static</span> <span class="token keyword">void</span> <span class="token function">init</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token keyword">throws</span> <span class="token class-name">Exception</span><span class="token punctuation">{<!-- --></span>
+        <span class="token class-name">Class</span><span class="token punctuation">.</span><span class="token function">forName</span><span class="token punctuation">(</span><span class="token string">"ru.yandex.clickhouse.ClickHouseDriver"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token class-name">String</span> url <span class="token operator">=</span> <span class="token string">"jdbc:clickhouse://localhost:8123/default"</span><span class="token punctuation">;</span>
+        <span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span> 设置用户名和密码
+        conn <span class="token operator">=</span> <span class="token class-name">DriverManager</span><span class="token punctuation">.</span><span class="token function">getConnection</span><span class="token punctuation">(</span>url<span class="token punctuation">,</span> user<span class="token punctuation">,</span> password<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        stmt <span class="token operator">=</span> conn<span class="token punctuation">.</span><span class="token function">createStatement</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token class-name">String</span> sql<span class="token operator">=</span><span class="token string">"insert into tab_bracket_data values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"</span><span class="token punctuation">;</span>
+        conn<span class="token punctuation">.</span><span class="token function">setAutoCommit</span><span class="token punctuation">(</span><span class="token boolean">false</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        prepareStatement <span class="token operator">=</span> conn<span class="token punctuation">.</span><span class="token function">prepareStatement</span><span class="token punctuation">(</span>sql<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token comment">/**
+     * 通过凭借sql进行数据插入
+     * @param max
+     */</span>
+    <span class="token keyword">public</span> <span class="token keyword">static</span> <span class="token keyword">void</span> <span class="token function">insert</span><span class="token punctuation">(</span><span class="token keyword">int</span> max<span class="token punctuation">)</span><span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">try</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token function">init</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token class-name">String</span> insert<span class="token operator">=</span><span class="token string">"insert into tab_test values "</span><span class="token punctuation">;</span>
+            <span class="token class-name">Date</span> date<span class="token operator">=</span><span class="token keyword">new</span> <span class="token class-name">Date</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token class-name">String</span> values<span class="token operator">=</span><span class="token string">""</span><span class="token punctuation">;</span>
+            <span class="token keyword">long</span> time<span class="token operator">=</span><span class="token class-name">System</span><span class="token punctuation">.</span><span class="token function">currentTimeMillis</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token keyword">for</span><span class="token punctuation">(</span><span class="token keyword">int</span> i<span class="token operator">=</span><span class="token number">0</span><span class="token punctuation">;</span>i<span class="token operator">&lt;</span>max<span class="token punctuation">;</span>i<span class="token operator">++</span><span class="token punctuation">)</span><span class="token punctuation">{<!-- --></span>
+                date<span class="token operator">=</span><span class="token class-name"><span class="token namespace">org<span class="token punctuation">.</span>apache<span class="token punctuation">.</span>commons<span class="token punctuation">.</span>lang3<span class="token punctuation">.</span>time<span class="token punctuation">.</span></span>DateUtils</span><span class="token punctuation">.</span><span class="token function">addSeconds</span><span class="token punctuation">(</span>date<span class="token punctuation">,</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token class-name">String</span> sql<span class="token operator">=</span><span class="token function">insertBatch</span><span class="token punctuation">(</span>date<span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token keyword">if</span><span class="token punctuation">(</span><span class="token class-name">StringUtils</span><span class="token punctuation">.</span><span class="token function">isNotBlank</span><span class="token punctuation">(</span>values<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">{<!-- --></span>
+                    values<span class="token operator">=</span>values<span class="token operator">+</span><span class="token string">","</span><span class="token punctuation">;</span>
+                <span class="token punctuation">}</span>
+                values<span class="token operator">=</span>values<span class="token operator">+</span>sql<span class="token punctuation">;</span>
+                <span class="token keyword">if</span><span class="token punctuation">(</span>i<span class="token operator">%</span><span class="token number">30</span><span class="token operator">==</span><span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">{<!-- --></span>
+                    <span class="token function">execute</span><span class="token punctuation">(</span>insert<span class="token operator">+</span>values<span class="token punctuation">,</span><span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+                    values<span class="token operator">=</span><span class="token string">""</span><span class="token punctuation">;</span>
+                    log<span class="token punctuation">.</span><span class="token function">info</span><span class="token punctuation">(</span><span class="token string">"已完成秒数{},已完成百分比:{}%,耗时：{}s"</span><span class="token punctuation">,</span>i<span class="token punctuation">,</span>i<span class="token operator">*</span><span class="token number">100</span><span class="token operator">/</span>max<span class="token punctuation">,</span><span class="token punctuation">(</span><span class="token class-name">System</span><span class="token punctuation">.</span><span class="token function">currentTimeMillis</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">-</span>time<span class="token punctuation">)</span><span class="token operator">/</span><span class="token number">1000</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token punctuation">}</span>
+            <span class="token punctuation">}</span>
+            <span class="token keyword">if</span><span class="token punctuation">(</span><span class="token class-name">StringUtils</span><span class="token punctuation">.</span><span class="token function">isNotBlank</span><span class="token punctuation">(</span>values<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">{<!-- --></span>
+                <span class="token function">execute</span><span class="token punctuation">(</span>insert<span class="token operator">+</span>values<span class="token punctuation">,</span><span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+                values<span class="token operator">=</span><span class="token string">""</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+            log<span class="token punctuation">.</span><span class="token function">info</span><span class="token punctuation">(</span><span class="token string">"已完成秒数{},已完成百分比:{}%,耗时：{}s"</span><span class="token punctuation">,</span>max<span class="token punctuation">,</span><span class="token number">100</span><span class="token punctuation">,</span><span class="token punctuation">(</span><span class="token class-name">System</span><span class="token punctuation">.</span><span class="token function">currentTimeMillis</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">-</span>time<span class="token punctuation">)</span><span class="token operator">/</span><span class="token number">1000</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span><span class="token keyword">catch</span> <span class="token punctuation">(</span><span class="token class-name">Exception</span> e<span class="token punctuation">)</span><span class="token punctuation">{<!-- --></span>
+            e<span class="token punctuation">.</span><span class="token function">printStackTrace</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token comment">/**
+     * 执行sql插入语句，遇到网络错误等进行重试
+     * @param sql
+     * @param i
+     * @throws Exception
+     */</span>
+    <span class="token keyword">public</span> <span class="token keyword">static</span> <span class="token keyword">void</span> <span class="token function">execute</span><span class="token punctuation">(</span><span class="token class-name">String</span> sql<span class="token punctuation">,</span><span class="token keyword">int</span> i<span class="token punctuation">)</span> <span class="token keyword">throws</span> <span class="token class-name">Exception</span><span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">try</span><span class="token punctuation">{<!-- --></span>
+            stmt<span class="token punctuation">.</span><span class="token function">execute</span><span class="token punctuation">(</span>sql<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span><span class="token keyword">catch</span> <span class="token punctuation">(</span><span class="token class-name">Exception</span> e<span class="token punctuation">)</span><span class="token punctuation">{<!-- --></span>
+            <span class="token keyword">if</span><span class="token punctuation">(</span>e <span class="token keyword">instanceof</span> <span class="token class-name">ClickHouseUnknownException</span><span class="token operator">||</span>e <span class="token keyword">instanceof</span> <span class="token class-name">SocketException</span><span class="token punctuation">)</span><span class="token punctuation">{<!-- --></span>
+                log<span class="token punctuation">.</span><span class="token function">warn</span><span class="token punctuation">(</span><span class="token string">"网络出问题了，正在重试"</span><span class="token punctuation">,</span>e<span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token keyword">if</span><span class="token punctuation">(</span>i<span class="token operator">&gt;=</span><span class="token number">3</span><span class="token punctuation">)</span><span class="token punctuation">{<!-- --></span>
+                    <span class="token keyword">throw</span> e<span class="token punctuation">;</span>
+                <span class="token punctuation">}</span>
+                <span class="token keyword">try</span><span class="token punctuation">{<!-- --></span>
+                    <span class="token function">init</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token punctuation">}</span><span class="token keyword">catch</span> <span class="token punctuation">(</span><span class="token class-name">Exception</span> ex<span class="token punctuation">)</span><span class="token punctuation">{<!-- --></span>
+                    <span class="token keyword">throw</span> ex<span class="token punctuation">;</span>
+                <span class="token punctuation">}</span>
+                <span class="token function">execute</span><span class="token punctuation">(</span>sql<span class="token punctuation">,</span>i<span class="token operator">++</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token comment">/**
+     * 拼接sql
+     * @param date
+     * @return
+     */</span>
+    <span class="token keyword">public</span> <span class="token keyword">static</span> <span class="token class-name">String</span> <span class="token function">insertBatch</span><span class="token punctuation">(</span><span class="token class-name">Date</span> date<span class="token punctuation">)</span><span class="token punctuation">{<!-- --></span>
+        <span class="token class-name">Random</span> random<span class="token operator">=</span><span class="token keyword">new</span> <span class="token class-name">Random</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token class-name">StringBuilder</span> insert<span class="token operator">=</span><span class="token keyword">new</span> <span class="token class-name">StringBuilder</span><span class="token punctuation">(</span><span class="token string">""</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">for</span><span class="token punctuation">(</span><span class="token keyword">int</span> i<span class="token operator">=</span><span class="token number">100</span><span class="token punctuation">;</span>i<span class="token operator">&lt;</span><span class="token number">700</span><span class="token punctuation">;</span>i<span class="token operator">++</span><span class="token punctuation">)</span><span class="token punctuation">{<!-- --></span>
+            <span class="token class-name">StringBuilder</span> sb<span class="token operator">=</span><span class="token keyword">new</span> <span class="token class-name">StringBuilder</span><span class="token punctuation">(</span><span class="token string">"("</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token class-name">String</span> uuid<span class="token operator">=</span> UUID<span class="token punctuation">.</span><span class="token function">randomUUID</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">toString</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            sb<span class="token punctuation">.</span><span class="token function">append</span><span class="token punctuation">(</span><span class="token string">"'"</span><span class="token operator">+</span>uuid<span class="token operator">+</span><span class="token string">"'"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token class-name">String</span> bracketId<span class="token operator">=</span><span class="token string">"ff44c960098e11ed808900ff297c6"</span><span class="token operator">+</span>i<span class="token punctuation">;</span>
+            sb<span class="token punctuation">.</span><span class="token function">append</span><span class="token punctuation">(</span><span class="token string">",'"</span><span class="token operator">+</span>bracketId<span class="token operator">+</span><span class="token string">"'"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            sb<span class="token punctuation">.</span><span class="token function">append</span><span class="token punctuation">(</span><span class="token string">","</span><span class="token operator">+</span>random<span class="token punctuation">.</span><span class="token function">nextInt</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>上面的语句复制<span class="token number">16</span>次
+            sb<span class="token punctuation">.</span><span class="token function">append</span><span class="token punctuation">(</span><span class="token string">",'"</span><span class="token operator">+</span> <span class="token class-name">DateUtils</span><span class="token punctuation">.</span><span class="token function">formatDate</span><span class="token punctuation">(</span>date<span class="token punctuation">,</span><span class="token string">"yyyy-MM-dd HH:mm:ss"</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            sb<span class="token punctuation">.</span><span class="token function">append</span><span class="token punctuation">(</span><span class="token string">"')"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token keyword">if</span><span class="token punctuation">(</span>i<span class="token operator">&gt;</span><span class="token number">100</span><span class="token punctuation">)</span><span class="token punctuation">{<!-- --></span>
+                insert<span class="token punctuation">.</span><span class="token function">append</span><span class="token punctuation">(</span><span class="token string">","</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+            insert<span class="token punctuation">.</span><span class="token function">append</span><span class="token punctuation">(</span>sb<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        <span class="token keyword">return</span> insert<span class="token punctuation">.</span><span class="token function">toString</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+
+    <span class="token comment">/**
+     * 通过prepareStatement进行插入。在本机环境上batchSize设置为80时速度最快
+     * @param max
+     * @param batchSize
+     */</span>
+    <span class="token keyword">public</span> <span class="token keyword">static</span> <span class="token keyword">void</span> <span class="token function">insert2</span><span class="token punctuation">(</span><span class="token keyword">int</span> max<span class="token punctuation">,</span><span class="token keyword">int</span> batchSize<span class="token punctuation">)</span><span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">try</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token function">init</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token class-name">Date</span> date<span class="token operator">=</span><span class="token keyword">new</span> <span class="token class-name">Date</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token keyword">long</span> time<span class="token operator">=</span><span class="token class-name">System</span><span class="token punctuation">.</span><span class="token function">currentTimeMillis</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token keyword">for</span><span class="token punctuation">(</span><span class="token keyword">int</span> i<span class="token operator">=</span><span class="token number">0</span><span class="token punctuation">;</span>i<span class="token operator">&lt;</span>max<span class="token punctuation">;</span>i<span class="token operator">++</span><span class="token punctuation">)</span><span class="token punctuation">{<!-- --></span>
+                date<span class="token operator">=</span><span class="token class-name"><span class="token namespace">org<span class="token punctuation">.</span>apache<span class="token punctuation">.</span>commons<span class="token punctuation">.</span>lang3<span class="token punctuation">.</span>time<span class="token punctuation">.</span></span>DateUtils</span><span class="token punctuation">.</span><span class="token function">addSeconds</span><span class="token punctuation">(</span>date<span class="token punctuation">,</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token function">insertBatch2</span><span class="token punctuation">(</span>prepareStatement<span class="token punctuation">,</span>date<span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token keyword">if</span><span class="token punctuation">(</span>i<span class="token operator">%</span>batchSize<span class="token operator">==</span><span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">{<!-- --></span>
+                    <span class="token function">execute2</span><span class="token punctuation">(</span><span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+                    log<span class="token punctuation">.</span><span class="token function">info</span><span class="token punctuation">(</span><span class="token string">"已完成秒数{},已完成百分比:{}%,耗时：{}s"</span><span class="token punctuation">,</span>i<span class="token punctuation">,</span>i<span class="token operator">*</span><span class="token number">100</span><span class="token operator">/</span>max<span class="token punctuation">,</span><span class="token punctuation">(</span><span class="token class-name">System</span><span class="token punctuation">.</span><span class="token function">currentTimeMillis</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">-</span>time<span class="token punctuation">)</span><span class="token operator">/</span><span class="token number">1000</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token punctuation">}</span>
+            <span class="token punctuation">}</span>
+            <span class="token function">execute2</span><span class="token punctuation">(</span><span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            log<span class="token punctuation">.</span><span class="token function">info</span><span class="token punctuation">(</span><span class="token string">"已完成秒数{},已完成百分比:{}%,耗时：{}s"</span><span class="token punctuation">,</span>max<span class="token punctuation">,</span><span class="token number">100</span><span class="token punctuation">,</span><span class="token punctuation">(</span><span class="token class-name">System</span><span class="token punctuation">.</span><span class="token function">currentTimeMillis</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">-</span>time<span class="token punctuation">)</span><span class="token operator">/</span><span class="token number">1000</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span><span class="token keyword">catch</span> <span class="token punctuation">(</span><span class="token class-name">Exception</span> e<span class="token punctuation">)</span><span class="token punctuation">{<!-- --></span>
+            e<span class="token punctuation">.</span><span class="token function">printStackTrace</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token comment">/**
+     * 设置参数
+     * @param prepareStatement
+     * @param date
+     * @throws Exception
+     */</span>
+    <span class="token keyword">public</span> <span class="token keyword">static</span> <span class="token keyword">void</span> <span class="token function">insertBatch2</span><span class="token punctuation">(</span><span class="token class-name">PreparedStatement</span> prepareStatement<span class="token punctuation">,</span><span class="token class-name">Date</span> date<span class="token punctuation">)</span><span class="token keyword">throws</span> <span class="token class-name">Exception</span><span class="token punctuation">{<!-- --></span>
+        <span class="token class-name">Random</span> random<span class="token operator">=</span><span class="token keyword">new</span> <span class="token class-name">Random</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">for</span><span class="token punctuation">(</span><span class="token keyword">int</span> i<span class="token operator">=</span><span class="token number">100</span><span class="token punctuation">;</span>i<span class="token operator">&lt;</span><span class="token number">700</span><span class="token punctuation">;</span>i<span class="token operator">++</span><span class="token punctuation">)</span><span class="token punctuation">{<!-- --></span>
+            <span class="token class-name">StringBuilder</span> sb<span class="token operator">=</span><span class="token keyword">new</span> <span class="token class-name">StringBuilder</span><span class="token punctuation">(</span><span class="token string">"("</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token class-name">String</span> uuid<span class="token operator">=</span> UUID<span class="token punctuation">.</span><span class="token function">randomUUID</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">toString</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            prepareStatement<span class="token punctuation">.</span><span class="token function">setObject</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">,</span>uuid<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token class-name">String</span> bracketId<span class="token operator">=</span><span class="token string">"ff44c960098e11ed808900ff297c6"</span><span class="token operator">+</span>i<span class="token punctuation">;</span>
+            prepareStatement<span class="token punctuation">.</span><span class="token function">setObject</span><span class="token punctuation">(</span><span class="token number">2</span><span class="token punctuation">,</span>bracketId<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            prepareStatement<span class="token punctuation">.</span><span class="token function">setObject</span><span class="token punctuation">(</span><span class="token number">3</span><span class="token punctuation">,</span>random<span class="token punctuation">.</span><span class="token function">nextInt</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+           <span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>上面的语句复制<span class="token number">16</span>次，注意修改标号
+            prepareStatement<span class="token punctuation">.</span><span class="token function">setObject</span><span class="token punctuation">(</span><span class="token number">20</span><span class="token punctuation">,</span><span class="token class-name">DateUtils</span><span class="token punctuation">.</span><span class="token function">formatDate</span><span class="token punctuation">(</span>date<span class="token punctuation">,</span><span class="token string">"yyyy-MM-dd HH:mm:ss"</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            prepareStatement<span class="token punctuation">.</span><span class="token function">addBatch</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token comment">/**
+     * 执行插入，由于clickhouse没有事务，提交就等于插入
+     * @param i
+     * @throws Exception
+     */</span>
+    <span class="token keyword">public</span> <span class="token keyword">static</span> <span class="token keyword">void</span> <span class="token function">execute2</span><span class="token punctuation">(</span><span class="token keyword">int</span> i<span class="token punctuation">)</span> <span class="token keyword">throws</span> <span class="token class-name">Exception</span><span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">try</span><span class="token punctuation">{<!-- --></span>
+            prepareStatement<span class="token punctuation">.</span><span class="token function">executeBatch</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            conn<span class="token punctuation">.</span><span class="token function">commit</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span><span class="token keyword">catch</span> <span class="token punctuation">(</span><span class="token class-name">Exception</span> e<span class="token punctuation">)</span><span class="token punctuation">{<!-- --></span>
+            log<span class="token punctuation">.</span><span class="token function">warn</span><span class="token punctuation">(</span><span class="token string">"执行出问题了，正在重试"</span><span class="token punctuation">,</span>e<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token keyword">if</span><span class="token punctuation">(</span>i<span class="token operator">&gt;=</span><span class="token number">3</span><span class="token punctuation">)</span><span class="token punctuation">{<!-- --></span>
+                <span class="token keyword">throw</span> e<span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+            <span class="token keyword">try</span><span class="token punctuation">{<!-- --></span>
+                <span class="token function">init</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span><span class="token keyword">catch</span> <span class="token punctuation">(</span><span class="token class-name">Exception</span> ex<span class="token punctuation">)</span><span class="token punctuation">{<!-- --></span>
+                <span class="token keyword">throw</span> ex<span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+            <span class="token function">execute2</span><span class="token punctuation">(</span>i<span class="token operator">++</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token keyword">public</span> <span class="token keyword">static</span> <span class="token keyword">void</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token class-name">String</span><span class="token punctuation">[</span><span class="token punctuation">]</span> args<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token class-name">Random</span> random<span class="token operator">=</span><span class="token keyword">new</span> <span class="token class-name">Random</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">for</span><span class="token punctuation">(</span><span class="token keyword">int</span> i<span class="token operator">=</span><span class="token number">0</span><span class="token punctuation">;</span>i<span class="token operator">&lt;</span><span class="token number">300</span><span class="token punctuation">;</span>i<span class="token operator">++</span><span class="token punctuation">)</span><span class="token punctuation">{<!-- --></span>
+            <span class="token class-name">System</span><span class="token punctuation">.</span>out<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span>random<span class="token punctuation">.</span><span class="token function">nextInt</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/76b2fa43264343e5cac700931aad33fd/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">Java--Spring之AOP面向切面编程</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/f847c733aec58ce48c760cb4723e1a51/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">Android MVVM架构</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

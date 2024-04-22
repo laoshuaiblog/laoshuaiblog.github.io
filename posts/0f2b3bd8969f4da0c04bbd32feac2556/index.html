@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>大数据面试题 —— HBase - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/0f2b3bd8969f4da0c04bbd32feac2556/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="大数据面试题 —— HBase">
+  <meta property="og:description" content="目录 什么是HBase简述HBase 的数据模型HBase 的读写流程HBase 在写的过程中的region的split的时机HBase 和 HDFS 各自的使用场景HBase 的存储结构HBase 中的热现象（数据倾斜）是怎么产生的，以及解决办法有哪些HBase rowkey的设计原则HBase 的列族设计HBase 中 compact 用途是什么，什么时候触发，分为哪几种，有什么区别hbase 基本架构hbase 和 hive 有什么区别HBase的MemStore的刷写MemStore在刷写磁盘过程中，还可以继续写入吗？Region分裂期间能不能对外提供服务HBase和MySQL的存储结构有什么不同HBase的LSM结构LSM树和B&#43;树做比较LSM树为什么要用布隆过滤器HBase为什么适合写HBase为什么查询快HBase不同写入方式的应用场景？HBase的BulkLoadHBase中的一个节点宕机了怎么办MemStore中排序方法HBase是列式存储吗？行式存储和列式存储有什么区别？HBase的HFile的格式 什么是HBase HBase 是一种 分布式、可扩展、支持海量数据存储 的 NoSQL 数据库，支持对大数据进行随机、实时的读/写访问。
+简述HBase 的数据模型 HBase 的数据模型同关系型数据库很类似，数据存储在一张表中，有行有列。
+其中
+namespace：命名空间，类似于关系型数据库中的 database，每个命名空间下有多个表。HBase 默认有两个命名空间，分别叫做 default 和 hbaseregion：类似于关系型数据库中的 table。但是 HBase 在定义表的时候不需要定义具体的列，只需要定义列族就可以了row：表示一行数据，每行数据有一个 rowkey 和多个列组成，数据是按照 rowkey 的字典顺序排列的column：每一列都有列族和列限定符组成timestamp：用于标识数据的不同版本，每条数据写入的时候，如果不指
+定时间戳，默认为写入 HBase 的时间cell 最小单元：由{rowkey, column, timestamp}唯一确定 HBase 的读写流程 读流程
+（1）Client 先访问 zookeeper，获取 hbase:meta 表位于哪个Region Server。
+（2）访问对应的Region Server，获取 hbase:meta 表，根据读请求的namespace:table/rowkey，查询出目标数据位于哪个Region Server中的哪个Region中。并将该 table 的region信息以及meta表的位置信息缓存在客户端的 meta cache，方便下次访问。
+（3）与目标Region Server进行通讯；">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2024-03-19T13:24:13+08:00">
+    <meta property="article:modified_time" content="2024-03-19T13:24:13+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">大数据面试题 —— HBase</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-light">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <p></p> 
+<div class="toc"> 
+ <h4>目录</h4> 
+ <ul><li><a href="#HBase_2" rel="nofollow">什么是HBase</a></li><li><a href="#HBase__9" rel="nofollow">简述HBase 的数据模型</a></li><li><a href="#HBase__24" rel="nofollow">HBase 的读写流程</a></li><li><a href="#HBase_regionsplit_59" rel="nofollow">HBase 在写的过程中的region的split的时机</a></li><li><a href="#HBase__HDFS__81" rel="nofollow">HBase 和 HDFS 各自的使用场景</a></li><li><a href="#HBase__99" rel="nofollow">HBase 的存储结构</a></li><li><a href="#HBase__105" rel="nofollow">HBase 中的热现象（数据倾斜）是怎么产生的，以及解决办法有哪些</a></li><li><a href="#HBase_rowkey_122" rel="nofollow">HBase rowkey的设计原则</a></li><li><a href="#HBase__138" rel="nofollow">HBase 的列族设计</a></li><li><a href="#HBase__compact__150" rel="nofollow">HBase 中 compact 用途是什么，什么时候触发，分为哪几种，有什么区别</a></li><li><a href="#hbase__173" rel="nofollow">hbase 基本架构</a></li><li><a href="#hbase__hive__181" rel="nofollow">hbase 和 hive 有什么区别</a></li><li><a href="#HBaseMemStore_194" rel="nofollow">HBase的MemStore的刷写</a></li><li><a href="#MemStore_214" rel="nofollow">MemStore在刷写磁盘过程中，还可以继续写入吗？</a></li><li><a href="#Region_222" rel="nofollow">Region分裂期间能不能对外提供服务</a></li><li><a href="#HBaseMySQL_232" rel="nofollow">HBase和MySQL的存储结构有什么不同</a></li><li><a href="#HBaseLSM_242" rel="nofollow">HBase的LSM结构</a></li><li><a href="#LSMB_252" rel="nofollow">LSM树和B+树做比较</a></li><li><a href="#LSM_268" rel="nofollow">LSM树为什么要用布隆过滤器</a></li><li><a href="#HBase_279" rel="nofollow">HBase为什么适合写</a></li><li><a href="#HBase_288" rel="nofollow">HBase为什么查询快</a></li><li><a href="#HBase_312" rel="nofollow">HBase不同写入方式的应用场景？</a></li><li><a href="#HBaseBulkLoad_324" rel="nofollow">HBase的BulkLoad</a></li><li><a href="#HBase_335" rel="nofollow">HBase中的一个节点宕机了怎么办</a></li><li><a href="#MemStore_356" rel="nofollow">MemStore中排序方法</a></li><li><a href="#HBase_364" rel="nofollow">HBase是列式存储吗？行式存储和列式存储有什么区别？</a></li><li><a href="#HBaseHFile_378" rel="nofollow">HBase的HFile的格式</a></li></ul> 
+</div> 
+<p></p> 
+<h2><a id="HBase_2"></a>什么是HBase</h2> 
+<br> 
+<p>HBase 是一种 <strong>分布式</strong>、<strong>可扩展</strong>、<strong>支持海量数据存储</strong> 的 <strong>NoSQL</strong> 数据库，<strong>支持对大数据进行随机、实时的读/写访问</strong>。</p> 
+<h2><a id="HBase__9"></a>简述HBase 的数据模型</h2> 
+<br> 
+<p>HBase 的数据模型同关系型数据库很类似，数据存储在一张表中，有行有列。<br> 其中</p> 
+<ul><li>namespace：命名空间，类似于关系型数据库中的 database，每个命名空间下有多个表。HBase 默认有两个命名空间，分别叫做 default 和 hbase</li><li>region：类似于关系型数据库中的 table。但是 HBase 在定义表的时候不需要定义具体的列，只需要定义列族就可以了</li><li>row：表示一行数据，每行数据有一个 rowkey 和多个列组成，数据是按照 rowkey 的字典顺序排列的</li><li>column：每一列都有列族和列限定符组成</li><li>timestamp：用于标识数据的不同版本，每条数据写入的时候，如果不指<br> 定时间戳，默认为写入 HBase 的时间</li><li>cell 最小单元：由{rowkey, column, timestamp}唯一确定</li></ul> 
+<h2><a id="HBase__24"></a>HBase 的读写流程</h2> 
+<br> 
+<p>读流程</p> 
+<p>（1）Client 先访问 zookeeper，获取 <code>hbase:meta</code> 表位于哪个Region Server。</p> 
+<p>（2）访问对应的Region Server，获取 <code>hbase:meta</code> 表，根据读请求的namespace:table/rowkey，查询出目标数据位于哪个Region Server中的哪个Region中。并将该 table 的region信息以及meta表的位置信息缓存在客户端的 meta cache，方便下次访问。</p> 
+<p>（3）与目标Region Server进行通讯；</p> 
+<p>（4）分别在 MemStore 和 StoreFile（HFile）中查询目标数据，并将查到的所有数据进行合并。此处所有数据是指同一条数据的不同版本（time stamp）或者不同的类型（Put/Delete）。</p> 
+<p>（5）将查询到的新的数据块（Block，HFile 数据存储单元，默认大小为64KB）缓存到Block Cache。</p> 
+<p>（6）将合并后的最终结果返回给客户端。</p> 
+<p>写流程：</p> 
+<p>（1）Client 先访问 zookeeper ，获取 <code>hbase:meta</code> 表位于哪个Region Server。</p> 
+<p>（2）访问对应的 Region Server，获取 <code>hbase:meta</code> 表，根据读请求的 namespace:table/rowkey，查询出目标数据位于哪个Region Server中的哪个Region中。并将该table的region信息以及meta表的位置信息缓存在客户端的 meta cache，方便下次访问。</p> 
+<p>（3）与目标 Region Server 进行通讯；</p> 
+<p>（4）将数据顺序写入（追加）到 WAL；</p> 
+<p>（5）将数据写入对应的 MemStore，数据会在 MemStore 进行排序；</p> 
+<p>（6）向客户端发送 ack；</p> 
+<p>（7）等达到 MemStore 的刷写时机后，将数据刷写到HFile。</p> 
+<h2><a id="HBase_regionsplit_59"></a>HBase 在写的过程中的region的split的时机</h2> 
+<br> 
+<p>默认情况下，每个 Table 起初只有一个 Region，随着数据的不断写入，Region 会自动进行拆分。刚拆分时，两个子 Region 都位于当前的Region Server，但处于负载均衡的考虑，HMaster 有可能会将某个 Region 转移给其他的 Region Server。</p> 
+<p>Region Split 时机：</p> 
+<p>（1）当1个region中的某个Store下所有 StoreFile 的总大小超过 <code>hbase.hregion.max.filesize(默认10G)</code>，该Region就会进行拆分（0.94版本之前）。</p> 
+<p>（2）当1个region中的某个Store下所有StoreFile的总大小超过<code>Min(initialSize*R^3 ,hbase.hregion.max.filesize")</code>，该Region就会进行拆分。其中 <code>initialSize</code> 的默认值为<code>2*hbase.hregion.memstore.flush.size(默认128M)</code>，R 为当前 Region Server 中属于该 Table 的 Region个数（0.94版本之后）。</p> 
+<p>具体的切分策略为：</p> 
+<ul><li>第一次split：1^3 * 256 = 256MB</li><li>第二次split：2^3 * 256 = 2048MB</li><li>第三次split：3^3 * 256 = 6912MB</li><li>第四次split：4^3 * 256 = 16384MB &gt; 10GB，因此取较小的值10GB</li></ul> 
+<p>后面每次split的size都是10GB了。</p> 
+<p>（3）Hbase 2.0引入了新的 split 策略：如果当前 RegionServer 上该表只有一个 Region，按照<code>2 * hbase.hregion.memstore.flush.size</code>分裂，否则按照 <code>hbase.hregion.max.filesize</code> 分裂。</p> 
+<h2><a id="HBase__HDFS__81"></a>HBase 和 HDFS 各自的使用场景</h2> 
+<br> 
+<p>首先一点需要明白： Hbase 是基于 HDFS 来存储的</p> 
+<p>HDFS:</p> 
+<ul><li>一次性写入，多次读取。</li><li>保证数据的一致性。</li><li>主要是可以部署在许多廉价机器中，通过多副本提高可靠性，提供了容错和恢复机制。</li></ul> 
+<p>HBase:</p> 
+<ul><li>瞬间写入量很大，数据库不好支撑或需要很高成本支撑的场景</li><li>数据需要长久保存，且量会持久增长到比较大的场景。</li><li>HBase 不适用与有 join，多级索引，表关系复杂的数据模型</li><li>大数据量 (100s TB 级数据) 且有快速随机访问的需求。如: 淘宝的交易历史记录。数据量巨大无容置疑，面向普通用户的请求必然要即时响应</li><li>业务场景简单，不需要关系数据库中很多特性 (例如交叉列、交叉表，事务，连接等等)</li></ul> 
+<h2><a id="HBase__99"></a>HBase 的存储结构</h2> 
+<br> 
+<p>Hbase 中的每张表都通过行键(rowkey)按照一定的范围被分割成多个子表(HRegion),默认一个 HRegion 超过 256M 就要被分割成两个，由 HRegionServer管理，管理哪些 HRegion 由 Hmaster 分配。 HRegion 存取一个子表时，会创建一个 HRegion 对象，然后对表的每个列族(Column Family) 创建一个 store 实例，每个 store 都会有 0 个或多个 StoreFile 与之对应，每个 StoreFile 都会对应一个 HFile，HFile 就是实际的存储文件，一个 HRegion 还拥有一个 MemStore<br> 实例。</p> 
+<h2><a id="HBase__105"></a>HBase 中的热现象（数据倾斜）是怎么产生的，以及解决办法有哪些</h2> 
+<br> 
+<p><strong>热点现象</strong>：某时间段内，对 HBase 的读写请求集中到极少数的 Region 上，导致这些<br> region 所在的 RegionServer 处理请求量骤增，负载量明显偏大，而其他的 RegionServer 明显空闲。</p> 
+<p><strong>原因</strong>：</p> 
+<ul><li>hbase 的中的数据是按照 rowkey的字典序排序的，大量连续的 rowkey 集中写在个别的 region，各个 region 之间数据分布不均衡；</li><li>创建表时没有提前预分区，创建的表默认只有一个 region，大量的数据写入当前 region；</li><li>创建表已经提前预分区，但是设计的 rowkey 不合理</li></ul> 
+<p><strong>解决办法</strong>：</p> 
+<ul><li>预分区就是 在创建表的时候，就提前划分出多个 region 而不是默认的一个；</li><li>rowkey 设计就是 通过设计出合理的 rowkey，让数据均匀的分布到所有的 region 中;</li><li>加盐，就是在Rowkey的前面增加随机数，具体就是给Rowkey分配一个随机前缀以使得它和之前的Rowkey的开头不同；</li></ul> 
+<h2><a id="HBase_rowkey_122"></a>HBase rowkey的设计原则</h2> 
+<br> 
+<p>（1）长度原则：一般是100位以内</p> 
+<p>（2）散列原则： rowkey要具有散列性</p> 
+<p>（3）唯一原则：一个 rowkey 只能出现一次</p> 
+<p>rowkey设计常用方法</p> 
+<ul><li>计算hash值</li><li>字符串拼接</li><li>字符串反转</li></ul> 
+<h2><a id="HBase__138"></a>HBase 的列族设计</h2> 
+<br> 
+<p>原则：<strong>在合理范围内能尽量少的减少列簇就尽量减少列簇</strong>，官网中建议一张表应该有 1 到3 个列族，所以列族的数量不应过多。</p> 
+<blockquote> 
+ <p><img src="https://images2.imgbox.com/dd/ed/UWia65m9_o.png" alt="在这里插入图片描述"></p> 
+</blockquote> 
+<p>最优：<strong>将所有相关性很强的 key-value 都放在同一个列簇下，这样既能做到查询效率最高，也能保持尽可能少的访问不同的磁盘文件</strong>。以用户信息为例，可以将必须的基本信息存放在一个列族，而一些附加的额外信息可以放在另一列族。</p> 
+<h2><a id="HBase__compact__150"></a>HBase 中 compact 用途是什么，什么时候触发，分为哪几种，有什么区别</h2> 
+<br> 
+<p>触发时间：</p> 
+<ul><li>由于 memstore 每次刷写都会生成一个新的 HFile，当 HFile 的数量达到一定程度后，就需要进行 StoreFile Compaction。</li></ul> 
+<p>Compact 的作用：</p> 
+<ul><li>合并文件，提高读写数据的效率</li><li>清除过期，多余版本的数据</li></ul> 
+<p>HBase 中实现了两种 compaction 的方式：</p> 
+<ul><li>Minor compaction 
+  <ul><li>会将临近的若干个较小的 HFile 合并成一个较大的 HFile</li><li>会清理部分过期和删除的数据</li></ul> </li><li>Major compaction 
+  <ul><li>会将一个 Store 下的所有的 HFile 合并成一个大 HFile</li><li>会清理掉所有过期和删除的数据</li></ul> </li></ul> 
+<h2><a id="hbase__173"></a>hbase 基本架构</h2> 
+<br> 
+<p>HBase主要包括 region server 和master，region server主要用于region的管理，而master主要用于管理region server，另外还有zookeeper和hdfs，zookeeper主要是用来保证master的高可用，hdfs提供存储服务。</p> 
+<h2><a id="hbase__hive__181"></a>hbase 和 hive 有什么区别</h2> 
+<br> 
+<p>（1）hbase是一个数据库，而hive一般用于构建数据仓库；</p> 
+<p>（2）hbase可以看做是一个存储框架，而hive是一款分析框架；</p> 
+<p>（3）hbase的查询延迟比较低，常用于在线实时的业务，而hive常用于离线的业务；</p> 
+<h2><a id="HBaseMemStore_194"></a>HBase的MemStore的刷写</h2> 
+<br> 
+<p>MemStore 刷写时机：</p> 
+<p>（1）当某个 memstore 的大小达到了 <code>hbase.hregion.memstore.flush.size</code>（默认值128M），<strong>其所在region的所有memstore都会刷写</strong>。每次刷写都会有一个新的文件产生。<br> 当 memstore 的大小达到了 <code>hbase.hregion.memstore.flush.size(默认128M) * hbase.hregion.memstore.block.multiplier(默认4)</code><br> 时，会阻止继续往该memstore写数据。</p> 
+<p>（2） 当 region server 中 memstore 的总大小达到<br> <code>java_heapsize *hbase.regionserver.global.memstore.size(默认0.4) *hbase.regionserver.global.memstore.size.lower.limit(默认0.95)</code>，region 会按照其所有 memstore 的大小顺序（由大到小）依次进行刷写。直到 region server 中所有 memstore 的总大小减小到上述值以下。当 region server 中 memstore的总大小达到<br> <code>java_heapsize*hbase.regionserver.global.memstore.size(默认0.4)</code><br> 时，会阻止继续往所有的memstore写数据。</p> 
+<p>（3）到达自动刷写的时间，也会触发 memstore flush。自动刷新的时间间隔由该属性进行配置<code>hbase.regionserver.optionalcacheflushinterval(默认1小时)</code>。</p> 
+<p>（4）当WAL文件的数量超过 <code>hbase.regionserver.max.logs</code>，region会按照时间顺序依次进行刷写，直到WAL文件数量减小到 <code>hbase.regionserver.max.logs</code>以下（该属性名已经废弃，现无需手动设置，最大值为32）。</p> 
+<h2><a id="MemStore_214"></a>MemStore在刷写磁盘过程中，还可以继续写入吗？</h2> 
+<br> 
+<p>在 HBase 中，当 MemStore 中的数据量达到一定阈值时，HBase 会将其刷写到磁盘上的 StoreFile 中，以释放内存空间并保证数据持久化。</p> 
+<p>MemStore 在刷写磁盘的过程中，仍然可以继续接收新的写入请求，这些写入请求会被缓存到 MemStore 中，直到下一次刷写磁盘操作触发时才会一并写入到磁盘上的 StoreFile 中。</p> 
+<h2><a id="Region_222"></a>Region分裂期间能不能对外提供服务</h2> 
+<br> 
+<p>不能。</p> 
+<p>在分裂过程中，HBase会暂停对外服务。同时，在分裂完成之前，HBase也不会将新的Region对外提供服务，只有分裂完成后才会对外提供服务。因为分裂过程中需要进行数据的重新分配和数据移动，如果在分裂过程中继续对外提供服务，会导致数据的不一致性和丢失。</p> 
+<h2><a id="HBaseMySQL_232"></a>HBase和MySQL的存储结构有什么不同</h2> 
+<br> 
+<p>（1）MySQL采用的是关系型数据库的存储结构，使用B+树或者是Hash索引来存储数据。MySQL中的表结构是固定的，每个表都有一定数量的列，每个列存储的数据类型也是预先定义好的，对于每一行数据，都是按照固定的表结构进行存储的。</p> 
+<p>（2）HBase采用的是NoSQL数据库的存储结构，使用 LSM 树来存储数据。在HBase中，数据存储在表中的行和列族中，列是动态的，可以随时新增和删除，列的数据类型也是动态的，可以按需指定。HBase中的数据按照rowkey进行排序，并且rowkey是可变长度的字节数组，可以根据具体的需求自由定义。</p> 
+<h2><a id="HBaseLSM_242"></a>HBase的LSM结构</h2> 
+<br> 
+<p>B+树是MySQL的底层数据结构，LSM树就是HBase的底层数据结构。LSM树和B+树相比，LSM树牺牲了部分读性能，用来大幅提高写性能。</p> 
+<p>LSM树的设计思想非常朴素：<strong>将对数据的修改增量保持在内存中，达到指定的大小限制后将这些修改操作批量写入磁盘</strong>，不过读取的时候稍微麻烦，需要合并磁盘中历史数据和内存中最近修改操作，所以写入性能大大提升，读取时可能需要先看是否命中内存，否则需要访问较多的磁盘文件。</p> 
+<h2><a id="LSMB_252"></a>LSM树和B+树做比较</h2> 
+<br> 
+<p>（1）写性能：</p> 
+<ul><li>LSM树：LSM树以追加写（Append-Only Write）方式操作，将写入的数据先追加到内存中的日志文件（Write-Ahead Log），然后定期合并到磁盘中的数据文件，因此在写入大量数据时具有较高的性能。</li><li>B+树：B+树的写操作是直接在内存中进行更新，然后再将更新操作同步到磁盘中的位置，相对于LSM树来说，写入性能较为稳定。</li></ul> 
+<p>（2）读性能：</p> 
+<ul><li>LSM树：由于数据在多个层级（内存、磁盘和可能的缓存）上分布存储，因此读取数据可能需要多次磁盘访问，导致读取性能相对较低。</li><li>B+树：B+树的数据结构更适合范围查询和顺序访问，因为数据在叶子节点上形成有序的链表结构，可以通过遍历叶子节点实现范围查询。</li></ul> 
+<h2><a id="LSM_268"></a>LSM树为什么要用布隆过滤器</h2> 
+<br> 
+<p>布隆过滤器是一种数据结构，用于快速判断一个元素是否存在于一个集合中。</p> 
+<p>在LSM树中使用布隆过滤器的主要目的是减少磁盘访问次数。由于LSM树中的数据通常存储在多个文件中，而查询时需要在所有文件中查找数据，因此需要进行大量的磁盘访问，这会严重影响查询性能。使用布隆过滤器可以将一部分数据过滤掉，减少磁盘访问次数，提高查询性能。</p> 
+<blockquote> 
+ <p>需要注意的是，布隆过滤器可能会出现误判，即将一个不存在的元素判断为存在。这是由于哈希函数产生的冲突和位数组大小限制造成的。为了降低误判率，布隆过滤器需要占用一定的空间，因此需要根据实际情况进行调整。此外，为了避免误判造成的影响，可以在数据查找时进行二次确认。当布隆过滤器判断元素存在时，可以进一步检查实际数据，如果不存在，则可以纠正误判。</p> 
+</blockquote> 
+<h2><a id="HBase_279"></a>HBase为什么适合写</h2> 
+<br> 
+<p>因为HBase的存储引擎用的是LSM树，是一种面向磁盘的数据结构：HBase底层的存储引擎为LSM-Tree（Log-Structured Merge-Tree）。LSM核心思想的核心就是放弃部分读能力，换取写入的最大化能力。</p> 
+<p>LSM Tree它的核心思路其实非常简单，就是假定内存足够大，因此不需要每次有数据更新就必须将数据写入到磁盘中，而可以<strong>先将最新的数据驻留在内存中，等到积累到最后多之后，再使用归并排序的方式将内存内的数据合并追加到磁盘队尾</strong>（因为所有待排序的树都是有序的，可以通过合并排序的方式快速合并到一起）。另外，写入时候将随机写入转换成<strong>顺序写</strong>，数据写入速度也很稳定。</p> 
+<h2><a id="HBase_288"></a>HBase为什么查询快</h2> 
+<br> 
+<p>（1）基于LSM树的存储方式</p> 
+<p>HBase采用基于LSM树的存储方式，这种存储方式将数据分为内存和磁盘两层存储，内存部分称为MemStore，磁盘部分称为HFile。MemStore存储的数据是有序的，并且每次插入数据时会进行排序和合并，因此可以减少数据的查找和排序开销，提高查询效率。</p> 
+<p>（2）分布式存储架构</p> 
+<p>HBase采用分布式存储架构，数据可以分散存储在集群中的多台机器上。在查询时，HBase可以利用分布式存储架构进行并行查询，从而提高查询效率。</p> 
+<p>（3）列存储方式</p> 
+<p>HBase采用列存储方式，同一列族的数据被存储在一起，可以避免不必要的IO操作，提高数据读取效率。</p> 
+<p>（4）布隆过滤器</p> 
+<p>通过Rowkey定位Region，这当中会先经过BlockCache，这边找不到的话，再经过MemStore和Hfile查询，这当中通过布隆过滤器过滤掉一些不需要查询的HFile。</p> 
+<p>（5）基于Region的负载均衡</p> 
+<p>HBase会将数据划分为多个Region进行存储，每个Region对应着一段连续的行键。HBase会自动对Region进行负载均衡，保证数据分布均匀，避免热点数据和单点故障。</p> 
+<h2><a id="HBase_312"></a>HBase不同写入方式的应用场景？</h2> 
+<br> 
+<p>HBase支持多种写入方式，以下是常见的几种写入方式和对应的应用场景：</p> 
+<ul><li>单行写入：使用Put对象将一行数据写入HBase表中。适用于小批量或单个数据写入的场景。</li><li>批量写入：使用Put对象批量写入多行数据。适用于大批量数据写入的场景。</li><li>BulkLoad写入：使用HFile格式的数据文件直接导入HBase表中。适用于海量数据写入的场景。- - 无覆盖写入：使用checkAndPut方法实现无覆盖写入，即只有当目标列不存在时才写入。适用于需要保证数据完整性的场景。</li><li>CAS写入：使用checkAndPut方法实现基于版本的CAS（Compare-And-Set）写入，即只有当目标列的版本与预期版本一致时才写入。适用于需要保证数据一致性和避免竞争写入的场景。</li></ul> 
+<p>需要根据实际业务场景和数据量大小选择适当的写入方式，以保证写入性能和数据完整性。</p> 
+<h2><a id="HBaseBulkLoad_324"></a>HBase的BulkLoad</h2> 
+<br> 
+<p>BulkLoad写入：<strong>使用HFile格式的数据文件直接导入HBase表中</strong>。当我们需要大批量向HBase中导入数据，就可以通过HBase的BulkLoad方法来快速将海量数据导入到HBase中。</p> 
+<p>主要包括三个步骤</p> 
+<ul><li>Extract：异构数据源数据导入到 HDFS 之上。</li><li>Transform：通过用户代码，可以是 MR 或者 Spark 任务将数据转化为 HFile。</li><li>Load：HFile 通过 loadIncrementalHFiles 调用将 HFile 放置到 Region 对应的 HDFS 目录上，该过程可能涉及到文件切分。</li></ul> 
+<h2><a id="HBase_335"></a>HBase中的一个节点宕机了怎么办</h2> 
+<br> 
+<p>（1）Master故障恢复原理</p> 
+<p>在HBase体系结构中，Master主要负责实现集群的负载均衡和读写调度，并没有直接参与用户的请求，所以整体负载并不很高。</p> 
+<p>HBase采用基本的热备方式来实现Master高可用。通常情况下要求集群中至少启动两个Master进程，进程启动之后会到ZooKeeper上的Master节点进行注册，注册成功后会成为ActiveMaster，其他在Master节点未注册成功的进程会到另一个节点Backup-Masters节点进行注册，并持续关注Active Master的情况，一旦Active Master发生宕机，这些Backup-Masters就会立刻得到通知，它们再次竞争注册Master节点，注册成功就可成为Active Master。</p> 
+<p>一方面，Active Master会接管整个系统的元数据管理任务，包括管理ZooKeeper以及meta表中的元数据，并根据元数据决定集群是否需要执行负载均衡操作等。另一方面，Active Master会响应用户的各种管理命令，包括创建、删除、修改表，move、merge region等命令。</p> 
+<p>（2）RegionServer故障恢复原理</p> 
+<p>Master如何检测RegionServer宕机：HBase检测宕机是通过Zookeeper实现的， 正常情况下RegionServer会周期性向Zookeeper发送心跳，一旦发生宕机，心跳就会停止，超过一定时间（SessionTimeout）Zookeeper就会认为RegionServer宕机离线，并将该消息通知给Master。</p> 
+<p>一旦RegionServer发生宕机，HBase会马上检测到这种宕机，并且在检测到宕机之后将宕机RegionServer上的所有Region重新分配到集群中其他正常的RegionServer上，再根据 HLog 进行丢失数据恢复，恢复完成之后就可以对外提供服务。整个过程都是自动完成的，并不需要人工介入。</p> 
+<h2><a id="MemStore_356"></a>MemStore中排序方法</h2> 
+<br> 
+<p>在 HBase 中，MemStore 是用于缓存表中数据的内存结构，它是 HBase 实现高性能读写的重要组成部分。在 MemStore 中，排序方式主要有以下两种方法：</p> 
+<ul><li>以行键（Row Key）为排序依据</li><li>以时间戳为排序依据</li></ul> 
+<h2><a id="HBase_364"></a>HBase是列式存储吗？行式存储和列式存储有什么区别？</h2> 
+<br> 
+<p>HBase是一种列簇数据库（column-family database），但是不属于列式数据库（column-oriented database）。</p> 
+<p>区别：</p> 
+<ul><li>列存储： 
+  <ul><li>同一列存放在一起，数据类型相同，则更好的进行压缩；</li><li>同一列存放在一起，则排序更加方便，基于排序方便，where某一列会更加快；</li><li>基于列和列分开存储，这种形式天生就适合分布式的存储，并能完全利用并发写入和并发读取的能力。</li></ul> </li><li>行存储 
+  <ul><li>更容易实现事务性、一致性控制。</li></ul> </li></ul> 
+<h2><a id="HBaseHFile_378"></a>HBase的HFile的格式</h2> 
+<br> 
+<p><img src="https://images2.imgbox.com/d2/ce/3ic1KAgH_o.png" alt="在这里插入图片描述"></p> 
+<p>HFile文件是不定长的，长度固定的只有其中的两块：Trailer和FileInfo。</p> 
+<p>Trailer中有指针指向其他数据块的起始点，FileInfo记录了文件的一些meta信息。Data Block是Hbase IO的基本单元，为了提高效率，HRegionServer中有基于LRU的Block Cache机制。每个Data块的大小可以在创建一个Table的时候通过参数指定（默认块大小64KB），大号的Block有利于顺序Scan，小号的Block利于随机查询。每个Data块除了开头的Magic以外就是一个个KeyValue对拼接而成，Magic内容就是一些随机数字，目的是防止数据损坏。</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/fde8174f4093d0c0ff18e1a0e895a9c5/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">java8中，线程池拒绝策略有哪些？默认是哪个？</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/0123e63124ebfa8be7b01c754fc546e6/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">java8中 synchronized与ReentrantLock区别</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

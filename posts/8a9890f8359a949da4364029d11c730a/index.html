@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>cookie setSecure详解 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/8a9890f8359a949da4364029d11c730a/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="cookie setSecure详解">
+  <meta property="og:description" content="1. 前言 最近项目用Sparrow Health System检测漏洞，发现存在一个setSecure安全漏洞问题，于是网上搜索了一下，这里记录一下。
+2. 问题 在cas中或其他web开发中，会碰到安全cookie的概念，因为CAS中TGT是存放在安全cookie中的。下面是安全cookie 的理解：
+Set-Cookie 的 secure 属性就是处理这方面的情况用的，它表示创建的 cookie 只能在 HTTPS 连接中被浏览器传递到服务器端进行会话验证，如果是 HTTP 连接则不会传递该信息，所以绝对不会被窃听到。 在setSecure(true); 的情况下，只有https才传递到服务器端。http是不会传递的。
+setSecure(true)意味着&#34;指示浏览器仅通过 HTTPS 连接传回 cookie。这可以确保 cookie ID 是安全的，且仅用于使用 HTTPS 的网站。如果启用此功能，则 HTTP 上的会话 Cookie 将不再起作用。&#34;
+j2ee servlet的接口中也定义了Cookie对象，也有其方法setSecue（false）；
+关于setSecure的问题，在http连接下： 当setSecure（true）时，浏览器端的cookie会不会传递到服务器端？ 当setSecure（true）时，服务器端的cookie会不会传递到浏览器端？ 答案：1）不会 ； 2）会 原理：服务器端的Cookie对象是java中的对象，请不要和浏览器端的cookie文件混淆了。服务器端的Cookie对象是方便java程序员包装一个浏览器端的cookie文件。一旦包装好，就放到response对象中，在转换成http头文件。在传递到浏览器端。这时就会在浏览器的临时文件中创建一个cookie文件。 但我们再次访问网页时，才查看浏览器端的cookie文件中的secure值，如果是true，但是http连接，这个cookie就不会传到服务器端。当然这个过程对浏览器是透明的。其他人是不会知道的。
+总结如下：cookie的secure值为true时，在http中是无效的；在https中才有效
+3. Cookie设置 实际上，Servlet提供的HttpSession本质上就是通过一个名为JSESSIONID的Cookie来跟踪用户会话的。除了这个名称外，其他名称的Cookie我们可以任意使用。
+如果我们想要设置一个Cookie，例如，记录用户选择的语言，可以编写一个LanguageServlet：
+@WebServlet(urlPatterns = &#34;/pref&#34;) public class LanguageServlet extends HttpServlet { private static final Set&amp;lt;String&amp;gt; LANGUAGES = Set.of(&#34;en&#34;, &#34;zh&#34;); protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException { String lang = req.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2022-03-31T16:09:37+08:00">
+    <meta property="article:modified_time" content="2022-03-31T16:09:37+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">cookie setSecure详解</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <h2>1. 前言</h2> 
+<p>       最近项目用<a href="https://www.sparrow.org/" rel="nofollow" title="Sparrow Health System">Sparrow Health System</a>检测漏洞，发现存在一个setSecure安全漏洞问题，于是网上搜索了一下，这里记录一下。</p> 
+<h2>2. 问题</h2> 
+<p>      在cas中或其他web开发中，会碰到安全cookie的概念，因为CAS中TGT是存放在安全cookie中的。下面是安全cookie 的理解：</p> 
+<ul><li>Set-Cookie 的 secure 属性就是处理这方面的情况用的，它表示创建的 cookie 只能在 HTTPS 连接中被浏览器传递到服务器端进行会话验证，如果是 HTTP 连接则不会传递该信息，所以绝对不会被窃听到。</li></ul> 
+<p>     <strong><span style="color:#fe2c24;">在setSecure(true); 的情况下，只有https才传递到服务器端。http是不会传递的。</span></strong></p> 
+<p><strong><span style="color:#fe2c24;">    </span><span style="color:#fe2c24;">setSecure(true)</span></strong><span style="color:#fe2c24;">意味着"<strong>指示浏览器仅通过 HTTPS 连接传回 cookie。这可以确保 cookie ID 是安全的，且仅用于使用 HTTPS 的网站。如果启用此功能，则 HTTP 上的会话 Cookie 将不再起作用。</strong>"</span></p> 
+<p>    j2ee servlet的接口中也定义了Cookie对象，也有其方法setSecue（false）；</p> 
+<p>   关于setSecure的问题，在http连接下： </p> 
+<ul><li>  当setSecure（true）时，浏览器端的cookie会不会传递到服务器端？ </li><li>  当setSecure（true）时，服务器端的cookie会不会传递到浏览器端？ </li><li>   答案：1）不会 ； 2）会</li></ul> 
+<p>    原理：服务器端的Cookie对象是java中的对象，请不要和浏览器端的cookie文件混淆了。服务器端的Cookie对象是方便java程序员包装一个浏览器端的cookie文件。一旦包装好，就放到response对象中，在转换成http头文件。在传递到浏览器端。这时就会在浏览器的临时文件中创建一个cookie文件。 <br>      <strong>但我们再次访问网页时，才查看浏览器端的cookie文件中的secure值，如果是true，但是http连接，这个cookie就不会传到服务器端</strong>。当然这个过程对浏览器是透明的。其他人是不会知道的。</p> 
+<p>    总结如下：<span style="color:#fe2c24;"><strong>cookie的secure值为true时，在http中是无效的；在https中才有效</strong></span></p> 
+<h2>3. Cookie设置</h2> 
+<p>        实际上，Servlet提供的<code>HttpSession</code>本质上就是通过一个名为<code>JSESSIONID</code>的Cookie来跟踪用户会话的。除了这个名称外，其他名称的Cookie我们可以任意使用。</p> 
+<p>如果我们想要设置一个Cookie，例如，记录用户选择的语言，可以编写一个<code>LanguageServlet</code>：</p> 
+<pre><code>@WebServlet(urlPatterns = "/pref")
+public class LanguageServlet extends HttpServlet {
+
+    private static final Set&lt;String&gt; LANGUAGES = Set.of("en", "zh");
+
+    protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+        String lang = req.getParameter("lang");
+        if (LANGUAGES.contains(lang)) {
+            // 创建一个新的Cookie:
+            Cookie cookie = new Cookie("lang", lang);
+            // 该Cookie生效的路径范围:
+            cookie.setPath("/");
+            // 该Cookie有效期:
+            cookie.setMaxAge(8640000); // 8640000秒=100天
+            // 将该Cookie添加到响应:
+            resp.addCookie(cookie);
+        }
+        resp.sendRedirect("/");
+    }
+}
+</code></pre> 
+<p>        创建一个新Cookie时，除了指定名称和值以外，通常需要设置<code>setPath("/")</code>，浏览器根据此前缀决定是否发送Cookie。如果一个Cookie调用了<code>setPath("/user/")</code>，那么浏览器只有在请求以<code>/user/</code>开头的路径时才会附加此Cookie。通过<code>setMaxAge()</code>设置Cookie的有效期，单位为秒，最后通过<code>resp.addCookie()</code>把它添加到响应。</p> 
+<p>        <strong><span style="color:#fe2c24;">如果访问的是https网页，还需要调用<code>setSecure(true)</code>，否则浏览器不会发送该Cookie。</span></strong></p> 
+<p>        因此，务必注意：浏览器在请求某个URL时，是否携带指定的Cookie，取决于Cookie是否满足以下所有要求：</p> 
+<ul><li>URL前缀是设置Cookie时的Path；</li><li>Cookie在有效期内；</li><li><strong><span style="color:#fe2c24;">Cookie设置了<code>setSecure(true)</code>时必须以https访问。</span></strong></li></ul> 
+<p>我们可以在浏览器看到服务器发送的Cookie：</p> 
+<p class="img-center"><img alt="" src="https://images2.imgbox.com/fd/0e/1kn6mMAz_o.png"></p> 
+<p>       如果我们要读取Cookie，例如，在<code>IndexServlet</code>中，读取名为<code>lang</code>的Cookie以获取用户设置的语言，可以写一个方法如下：</p> 
+<pre><code>private String parseLanguageFromCookie(HttpServletRequest req) {
+    // 获取请求附带的所有Cookie:
+    Cookie[] cookies = req.getCookies();
+    // 如果获取到Cookie:
+    if (cookies != null) {
+        // 循环每个Cookie:
+        for (Cookie cookie : cookies) {
+            // 如果Cookie名称为lang:
+            if (cookie.getName().equals("lang")) {
+                // 返回Cookie的值:
+                return cookie.getValue();
+            }
+        }
+    }
+    // 返回默认值:
+    return "en";
+}
+</code></pre> 
+<p>可见，读取Cookie主要依靠遍历<code>HttpServletRequest</code>附带的所有Cookie。</p> 
+<p> </p> 
+<h2>4. setSecure测试</h2> 
+<p>下面我自己再实验一下：</p> 
+<h3>4.1 http访问测试</h3> 
+<p>我自己的电脑用的Tomcat，首先，把cookie-secure的值设为false，创建一个session：</p> 
+<pre> 1 public void service(HttpServletRequest request, HttpServletResponse response) {
+ 2         // 创建cookie
+ 3         Cookie cookie = new Cookie("key", "value");
+ 4         // 关键地方：cookie设为false
+ 5         <span style="color:#fe2c24;"><strong>cookie.setSecure(false);</strong></span>
+ 6         response.addCookie(cookie);
+ 7         // 从request中取得cookie，并输出
+ 8         Cookie[] cookies = request.getCookies();
+ 9         for (Cookie c : cookies) {
+10             System.out.println(c.getValue());
+11         }
+12         RequestDispatcher dispatcher = request
+13                 .getRequestDispatcher("index.jsp");
+14         try {
+15             dispatcher.forward(request, response);
+16         } catch (ServletException e) {
+17             e.printStackTrace();
+18         } catch (IOException e) {
+19             e.printStackTrace();
+20         }
+21     }</pre> 
+<h3></h3> 
+<p>好，我们访问一下这个地址：http://localhost:8080/servlet/index.do</p> 
+<p>用Fiddler来看一下客户端发出的信息：</p> 
+<p class="img-center"><img alt="" src="https://images2.imgbox.com/f4/aa/9Su6Isfq_o.png"></p> 
+<p>好，我们再访问一下前面的地址：</p> 
+<p class="img-center"><img alt="" src="https://images2.imgbox.com/92/be/v5Thrgd0_o.png"></p> 
+<p>       这个时候我们可以看到客户端发出的cookie里面，有key=value，说明客户端把cookie发给了服务器端。</p> 
+<h3>4.2 https访问测试</h3> 
+<p>       那如果我们在服务器端设置cookie.setSecure(true)呢？</p> 
+<p>先上代码：</p> 
+<pre> 1 public void service(HttpServletRequest request, HttpServletResponse response) {
+ 2         // 创建cookie
+ 3         Cookie cookie = new Cookie("key", "value");
+ 4         // 关键地方：cookie设为false
+ 5        <strong><span style="color:#fe2c24;"> cookie.setSecure(true);</span>
+</strong> 6         response.addCookie(cookie);
+ 7         // 从request中取得cookie，并输出
+ 8         Cookie[] cookies = request.getCookies();
+ 9         if (cookies != null) {
+10             for (Cookie c : cookies) {
+11                 System.out.println(c.getValue());
+12             }
+13         }
+14         RequestDispatcher dispatcher = request
+15                 .getRequestDispatcher("index.jsp");
+16         try {
+17             dispatcher.forward(request, response);
+18         } catch (ServletException e) {
+19             e.printStackTrace();
+20         } catch (IOException e) {
+21             e.printStackTrace();
+22         }
+23     }</pre> 
+<p><span style="color:#fe2c24;">第一次<strong>http</strong>访问</span>：</p> 
+<p class="img-center"><img alt="" src="https://images2.imgbox.com/e9/84/QCtPGrYX_o.png"></p> 
+<p>这是request的信息。</p> 
+<p>服务器的返回信息如下：</p> 
+<p class="img-center"><img alt="" src="https://images2.imgbox.com/c6/21/oazqGO6N_o.png"></p> 
+<p>我们可以看到服务器发给客户端的信息中有这么一行：Set-Cookie:key=value; <strong>Secure</strong></p> 
+<p><span style="color:#fe2c24;"><strong>多了一个Secure。</strong></span></p> 
+<p><span style="color:#0d0016;">第二次<strong>http</strong>访问：</span></p> 
+<p class="img-center"><img alt="" src="https://images2.imgbox.com/59/93/nsPLaD2u_o.png"></p> 
+<p>我们发现key=value这个cookie已经没有了。</p> 
+<p><span style="color:#0d0016;">第三次</span><span style="color:#fe2c24;"><strong>https</strong></span><span style="color:#0d0016;">访问：</span></p> 
+<p>那我们用https协议头来试着访问一下看看：</p> 
+<p class="img-center"><img alt="" src="https://images2.imgbox.com/cc/32/QcbeqWrR_o.png"></p> 
+<p>我们看到<strong>key=value</strong>又发给了服务器端了。</p> 
+<h2>5. 另外</h2> 
+<p>      cookie中的数据通常会包含用户的隐私数据，首先要保证数据的保密性，其次要保证数据不能被伪造或者篡改，基于这两点，我们通常需要对cookie内容进行加密，加密方式一般使用对称加密(单密钥，如DES)或非对称加密(一对密钥，如RSA)，密钥需要保存在服务器端一个安全的地方，这样，别人不知道密钥时，无法对数据进行解密，也无法伪造或篡改数据。</p> 
+<p>       另外，像上文提到的，<span style="color:#fe2c24;"><strong>重要的cookie数据需要设置成HttpOnly的，避免跨站脚本获取你的cookie，保证了cookie在浏览器端的安全性</strong></span>。</p> 
+<p>       还有我们可以设置cookie只作用于安全的协议(https)，JavaEE中可以通过Cookie类的setSecure(boolean flag)来设置，设置后，该cookie只会在https下发送，而不会再http下发送，保证了cookie在服务器端的安全性，<br>  </p> 
+<h2>6. 例子</h2> 
+<pre><code class="language-java">import javax.servlet.http.Cookie; //導入方法依賴的package包/類
+/**
+ * Creates a new session cookie for the given session ID
+ *
+ * @param context     The Context for the web application
+ * @param sessionId   The ID of the session for which the cookie will be
+ *                    created
+ * @param secure      Should session cookie be configured as secure
+ */
+public static Cookie createSessionCookie(Context context,
+        String sessionId, boolean secure) {
+
+    SessionCookieConfig scc =
+        context.getServletContext().getSessionCookieConfig();
+
+    // NOTE: The priority order for session cookie configuration is:
+    //       1. Context level configuration
+    //       2. Values from SessionCookieConfig
+    //       3. Defaults
+
+    Cookie cookie = new Cookie(
+            SessionConfig.getSessionCookieName(context), sessionId);
+   
+    // Just apply the defaults.
+    cookie.setMaxAge(scc.getMaxAge());
+    cookie.setComment(scc.getComment());
+   
+    if (context.getSessionCookieDomain() == null) {
+        // Avoid possible NPE
+        if (scc.getDomain() != null) {
+            cookie.setDomain(scc.getDomain());
+        }
+    } else {
+        cookie.setDomain(context.getSessionCookieDomain());
+    }
+
+    // Always set secure if the request is secure
+    if (scc.isSecure() || secure) {
+        cookie.setSecure(true);
+    }
+
+    // Always set httpOnly if the context is configured for that
+    if (scc.isHttpOnly() || context.getUseHttpOnly()) {
+        cookie.setHttpOnly(true);
+    }
+   
+    String contextPath = context.getSessionCookiePath();
+    if (contextPath == null || contextPath.length() == 0) {
+        contextPath = scc.getPath();
+    }
+    if (contextPath == null || contextPath.length() == 0) {
+        contextPath = context.getEncodedPath();
+    }
+    if (context.getSessionCookiePathUsesTrailingSlash()) {
+        // Handle special case of ROOT context where cookies require a path of
+        // '/' but the servlet spec uses an empty string
+        // Also ensure the cookies for a context with a path of /foo don't get
+        // sent for requests with a path of /foobar
+        if (!contextPath.endsWith("/")) {
+            contextPath = contextPath + "/";
+        }
+    } else {
+        // Only handle special case of ROOT context where cookies require a
+        // path of '/' but the servlet spec uses an empty string
+        if (contextPath.length() == 0) {
+            contextPath = "/";
+        }
+    }
+    cookie.setPath(contextPath);
+
+    return cookie;
+}</code></pre> 
+<p></p> 
+<pre><code class="language-java">/**
+ * 往客戶端寫入Cookie
+ * @param name cookie參數名
+ * @param value cookie參數值
+ * @param maxAge 有效時間，int(單位秒)，0:刪除Cookie，-1:頁麵關閉時刪除cookie
+ * @param path 與cookie一起傳輸的虛擬路徑
+ * @param domain 與cookie關聯的域
+ * @param isSecure 是否在https請求時才進行傳輸
+ * @param isHttpOnly 是否隻能通過http訪問
+ */
+public void addCookie(String name, String value, int maxAge, String path, String domain, boolean isSecure, boolean isHttpOnly)
+{
+    Cookie cookie = new Cookie(name, value);
+    cookie.setMaxAge(maxAge);
+    cookie.setPath(path);
+    if(maxAge &gt; 0 &amp;&amp; domain != null)
+    {
+        cookie.setDomain(domain);
+    }
+    cookie.setSecure(isSecure);
+    try
+    {
+        Cookie.class.getMethod("setHttpOnly", boolean.class);
+        cookie.setHttpOnly(isHttpOnly);
+    }
+    catch(Exception e)
+    {
+        System.out.println("MyCookie ignore setHttpOnly Method");
+    }
+    response.addCookie(cookie);
+}</code></pre> 
+<p></p> 
+<h2>参考</h2> 
+<p><a href="https://blog.csdn.net/wangyunpeng0319/article/details/78459109" title="cookie setSecure详解_wangyunpeng0319的博客-CSDN博客_cookie.setsecure">cookie setSecure详解_wangyunpeng0319的博客-CSDN博客_cookie.setsecure</a></p> 
+<p><a href="https://www.liaoxuefeng.com/wiki/1252599548343744/1328768897515553" rel="nofollow" title="使用Session和Cookie - 廖雪峰的官方网站">使用Session和Cookie - 廖雪峰的官方网站</a></p> 
+<p><a href="https://www.cnblogs.com/huashui/p/3180528.html" rel="nofollow" title="COOKIE的SECURE属性 - 画水 - 博客园">COOKIE的SECURE属性 - 画水 - 博客园</a></p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/5b4dfadbacb16335d038e3ae1fe9057e/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">Vue全家桶之组件（component）</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/46ac0ab92453a43946e31cdba63a1f11/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">软件测试技术课后习题：第6章单元测试与集成测试-广东高等教育出版社，主编杨胜利</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

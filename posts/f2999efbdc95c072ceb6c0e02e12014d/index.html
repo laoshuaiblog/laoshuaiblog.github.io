@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Android ROOM数据库 多表查询出现数据错乱或重复的问题修复-kotlin - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/f2999efbdc95c072ceb6c0e02e12014d/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="Android ROOM数据库 多表查询出现数据错乱或重复的问题修复-kotlin">
+  <meta property="og:description" content="Android ROOM数据库 多表查询出现数据错乱或重复的问题修复-kotlin 前言说明解决Github完事 前言 关于多表查询，之前我写过一篇文章介绍，Android Room 数据库使用@Relation注解进行多表查询-Kotlin，是基于官方的描述来写的，一直没有机会在项目中使用，但是最近使用的时候才发现了它的问题，当关系表中增加一个标记，就会出现查询的数据不正确的问题；
+说明 假设一个音乐类APP，首先有账户系统，也就是有个用户UserInfo的表，然后有歌单GroupInfo的表，歌曲SongInfo的表，有个歌单与歌曲的关系表
+/** * 用户信息 * @Author: D10NG * @Time: 2021/6/3 3:28 下午 */ @Entity data class UserInfo( @PrimaryKey var userId: Long = 0, var name: String = &#34;&#34; ): Serializable /** * 歌单 * @Author: D10NG * @Time: 2021/6/3 3:32 下午 */ @Entity( primaryKeys = [&#34;groupId&#34;, &#34;userId&#34;] ) data class GroupInfo( var groupId: Long = 0, var userId: Long = 0, var name: String = &#34;">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2021-06-03T18:05:16+08:00">
+    <meta property="article:modified_time" content="2021-06-03T18:05:16+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">Android ROOM数据库 多表查询出现数据错乱或重复的问题修复-kotlin</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-dracula">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <p></p> 
+<div class="toc"> 
+ <h4>Android ROOM数据库 多表查询出现数据错乱或重复的问题修复-kotlin</h4> 
+ <ul><li><a href="#_1" rel="nofollow">前言</a></li><li><a href="#_4" rel="nofollow">说明</a></li><li><a href="#_112" rel="nofollow">解决</a></li><li><a href="#Github_126" rel="nofollow">Github</a></li><li><a href="#_129" rel="nofollow">完事</a></li></ul> 
+</div> 
+<p></p> 
+<h2><a id="_1"></a>前言</h2> 
+<p>关于多表查询，之前我写过一篇文章介绍，<a href="https://blog.csdn.net/sinat_38184748/article/details/104388046?ops_request_misc=%257B%2522request%255Fid%2522%253A%2522162271295716780262539192%2522%252C%2522scm%2522%253A%252220140713.130102334.pc%255Fblog.%2522%257D&amp;request_id=162271295716780262539192&amp;biz_id=0&amp;utm_medium=distribute.pc_search_result.none-task-blog-2~blog~first_rank_v2~rank_v29-2-104388046.pc_v2_rank_blog_default&amp;utm_term=ROOM&amp;spm=1018.2226.3001.4450">Android Room 数据库使用@Relation注解进行多表查询-Kotlin</a>，是基于官方的描述来写的，一直没有机会在项目中使用，但是最近使用的时候才发现了它的问题，当关系表中增加一个标记，就会出现查询的数据不正确的问题；</p> 
+<h2><a id="_4"></a>说明</h2> 
+<p>假设一个音乐类APP，首先有账户系统，也就是有个用户UserInfo的表，然后有歌单GroupInfo的表，歌曲SongInfo的表，有个歌单与歌曲的关系表</p> 
+<pre><code class="prism language-kotlin"><span class="token comment">/**
+ * 用户信息
+ * @Author: D10NG
+ * @Time: 2021/6/3 3:28 下午
+ */</span>
+<span class="token annotation builtin">@Entity</span>
+<span class="token keyword">data</span> <span class="token keyword">class</span> <span class="token function">UserInfo</span><span class="token punctuation">(</span>
+    <span class="token annotation builtin">@PrimaryKey</span>
+    <span class="token keyword">var</span> userId<span class="token operator">:</span> Long <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">,</span>
+
+    <span class="token keyword">var</span> name<span class="token operator">:</span> String <span class="token operator">=</span> <span class="token string">""</span>
+<span class="token punctuation">)</span><span class="token operator">:</span> Serializable
+
+</code></pre> 
+<pre><code class="prism language-kotlin"><span class="token comment">/**
+ * 歌单
+ * @Author: D10NG
+ * @Time: 2021/6/3 3:32 下午
+ */</span>
+<span class="token annotation builtin">@Entity</span><span class="token punctuation">(</span>
+    primaryKeys <span class="token operator">=</span> <span class="token punctuation">[</span><span class="token string">"groupId"</span><span class="token punctuation">,</span> <span class="token string">"userId"</span><span class="token punctuation">]</span>
+<span class="token punctuation">)</span>
+<span class="token keyword">data</span> <span class="token keyword">class</span> <span class="token function">GroupInfo</span><span class="token punctuation">(</span>
+    <span class="token keyword">var</span> groupId<span class="token operator">:</span> Long <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">,</span>
+
+    <span class="token keyword">var</span> userId<span class="token operator">:</span> Long <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">,</span>
+
+    <span class="token keyword">var</span> name<span class="token operator">:</span> String <span class="token operator">=</span> <span class="token string">""</span><span class="token punctuation">,</span>
+<span class="token punctuation">)</span><span class="token operator">:</span> Serializable
+</code></pre> 
+<pre><code class="prism language-kotlin"><span class="token comment">/**
+ * 歌曲
+ * @Author: D10NG
+ * @Time: 2021/6/3 3:35 下午
+ */</span>
+<span class="token annotation builtin">@Entity</span><span class="token punctuation">(</span>
+    primaryKeys <span class="token operator">=</span> <span class="token punctuation">[</span><span class="token string">"songId"</span><span class="token punctuation">,</span> <span class="token string">"userId"</span><span class="token punctuation">]</span>
+<span class="token punctuation">)</span>
+<span class="token keyword">data</span> <span class="token keyword">class</span> <span class="token function">SongInfo</span><span class="token punctuation">(</span>
+    <span class="token keyword">var</span> songId<span class="token operator">:</span> Long <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">,</span>
+
+    <span class="token keyword">var</span> userId<span class="token operator">:</span> Long <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">,</span>
+
+    <span class="token keyword">var</span> name<span class="token operator">:</span> String <span class="token operator">=</span> <span class="token string">""</span>
+<span class="token punctuation">)</span><span class="token operator">:</span> Serializable
+
+</code></pre> 
+<pre><code class="prism language-kotlin"><span class="token comment">/**
+ * 歌单与歌的关系
+ * @Author: D10NG
+ * @Time: 2021/6/3 3:44 下午
+ */</span>
+<span class="token annotation builtin">@Entity</span><span class="token punctuation">(</span>
+    primaryKeys <span class="token operator">=</span> <span class="token punctuation">[</span><span class="token string">"userId"</span><span class="token punctuation">,</span> <span class="token string">"groupId"</span><span class="token punctuation">,</span> <span class="token string">"songId"</span><span class="token punctuation">]</span><span class="token punctuation">,</span>
+    foreignKeys <span class="token operator">=</span> <span class="token punctuation">[</span><span class="token function">ForeignKey</span><span class="token punctuation">(</span>entity <span class="token operator">=</span> GroupInfo<span class="token operator">::</span><span class="token keyword">class</span><span class="token punctuation">,</span> parentColumns <span class="token operator">=</span> <span class="token punctuation">[</span><span class="token string">"groupId"</span><span class="token punctuation">,</span> <span class="token string">"userId"</span><span class="token punctuation">]</span><span class="token punctuation">,</span> childColumns <span class="token operator">=</span> <span class="token punctuation">[</span><span class="token string">"groupId"</span><span class="token punctuation">,</span> <span class="token string">"userId"</span><span class="token punctuation">]</span><span class="token punctuation">,</span> onDelete <span class="token operator">=</span> ForeignKey<span class="token punctuation">.</span>CASCADE<span class="token punctuation">)</span><span class="token punctuation">]</span>
+<span class="token punctuation">)</span>
+<span class="token keyword">data</span> <span class="token keyword">class</span> <span class="token function">GroupWithSongRelation</span><span class="token punctuation">(</span>
+    <span class="token keyword">var</span> userId<span class="token operator">:</span> Long <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">,</span>
+    <span class="token keyword">var</span> groupId<span class="token operator">:</span> Long <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">,</span>
+    <span class="token keyword">var</span> songId<span class="token operator">:</span> Long <span class="token operator">=</span> <span class="token number">0</span>
+<span class="token punctuation">)</span><span class="token operator">:</span> Serializable
+</code></pre> 
+<p>然后数据库插入关系数据</p> 
+<pre><code class="prism language-kotlin"><span class="token comment">// 用户0，歌单0，有歌曲0</span>
+db<span class="token punctuation">.</span><span class="token function">getGroupWithSongDao</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">insert</span><span class="token punctuation">(</span><span class="token function">GroupWithSongRelation</span><span class="token punctuation">(</span><span class="token number">0</span><span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+<span class="token comment">// 用户0，歌单1，有歌曲0,1</span>
+db<span class="token punctuation">.</span><span class="token function">getGroupWithSongDao</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">insert</span><span class="token punctuation">(</span><span class="token function">GroupWithSongRelation</span><span class="token punctuation">(</span><span class="token number">0</span><span class="token punctuation">,</span> <span class="token number">1</span><span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+db<span class="token punctuation">.</span><span class="token function">getGroupWithSongDao</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">insert</span><span class="token punctuation">(</span><span class="token function">GroupWithSongRelation</span><span class="token punctuation">(</span><span class="token number">0</span><span class="token punctuation">,</span> <span class="token number">1</span><span class="token punctuation">,</span> <span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+<span class="token comment">// 用户0，歌单2，有歌曲0,1,2</span>
+db<span class="token punctuation">.</span><span class="token function">getGroupWithSongDao</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">insert</span><span class="token punctuation">(</span><span class="token function">GroupWithSongRelation</span><span class="token punctuation">(</span><span class="token number">0</span><span class="token punctuation">,</span> <span class="token number">2</span><span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+db<span class="token punctuation">.</span><span class="token function">getGroupWithSongDao</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">insert</span><span class="token punctuation">(</span><span class="token function">GroupWithSongRelation</span><span class="token punctuation">(</span><span class="token number">0</span><span class="token punctuation">,</span> <span class="token number">2</span><span class="token punctuation">,</span> <span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+db<span class="token punctuation">.</span><span class="token function">getGroupWithSongDao</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">insert</span><span class="token punctuation">(</span><span class="token function">GroupWithSongRelation</span><span class="token punctuation">(</span><span class="token number">0</span><span class="token punctuation">,</span> <span class="token number">2</span><span class="token punctuation">,</span> <span class="token number">2</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+
+<span class="token comment">// 用户1，歌单0，有歌曲1</span>
+db<span class="token punctuation">.</span><span class="token function">getGroupWithSongDao</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">insert</span><span class="token punctuation">(</span><span class="token function">GroupWithSongRelation</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">,</span> <span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+<span class="token comment">// 用户1，歌单1，有歌曲1,2</span>
+db<span class="token punctuation">.</span><span class="token function">getGroupWithSongDao</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">insert</span><span class="token punctuation">(</span><span class="token function">GroupWithSongRelation</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">,</span> <span class="token number">1</span><span class="token punctuation">,</span> <span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+db<span class="token punctuation">.</span><span class="token function">getGroupWithSongDao</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">insert</span><span class="token punctuation">(</span><span class="token function">GroupWithSongRelation</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">,</span> <span class="token number">1</span><span class="token punctuation">,</span> <span class="token number">2</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+<span class="token comment">// 用户1，歌单2，有歌曲1,2,3</span>
+db<span class="token punctuation">.</span><span class="token function">getGroupWithSongDao</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">insert</span><span class="token punctuation">(</span><span class="token function">GroupWithSongRelation</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">,</span> <span class="token number">2</span><span class="token punctuation">,</span> <span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+db<span class="token punctuation">.</span><span class="token function">getGroupWithSongDao</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">insert</span><span class="token punctuation">(</span><span class="token function">GroupWithSongRelation</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">,</span> <span class="token number">2</span><span class="token punctuation">,</span> <span class="token number">2</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+db<span class="token punctuation">.</span><span class="token function">getGroupWithSongDao</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">insert</span><span class="token punctuation">(</span><span class="token function">GroupWithSongRelation</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">,</span> <span class="token number">2</span><span class="token punctuation">,</span> <span class="token number">3</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+</code></pre> 
+<p>编写查询语句</p> 
+<pre><code class="prism language-kotlin">    <span class="token comment">// 查询歌单带歌曲信息</span>
+    <span class="token annotation builtin">@Transaction</span>
+    <span class="token annotation builtin">@Query</span><span class="token punctuation">(</span><span class="token string">"SELECT * FROM groupinfo WHERE userId = (:userId) AND groupId = (:groupId)"</span><span class="token punctuation">)</span>
+    <span class="token keyword">suspend</span> <span class="token keyword">fun</span> <span class="token function">susQueryGroup</span><span class="token punctuation">(</span>userId<span class="token operator">:</span> Long<span class="token punctuation">,</span> groupId<span class="token operator">:</span> Long<span class="token punctuation">)</span><span class="token operator">:</span> GroupWithSongData<span class="token operator">?</span>
+</code></pre> 
+<p>查询 <strong>用户0 歌单1</strong> 的结果为：<br> <img src="https://images2.imgbox.com/0d/02/ehEfxbls_o.png" alt="在这里插入图片描述"><br> 很明显可以看到数据不但重复了，还把属于用户1的歌单给混进来了</p> 
+<h2><a id="_112"></a>解决</h2> 
+<p>直接使用JOIN语句进行查询</p> 
+<pre><code class="prism language-kotlin">    <span class="token annotation builtin">@Query</span><span class="token punctuation">(</span><span class="token string">"SELECT * FROM songinfo JOIN (SELECT * FROM groupwithsongrelation WHERE userId = :userId AND groupId = :groupId) groupwithsongrelation ON groupwithsongrelation.songId = SongInfo.songId WHERE SongInfo.userId=:userId"</span><span class="token punctuation">)</span>
+    <span class="token keyword">suspend</span> <span class="token keyword">fun</span> <span class="token function">susQueryGroupSong</span><span class="token punctuation">(</span>userId<span class="token operator">:</span> Long<span class="token punctuation">,</span> groupId<span class="token operator">:</span> Long<span class="token punctuation">)</span><span class="token operator">:</span> List<span class="token operator">&lt;</span>SongInfo<span class="token operator">&gt;</span>
+</code></pre> 
+<blockquote> 
+ <p>JOIN语句中先做一个子查询，把关键数据找出来先<br> 接着，还得在查询结果中增加一个WHERE，将重复数据排除掉</p> 
+</blockquote> 
+<p>查询结果：<br> <img src="https://images2.imgbox.com/0e/99/sIBXXi7A_o.png" alt="在这里插入图片描述"></p> 
+<h2><a id="Github_126"></a>Github</h2> 
+<p>工程DEMO：<br> <a href="https://github.com/D10NGYANG/RoomDemo">https://github.com/D10NGYANG/RoomDemo</a></p> 
+<h2><a id="_129"></a>完事</h2>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/7106a7395a95da5b2d427baa7c18f4d5/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">数组以及链表相关</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/c3ec490f70c0645678259e010605c3c4/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">学之思开源考试系统 - 使用手册</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

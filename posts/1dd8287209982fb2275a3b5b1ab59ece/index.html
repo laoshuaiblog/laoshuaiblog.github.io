@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Segmentation Fault错误原因总结 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/1dd8287209982fb2275a3b5b1ab59ece/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="Segmentation Fault错误原因总结">
+  <meta property="og:description" content="一、 什么是“Segmentation fault in Linux”
+所谓的段错误就是指访问的内存超过了系统所给这个程序的内存空间，通常这个值是由gdtr来保存的，他是一个48位的寄存器，其中的32位是保存由它指向的gdt表，后13位保存相应于gdt的下标，最后3位包括了程序是否在内存中以及程序的在cpu中的运行级别,指向的gdt是由以64位为一个单位的表，在这张表中就保存着程序运行的代码段以及数据段的起始地址以及相应的断限和页面交换还有程序运行级别和内存粒度等信息，一旦一个程序发生了越界访问，CPU就会产生相应的异常保护，于是segmentation fault就出现了。
+即“当程序试图访问不被允许访问的内存区域（比如，尝试写一块属于操作系统的内存），或以错误的类型访问内存区域（比如，尝试写一块只读内存）。这个描述是准确的。为了加深理解，我们再更加详细的概括一下SIGSEGV。段错误应该就是访问了不可访问的内存，这个内存要么是不存在的，要么是受系统保护的。
+Ø SIGSEGV是在访问内存时发生的错误，它属于内存管理的范畴
+Ø SIGSEGV是一个用户态的概念，是操作系统在用户态程序错误访问内存时所做出的处理。
+Ø 当用户态程序访问（访问表示读、写或执行）不允许访问的内存时，产生SIGSEGV。
+Ø 当用户态程序以错误的方式访问允许访问的内存时，产生SIGSEGV。
+用户态程序地址空间，特指程序可以访问的地址空间范围。如果广义的说，一个进程的地址空间应该包括内核空间部分，只是它不能访问而已。
+二、 SIGSEGV产生的可能情况
+指针越界和SIGSEGV是最常出现的情况，经常看到有帖子把两者混淆，而这两者的关系也确实微妙。在此，我们把指针运算（加减）引起的越界、野指针、空指针都归为指针越界。SIGSEGV在很多时候是由于指针越界引起的，但并不是所有的指针越界都会引发SIGSEGV。一个越界的指针，如果不引用它，是不会引起SIGSEGV的。而即使引用了一个越界的指针，也不一定引起SIGSEGV。这听上去让人发疯，而实际情况确实如此。SIGSEGV涉及到操作系统、C库、编译器、链接器各方面的内容，我们以一些具体的例子来说明。
+（1）错误的访问类型引起
+#include&amp;lt;stdio.h&amp;gt;
+#include&amp;lt;stdlib.h&amp;gt;
+int main(){
+char *c = &#34;hello world&#34;;
+c[1] = &#39;H&#39;;
+}
+上述程序编译没有问题，但是运行时弹出SIGSEGV。此例中，”hello world”作为一个常量字符串，在编译后会被放在.rodata节（GCC），最后链接生成目标程序时.rodata节会被合并到text segment与代码段放在一起，故其所处内存区域是只读的。这就是错误的访问类型引起的SIGSEGV。
+（2）访问了不属于进程地址空间的内存
+#include &amp;lt;stdio.h&amp;gt; #include &amp;lt;stdlib.h&amp;gt;
+int main(){ int* p = (int*)0xC0000fff; *p = 10; }　还有一种可能，往受到系统保护的内存地址写数据，最常见的就是给一个指针以0地址；
+int i=0; scanf (&#34;%d&#34;, i); /* should have used &amp;amp;i */ printf (&#34;%d\n&#34;, i);
+return 0;　（3）访问了不存在的内存">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2019-07-27T13:04:00+08:00">
+    <meta property="article:modified_time" content="2019-07-27T13:04:00+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">Segmentation Fault错误原因总结</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <div id="cnblogs_post_body" class="blogpost-body"> 
+ <p>一、 什么是“Segmentation fault in Linux”<br>所谓的段错误就是指访问的内存超过了系统所给这个程序的内存空间，通常这个值是由gdtr来保存的，他是一个48位的寄存器，其中的32位是保存由它指向的gdt表，后13位保存相应于gdt的下标，最后3位包括了程序是否在内存中以及程序的在cpu中的运行级别,指向的gdt是由以64位为一个单位的表，在这张表中就保存着程序运行的代码段以及数据段的起始地址以及相应的断限和页面交换还有程序运行级别和内存粒度等信息，一旦一个程序发生了越界访问，CPU就会产生相应的异常保护，于是segmentation fault就出现了。</p> 
+ <p>即“当程序试图访问不被允许访问的内存区域（比如，尝试写一块属于操作系统的内存），或以错误的类型访问内存区域（比如，尝试写一块只读内存）。这个描述是准确的。为了加深理解，我们再更加详细的概括一下SIGSEGV。段错误应该就是访问了不可访问的内存，这个内存要么是不存在的，要么是受系统保护的。</p> 
+ <p>Ø SIGSEGV是在访问内存时发生的错误，它属于内存管理的范畴</p> 
+ <p>Ø SIGSEGV是一个用户态的概念，是操作系统在用户态程序错误访问内存时所做出的处理。</p> 
+ <p>Ø 当用户态程序访问（访问表示读、写或执行）不允许访问的内存时，产生SIGSEGV。</p> 
+ <p>Ø 当用户态程序以错误的方式访问允许访问的内存时，产生SIGSEGV。</p> 
+ <p>用户态程序地址空间，特指程序可以访问的地址空间范围。如果广义的说，一个进程的地址空间应该包括内核空间部分，只是它不能访问而已。</p> 
+ <p>二、 SIGSEGV产生的可能情况<br>指针越界和SIGSEGV是最常出现的情况，经常看到有帖子把两者混淆，而这两者的关系也确实微妙。在此，我们把指针运算（加减）引起的越界、野指针、空指针都归为指针越界。SIGSEGV在很多时候是由于指针越界引起的，但并不是所有的指针越界都会引发SIGSEGV。一个越界的指针，如果不引用它，是不会引起SIGSEGV的。而即使引用了一个越界的指针，也不一定引起SIGSEGV。这听上去让人发疯，而实际情况确实如此。SIGSEGV涉及到操作系统、C库、编译器、链接器各方面的内容，我们以一些具体的例子来说明。</p> 
+ <p>（1）错误的访问类型引起<br>#include&lt;stdio.h&gt;<br>#include&lt;stdlib.h&gt;</p> 
+ <p>int main(){<!-- --><br> char *c = "hello world";<br> c[1] = 'H';<br>}<br><br>上述程序编译没有问题，但是运行时弹出SIGSEGV。此例中，”hello world”作为一个常量字符串，在编译后会被放在.rodata节（GCC），最后链接生成目标程序时.rodata节会被合并到text segment与代码段放在一起，故其所处内存区域是只读的。这就是错误的访问类型引起的SIGSEGV。</p> 
+ <p>（2）访问了不属于进程地址空间的内存<br>#include &lt;stdio.h&gt; <br>#include &lt;stdlib.h&gt;</p> 
+ <p>int main(){ <br> int* p = (int*)0xC0000fff; <br> *p = 10; <br>}　<br><br>还有一种可能，往受到系统保护的内存地址写数据，最常见的就是给一个指针以0地址；</p> 
+ <p>int i=0; <br>scanf ("%d", i); /* should have used &amp;i */ <br>printf ("%d\n", i);<br>return 0;　<br><br>（3）访问了不存在的内存<br>最常见的情况不外乎解引用空指针了，如：</p> 
+ <p>int *p = null;<br>*p = 1;<br><br>在实际情况中，此例中的空指针可能指向用户态地址空间，但其所指向的页面实际不存在。</p> 
+ <p>（4）内存越界，数组越界，变量类型不一致等<br>#include &lt;stdio.h&gt;</p> 
+ <p>int main(){ <br> char test[1]; <br> printf("%c", test[10]); <br> return 0; <br>}　<br><br>这就是明显的数组越界了，或者这个地址根本不存在。</p> 
+ <p>（5）试图把一个整数按照字符串的方式输出<br>int main() { <br> int b = 10; <br> printf("%s\n", b);<br> return 0; <br>}　<br><br>这是什么问题呢？由于还不熟悉调试动态链接库，所以我只是找到了printf的源代码的这里。</p> 
+ <p>声明部分：<br> int pos =0 ,cnt_printed_chars =0 ,i ;<br>　　unsigned char *chptr ;<br>　　va_list ap ;<br>%s格式控制部分：<br>case 's':<br>　　 chptr =va_arg (ap ,unsigned char *);<br>　　 i =0 ;<br>　　 while (chptr [i ])<br>　　 {...<br>　　 cnt_printed_chars ++;<br>　　 putchar (chptr [i ++]);<br>　　}<br><br>仔细看看，发现了这样一个问题，在打印字符串的时候，实际上是打印某个地址开始的所有字符，但是当你想把整数当字符串打印的时候，这个整数被当成了一个地址，然后printf从这个地址开始去打印字符，直到某个位置上的值为\0。所以，如果这个整数代表的地址不存在或者不可访问，自然也是访问了不该访问的内存——segmentation fault。 <br>​ ​类似的，还有诸如：sprintf等的格式控制问题，比如，试图把char型或者是int的按照%s输出或存放起来，如：</p> 
+ <p>#include &lt;stdio.h&gt;<br>#include &lt;string.h&gt;<br>char c='c';<br>int i=10;<br>char buf[100];<br>printf("%s", c); //试图把char型按照字符串格式输出，这里的字符会解释成整数，再解释成地址，所以原因同上面那个例子<br>printf("%s", i); //试图把int型按照字符串输出<br>memset(buf, 0, 100);<br>sprintf(buf, "%s", c); //试图把char型按照字符串格式转换<br>memset(buf, 0, 100);<br>sprintf(buf, "%s", i); //试图把int型按照字符串转换<br><br>（6）栈溢出了，有时SIGSEGV，有时却啥都没发生<br>​大部分C语言教材都会告诉你，当从一个函数返回后，该函数栈上的内容会被自动“释放”。“释放”给大多数初学者的印象是free()，似乎这块内存不存在了，于是当他访问这块应该不存在的内存时，发现一切都好，便陷入了深深的疑惑。</p> 
+ <p>三、调试定位SIGSEGV<br>在用C/C++语言写程序的时侯，内存管理的绝大部分工作都是需要我们来做的。实际上，内存管理是一个比较繁琐的工作，无论你多高明，经验多丰富，难免会在此处犯些小错误，而通常这些错误又是那么的浅显而易于消除。但是手工“除虫”（debug），往往是效率低下且让人厌烦的，使用gdb来快速定位这些”段错误”的语句。其实还有很多其他的方法。对于一些大型一点的程序，如何跟踪并找到程序中的段错误位置就是需要掌握的一门技巧拉。</p> 
+ <p>　　1）在程序内部的关键部位输出(printf)信息，那样可以跟踪段错误在代码中可能的位置</p> 
+ <p>　　为了方便使用这种调试方法，可以用条件编译指令#ifdef DEBUG和#endif把printf函数给包含起来，编译的时候加上-DDEBUG参数就可以查看调试信息。反之，不加上该参数进行调试就可以。</p> 
+ <p>　　2）用gdb来调试，在运行到段错误的地方，会自动停下来并显示出错的行和行号 <br>　　这个应该是很常用的，如果需要用gdb调试，记得在编译的时候加上-g参数，用来显示调试信息。gcc应该都有安装的。</p> 
+ <p>　　首先安装gdb: sudo aot-get install gdb</p> 
+ <p>下面是对某个小程序的的调试过程截图：</p> 
+ <p>　　运行gcc的时候加上-g这个参数查看调试信息，</p> 
+ <p>　　l：(list)显示我们的源代码</p> 
+ <p>　　b 行号：在相应的行上设置断点，我在第六行设置</p> 
+ <p>　　r : run 运行程序至断点</p> 
+ <p>　　p：p(print)打印变量的值</p> 
+ <p>　　n：n(next)执行下一步 出现错误信息了</p> 
+ <p>　　c : continue 继续执行</p> 
+ <p>　　quit ： 退出gdb</p> 
+ <p> </p> 
+ <p> </p> 
+ <p>防止Segmentation fault的出现需要注意：</p> 
+ <p>定义了指针以后记得初始化，在使用的时候记得判断是否为NULL；<br>在使用数组的时候是否被初始化，数组下标是否越界，数组元素是否存在等；<br>在变量处理的时候变量的格式控制是否合理等；</p> 
+</div> 
+<p>转载于:https://www.cnblogs.com/qiumingcheng/p/11254648.html</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/4c29fa1265e15e0a3da8394c29ab0283/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">导入项目：Error:No such property: GradleVersion for class: JetGradlePlugin</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/5cf810d38521e20cc8d2c3c38d478409/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">STM32F0 USB VCP数据发送丢包错位问题</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

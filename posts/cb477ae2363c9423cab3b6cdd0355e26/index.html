@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>HarborCDN技术分析 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/cb477ae2363c9423cab3b6cdd0355e26/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="HarborCDN技术分析">
+  <meta property="og:description" content="一、介绍 简要介绍 ​​Harbor​​ 是由VMware公司开源的企业级的Docker Registry管理项目，它包括权限管理(RBAC)、LDAP、日志审核、管理界面、自我注册、镜像复制和中文支持等功能。Harbor 的所有组件都在 Dcoker 中部署，所以 Harbor 可使用 Docker Compose 快速部署。
+CDN的全称是Content Delivery Network,即​​内容分发网络​​。使用户可就近取得所需内容，解决Internet网络拥挤的状况，提高用户访问网站的响应速度。
+应用场景 harbor
+基于角色的访问控制(Role Based Access Control)基于策略的镜像复制(Policy based image replication)镜像的漏洞扫描(Vulnerability Scanning)AD/LDAP集成(LDAP/AD support)镜像的删除和空间清理(Image deletion &amp;amp; garbage collection)友好的管理UI(Graphical user portal)审计日志(Audit logging)RESTful API部署简单(Easy deployment) CDN
+网页加速流媒体加速大文件加速应用协议加速 二、架构原理 组网图及架构说明 Harbor大致模块工作原理见下图：
+Harbor依赖的外部组件 Nginx(即Proxy代理层): Nginx前端代理，主要用于分发前端页面ui访问和镜像上传和下载流量; Harbor的registry,UI,token等服务，通过一个前置的反向代理统一接收浏览器、Docker客户端的请求，并将请求转发给后端不同的服务。Registry v2: 镜像仓库，负责存储镜像文件; Docker官方镜像仓库, 负责储存Docker镜像，并处理docker push/pull命令。由于我们要对用户进行访问控制，即不同用户对Docker image有不同的读写权限，Registry会指向一个token服务，强制用户的每次docker pull/push请求都要携带一个合法的token, Registry会通过公钥对token进行解密验证。Database(MySQL或Postgresql)：为core services提供数据库服务，负责储存用户权限、审计日志、Docker image分组信息等数据。 Harbor自有组件 Core services(Admin Server): 这是Harbor的核心功能，主要提供以下服务：UI：提供图形化界面，帮助用户管理registry上的镜像（image）, 并对用户进行授权。webhook：为了及时获取registry 上image状态变化的情况， 在Registry上配置webhook，把状态变化传递给UI模块。Auth服务：负责根据用户权限给每个docker push/pull命令签发token. Docker 客户端向Regiøstry服务发起的请求,如果不包含token，会被重定向到这里，获得token后再重新向Registry进行请求。API: 提供Harbor RESTful APIReplication Job Service：提供多个 Harbor 实例之间的镜像同步功能。Log collector：为了帮助监控Harbor运行，负责收集其他组件的log，供日后进行分析。 核心组件 Proxy：一个nginx的前端代理，代理Harbor的registry,UI, token等服务。-通过深蓝色先标识db：负责储存用户权限、审计日志、Dockerimage分组信息等数据。UI：提供图形化界面，帮助用户管理registry上的镜像, 并对用户进行授权。jobsevice：jobsevice是负责镜像复制工作的，他和registry通信，从一个registry pull镜像然后push到另一个registry，并记录job_log。通过紫色线标识Adminserver：是系统的配置管理中心附带检查存储用量，ui和jobserver启动时候回需要加载adminserver的配置。通过灰色线标识；Registry：镜像仓库，负责存储镜像文件。当镜像上传完毕后通过hook通知ui创建repository，上图通过红色线标识，当然registry的token认证也是通过ui组件完成。通过红色线标识Log：为了帮助监控Harbor运行，负责收集其他组件的log，供日后进行分析。过docker的log-driver把日志汇总到一起，通过浅蓝色线条标识 CDN（内容分发网络）">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2024-03-26T09:01:24+08:00">
+    <meta property="article:modified_time" content="2024-03-26T09:01:24+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">HarborCDN技术分析</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <p></p> 
+<h3>一、介绍</h3> 
+<ol><li>简要介绍</li></ol> 
+<p>​<a href="https://link.zhihu.com/?target=https%3A//goharbor.io/" rel="nofollow" title="​Harbor​">​Harbor​</a>​ 是由VMware公司开源的企业级的Docker Registry管理项目，它包括权限管理(RBAC)、LDAP、日志审核、管理界面、自我注册、镜像复制和中文支持等功能。Harbor 的所有组件都在 Dcoker 中部署，所以 Harbor 可使用 Docker Compose 快速部署。</p> 
+<p>CDN的全称是Content Delivery Network,即​<a href="https://cloud.tencent.com/product/cdn?from_column=20065&amp;from=20065" rel="nofollow" title="​内容分发网络​">​内容分发网络​</a>​。使用户可就近取得所需内容，解决Internet网络拥挤的状况，提高用户访问网站的响应速度。</p> 
+<ol><li>应用场景</li></ol> 
+<p>harbor</p> 
+<ul><li>基于角色的访问控制(Role Based Access Control)</li><li>基于策略的镜像复制(Policy based image replication)</li><li>镜像的漏洞扫描(Vulnerability Scanning)</li><li>AD/LDAP集成(LDAP/AD support)</li><li>镜像的删除和空间清理(Image deletion &amp; garbage collection)</li><li>友好的管理UI(Graphical user portal)</li><li>审计日志(Audit logging)</li><li>RESTful API</li><li>部署简单(Easy deployment)</li></ul> 
+<p></p> 
+<p>CDN</p> 
+<ul><li><strong>网页加速</strong></li><li>流媒体加速</li><li>大文件加速</li><li>应用协议加速</li></ul> 
+<h3>二、架构原理</h3> 
+<h4>组网图及架构说明</h4> 
+<p>Harbor大致模块工作原理见下图：</p> 
+<p></p> 
+<p class="img-center"><img alt="" height="445" src="https://images2.imgbox.com/26/55/mad22fl3_o.png" width="706"></p> 
+<h5>Harbor依赖的外部组件</h5> 
+<ul><li>Nginx(即Proxy代理层): Nginx前端代理，主要用于分发前端页面ui访问和镜像上传和下载流量; Harbor的registry,UI,token等服务，通过一个前置的反向代理统一接收浏览器、Docker客户端的请求，并将请求转发给后端不同的服务。</li><li>Registry v2: 镜像仓库，负责存储镜像文件; Docker官方镜像仓库, 负责储存Docker镜像，并处理docker push/pull命令。由于我们要对用户进行访问控制，即不同用户对Docker image有不同的读写权限，Registry会指向一个token服务，强制用户的每次docker pull/push请求都要携带一个合法的token, Registry会通过公钥对token进行解密验证。</li><li>Database(MySQL或Postgresql)：为core services提供数据库服务，负责储存用户权限、审计日志、Docker image分组信息等数据。</li></ul> 
+<h5>Harbor自有组件</h5> 
+<ul><li>Core services(Admin Server): 这是Harbor的核心功能，主要提供以下服务：</li><li>UI：提供图形化界面，帮助用户管理registry上的镜像（image）, 并对用户进行授权。</li><li>webhook：为了及时获取registry 上image状态变化的情况， 在Registry上配置webhook，把状态变化传递给UI模块。</li><li>Auth服务：负责根据用户权限给每个docker push/pull命令签发token. Docker 客户端向Regiøstry服务发起的请求,如果不包含token，会被重定向到这里，获得token后再重新向Registry进行请求。</li><li>API: 提供Harbor RESTful API</li><li>Replication Job Service：提供多个 Harbor 实例之间的镜像同步功能。</li><li>Log collector：为了帮助监控Harbor运行，负责收集其他组件的log，供日后进行分析。</li></ul> 
+<h4>核心组件</h4> 
+<ul><li>Proxy：一个nginx的前端代理，代理Harbor的registry,UI, token等服务。-通过深蓝色先标识</li><li>db：负责储存用户权限、审计日志、Dockerimage分组信息等数据。</li><li>UI：提供图形化界面，帮助用户管理registry上的镜像, 并对用户进行授权。</li><li>jobsevice：jobsevice是负责镜像复制工作的，他和registry通信，从一个registry pull镜像然后push到另一个registry，并记录job_log。通过紫色线标识</li><li>Adminserver：是系统的配置管理中心附带检查存储用量，ui和jobserver启动时候回需要加载adminserver的配置。通过灰色线标识；</li><li>Registry：镜像仓库，负责存储镜像文件。当镜像上传完毕后通过hook通知ui创建repository，上图通过红色线标识，当然registry的token认证也是通过ui组件完成。通过红色线标识</li><li>Log：为了帮助监控Harbor运行，负责收集其他组件的log，供日后进行分析。过docker的log-driver把日志汇总到一起，通过浅蓝色线条标识</li></ul> 
+<p></p> 
+<p class="img-center"><img alt="" height="405" src="https://images2.imgbox.com/06/21/HcOwoMzM_o.png" width="567"></p> 
+<p></p> 
+<p></p> 
+<p></p> 
+<p></p> 
+<p>CDN（内容分发网络）</p> 
+<p></p> 
+<p class="img-center"><img alt="" height="353" src="https://images2.imgbox.com/15/77/oSJbjTvb_o.png" width="704"></p> 
+<h4>架构原理分析</h4> 
+<p>工作原理就是ansible程序调用读取/etc/ansible/ansible.cfg配置文件获取主机列表清单 /etc/ansible/hosts文件，获取所要处理的主机列表，然后查看剧本任务，再根据剧本中一系列任务生成一个临时的脚本文件，然后将该脚本文件发送给所管理的主机，脚本文件在远程主机上执行完成后返回结果，然后删除本地临时文件。</p> 
+<p>ansible分为两种工作模式：</p> 
+<p>一是adhoc（点对点模式）：此模式相当于对管理主机执行单个的shell命令</p> 
+<p>如当本地管理远端主机（IP:172.16.80.101）执行​<code>​<strong>ansible 172.16.80.101 -a "/sbin/reboot"</strong>​</code>​，就可以通过ssh传输命令，把172.16.80.101这台主机重启了。</p> 
+<p>二是playbook（剧本模式）：该模式应用较多，该模式是指将一系列任务整合形成一个剧本，以此来达成某种功能（譬如部署某个服务，数据库备份等）的目的。有点像shell脚本。</p> 
+<p><strong>ansible内部模块实现幂：</strong></p> 
+<p>通过代码做检查来实现，以copy 模块为例：</p> 
+<p></p> 
+<p class="img-center"><img alt="" height="810" src="https://images2.imgbox.com/1c/4a/K8ykL4ML_o.png" width="1080"></p> 
+<p>如果文件已经存在，且md5一样，则不执行操作，即 changed = False；否则开始文件copy，copy成功后，changed = Ture。</p> 
+<h3>三、使用指南</h3> 
+<h4>使用软硬环境</h4> 
+<h5>硬件要求</h5> 
+<p>支持硬件</p> 
+<table><tbody><tr><td colspan="1" rowspan="1"> <p>类型</p> </td><td colspan="1" rowspan="1"> <p>要求</p> </td></tr><tr><td colspan="1" rowspan="1"> <p>服务器</p> </td><td colspan="1" rowspan="1"> <p>ARM/X86</p> </td></tr></tbody></table> 
+<p>【注：有其他特殊要求的请在列表下面添加行，如内存: 不小于16G】</p> 
+<p>实验硬件</p> 
+<table><tbody><tr><td colspan="1" rowspan="1"> <p>类型</p> </td><td colspan="1" rowspan="1"> <p>实验使用</p> </td></tr><tr><td colspan="1" rowspan="1"> <p>服务器</p> </td><td colspan="1" rowspan="1"> <p>ARM</p> </td></tr></tbody></table> 
+<p>【注：有其他特殊要求的请在列表下面添加行，如内存: 不小于16G】</p> 
+<h5>软件要求</h5> 
+<p>依赖软件列表</p> 
+<table><tbody><tr><td colspan="1" rowspan="1"> <p>类型</p> </td><td colspan="1" rowspan="1"> <p>要求版本</p> </td></tr><tr><td colspan="1" rowspan="1"> <p>操作系统</p> </td><td colspan="1" rowspan="1"> <p>Redhat系或ubuntu系的系统</p> </td></tr><tr><td colspan="1" rowspan="1"> <p>python</p> </td><td colspan="1" rowspan="1"> <p>不小于3.6</p> </td></tr><tr><td colspan="1" rowspan="1"> <p>ansible</p> </td><td colspan="1" rowspan="1"> <p>2.11.12</p> </td></tr></tbody></table> 
+<p>实验软件版本</p> 
+<table><tbody><tr><td colspan="1" rowspan="1"> <p>类型</p> </td><td colspan="1" rowspan="1"> <p>实验版本</p> </td></tr><tr><td colspan="1" rowspan="1"> <p>操作系统</p> </td><td colspan="1" rowspan="1"> <p>Kylin-Server-V10</p> </td></tr><tr><td colspan="1" rowspan="1"> <p>python</p> </td><td colspan="1" rowspan="1"> <p>3.7</p> </td></tr><tr><td colspan="1" rowspan="1"> <p>ansible</p> </td><td colspan="1" rowspan="1"> <p>2.11.12</p> </td></tr></tbody></table> 
+<h4>安装部署</h4> 
+<p>【若已有安装部署手册，可以见安装部署手册】</p> 
+<p>ansible安装比较简单，使用使用pip3一键安装即可，步骤如下：</p> 
+<pre><code>pip3 install ansible==2.11.12</code></pre> 
+<p>安装完后查看版本</p> 
+<p></p> 
+<p class="img-center"><img alt="" height="127" src="https://images2.imgbox.com/e7/ce/bcQZK6jA_o.png" width="879"></p> 
+<h4>使用步骤</h4> 
+<h5>ansible配置文件关键配置介绍</h5> 
+<p>/etc/ansible/ansible.cfg 应用程序主配置文件：</p> 
+<pre><code>inventory ：管理的主机清单文件路径
+library：ansible的模块存放的目录
+remote_tmp：上述工作原理中提到的将脚本发送至对端的临时目录
+local_tmp：上述工作原理中提到本地生成脚本存放的临时目录
+forks：并发连接数，默认为5
+sudo_user ：命令执行用户
+remote_port ：定义了Ansible的通信端口，默认为22。
+host_key_checking：设置是否检查SSH主机的密钥，默认为false
+timeout ：ssh连接被管理主机的超时时间
+log_path：ansilbe日志文件路径</code></pre> 
+<p>/etc/ansible/hosts配置文件（Host Inventory定义管控主机）：</p> 
+<p>Ansible 可以同时操作一个组的多台主机。组和主机之间的关系通过inventory文件 配置。默认路径为/etc/ansible/hosts。</p> 
+<p>/etc/ansible/hosts 文件的格式与windows的ini配置文件类似</p> 
+<pre><code>#基本定义
+mail.example.com                            #直接指定某个主机
+
+[webservers]                                #组名
+foo.example.com                             #组成员
+bar.example.com                             #组成员
+
+[dbservers]                                 #组名
+one.example.com:9527                        #指定非标准ssh端口
+foo.example.com                             #同一台主机，可以属于多个组
+172.16.80.100                               #直接用主机IP
+#批量host简写
+db-[a:f].example.com                        #简写字母范围   
+db-[1:20].example.com                       #简写数字范围   
+#主机和变量。在定义主机时，还可以把变量传递给主机，这些变量可以用在 playbooks中
+[atlanta]
+#http_port、maxRequestsPerChild是变量名
+host1 http_port=80 maxRequestsPerChild=808
+host2 http_port=303 maxRequestsPerChild=909
+#组和变量。注意，要先定义组
+[websuvs]
+web1.example.com 
+web2.example.com 
+
+[websuvs:vars]
+http_port=8080
+https_port=443</code></pre> 
+<h5>ansible常用命令</h5> 
+<pre><code>#ansible-doc命令
+#查看模块使用方法
+Usage: ansible-doc [options] [module...]
+
+Options:
+  -a, --all             查看所有模块的文档
+  -h, --help            查看帮助
+  -l, --list            列出所有可用模块
+  -M MODULE_PATH, --module-path=MODULE_PATH
+                        列出模块路径
+  -s, --snippet         获取指定模块的使用信息
+  -v, --verbose         详细信息
+  --version             查看程序版本
+  
+ #ansible命令 
+ Usage: ansible &lt;host-pattern&gt; [-f forks] [-m module_name] [-a args]
+
+&lt;host-pattern&gt;        指定被管控的主机，需要事先定义在inventory文件中，可以是IP、组，支持模式匹配；all表示所有inventory定义的主机。
+[-f forks]            指定线程数，即同时处理的主机数，默认是5
+[-m module_name]      指定使用的模块
+[-a args]             指明模块的参数
+
+#ansible-playbook
+Usage: ansible-playbook playbook.yml
+Options:
+  -C, --check           干跑playbook.yml，不真正执行</code></pre> 
+<h3>四、常见问题</h3> 
+<p>Q1：执行 ansible-playbook -C httpd_roles.yml 遇到以下问题：</p> 
+<p></p> 
+<p class="img-center"><img alt="" height="82" src="https://images2.imgbox.com/41/da/367wVzwg_o.png" width="1031"></p> 
+<p><strong>分析：</strong></p> 
+<p>python2依赖问题。</p> 
+<p><strong>解决：</strong></p> 
+<p>通过加上 -e ansible_python_interpreter=/usr/bin/python3 解决</p> 
+<h3>五、资料出处</h3> 
+<ol><li>​<a href="https://cloud.tencent.com/developer/article/1644270" rel="nofollow" title="​cloud.tencent.com​">​cloud.tencent.com​</a>​</li><li>​<a href="https://zhuanlan.zhihu.com/p/364615398" rel="nofollow" title="​【Harbor学习笔记】-快速搭建Docker私有仓库​">​【Harbor学习笔记】-快速搭建Docker私有仓库​</a>​</li></ol>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/1286c79894a498633f0b21171d0027ca/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">如何在 Ubuntu 安装桌面环境</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/5c214aad4fcf04e842b85a5e4ebea6da/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">城管智慧执法系统源码，基于微服务&#43;java&#43;springboot&#43;vue开发</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

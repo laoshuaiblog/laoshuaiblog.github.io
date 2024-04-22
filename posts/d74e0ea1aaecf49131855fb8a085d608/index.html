@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>OSG局部坐标系和世界坐标系的理解 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/d74e0ea1aaecf49131855fb8a085d608/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="OSG局部坐标系和世界坐标系的理解">
+  <meta property="og:description" content="对坐标系这个概念相对比较熟悉，但是应用于实践时，发现理解有点偏差，现记录如下：
+首先测试代码如下简单的使用了pick显示鼠标点击的位置以及利用computerinterections函数计算与鼠标相交的模型点，从而输出鼠标的窗口值以及这些模型点的全局和局部点坐标。
+结果一、如果不设置MatrixTransform矩阵只简单显示一头牛发现，局部坐标和世界坐标的坐标值是完全相同的。
+结果二、设置MatrixTranform矩阵出现两头牛，点击经过矩阵变换的牛，点击与第一头牛大致相同的位置，会发现局部坐标是相同的世界坐标发生了变化。
+​
+结论：一般情况下用顶点（世界坐标系）建立好模型后，全局和局部坐标系都属于世界坐标系，但是将模型平移旋转和缩放后，世界坐标系会随之发生变化但是局部坐标系不发生变化，局部坐标系应该是属于平移之前的位置
+#include&#34;…/common/common.h&#34;
+#include
+#include &amp;lt;osg/ref_ptr&amp;gt;
+#include &amp;lt;osgViewer/Viewer&amp;gt;
+#include&amp;lt;osg/ShapeDrawable&amp;gt;
+#include&amp;lt;osg/Node&amp;gt;
+#include&amp;lt;osg/Geometry&amp;gt;
+#include&amp;lt;osg/Geode&amp;gt;
+#include&amp;lt;osg/Group&amp;gt;
+#include&amp;lt;osg/ClipNode&amp;gt;
+#include&amp;lt;osg/PolygonMode&amp;gt;
+#include&amp;lt;osg/MatrixTransform&amp;gt;
+#include&amp;lt;osg/AnimationPath&amp;gt;
+#include&amp;lt;osgUtil/DelaunayTriangulator&amp;gt;
+#include &amp;lt;osgDB/ReadFile&amp;gt;
+#include&amp;lt;osgDB/WriteFile&amp;gt;
+#include &amp;lt;osgFX/Scribe&amp;gt;
+#include&amp;lt;osgGA/StateSetManipulator&amp;gt;
+#include&amp;lt;osgViewer/ViewerEventHandlers&amp;gt;
+#include&amp;lt;osgUtil/Optimizer&amp;gt;
+#include&amp;lt;osgUtil/PlaneIntersector&amp;gt;
+#include&amp;lt;osg/LineWidth&amp;gt;
+#include&amp;lt;osg/PrimitiveSet&amp;gt;
+#ifdef _DEBUG
+#pragma comment(lib,&#34;…/Debug/common.lib&#34;)
+#else
+#pragma comment(lib,&#34;…/Release/common.lib&#34;)
+#endif
+class mPickHandler:public osgGA::GUIEventHandler
+{
+public:
+virtual bool handle(const osgGA::GUIEventAdapter&amp;amp; ea, osgGA::GUIActionAdapter&amp;amp; aa, osg::Object*, osg::NodeVisitor*)
+{
+_viewer = dynamic_castosgViewer::Viewer*(&amp;amp;aa);
+switch (ea.getEventType())
+{
+case osgGA::GUIEventAdapter::PUSH:
+if (ea.getButton() == 1)
+{">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2019-03-09T10:20:48+08:00">
+    <meta property="article:modified_time" content="2019-03-09T10:20:48+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">OSG局部坐标系和世界坐标系的理解</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-dark">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <p>对坐标系这个概念相对比较熟悉，但是应用于实践时，发现理解有点偏差，现记录如下：<br> 首先测试代码如下简单的使用了pick显示鼠标点击的位置以及利用computerinterections函数计算与鼠标相交的模型点，从而输出鼠标的窗口值以及这些模型点的全局和局部点坐标。<br> 结果一、如果不设置MatrixTransform矩阵只简单显示一头牛发现，局部坐标和世界坐标的坐标值是完全相同的。</p> 
+<p>结果二、设置MatrixTranform矩阵出现两头牛，点击经过矩阵变换的牛，点击与第一头牛大致相同的位置，会发现局部坐标是相同的世界坐标发生了变化。<br> ​<br> 结论：一般情况下用顶点（世界坐标系）建立好模型后，全局和局部坐标系都属于世界坐标系，但是将模型平移旋转和缩放后，世界坐标系会随之发生变化但是局部坐标系不发生变化，局部坐标系应该是属于平移之前的位置<br> #include"…/common/common.h"</p> 
+<p>#include<br> #include &lt;osg/ref_ptr&gt;<br> #include &lt;osgViewer/Viewer&gt;<br> #include&lt;osg/ShapeDrawable&gt;<br> #include&lt;osg/Node&gt;<br> #include&lt;osg/Geometry&gt;<br> #include&lt;osg/Geode&gt;<br> #include&lt;osg/Group&gt;<br> #include&lt;osg/ClipNode&gt;<br> #include&lt;osg/PolygonMode&gt;<br> #include&lt;osg/MatrixTransform&gt;<br> #include&lt;osg/AnimationPath&gt;<br> #include&lt;osgUtil/DelaunayTriangulator&gt;<br> #include &lt;osgDB/ReadFile&gt;<br> #include&lt;osgDB/WriteFile&gt;<br> #include &lt;osgFX/Scribe&gt;<br> #include&lt;osgGA/StateSetManipulator&gt;<br> #include&lt;osgViewer/ViewerEventHandlers&gt;<br> #include&lt;osgUtil/Optimizer&gt;<br> #include&lt;osgUtil/PlaneIntersector&gt;</p> 
+<p>#include&lt;osg/LineWidth&gt;<br> #include&lt;osg/PrimitiveSet&gt;</p> 
+<p>#ifdef _DEBUG<br> #pragma comment(lib,"…/Debug/common.lib")<br> #else<br> #pragma comment(lib,"…/Release/common.lib")<br> #endif<br> class mPickHandler:public osgGA::GUIEventHandler<br> {<!-- --><br> public:<br> virtual bool handle(const osgGA::GUIEventAdapter&amp; ea, osgGA::GUIActionAdapter&amp; aa, osg::Object*, osg::NodeVisitor*)<br> {<!-- --><br> _viewer = dynamic_castosgViewer::Viewer*(&amp;aa);<br> switch (ea.getEventType())<br> {<!-- --><br> case osgGA::GUIEventAdapter::PUSH:<br> if (ea.getButton() == 1)<br> {<!-- --></p> 
+<pre><code>			float X = ea.getX();
+			float Y = ea.getY();
+			std::cout &lt;&lt; "x " &lt;&lt; X &lt;&lt;" "&lt;&lt;"y " &lt;&lt; Y &lt;&lt; std::endl;
+			pick(X, Y);
+
+		}
+		if (ea.getButton() == 2)
+		{
+			float X = ea.getXnormalized();
+			float Y = ea.getYnormalized();
+			std::cout &lt;&lt; "x " &lt;&lt; X &lt;&lt; " " &lt;&lt; "y " &lt;&lt; Y &lt;&lt; std::endl;
+			//pick(X, Y);
+		}
+		return true;
+	default:
+		break;
+	}
+	return false;
+}
+mPickHandler():_viewer(0) {}
+
+~mPickHandler() {}
+void pick(float x, float y)
+{
+	osgUtil::LineSegmentIntersector::Intersections intersections;
+	_viewer-&gt;computeIntersections(x, y, intersections);
+	if (!intersections.size()) { std::cout &lt;&lt; "error" &lt;&lt; std::endl; }
+	for (osgUtil::LineSegmentIntersector::Intersections::iterator itr = intersections.begin(); itr != intersections.end(); ++itr)
+	{
+		std::cout &lt;&lt; "局部坐标" &lt;&lt;itr-&gt;getLocalIntersectPoint().x() &lt;&lt; " " &lt;&lt; itr-&gt;getLocalIntersectPoint().y() &lt;&lt; " " &lt;&lt; itr-&gt;getLocalIntersectPoint().z() &lt;&lt; std::endl;
+
+		std::cout&lt;&lt;"世界坐标" &lt;&lt; itr-&gt;getWorldIntersectPoint().x() &lt;&lt; " "&lt;&lt;itr-&gt;getWorldIntersectPoint().y() &lt;&lt; " "&lt;&lt;itr-&gt;getWorldIntersectPoint().z() &lt;&lt; std::endl;
+	}
+
+	
+}
+</code></pre> 
+<p>private:<br> osgViewer::Viewer* _viewer;</p> 
+<p>};</p> 
+<p>int main()<br> {<!-- --><br> osgViewer::Viewer viewer;<br> osg::ref_ptrosg::Group root = new osg::Group;<br> osg::ref_ptrosg::MatrixTransform mat = new osg::MatrixTransform;<br> osg::ref_ptrosg::Node cow = osgDB::readNodeFile(“cow.osg”);<br> mat-&gt;addChild(cow);<br> mat-&gt;setMatrix(osg::Matrix::translate(10, 0, 0));<br> root-&gt;addChild(mat);<br> osg::ref_ptrosgFX::Scribe sc = new osgFX::Scribe();<br> sc-&gt;addChild(cow);<br> root-&gt;addChild(cow);<br> root-&gt;addChild(sc);<br> viewer.setSceneData(root);<br> viewer.addEventHandler(new mPickHandler);<br> viewer.addEventHandler(new osgViewer::WindowSizeHandler);<br> return viewer.run();<br> }</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/54b9f2b0e9ebc39a61741454fe2ca0d9/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">opencv--第一个例子，找不到“highgui.h”（转）</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/d715ebfb9b9a55d6a37eaf5ce3faeb02/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">GitHub日收7000星，Windows计算器项目开源即爆红！</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

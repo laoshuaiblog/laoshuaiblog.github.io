@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>pytorch 卷积层 padding_mode=‘circular’ 的小 bug - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/d9cf958a23798ecc4eca857e704aeae1/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="pytorch 卷积层 padding_mode=‘circular’ 的小 bug">
+  <meta property="og:description" content="今天在写conv2d卷积的时候发现一个小问题，当我的2D卷积层定义为
+nn.Conv2d(self.input_channels,self.hidden_channels, self.input_kernel_size, self.input_stride, self.input_padding, bias=True, padding_mode=&#39;circular&#39;)) 时，当我的输入shape=(1,2,128,128)，输入channel=2，hidden_channel=8，kernel_size=4，stride=2，padding=1时，经过卷积之后我的输出shape=(1,8,63,63)，这样官方给的卷积size计算公式不符。输出大小=（输入大小-卷积核大小&#43;2*padding）/步长&#43;1，,out_size = （input_size - K &#43; 2P）/ S &#43;1。
+最后发现是padding_mode设定为‘circular’是会出现问题，当使用其他padding_mode（&#39;zeros&#39;, &#39;reflect&#39;, &#39;replicate&#39;）方式时，会正常计算。而源码中没对这个问题进行解释。
+conv2d父类_ConvNd部分：
+conv2d源码部分：
+因此使用&#39;circular&#39; 模式时需要注意，可能会出现后续处理shape不匹配问题。
+import torch import torch.nn as nn x = torch.ones((1, 1, 32, 32)) print(x.shape) conv_zeros = nn.Conv2d(in_channels=1, out_channels=8, kernel_size=4, stride=2, padding=1, bias=True,) out1 = conv_zeros(x) print(&#39;默认zeros卷积后的shape= &#39;, out1.shape) conv_reflect = nn.Conv2d(in_channels=1, out_channels=8, kernel_size=4, stride=2, padding=1, bias=True, padding_mode=&#39;reflect&#39;) out2 = conv_reflect(x) print(&#39;reflect卷积后的shape= &#39;, out2.shape) conv_replicate = nn.Conv2d(in_channels=1, out_channels=8, kernel_size=4, stride=2, padding=1, bias=True, padding_mode=&#39;replicate&#39;) out3 = conv_replicate(x) print(&#39;replicate卷积后的shape= &#39;, out3.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2023-11-24T22:42:16+08:00">
+    <meta property="article:modified_time" content="2023-11-24T22:42:16+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">pytorch 卷积层 padding_mode=‘circular’ 的小 bug</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <p>今天在写conv2d卷积的时候发现一个小问题，当我的2D卷积层定义为</p> 
+<pre><code class="language-python">nn.Conv2d(self.input_channels,self.hidden_channels, 
+self.input_kernel_size, self.input_stride,
+self.input_padding, bias=True, padding_mode='circular'))</code></pre> 
+<p>时，当我的输入shape=(1,2,128,128)，输入channel=2，hidden_channel=8，kernel_size=4，stride=2，padding=1时，经过卷积之后我的输出shape=(1,8,63,63)，这样官方给的卷积size计算公式不符。输出大小=（输入大小-卷积核大小+2*padding）/步长+1，,out_size = （input_size - K + 2P）/ S +1。</p> 
+<p>最后发现是padding_mode设定为‘circular’是会出现问题，当使用其他padding_mode（'zeros', 'reflect', 'replicate'）方式时，会正常计算。而源码中没对这个问题进行解释。</p> 
+<p>conv2d父类_ConvNd部分：</p> 
+<p><img alt="" height="304" src="https://images2.imgbox.com/2e/dd/gIl7TcDq_o.png" width="646"></p> 
+<p>conv2d源码部分：</p> 
+<p><img alt="" height="624" src="https://images2.imgbox.com/2a/80/Zr5OSg30_o.png" width="733"></p> 
+<p>因此使用'circular' 模式时需要注意，可能会出现后续处理shape不匹配问题。</p> 
+<pre><code class="language-python">import torch
+import torch.nn as nn
+
+x = torch.ones((1, 1, 32, 32))
+print(x.shape)
+conv_zeros = nn.Conv2d(in_channels=1, out_channels=8, kernel_size=4, 
+                        stride=2, padding=1, bias=True,)
+out1 = conv_zeros(x)
+print('默认zeros卷积后的shape= ', out1.shape)
+conv_reflect = nn.Conv2d(in_channels=1, out_channels=8, kernel_size=4, 
+                        stride=2, padding=1, bias=True, padding_mode='reflect')
+out2 = conv_reflect(x)
+print('reflect卷积后的shape= ', out2.shape)
+conv_replicate = nn.Conv2d(in_channels=1, out_channels=8, kernel_size=4, 
+                        stride=2, padding=1, bias=True, padding_mode='replicate')
+out3 = conv_replicate(x)
+print('replicate卷积后的shape= ', out3.shape)
+conv_circular = nn.Conv2d(in_channels=1, out_channels=8, kernel_size=4, 
+                        stride=2, padding=1, bias=True, padding_mode='circular')
+out4 = conv_circular(x)
+print('circular卷积后的shape= ', out4.shape)
+
+
+# 输出
+# torch.Size([1, 1, 32, 32])
+# 默认zeros卷积后的shape=  torch.Size([1, 8, 16, 16])
+# reflect卷积后的shape=  torch.Size([1, 8, 16, 16])
+# replicate卷积后的shape=  torch.Size([1, 8, 16, 16])
+# circular卷积后的shape=  torch.Size([1, 8, 15, 15])
+
+conv_circular = nn.Conv2d(in_channels=1, out_channels=1, kernel_size=4, stride=2, padding=1, bias=True, padding_mode='circular')
+out4 = conv_circular(x)
+print('circular卷积后', out4[0, 0].shape)
+# circular卷积后 torch.Size([15, 15])</code></pre> 
+<p>假设我们对原始输入只扩充两个位置(1,0,1,0),最终会得到与padding_mode='circular' 一样的结果，因此可以断定，当启用这个模式时，其填充方式是1*padding，而不是2*padding。</p> 
+<pre><code class="language-python">import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+x = torch.ones((1, 1, 32, 32))
+padded_tensor = F.pad(x, pad=(1, 0, 1, 0), mode='constant', value=0)
+print(padded_tensor.shape)  # torch.Size([1, 1, 33, 33])
+
+conv = nn.Conv2d(in_channels=1, out_channels=1, kernel_size=4, stride=2)
+out = conv(padded_tensor)
+print('circular卷积后', out.shape)  # 卷积后 torch.Size([1, 1, 15, 15])
+
+
+</code></pre> 
+<p>因此可以得出结论，padding_mode 的默认'zeros' 模式（及replicate，reflect）是在两边各扩展 一块 size 为 padding 的0，一共 填充了 size 为 2*padding 的数据 ，也就是假设原来是128*128，填充之后是130*130；</p> 
+<p>而 'circular' 模式是将 padding/2，再在两边填充数据，一共填充了 size 为 padding 的数据，也就是shape为129*129。</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/4b645b50a4598339cc6b8e342bbc9bd3/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">蓝桥杯第一天-----时间显示</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/1d243a818f69061d5a2ab56a94e0797f/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">Linux 环境下搭建 ElasticSearch （CentOS 7）</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

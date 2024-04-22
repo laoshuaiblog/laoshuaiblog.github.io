@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta name="generator" content="Hugo 0.125.1">
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="老帅的博客">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="老帅的博客">
+  <meta property="og:description" content="老帅的博客">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="website">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+	<link rel="alternate" type="application/rss+xml" href="/index.xml" title="老帅的博客">
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main list" role="main">
+	<article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/30461518367a7dca09714510d1cbb180/" rel="bookmark">
+			CNN中的小tips（2）---batch normalization
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		 问题：
+Internal Covariate Shift： 1）描述： 普遍理解：Internal Covariate Shift（内部协方差偏移）：随着网络的进行，网络中的参数也随着梯度不停更新。一方面，当底层网络中的参数发生微弱变化时，由于每一层中的线性变换和非线性激活映射，这些微弱的变化随着网络层数的加深而被逐级放大（类似蝴蝶效应）；另一方面，参数的变化导致每一层的输入分布会发生改变， 进而上层的网络需要不停地去适应这些分布变化，使得我们的模型训练变得困难，这些导致了我们的训练变得困难。 论文定义：在深层网络训练的过程中，由于网络中参数变化引起内部节点数据分布发生变化的这一过程被称为Internal Covariate Shift。 2）产生原因：由于参数更新带来的网络中输入值分布的改变，并且随着网络层数的加深而变得更加严重，因此我们可以通过固定每一层网络的输入值的分布来减缓ICS问题。 3）带来的问题： ①网络的训练过程容易陷入梯度饱和区，减缓网络收敛速度； ②后层网络需要不断调整来适应数据分布的变化，导致网络的学习速率被大大降低！
+—（上文均引用：知乎Batch Normalization原理与实战）
+解决思路： 能不能让每个隐层节点的激活输入分布固定下来呢？（这样会导致什么问题呢？？？—影响了原始数据的信息表达） 1）白化（whitening） 数据规范化操作，指对数据分布进行转换，使得数据的各个特征具有独立同分布，即从而使得输入数据特征分布有相同的均值和方差，同时去除特征之间的相关性，保留独立的数据特征； 2）Batch Normalization 白化操作可以通过很好地固定数据分布而解决这个问题，但是由于其计算成本过高，而且改变了网络每一层的分布，改变了原始数据的表达能力，于是就出现了batch normalization，因为它在一方面，计算起来代价不是很高，没有实现独立，即特征不相关，另一方面，经过规范化处理之后尽可能地保留了原始数据的表达能力，保留更多的信息，因此我们选择了更方便的Batch Normalization进行处理！针对白化的两个不便之处，Batch normalization进行了对应的设计： ①白化先保留彼此不相关的特征（耗时），然后使其具有相同的均值和方差（同分布），batch normalization退而求其次，对每个特征进行标准化，使其具有均值为0，方差为1的分布； ②白化操作改变了原始数据的表达能力，现在我们在对其加上线性变换，使其恢复本身的数据表达能力不就可以了吗？所以就有了batch normalzation的步骤1）2），如下。
+位置： 线性运算和非线性激活层之前，即Z=WU+b，A=A(Z)之间，参看其他博客中说这个b可以不要的，不怎么理解这个b是否要不要存在，有大佬了解的话还望不吝赐教！
+步骤 对于每个隐层神经元来说，我们将BN层添加在线性层和非线性层之间，即线性层之后，激活层之前，具体可以在参看论文或者其他博客查看具体公式。 这里具体包括两步： 1）标准化操作：对输入的刚经过线性层的数据进行标准化操作，这样我们就可以调整这些数据至服从均值为0，方差为1的正态（高斯）分布，这样有什么好处呢？我们先来看一下高斯分布的图： 通过这个标准正态分布图，我们可以清楚地看到数值落到（-1，1）区间的可能性为68%，数值落到（-2，2）之间的可能性更是达到了95%，（-3，3）之间可能性达到了99%，这样就可以我们的样本大体上都落在了激活函数的激活区间，没有落到梯度饱和区，即激活函数两端的非激活区域，可以有效地避免了梯度消失和梯度爆炸问题，激活函数如下： 总结一下：通过标准化操作，我们可以将隐层神经元激活输入从非标准化的正态分布拉回到均值为0，方差为1的标准的正态分布，这样可以保证输入值落在激活函数的激活区，避免梯度饱和问题的出现，可以用来加速收敛过程！ 2）恢复原有数据表达能力（上述操作显然有问题啊，如果都通过标准化操作来处理数据，这样大部分的激活输入值不就落在激活函数的激活区了，那样不就相当于将神经网络的非线性能力也给转化为了线性能力了吗？这样将导致网络非线性表达能力几乎可以忽略不计，到最后即使有多个层，每个隐藏才层有多个节点，仅仅相当于多个线性操作的组合，人就相当于一个线性，即这个网络的深层是失效的，为了避免这个问题，我们在对每一层节点的标准化操作之后，还加了一个操作，变换，用于调整网络地线性能力和非线性能力的平衡）y=γ*X’+β，每个神经元添加了γ和β参数，通过对输入进行平移和放缩，在数据分布上就相当于对标准正态分布进行平移和拉升/放缩变换，这样导致在送入激活函数后，其对应的输出从激活函数的激活区间向非激活区间（梯度饱和区）移动了一些，用于设置网络的线性能力和非线性能力的平衡，使得网络既可以享受非线性的较强表达能力的好处，又避免太靠近非线性区域两头使得网络收敛速度太慢。
+测试阶段如何应用： 测试阶段可能只有少量样本或者一个样本，这样计算出来地μ和δ^2是有偏估计，这时如何计算呢？
+因为在训练阶段我们已经计算出来了每个mini-batch所对应的μ和δ^2，在测试阶段，我们此时就可以用整个训练样本进行无偏估计了，即利用(μ1,δ1),(μ2,δ2),…,(μ_mb,δ_mb)求出测试集上的μ_t,δ_t6^2,即 注意在后面还要进行线性变换呀！
+优点： 1）缓解了梯度消失问题，由于通过BN可以使得数据落在梯度的非饱和区（可观察上图中的正态分布（Z=WU+b）和激活函数（A=A(Z)）的函数即可看到这个优点），（由于强制性的改变了数据分布，会影响原始数据信息表达能力，所以加了线性转换）通过自适应γ和β使得数据保留更多的原始信息。 2）在某些情况下怎增加了网络的噪声，起到了正则化效果，详细解释为：我们使用mini-batch的μ和δ^2作为整体样本的μ和δ^2，但不同mini-batch的μ和δ^2不尽相同，和样本原始的μ和δ^2也不尽相同，这样就给模型的训练过程中带来了随机噪音，与dropout随机噪音类似，可以从一定程度上解决过拟合问题； 3）使得网络中的每层数据的分布相对稳定，加速网络训练，网络的收敛速度更快；
+4）使得模型对网络中的参数没那么敏感，简化调参过程，使得网络学习更加稳定（引用：Batch Normalization原理与实战）； 5）可以采用更高的学习率，则梯度下降幅度更大，加快了训练的速度； 6）权重更容易初始化（batch normalization可以降低权重初始化的值分布的影响）； 7）可支持更多的激活函数（relu激活函数可能导致神经元的死亡，sigmoid函数随层次怎家的梯度衰减的很快，所以我们需要留意它的值的范围，而batch normalization可以规范化输入，这样这些激活函数也就可以使用了）；
+思考：batch normalization一方面改变了原始数据的分布（统一为正态分布），同时又为了恢复原始数据的信息表达能力，又为其增加了线性变换，会不会与原始数据的分布相同？
+不会，因为引入两个新的参数γ和β，但是γ和β不断在学习，不依赖于下层数据，去除了与下层计算的耦合！
+参考： 斯坦福cs231n学习笔记（9）——神经网络训练细节（Batch Normalization） 什么是批标准化 (Batch Normalization) 10分钟看懂Batch Normalization的好处
+Batch Normalization原理与实战 
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/a6e8fbeb5b5d5d78af152ce7be6d1287/" rel="bookmark">
+			java框架之Spring boot二：SpringBoot配置获取
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		java框架之Spring boot二：SpringBoot配置获取 resources文件夹中的目录结构： static：保存所有的静态资源；js，css，images templates:保存所有的模板页面； application.properties:配置文件,可以修改一些默认配置
+配置文件的作用：修改SpringBoot自动配置的默认值；SpringBoot在底层都给我们自动配置好
+配置文件书写类型主要有两中，一种为properties，一种是yaml。这边是使用properties。
+配置文件的书写：
+server.port=8081 #idea使用的是UTF-8，properties使用的ascll码，所以会乱码 #Person person.name=lala person.age=18 person.birth=2017/12/15 person.boss=false person.maps.k1=v1 person.maps.k2=15 person.lists=a,b,c person.dog.name=dog person.dog.age=15 对应bean类的书写，Person：
+package com.example.demo.bean; import java.util.Date; import java.util.Map; import java.util.List; import org.springframework.boot.context.properties.ConfigurationProperties; import org.springframework.stereotype.Component; @Component @ConfigurationProperties(prefix="person") public class Person { /**/ private String name; private Integer age; private Boolean boss; private Date birth; private Map&lt;String, Object&gt; maps; private List&lt;Object&gt; lists; private Dog dog; public Person() { super(); } public Person(String name, Integer age, Boolean boss, Date birth, Map&lt;String, Object&gt; maps, List&lt;Object&gt; lists, Dog dog) { super(); this.
+	</div>
+	<div class="list__footer clearfix">
+		<a class="list__footer-readmore btn" href="/posts/a6e8fbeb5b5d5d78af152ce7be6d1287/">Read more…</a>
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/c8cc5f2fae7648c979cc61fed1fea14a/" rel="bookmark">
+			ubuntu 配置标准git commit总结
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		一：安装nodejs和npm 安装python-software-properties
+首先需要安装依赖包python-software-properties。
+$ sudo apt-get install python-software-properties
+添加PPA
+网站deb.nodesource.com维护了nodejs的各版本安装包的PPA，我们可以从该网站上下载执行导入。
+$ curl -sL https://deb.nodesource.com/setup_8.x | sudo -E bash -
+如果提示没有安装curl，需要先安装curl。 当前6.x版本为比较稳定的版本，我们可以根据自己的需要选择安装不同的版本。 安装nodejs和npm
+接下来安装nodejs，安装完成之后npm也自动安装好了。
+$ sudo apt-get install nodejs
+安装完成之后我们查看一下nodejs和npm的版本。
+$ node -v v8.5.0 不知道大家有没有看过自己项目的git 提交信息—–我看过好多次 ，不忍直视 然后提醒一起的小伙伴 ：大家规范点 信息要详细，
+过段时间再看下 ,还是一样。
+相信很多猿都有这样的感受，对于垃圾的提交信息深恶痛绝，特别是那些提交信息为 "fix bug"的commit,SO, 如果提交的时候能有 些填写规范的提示 或者高级点有交互式的约束就好了。
+这里给出两种方案，也是业界比较通用的 1. commitizen 交互式约束命令 提交 2.配置git commit 模板 先来介绍第一种：（基于MAC OS 安装） 知名前端web项目AngularJS的提交记录在业内被许多人称赞，其规范同时也逐渐被大家引用，为了把这些规范实际应用到项目中，我 们就需要 commitizen 这个小工具，该工具是基于Node的，因此我们首先必须先安装node环境 ,node环境好了后便可以开始安装我们的
+利器了,步骤很简单：
+a. npm 全局安装利器 commitizen
+npm install -g commitizen b.
+	</div>
+	<div class="list__footer clearfix">
+		<a class="list__footer-readmore btn" href="/posts/c8cc5f2fae7648c979cc61fed1fea14a/">Read more…</a>
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/e92cf90df1936f8c6b88e2ab674d6023/" rel="bookmark">
+			vue--key值的特殊用处
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		数组的v-for item in items item of items item,index in items (item，index) in items 对象的v-for（键值，键名，索引） value in object (value, key) in object (value, key, index) in object v-for渲染的列表的结构采用“就地复用”的策略，也就说当数据重新排列数据时，会复用已在页面渲染好的元素，不会移动 DOM 元素来匹配数据项的顺序，这种模式是高效的，改变现有位置的结构的数据即可 eg： 问题： 点击翻转数组哦，高亮并没有跟随1 在最后，而是直接复用在4上 原因： 点击翻转数组哦，高亮并没有跟随1 在最后，而是直接复用在4上 解决：需要提供一个唯一的key值（常用ID），以便它能跟踪每个节点的身份，从而重用和重新排序现有元素
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/fcac2d0d6b4004c6490a577ecf88ef81/" rel="bookmark">
+			Kotlin协程（同步、异步和常用的API）
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		 一、什么是协程 1.协作程序，解决异步问题 2.应用层完成调度
+二、协程要解决的问题 1.看下伪代码
+现在开始我们要运行协程啦{ //现在我们在协程里面 //花括号内的代码可以是一段运行在UI线程的代码，比如Android初始化UI val 视图 = ...//初始化视图 //注意 图片 = 异步加载图片（图片的地址） 视图.显示图片（图片） } 2.使异步代码像同步代码一样直观 3.简化异步代码异常处理 4.轻量级的并发方案
+三、Kotlin是如何支持协程的 1.编译器对suspend函数的编译支持 2.标准库的基本API支持 3.Kotlin.coroutine框架应用级的支持
+四、执行流程 1.协程被编译成状态机 2.suspend函数进行状态转移 开始——状态机（协程执行）——结束
+五、运行结果 1.正常的结果通过resume返回 2.异常通过resumeWithException抛出
+六、看一些协程的API在哪里 七、创建协程和启动协程 创建协程：createCoroutine 启动协程：startCoroutine 八、挂起协程 挂起协程：suspendCoroutine 九、Continuation接口 运行控制类，负责结果和异常的返回 调用它的API，你传入结果，他就给你返回结果，传入异常他就给你返回异常 十、CoroutineContext接口（协程的上下文） 运行上下文、资源持有、运行调度 十一、ContinuationInterceptor（协程控制拦截器） 可以用来处理协程调度 
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/52339d621ecd816cdf5edaaee7a2f9d5/" rel="bookmark">
+			如何主动唤起文件选择框
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		如题，搞过文件上传的，肯定会有这种想法，也是初学者经常犯的“误区”
+let input = document.createElement('input'); input.type = 'file'; input.click(); 像我这样经验老道的，一看，“不可能，这会受到浏览器安全策略限制”，牛逼哄哄的祭出正解
+让 input[type=file] 飘在点击区上方，老手的惯用伎俩，这就叫“经验”，但最近一些事，让我啪啪打脸，颠覆了我的认知，不信你试试在 Chrome 的 Console 中试一下上面的三行代码。
+。。。。。。
+是不是很意外，让你在 Chrome 中试，是因为目前好像只有 Chrome 能这么大胆的放开，让你这么放肆，我们再尝试在 Safari 下试一下
+。。。。。。
+好像没效果，我们可联想到，浏览器限制这些东西，无非是想确定是人为操作，而非自动运行，在很多类似的情形，都有类似要求“人机交互事件发生时”，比如用户点击、键盘敲击。我们可以这么尝试一下
+&lt;input id="file" type="file" style="display:none" /&gt; &lt;button id="trigger"&gt;选择&lt;/button&gt; &lt;script&gt; let input = document.getElementById('file'); document.getElementById('trigger').onclick = function () { input.click(); }; &lt;/script&gt; 这种情况很适合那种，“原生的input的太丑，我想弄个漂亮的按钮触发上传”、“我想更优雅的控制上传”
+还有一种情况我想在输入域中输入某个命令，回车触发上传
+&lt;input id="file" type="file" style="display:none" /&gt; &lt;div id="trigget" contenteditable&gt;敲击回车触发上传&lt;/div&gt; &lt;script&gt; let input = document.getElementById('file'); document.getElementById('trigger').onkeypress = function (e) { e.preventDefault(); input.click(); }; &lt;/script&gt; 浏览器兼容性如下
+	</div>
+	<div class="list__footer clearfix">
+		<a class="list__footer-readmore btn" href="/posts/52339d621ecd816cdf5edaaee7a2f9d5/">Read more…</a>
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/c4cf701d7f6747640358eb682bc5b9d5/" rel="bookmark">
+			学习Java读取excel表格笔记
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		学习博客 https://www.cnblogs.com/winner-0715/p/6690094.html 记录下来方便复习 jar包 链接：https://pan.baidu.com/s/1mIJgRQeXNAVwMBFsOVvNCQ 密码：3nap
+package excel_list;
+import org.apache.poi.hssf.usermodel.HSSFCell;
+import org.apache.poi.hssf.usermodel.HSSFDateUtil;
+import org.apache.poi.hssf.usermodel.HSSFRow;
+import org.apache.poi.hssf.usermodel.HSSFSheet;
+import org.apache.poi.hssf.usermodel.HSSFWorkbook;
+import org.apache.poi.poifs.filesystem.POIFSFileSystem;
+import java.io.BufferedInputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.text.DecimalFormat;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.List;
+public class ExcelOperate {
+public static void main(String[] args) throws Exception {
+File file = new File("C:\\Users\\Administrator\\Desktop\\Members.xls");
+String[][] result = getData(file, 1);
+int rowLength = result.length;
+for (int i = 0; i &lt; rowLength; i++) {
+	</div>
+	<div class="list__footer clearfix">
+		<a class="list__footer-readmore btn" href="/posts/c4cf701d7f6747640358eb682bc5b9d5/">Read more…</a>
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/e06159a26c4c03616f8dc770e2a5dcd3/" rel="bookmark">
+			去除HTML文件标签
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		参考https://www.cnblogs.com/newsouls/p/3995394.html
+项目中曾需要去除HTML标签,记录下来方便学习
+public static String delHTMLTag(String htmlStr) {
+String regEx_script = "&lt;script[^&gt;]*?&gt;[\\s\\S]*?&lt;\\/script&gt;"; // 定义script的正则表达式
+String regEx_style = "&lt;style[^&gt;]*?&gt;[\\s\\S]*?&lt;\\/style&gt;"; // 定义style的正则表达式
+String regEx_html = "&lt;[^&gt;]+&gt;"; // 定义HTML标签的正则表达式
+Pattern p_script = Pattern.compile(regEx_script, Pattern.CASE_INSENSITIVE);
+Matcher m_script = p_script.matcher(htmlStr);
+htmlStr = m_script.replaceAll(""); // 过滤script标签
+Pattern p_style = Pattern.compile(regEx_style, Pattern.CASE_INSENSITIVE);
+Matcher m_style = p_style.matcher(htmlStr);
+htmlStr = m_style.replaceAll(""); // 过滤style标签
+Pattern p_html = Pattern.compile(regEx_html, Pattern.CASE_INSENSITIVE);
+Matcher m_html = p_html.matcher(htmlStr);
+htmlStr = m_html.replaceAll(""); // 过滤html标签
+htmlStr = htmlStr.
+	</div>
+	<div class="list__footer clearfix">
+		<a class="list__footer-readmore btn" href="/posts/e06159a26c4c03616f8dc770e2a5dcd3/">Read more…</a>
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/c21f1a0d32ced4cee2f0f642e6e98ad3/" rel="bookmark">
+			Java io 读/写文件
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		public String inputStringFile(String filePath, String characterEncoding) throws IOException { /** * filePath --要读取的文件路径 * characterEncoding--以什么编码格式读取 * */ // 读取文件(字符流) BufferedReader in = new BufferedReader(new InputStreamReader(new FileInputStream(filePath), characterEncoding)); String str = ""; String a = ""; // 循环读取内容 while ((a = in.readLine()) != null) { str += a; } // 关闭流 in.close(); // 返回读取的内容 return str; }
+public String outputStirngFile(String filePath, String file, String characterEncoding, Boolean isCover)
+throws IOException {
+	</div>
+	<div class="list__footer clearfix">
+		<a class="list__footer-readmore btn" href="/posts/c21f1a0d32ced4cee2f0f642e6e98ad3/">Read more…</a>
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/186e5f14594940b6876833070cade0ef/" rel="bookmark">
+			使用Kotlin的协程实现简单的异步加载
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		众所周知在android中当执行程序的耗时超过5秒时就会引发ANR而导致程序崩溃。由于UI的更新操作是在UI主线程进行的，理想状态下每秒展示60帧时人眼感受不到卡顿，1000ms/60帧，即每帧绘制时间不应超过16.67ms。如果某项操作的耗时超过这一数值就会导致UI卡顿。因此在实际的开发中我通常把耗时操作放在一个新的线程中（比如从网络获取数据，从SD卡读取图片等操作），但是呢在android中UI的更新只能在UI主线程中进行更新，因此当我们在非UI线程中执行某些操作的时候想要更新UI就需要与UI主线程进行通信。在android中google为我们提供了AsyncTask和Handler等工具来便捷的实现线程间的通信。有许多的第三方库也为我们实现了这一功能，比如现在非常流行的RxJava库。在本篇文章中呢我想给大家分享的是使用Kotlin的Coroutine（协程）来实现耗时操作的异步加载，现在有RxJava这么屌的库我们为什么还要了解这个呢？Kotlin如今已是android的官方开发语言了解他里边的异步相关的操作是很有必要的。本文只讲解Coroutine的基本使用方法，并不作深入底层的研究，我将以一个加载图片的例子来向您展示Coroutine的基本使用方法。
+使用Coroutine之前的初始配置
+首先我们使用android studio 新建一个项目，并在新建项目的时候勾选【Include Kotlin support】,就像下边这样 项目创建成功后，我们需要在build.gradle文件中的android配置模块下面增加如下的配置
+kotlin { experimental { coroutines 'enable' } } 复制代码 然后在build.gradle文件中添加如下的依赖
+implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:0.20' implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:0.20' 复制代码 完整的配置情况如下： 经过上边的步骤Coroutine的配置就已经完成了。接下来我们就可以使用Coroutine了。
+实现你的第一个Coroutine程序
+现在我们来开始编写我们的第一个Coroutine例子程序，这个程序的主要功能就是从手机媒体中加载一张图片，并把它显示在一个ImageView中。我们先来看看在未使用Coroutine之前使用同步的方式加载图片的代码如下：
+val bitmap = MediaStore.Images.Media.getBitmap(contentResolver, uri) imageView.setImageBitmap(bitmap) 复制代码 在上边的代码中我们从媒体读取了一张图片并把它转化成Bitmap对象。因为这是一个IO操作，如果我们在UI主线程中调用这段代码，将可能导致程序卡顿或产生ANR崩溃，所以我们需要在新开的线程中调用下边的代码
+val bitmap = MediaStore.Images.Media.getBitmap(contentResolver, uri) 复制代码 接着我们需要在UI线程中调用下边的代码来显示加载的图片
+imageView.setImageBitmap(bitmap) 复制代码 为了实现这一功能在传统的android程序中我们需要使用Handler或AsyncTask将结果从非UI主线程发送到UI主线程进行显示，我们需要编写许多额外的代码。并且这些代码的可读性也不是十分的友好。下边我们来看看使用Kotlin的Coroutine来实现图片的加载的代码，如下：
+val job = launch(Background) { val bitmap = MediaStore.Images.Media.getBitmap(contentResolver,uri) launch(UI) { imageView.setImageBitmap(bitmap) } } 复制代码 我们先忽略返回值job，我们稍后会进行介绍，在这儿我们关心的事情是launch函数和参数Background与UI。与之前使用同步的方式加载图片相比唯一的不同就在于这儿我们调用了lauch函数。lauch()创建并启动了一个协程，这儿的参数Background是一个CoroutineContext对象，确保这个协程运行在一个后台线程，确保你的应用程序不会因耗时操作而阻塞和崩溃。你可以像下边这样定义一个CoroutineContext：
+internal val Background = newFixedThreadPoolContext(2, "bg") 复制代码 他将使用含有两个线程的线程池来执行协程里边的操作。在第一个协程里边我们又调用了launch(UI)创建并启动了一个新的协程，这儿的UI并不是我们自己创建的，他是Kotlin在Android平台里边预定义的一个CoroutineContext，代表着在UI主线程中执行协程里边的操作。所以我们将更新程序界面的操作imageView.setImageBitmap(bitmap)放在了这个协程里。通过这儿的例子代码你会发现在kotlin里边使用协程来实现线程间的通信和切换非常的简单，比RxJava还简单。看上去就跟你写同步的方式的代码一样。
+	</div>
+	<div class="list__footer clearfix">
+		<a class="list__footer-readmore btn" href="/posts/186e5f14594940b6876833070cade0ef/">Read more…</a>
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/cdc6f0fd4ef369717845ab9b1e8d8395/" rel="bookmark">
+			Kotlin在处理GET和POST请求的数据问题
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		1.网络请求获取到的数据流处理
+java写法
+1 BufferedReader br = new BufferedReader(new InputStreamReader(in, "utf-8")); 2 3 String line; 4 StringBuffer sb = new StringBuffer(); 5 while ((line = br.readLine()) != null) {//cotlin会出现无限循环的语法错误 6 sb.append(line); 7 } Kotlin改写连接字符的几种写法
+写法一
+var inStrem: InputStream = response.body().byteStream() var br: BufferedReader = BufferedReader(InputStreamReader(inStrem, "utf-8")) var line: String?=null var sb: StringBuffer = StringBuffer() while ({ line = br.readLine(); line }() != null) { // &lt;--- The IDE asks me to replace this line for while(true), what the.
+	</div>
+	<div class="list__footer clearfix">
+		<a class="list__footer-readmore btn" href="/posts/cdc6f0fd4ef369717845ab9b1e8d8395/">Read more…</a>
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/6218f392476f569ab8b2a2ecdefbec0c/" rel="bookmark">
+			超级详细的HCL的Telnet服务配置过程（图文）
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		之前学习Linux有配置过Telnet服务达到Linux与Windows的通信。在学习H3C路由的过程中，配置Telnet的基本思想是一样的。
+第一步首先打开HCL拖拽一个主机一个路由器 2）选择相应的接口一会配置要用
+3）选择自己的虚拟网络（即VirtualBox的网络）Faimaly那个是自己主机的IP（不管他），
+3.1）进入命令行设置
+4）提示按ctrl+d打断
+4.1）提示按enter进入
+5）成功进入
+其中1····进入系统界面
+2······进入之前设置的接口
+5.1）进入相应的接口进行配置
+6）找到virtualBox属性
+6.1）找到virtualBox的IP地址
+6.1.1）设置路由的IP并测试与计算机是否联通
+6.2）cmd下ping自己路由设置的ip地址——再次证实二者联通
+7）路由器下在系统界面开启telnet服务
+1 使用loca-user XXX（你的登录名）
+2 使用 password simple xxxx（你自己设置的密码）
+3设置服务类型为telnet
+4返回到系统界面
+5使用 user-interface vty 0 4 设置最大用户接入数值
+6 设置认证模式为组合认证方式（用户名+密码）
+8）配置信息相关
+9）Windows使用telnet失败
+进入控制面板-》程序-》打开或关闭Windows功能-》勾选上Telnet相关服务
+9.1)勾选相关服务
+继续使用刚才的命令登录用户名和密码成功
+10）配置完毕
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/33541168d47ac478e4282718be21b7d4/" rel="bookmark">
+			Fragment面试讲解
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		一、Fragment为什么被称为第五大组件
+1.Fragment为什么被称为第五大组件
+样图左图为平板电脑的使用场景，右图为手机使用场景 在右图中，左右两个Activity包含了各自的Fragment，在Activity A通过startActivity的方法启动Activity B时，实际上启动的是Fragment B，所以我们一般会在Activity当中嵌套多个Fragment，来进行UI数据结算清换，用到的模式通常是Fragment+ViewPager
+2.Fragment加载到Activity的两种方式
+1) 添加Fragment到Activity的布局文件当中（静态加载）；
+就是把Fragment直接写入到activity布局当中，作为一个XML的标签。
+2) 动态在activity中添加fragment；
+第一步，通过getFragmentManager方法创建FragmentManager，然后通过FragmentManager创建FragmentTransaction
+第二步，调用FragmentTransaction里面的add方法
+第三步，调用transaction.commit();这个方法完成动态加载Fragment操作
+3.FragmentPagerAdapter与FragmentStatePagerAdapter区别
+此图为FragmentStatePagerAdapter源码截图 可以看到最后一行代码用了transaction.remove的方法，
+这个方法在这里是真正的释放了fragment内存的
+此图为FragmentPagerAdapter源码截图，可以看到最后一行也是调用了transaction的方法，不过他用的是detach方法。detach，并不是真正的内存回收，他只是把fragmentUI和activity的UI所脱离开来，并不回收内存
+所以FragmentStatePagerAdapter和FragmentPagerAdapter的区别就在于，前者可以真正的释放Fragment内存，后者并不能。
+在面试当中遇到此类问题可以这样回答：由于FragmentStatePagerAdapter在每次切换ViewPager的时候是回收内存的所以说适合一些页面比较多的情况因为如果页面比较多的话，更耗内存，所以说他会回收内存。而FragmentPagerAdapter我们知道，他并没有回收内存，只是将UI分离，所以说适合一些页面比较少的情况以保存一些内存也对系统内存没有多大影响。
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/9043f7c10ad405ea4e376d6f8abeed08/" rel="bookmark">
+			使用ajax发送post请求后调用servlet成功前台没有调用success
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		使用jquery ajax发送请求后，前台success方法一直没有调用。
+经调试，返回状态码200说明请求发送成功，后台执行OK，猜测问题应该在前台解析返回值部分。
+错误示例：
+function validateName() {
+var name = $("#nameInputId").val();
+$.ajax({
+type:"POST",
+url:"JsonReturnClient",
+data:"name",
+dataType: "json",
+success:callback
+});
+}
+function callback(result,readystatus){
+alert("调用成功");
+}
+servlet:
+OutputStream out = response.getOutputStream();
+request.getParameter("");
+String json = "{'name':'jyf'}";
+out.write(json.getBytes());
+然后补充error流程，调试发现调用servlet成功后解析结果报错parsererror，经查找，前台设置dataType为json，希望后台返回的格式是json，如果格式不正确会出现该错。检查发现手写json key、value不能用单引号结束，需要用双引号转义。修改后台生成json的方法。
+OutputStream out = response.getOutputStream();
+request.getParameter("");
+String json = "{\"name\":\"jyf\"}";
+out.write(json.getBytes());
+同时前台为了方便调试跟踪执行结果，需要补全error分支
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/65be738162874dcd15d3c8deca1279b9/" rel="bookmark">
+			Pandas —— get_dummies( )和 factorize( )的区别
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		Pandas.get_dummies( ) 当频繁出现的几个独立变量时，可以使用pandas.get_dummies( )将定性变量转换为 Dummy 变量
+1、传入Series
+&gt;&gt;&gt; pd.get_dummies(pd.Series(list('abcaa'))) a b c 0 1 0 0 1 0 1 0 2 0 0 1 3 1 0 0 4 1 0 0 2、传入DataFrame
+&gt;&gt;&gt; df = pd.DataFrame({'A': ['a', 'b', 'a'], 'B': ['b', 'a', 'c'], ... 'C': [1, 2, 3]}) &gt;&gt;&gt; pd.get_dummies(df, prefix=['col1', 'col2']) C col1_a col1_b col2_a col2_b col2_c 0 1 1 0 0 1 0 1 2 0 1 1 0 0 2 3 1 0 0 0 1 Pandas.
+	</div>
+	<div class="list__footer clearfix">
+		<a class="list__footer-readmore btn" href="/posts/65be738162874dcd15d3c8deca1279b9/">Read more…</a>
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/0506136fe5a895ac85865f16fc0a4f6f/" rel="bookmark">
+			linux系统ssh登录(pem文件生成ppk文件)
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		 #常用工具putty、WinSCP
+打开WinSCP-&gt;高级-&gt;SSH-&gt;验证
+在文件目录选择pem文件。会弹出输入密码提示框，点取消 一定要点load，再重新选择pem 输入密码之后点 save private key 保存ppk文件即可 
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/efeeb8adebd8e3424380ff9ec043aaa7/" rel="bookmark">
+			发送ajax请求后收不到响应
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		向后台发送ajax请求，判断服务器处理完成后继续处理，结果发现一直获取不到处理完成状态代码如下：
+xmlHttp.onreadystatechange = callback;
+xmlHttp.open("GET", "AJAXServletClient?userName="
++ $("#description").val(), true);
+xmlHttp.send(null);
+if (xmlHttp.readyState != 4) {
+alert("请求未处理完成");
+}
+else {
+if (xmlHttp.status == 200) { var responseText = xmlHttp.responseText; var divNode = document.getElementById("desc");
+divNode.innerHTML = responseText;
+}
+else {
+alert("请求错误");
+}
+}
+原因分析：以上代码设置开关为true代表异步，那么前台执行send方法后js就继续执行，这时候自然收不到服务器执行完成的响应，状态码也不会是200,而是0.
+修改方法1：把true改为false，代表同步，即js执行send会等待服务器执行完才会继续执行。
+方法2：把根据响应状态和状态码判断执行逻辑的代码放到回调函数 callback中，代表服务端执行完毕后在回调函数中执行。
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/c9df3b19d8f3b06569ce98fcf9ae31ae/" rel="bookmark">
+			Kotlin关键字与操作符
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		Kotlin关键字与操作符 硬关键字 以下符号会始终解释为关键字，不能用作标识符：
+as 用于类型转换为导入指定一个别名as? 用于安全类型转换(它可以在失败时返回 null )break 终止循环的执行class 声明一个类continue 继续最近层循环的下一步do 开始一个 do/while 循环（后置条件的循环）else 定义一个 if 表达式条件为 false 时执行的分支false 指定布尔类型的“假”值for 开始一个 for 循环fun 声明一个函数if 开始一个 if 表达式in 指定在 for 循环中迭代的对象用作中缀操作符以检查一个值属于一个区间、 一个集合或者其他定义“contains”方法的实体在 when 表达式中用于上述目的将一个类型参数标记为逆变!in 用作中缀操作符以检查一个值不属于一个区间、 一个集合或者其他定义“contains”方法的实体在 when 表达式中用于上述目的interface 声明一个接口is 检查一个值具有指定类型在 when 表达式中用于上述目的!is 检查一个值不具有指定类型在 when 表达式中用于上述目的null 是表示不指向任何对象的对象引用的常量object 同时声明一个类及其实例package 指定当前文件的包return 从最近层的函数或匿名函数返回super 引用一个方法或属性的超类实现在次构造函数中调用超类构造函数this 引用当前接收者在次构造函数中调用同一个类的另一个构造函数throw 抛出一个异常true 指定布尔类型的“真”值try 开始一个异常处理块typealias 声明一个类型别名val 声明一个只读属性或局部变量 ,尽量用这个var 声明一个可变属性或局部变量when 开始一个 when 表达式（执行其中一个给定分支）while 开始一个 while 循环（前置条件的循环） 软关键字 以下符号在适用的上下文中充当关键字，而在其他上下文中可用作标识符：
+by 将接口的实现委托给另一个对象将属性访问器的实现委托给另一个对象catch 开始一个处理指定异常类型的块constructor 声明一个主构造函数或次构造函数delegate 用作注解使用处目标dynamic 引用一个 Kotlin/JS 代码中的动态类型field 用作注解使用处目标file 用作注解使用处目标finally 开始一个当 try 块退出时总会执行的块get 声明属性的 getter用作注解使用处目标import 将另一个包中的声明导入当前文件init 开始一个初始化块param 用作注解使用处目标property 用作注解使用处目标receiver 用作注解使用处目标set 声明属性的 setter用作注解使用处目标setparam 用作注解使用处目标where 指定泛型类型参数的约束 修饰符关键字 以下符号作为声明中修饰符列表中的关键字，并可用作其他上下文中的标识符：
+	</div>
+	<div class="list__footer clearfix">
+		<a class="list__footer-readmore btn" href="/posts/c9df3b19d8f3b06569ce98fcf9ae31ae/">Read more…</a>
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/eea3c4c9b7cabb629dcde57e4a56b7dc/" rel="bookmark">
+			Android MVVM框架
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		一首凉凉送给自己，心累。 首先借鉴一下别人写的关于MVP的优缺点。。。
+一、MVP模式优缺点
+在说MVVM之前，简单回顾一下MVP分层，MVP总共分成三层：
+a 、View: 视图层，对应xml文件与Activity/Fragment； b 、Presenter: 逻辑控制层，同时持有View和Model对象； c 、Model: 实体层，负责获取实体数据。
+MVP模式有其很大的优点
+1.解耦合，业务逻辑和视图分离； 2.项目代码结构（文件夹）清晰，一看就知道什么类干什么事情； 3.便于单元测试（其实还是第一点）； 4.协同工作（例如在设计师没出图之前可以先写一些业务逻辑代码或者其他人接手代码改起来比较容易）；
+但是也有美中不足的部分，MVP模式的缺点如下：
+1.Presente层与View层是通过接口进行交互的，接口粒度不好控制。粒度太小，就会存在大量接口的情况，使代码太过碎版化;粒度太大，解耦效果不好。因为View定义的方法并不一定全部要用到，可能只是后面要用到先定义出来（后面要不要删也未知），而且如果后面有些方法要删改，Presenter和Activity都要删改，比较麻烦；
+2.V层与P层还是有一定的耦合度。一旦V层某个UI元素更改，那么对应的接口就必须得改，数据如何映射到UI上、事件监听接口这些都需要转变，牵一发而动全身。如果这一层也能解耦就更好了。
+3.复杂的业务同时也可能会导致P层太大，代码臃肿的问题依然不能解决，这已经不是接口粒度把控的问题了，一旦业务逻辑越来越多，View定义的方法越来越多，会造成Activity和Fragment实现的方法越来越多，依然臃肿。
+目前MVP模式已经用的很多了，大部分接触到的项目都是MVP，自己也写了很多MVP模式下的项目。一直都知道有MVVM这个框架，只是一直没有机会用，所以就自己学习一下。网上看了很多，都是简单的例子，所以在github上找了一个项目直接拿来练手了。
+二、MVVM模式
+OK，现在开始介绍MVVM，MVVM模式不是四层，同MVP一样也是三层，但是我不同意MVVM是MVP的升级版，二者有相同的地方，但是MVP的一些优点，MVVM也无法取代，MVVM的三层模型如下：
+View View层做的就是和UI相关的工作，我们只在XML和Activity或Fragment写View层的代码，View层不做和业务相关的事，也就是我们的Activity 不写和业务逻辑相关代码，也不写需要根据业务逻辑来更新UI的代码，因为更新UI通过Binding实现，更新UI在ViewModel里面做（更新绑定的数据源即可），Activity 要做的事就是初始化一些控件（如控件的颜色，添加 RecyclerView 的分割线），Activity可以更新UI，但是更新的UI必须和业务逻辑和数据是没有关系的，只是单纯的根据点击或者滑动等事件更新UI(如 根据滑动颜色渐变、根据点击隐藏等单纯UI逻辑)，Activity（View层）是可以处理UI事件，但是处理的只是处理UI自己的事情，View层只处理View层的事。简单的说：View层不做任何业务逻辑、不涉及操作数据、不处理数据、UI和数据严格的分开。
+ViewModel ViewModel层做的事情刚好和View层相反，ViewModel 只做和业务逻辑和业务数据相关的事，不做任何和UI、控件相关的事，ViewModel 层不会持有任何控件的引用，更不会在ViewModel中通过UI控件的引用去做更新UI的事情。ViewModel就是专注于业务的逻辑处理，操作的也都是对数据进行操作，这些个数据源绑定在相应的控件上会自动去更改UI，开发者不需要关心更新UI的事情。DataBinding 框架已经支持双向绑定，这使得我们在可以通过双向绑定获取View层反馈给ViewModel层的数据，并进行操作。关于对UI控件事件的处理，我们也希望能把这些事件处理绑定到控件上，并把这些事件统一化，方便ViewModel对事件的处理和代码的美观。为此我们通过BindingAdapter 对一些常用的事件做了封装，把一个个事件封装成一个个Command，对于每个事件我们用一个ReplyCommand去处理就行了,ReplyCommand会把可能你需要的数据带给你，这使得我们处理事件的时候也只关心处理数据就行了，具体见MVVM Light Toolkit 使用指南的 Command 部分。再强调一遍ViewModel 不做和UI相关的事。
+Model Model 的职责很简单，基本就是实体模型（Bean）同时包括Retrofit 的Service ，ViewModel 可以根据Model 获取一个Bean的Observable( RxJava ),然后做一些数据转换操作和映射到ViewModel 中的一些字段，最后把这些字段绑定到View层上。
+可以看到，MVVM模式的最大亮点是双向绑定
+单向绑定上，数据的流向是单方面的，只能从代码流向UI；双向绑定的数据流向是双向的，当业务代码中的数据改变时，UI上的数据能够得到刷新；当用户通过UI交互编辑了数据时，数据的变化也能自动的更新到业务代码中的数据上。对于双向绑定，刚好可以使用DataBinding，DataBinding是一个实现数据和UI绑定的框架，是构建MVVM模式的一个关键的工具。所以Android中实现MVVM就方便多了，IOS中还要使用block回调，或者使用reactiveCocoa库。
+三：MVVM体验：
+1.配置： 在项目app中的build.gradle的android{}中加入：
+dataBinding { enabled = true } 2.创建Model实体类: 实体类的创建和平时的没什么区别，这里取了个用户类做例子：
+public class User implements Parcelable { public long id; public String name; public String url; public String email; public String login; public String location; @SerializedName("
+	</div>
+	<div class="list__footer clearfix">
+		<a class="list__footer-readmore btn" href="/posts/eea3c4c9b7cabb629dcde57e4a56b7dc/">Read more…</a>
+	</div>
+</article><article class="list__item post">
+	
+	<header class="list__header">
+		<h2 class="list__title post__title">
+			<a href="/posts/096f4c58659580f3f3706147fcc6414d/" rel="bookmark">
+			python -- 模块 struct
+			</a>
+		</h2>
+		
+	</header>
+	<div class="content list__excerpt post__content clearfix">
+		文档地址 -- https://docs.python.org/3/library/struct.html
+import struct
+本机高低端内存地址 sys.byteorder : 'little'
+format&gt;&gt;&gt;
+FormatC TypePython typeStandard sizeNotesxpad byteno value ccharbytes of length 11 bsigned charinteger1(1),(3)Bunsignedcharinteger1(3)?_Boolbool1(1)hshortinteger2(3)Hunsignedshortinteger2(3)iintinteger4(3)Iunsignedintinteger4(3)llonginteger4(3)Lunsignedlonginteger4(3)qlong longinteger8(2), (3)Qunsignedlonglonginteger8(2), (3)nssize_tinteger (4)Nsize_tinteger (4)e(7)float2(5)ffloatfloat4(5)ddoublefloat8(5)schar[]bytes pchar[]bytes Pvoid *integer (6) samples&gt;&gt;&gt; &gt;&gt;&gt; from struct import * &gt;&gt;&gt; pack('llll', 1, 2, 3, 4) b'\x01\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00\x00\x00\x03\x00\x00\x00\x00\x00\x00\x00\x04\x00\x00\x00\x00\x00\x00\x00' &gt;&gt;&gt; pack('hhhh', 1, 2, 3, 4) b'\x01\x00\x02\x00\x03\x00\x04\x00' &gt;&gt;&gt; unpack('llll', b'\x01\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00\x00\x00\x03\x00\x00\x00\x00\x00\x00\x00\x04\x00\x00\x00\x00\x00\x00\x00') (1, 2, 3, 4) &gt;&gt;&gt; unpack('llll', b'\x01\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00\x00\x00\x03\x00\x00\x00\x00\x00\x00\x00\x04\x00\x00\x00\x00\x02\x00\x00') (1, 2, 3, 2199023255556) &gt;&gt;&gt; pack('ci', b'*', 0x1314520)
+	</div>
+	<div class="list__footer clearfix">
+		<a class="list__footer-readmore btn" href="/posts/096f4c58659580f3f3706147fcc6414d/">Read more…</a>
+	</div>
+</article>
+</main>
+
+<div class="pagination">
+	<a class="pagination__item pagination__item--prev btn" href="/page/121/">«</a>
+	<span class="pagination__item pagination__item--current">122/134</span>
+	<a class="pagination__item pagination__item--next btn" href="/page/123/">»</a>
+</div>
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

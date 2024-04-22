@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>深度探讨 Golang 中并发发送 HTTP 请求的最佳技术 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/3d9e0d0633e68c7c683b52d8be6b839d/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="深度探讨 Golang 中并发发送 HTTP 请求的最佳技术">
+  <meta property="og:description" content="💂 个人网站:【 海拥】【神级代码资源网站】【办公神器】🤟 基于Web端打造的：👉轻量化工具创作平台💅 想寻找共同学习交流的小伙伴，请点击【全栈技术交流群】 在 Golang 领域，并发发送 HTTP 请求是优化 Web 应用程序的一项重要技能。本文探讨了实现此目的的各种方法，从基本的 goroutine 到涉及通道和sync.WaitGroup 的高级技术。我们将深入研究并发环境中性能和错误处理的最佳实践，为你提供提高 Go 应用程序速度和可靠性的策略。让我们深入探讨 Golang 中并发 HTTP 请求的世界！
+使用 Goroutines 的基本方法 当谈到在 Golang 中实现并发时，最直接的方法是使用 goroutine。这些是 Go 中并发的构建块，提供了一种简单而强大的并发执行函数的方法。
+Goroutine 入门 要启动一个 goroutine，只需在函数调用前加上go关键字即可。这会将函数作为 goroutine 启动，从而允许主程序继续独立运行。这就像开始一项任务并继续前进而不等待它完成。
+例如，考虑发送 HTTP 请求的场景。通常，你会调用类似 的函数sendRequest()，并且你的程序将等待该函数完成。使用 goroutine，你可以同时执行此操作：
+go sendRequest(&#34;http://example.com&#34;) 处理多个请求 假设你有一个 URL 列表，并且需要向每个 URL 发送一个 HTTP 请求。如果没有 goroutine，你的程序将一个接一个地发送这些请求，这非常耗时。使用 goroutine，你几乎可以同时发送它们：
+urls := []string{&#34;http://example.com&#34;, &#34;http://another.com&#34;, ...} for _, url := range urls { go sendRequest(url) } 这个循环为每个 URL 启动一个新的 goroutine，大大减少了程序发送所有请求所需的时间。">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2024-01-15T14:57:52+08:00">
+    <meta property="article:modified_time" content="2024-01-15T14:57:52+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">深度探讨 Golang 中并发发送 HTTP 请求的最佳技术</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-tomorrow-night-eighties">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <blockquote> 
+ <ul><li><strong>💂 个人网站:【 <a href="https://haiyong.site/moyu" rel="nofollow">海拥</a>】【<a href="https://code.haiyong.site" rel="nofollow">神级代码资源网站</a>】【<a href="https://tools.haiyong.site/" rel="nofollow">办公神器</a>】</strong></li><li><strong>🤟 基于Web端打造的：👉<a href="https://sso.mapmost.com/#/login?source_inviter=ryIXGCHG" rel="nofollow">轻量化工具创作平台</a></strong></li><li><strong>💅 想寻找共同学习交流的小伙伴，请点击【<a href="https://haiyong.site/chat/" rel="nofollow">全栈技术交流群</a>】</strong></li></ul> 
+</blockquote> 
+<p><img src="https://images2.imgbox.com/f4/54/Yln1l5j0_o.png" alt="在这里插入图片描述"></p> 
+<p>在 Golang 领域，并发发送 HTTP 请求是优化 Web 应用程序的一项重要技能。本文探讨了实现此目的的各种方法，从基本的 goroutine 到涉及通道和sync.WaitGroup 的高级技术。我们将深入研究并发环境中性能和错误处理的最佳实践，为你提供提高 Go 应用程序速度和可靠性的策略。让我们深入探讨 Golang 中并发 HTTP 请求的世界！</p> 
+<h2><a id="_Goroutines__9"></a>使用 Goroutines 的基本方法</h2> 
+<p>当谈到在 Golang 中实现并发时，最直接的方法是使用 goroutine。这些是 Go 中并发的构建块，提供了一种简单而强大的并发执行函数的方法。</p> 
+<h3><a id="Goroutine__13"></a>Goroutine 入门</h3> 
+<p>要启动一个 goroutine，只需在函数调用前加上<code>go</code>关键字即可。这会将函数作为 goroutine 启动，从而允许主程序继续独立运行。这就像开始一项任务并继续前进而不等待它完成。</p> 
+<p>例如，考虑发送 HTTP 请求的场景。通常，你会调用类似 的函数<code>sendRequest()</code>，并且你的程序将等待该函数完成。使用 goroutine，你可以同时执行此操作：</p> 
+<pre><code class="prism language-go"><span class="token keyword">go</span> <span class="token function">sendRequest</span><span class="token punctuation">(</span><span class="token string">"http://example.com"</span><span class="token punctuation">)</span>
+</code></pre> 
+<h3><a id="_24"></a>处理多个请求</h3> 
+<p>假设你有一个 URL 列表，并且需要向每个 URL 发送一个 HTTP 请求。如果没有 goroutine，你的程序将一个接一个地发送这些请求，这非常耗时。使用 goroutine，你几乎可以同时发送它们：</p> 
+<pre><code class="prism language-go">urls <span class="token operator">:=</span> <span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token builtin">string</span><span class="token punctuation">{<!-- --></span><span class="token string">"http://example.com"</span><span class="token punctuation">,</span> <span class="token string">"http://another.com"</span><span class="token punctuation">,</span> <span class="token operator">...</span><span class="token punctuation">}</span>  
+<span class="token keyword">for</span> <span class="token boolean">_</span><span class="token punctuation">,</span> url <span class="token operator">:=</span> <span class="token keyword">range</span> urls <span class="token punctuation">{<!-- --></span>  
+<span class="token keyword">go</span> <span class="token function">sendRequest</span><span class="token punctuation">(</span>url<span class="token punctuation">)</span>  
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>这个循环为每个 URL 启动一个新的 goroutine，大大减少了程序发送所有请求所需的时间。</p> 
+<h2><a id="_HTTP__37"></a>并发 HTTP 请求的方法</h2> 
+<p>在本节中，我们将深入研究在 Go 中并发处理 HTTP 请求的各种方法。每种方法都有其独特的特点，了解这些可以帮助你选择适合特定需求的正确方法。</p> 
+<blockquote> 
+ <p>我们使用 <a href="https://github.com/useinsider/go-pkg/tree/develop/insrequester"><strong>insrequester</strong></a> 包（开源请求程序）来处理本文中提到的 <strong>HTTP请求</strong></p> 
+</blockquote> 
+<h3><a id="_Goroutine_43"></a>基本 Goroutine</h3> 
+<p>在 Go 中并发发送 HTTP 请求的最简单方法是使用 goroutine。Goroutines 是由 Go 运行时管理的轻量级线程。这是一个基本示例：</p> 
+<pre><code class="prism language-go">requester <span class="token operator">:=</span> insrequester<span class="token punctuation">.</span><span class="token function">NewRequester</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">Load</span><span class="token punctuation">(</span><span class="token punctuation">)</span>  
+  
+urls <span class="token operator">:=</span> <span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token builtin">string</span><span class="token punctuation">{<!-- --></span><span class="token string">"http://example.com"</span><span class="token punctuation">,</span> <span class="token string">"http://example.org"</span><span class="token punctuation">,</span> <span class="token string">"http://example.net"</span><span class="token punctuation">}</span>  
+<span class="token keyword">for</span> <span class="token boolean">_</span><span class="token punctuation">,</span> url <span class="token operator">:=</span> <span class="token keyword">range</span> urls <span class="token punctuation">{<!-- --></span>  
+<span class="token keyword">go</span> requester<span class="token punctuation">.</span><span class="token function">Get</span><span class="token punctuation">(</span>insrequester<span class="token punctuation">.</span>RequestEntity<span class="token punctuation">{<!-- --></span>Endpoint<span class="token punctuation">:</span> url<span class="token punctuation">}</span><span class="token punctuation">)</span>  
+<span class="token punctuation">}</span>  
+  
+time<span class="token punctuation">.</span><span class="token function">Sleep</span><span class="token punctuation">(</span><span class="token number">2</span> <span class="token operator">*</span> time<span class="token punctuation">.</span>Second<span class="token punctuation">)</span> <span class="token comment">// 等待 goroutine 完成</span>
+</code></pre> 
+<p>这种方法很简单，但一旦启动就缺乏对 goroutine 的控制。通过这种方式无法获取Get方法的返回值。你需要睡眠大约一段时间来等待所有 goroutine。即使你调用 sleep，你可能仍然不确定它们是否完成。</p> 
+<h3><a id="WaitGroup_60"></a>WaitGroup</h3> 
+<p>为了改进基本的 goroutine，<code>sync.WaitGroup</code>可用于更好的同步。它等待 goroutine 集合完成执行：</p> 
+<pre><code class="prism language-go">requester <span class="token operator">:=</span> insrequester<span class="token punctuation">.</span><span class="token function">NewRequester</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">Load</span><span class="token punctuation">(</span><span class="token punctuation">)</span>  
+wg <span class="token operator">:=</span> sync<span class="token punctuation">.</span>WaitGroup<span class="token punctuation">{<!-- --></span><span class="token punctuation">}</span>  
+  
+urls <span class="token operator">:=</span> <span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token builtin">string</span><span class="token punctuation">{<!-- --></span><span class="token string">"http://example.com"</span><span class="token punctuation">,</span> <span class="token string">"http://example.org"</span><span class="token punctuation">,</span> <span class="token string">"http://example.net"</span><span class="token punctuation">}</span>  
+wg<span class="token punctuation">.</span><span class="token function">Add</span><span class="token punctuation">(</span><span class="token function">len</span><span class="token punctuation">(</span>urls<span class="token punctuation">)</span><span class="token punctuation">)</span>  
+  
+<span class="token keyword">for</span> <span class="token boolean">_</span><span class="token punctuation">,</span> url <span class="token operator">:=</span> <span class="token keyword">range</span> urls <span class="token punctuation">{<!-- --></span>  
+<span class="token keyword">go</span> requester<span class="token punctuation">.</span><span class="token function">Get</span><span class="token punctuation">(</span>insrequester<span class="token punctuation">.</span>RequestEntity<span class="token punctuation">{<!-- --></span>Endpoint<span class="token punctuation">:</span> url<span class="token punctuation">}</span><span class="token punctuation">)</span>  
+<span class="token punctuation">}</span>  
+  
+wg<span class="token punctuation">.</span><span class="token function">Wait</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token comment">//等待所有要完成的 goroutine</span>
+</code></pre> 
+<p>这确保了 main 函数等待所有 HTTP 请求完成。</p> 
+<h3><a id="Channels_80"></a>Channels</h3> 
+<p>Channels 是 Go 中用于 goroutine 之间通信的强大功能。它们可用于从多个 HTTP 请求收集数据：</p> 
+<pre><code class="prism language-go">requester <span class="token operator">:=</span> insrequester<span class="token punctuation">.</span><span class="token function">NewRequester</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">Load</span><span class="token punctuation">(</span><span class="token punctuation">)</span>  
+  
+urls <span class="token operator">:=</span> <span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token builtin">string</span><span class="token punctuation">{<!-- --></span><span class="token string">"http://example.com"</span><span class="token punctuation">,</span> <span class="token string">"http://example.org"</span><span class="token punctuation">,</span> <span class="token string">"http://example.net"</span><span class="token punctuation">}</span>  
+ch <span class="token operator">:=</span> <span class="token function">make</span><span class="token punctuation">(</span><span class="token keyword">chan</span> <span class="token builtin">string</span><span class="token punctuation">,</span> <span class="token function">len</span><span class="token punctuation">(</span>urls<span class="token punctuation">)</span><span class="token punctuation">)</span>  
+  
+<span class="token keyword">for</span> <span class="token boolean">_</span><span class="token punctuation">,</span> url <span class="token operator">:=</span> <span class="token keyword">range</span> urls <span class="token punctuation">{<!-- --></span>  
+<span class="token keyword">go</span> <span class="token keyword">func</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>  
+res<span class="token punctuation">,</span> <span class="token boolean">_</span> <span class="token operator">:=</span> requester<span class="token punctuation">.</span><span class="token function">Get</span><span class="token punctuation">(</span>insrequester<span class="token punctuation">.</span>RequestEntity<span class="token punctuation">{<!-- --></span>Endpoint<span class="token punctuation">:</span> url<span class="token punctuation">}</span><span class="token punctuation">)</span>  
+ch <span class="token operator">&lt;-</span> fmt<span class="token punctuation">.</span><span class="token function">Sprintf</span><span class="token punctuation">(</span><span class="token string">"%s: %d"</span><span class="token punctuation">,</span> url<span class="token punctuation">,</span> res<span class="token punctuation">.</span>StatusCode<span class="token punctuation">)</span>  
+<span class="token punctuation">}</span><span class="token punctuation">(</span><span class="token punctuation">)</span>  
+<span class="token punctuation">}</span>  
+  
+<span class="token keyword">for</span> <span class="token keyword">range</span> urls <span class="token punctuation">{<!-- --></span>  
+response <span class="token operator">:=</span> <span class="token operator">&lt;-</span>ch  
+fmt<span class="token punctuation">.</span><span class="token function">Println</span><span class="token punctuation">(</span>response<span class="token punctuation">)</span>  
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>通道不仅可以同步 goroutine，还可以促进它们之间的数据传递。</p> 
+<h3><a id="Worker_Pools_105"></a>Worker Pools</h3> 
+<p>Worker Pool 是一种模式，其中创建固定数量的工作人员（goroutines）来处理可变数量的任务。这有助于限制并发 HTTP 请求的数量，从而防止资源耗尽。</p> 
+<p>以下是在 Go 中实现 Worker Pool 的方法：</p> 
+<pre><code class="prism language-go"><span class="token comment">// 定义 Job 结构体，包含一个 URL 字段</span>
+<span class="token keyword">type</span> Job <span class="token keyword">struct</span> <span class="token punctuation">{<!-- --></span>
+	URL <span class="token builtin">string</span>
+<span class="token punctuation">}</span>
+
+<span class="token comment">// worker 函数用于处理作业，接收请求者、作业通道、结果通道和等待组作为参数</span>
+<span class="token keyword">func</span> <span class="token function">worker</span><span class="token punctuation">(</span>requester <span class="token operator">*</span>insrequester<span class="token punctuation">.</span>Request<span class="token punctuation">,</span> jobs <span class="token operator">&lt;-</span><span class="token keyword">chan</span> Job<span class="token punctuation">,</span> results <span class="token keyword">chan</span><span class="token operator">&lt;-</span> <span class="token operator">*</span>http<span class="token punctuation">.</span>Response<span class="token punctuation">,</span> wg <span class="token operator">*</span>sync<span class="token punctuation">.</span>WaitGroup<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+	<span class="token keyword">for</span> job <span class="token operator">:=</span> <span class="token keyword">range</span> jobs <span class="token punctuation">{<!-- --></span>
+		<span class="token comment">// 使用请求者获取 URL 对应的响应</span>
+		res<span class="token punctuation">,</span> <span class="token boolean">_</span> <span class="token operator">:=</span> requester<span class="token punctuation">.</span><span class="token function">Get</span><span class="token punctuation">(</span>insrequester<span class="token punctuation">.</span>RequestEntity<span class="token punctuation">{<!-- --></span>Endpoint<span class="token punctuation">:</span> job<span class="token punctuation">.</span>URL<span class="token punctuation">}</span><span class="token punctuation">)</span>
+		<span class="token comment">// 将结果发送到结果通道，并减少等待组计数</span>
+		results <span class="token operator">&lt;-</span> res
+		wg<span class="token punctuation">.</span><span class="token function">Done</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+	<span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">func</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+	<span class="token comment">// 创建并加载请求者</span>
+	requester <span class="token operator">:=</span> insrequester<span class="token punctuation">.</span><span class="token function">NewRequester</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">Load</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+
+	<span class="token comment">// 定义要处理的 URL 列表</span>
+	urls <span class="token operator">:=</span> <span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token builtin">string</span><span class="token punctuation">{<!-- --></span><span class="token string">"http://example.com"</span><span class="token punctuation">,</span> <span class="token string">"http://example.org"</span><span class="token punctuation">,</span> <span class="token string">"http://example.net"</span><span class="token punctuation">}</span>
+	<span class="token comment">// 定义工作池中的工作者数量</span>
+	numWorkers <span class="token operator">:=</span> <span class="token number">2</span>
+
+	<span class="token comment">// 创建作业通道和结果通道</span>
+	jobs <span class="token operator">:=</span> <span class="token function">make</span><span class="token punctuation">(</span><span class="token keyword">chan</span> Job<span class="token punctuation">,</span> <span class="token function">len</span><span class="token punctuation">(</span>urls<span class="token punctuation">)</span><span class="token punctuation">)</span>
+	results <span class="token operator">:=</span> <span class="token function">make</span><span class="token punctuation">(</span><span class="token keyword">chan</span> <span class="token operator">*</span>http<span class="token punctuation">.</span>Response<span class="token punctuation">,</span> <span class="token function">len</span><span class="token punctuation">(</span>urls<span class="token punctuation">)</span><span class="token punctuation">)</span>
+	<span class="token keyword">var</span> wg sync<span class="token punctuation">.</span>WaitGroup
+
+	<span class="token comment">// 启动工作者</span>
+	<span class="token keyword">for</span> w <span class="token operator">:=</span> <span class="token number">0</span><span class="token punctuation">;</span> w <span class="token operator">&lt;</span> numWorkers<span class="token punctuation">;</span> w<span class="token operator">++</span> <span class="token punctuation">{<!-- --></span>
+		<span class="token keyword">go</span> <span class="token function">worker</span><span class="token punctuation">(</span>requester<span class="token punctuation">,</span> jobs<span class="token punctuation">,</span> results<span class="token punctuation">,</span> <span class="token operator">&amp;</span>wg<span class="token punctuation">)</span>
+	<span class="token punctuation">}</span>
+
+	<span class="token comment">// 将作业发送到工作者池</span>
+	wg<span class="token punctuation">.</span><span class="token function">Add</span><span class="token punctuation">(</span><span class="token function">len</span><span class="token punctuation">(</span>urls<span class="token punctuation">)</span><span class="token punctuation">)</span>
+	<span class="token keyword">for</span> <span class="token boolean">_</span><span class="token punctuation">,</span> url <span class="token operator">:=</span> <span class="token keyword">range</span> urls <span class="token punctuation">{<!-- --></span>
+		jobs <span class="token operator">&lt;-</span> Job<span class="token punctuation">{<!-- --></span>URL<span class="token punctuation">:</span> url<span class="token punctuation">}</span>
+	<span class="token punctuation">}</span>
+	<span class="token function">close</span><span class="token punctuation">(</span>jobs<span class="token punctuation">)</span>
+	wg<span class="token punctuation">.</span><span class="token function">Wait</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+
+	<span class="token comment">// 收集结果并输出</span>
+	<span class="token keyword">for</span> i <span class="token operator">:=</span> <span class="token number">0</span><span class="token punctuation">;</span> i <span class="token operator">&lt;</span> <span class="token function">len</span><span class="token punctuation">(</span>urls<span class="token punctuation">)</span><span class="token punctuation">;</span> i<span class="token operator">++</span> <span class="token punctuation">{<!-- --></span>
+		fmt<span class="token punctuation">.</span><span class="token function">Println</span><span class="token punctuation">(</span><span class="token operator">&lt;-</span>results<span class="token punctuation">)</span>
+	<span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+
+</code></pre> 
+<p>使用工作池可以让你有效地管理大量并发 HTTP 请求。它是一个可扩展的解决方案，可以根据工作负载和系统容量进行调整，从而优化资源利用率并提高整体性能。</p> 
+<h3><a id="_Goroutine_165"></a>使用通道限制 Goroutine</h3> 
+<p>该方法使用通道创建类似信号量的机制来限制并发 goroutine 的数量。它在你需要限制 HTTP 请求以避免服务器不堪重负或达到速率限制的情况下非常有效。</p> 
+<p>以下是实现它的方法：</p> 
+<pre><code class="prism language-go"><span class="token comment">// 创建请求者并加载配置</span>
+requester <span class="token operator">:=</span> insrequester<span class="token punctuation">.</span><span class="token function">NewRequester</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">Load</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+
+<span class="token comment">// 定义要处理的 URL 列表</span>
+urls <span class="token operator">:=</span> <span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token builtin">string</span><span class="token punctuation">{<!-- --></span><span class="token string">"http://example.com"</span><span class="token punctuation">,</span> <span class="token string">"http://example.org"</span><span class="token punctuation">,</span> <span class="token string">"http://example.net"</span><span class="token punctuation">}</span>
+maxConcurrency <span class="token operator">:=</span> <span class="token number">2</span> <span class="token comment">// 限制并发请求的数量</span>
+
+<span class="token comment">// 创建一个用于限制并发请求的通道</span>
+limiter <span class="token operator">:=</span> <span class="token function">make</span><span class="token punctuation">(</span><span class="token keyword">chan</span> <span class="token keyword">struct</span><span class="token punctuation">{<!-- --></span><span class="token punctuation">}</span><span class="token punctuation">,</span> maxConcurrency<span class="token punctuation">)</span>
+
+<span class="token comment">// 遍历 URL 列表</span>
+<span class="token keyword">for</span> <span class="token boolean">_</span><span class="token punctuation">,</span> url <span class="token operator">:=</span> <span class="token keyword">range</span> urls <span class="token punctuation">{<!-- --></span>
+    limiter <span class="token operator">&lt;-</span> <span class="token keyword">struct</span><span class="token punctuation">{<!-- --></span><span class="token punctuation">}</span><span class="token punctuation">{<!-- --></span><span class="token punctuation">}</span> <span class="token comment">// 获取一个令牌。在这里等待令牌从限制器释放</span>
+    <span class="token keyword">go</span> <span class="token keyword">func</span><span class="token punctuation">(</span>url <span class="token builtin">string</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">defer</span> <span class="token keyword">func</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span> <span class="token operator">&lt;-</span>limiter <span class="token punctuation">}</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token comment">// 释放令牌</span>
+        <span class="token comment">// 使用请求者进行 POST 请求</span>
+        requester<span class="token punctuation">.</span><span class="token function">Post</span><span class="token punctuation">(</span>insrequester<span class="token punctuation">.</span>RequestEntity<span class="token punctuation">{<!-- --></span>Endpoint<span class="token punctuation">:</span> url<span class="token punctuation">}</span><span class="token punctuation">)</span>
+    <span class="token punctuation">}</span><span class="token punctuation">(</span>url<span class="token punctuation">)</span>
+<span class="token punctuation">}</span>
+
+<span class="token comment">// 等待所有 goroutine 完成</span>
+<span class="token keyword">for</span> i <span class="token operator">:=</span> <span class="token number">0</span><span class="token punctuation">;</span> i <span class="token operator">&lt;</span> <span class="token function">cap</span><span class="token punctuation">(</span>limiter<span class="token punctuation">)</span><span class="token punctuation">;</span> i<span class="token operator">++</span> <span class="token punctuation">{<!-- --></span>
+    limiter <span class="token operator">&lt;-</span> <span class="token keyword">struct</span><span class="token punctuation">{<!-- --></span><span class="token punctuation">}</span><span class="token punctuation">{<!-- --></span><span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<blockquote> 
+ <p>在这种情况下使用<strong>延迟</strong>至关重要。如果将 <em><strong>&lt;-limiter</strong></em>语句放在 Post 方法之后，并且 Post 方法触发恐慌或类似异常，则 <em><strong>&lt;-limiter</strong></em>行将不会被执行。这可能会导致无限等待，因为信号量令牌永远不会被释放，最终导致超时问题。</p> 
+</blockquote> 
+<h3><a id="_Goroutines_200"></a>使用信号量限制 Goroutines</h3> 
+<p>sync/semaphore 包提供了一种干净有效的方法来限制并发运行的 goroutine 数量。当你想要更系统地管理资源分配时，此方法特别有用。</p> 
+<pre><code class="prism language-go"><span class="token comment">// 创建请求者并加载配置</span>
+requester <span class="token operator">:=</span> insrequester<span class="token punctuation">.</span><span class="token function">NewRequester</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">Load</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+
+<span class="token comment">// 定义要处理的 URL 列表</span>
+urls <span class="token operator">:=</span> <span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token builtin">string</span><span class="token punctuation">{<!-- --></span><span class="token string">"http://example.com"</span><span class="token punctuation">,</span> <span class="token string">"http://example.org"</span><span class="token punctuation">,</span> <span class="token string">"http://example.net"</span><span class="token punctuation">}</span>
+maxConcurrency <span class="token operator">:=</span> <span class="token function">int64</span><span class="token punctuation">(</span><span class="token number">2</span><span class="token punctuation">)</span> <span class="token comment">// 设置最大并发请求数量</span>
+
+<span class="token comment">// 创建一个带权重的信号量</span>
+sem <span class="token operator">:=</span> semaphore<span class="token punctuation">.</span><span class="token function">NewWeighted</span><span class="token punctuation">(</span>maxConcurrency<span class="token punctuation">)</span>
+ctx <span class="token operator">:=</span> context<span class="token punctuation">.</span><span class="token function">Background</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+
+<span class="token comment">// 遍历 URL 列表</span>
+<span class="token keyword">for</span> <span class="token boolean">_</span><span class="token punctuation">,</span> url <span class="token operator">:=</span> <span class="token keyword">range</span> urls <span class="token punctuation">{<!-- --></span>
+    <span class="token comment">// 在启动 goroutine 前获取信号量权重</span>
+    <span class="token keyword">if</span> err <span class="token operator">:=</span> sem<span class="token punctuation">.</span><span class="token function">Acquire</span><span class="token punctuation">(</span>ctx<span class="token punctuation">,</span> <span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span> err <span class="token operator">!=</span> <span class="token boolean">nil</span> <span class="token punctuation">{<!-- --></span>
+       fmt<span class="token punctuation">.</span><span class="token function">Printf</span><span class="token punctuation">(</span><span class="token string">"无法获取信号量：%v\n"</span><span class="token punctuation">,</span> err<span class="token punctuation">)</span>
+       <span class="token keyword">continue</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token keyword">go</span> <span class="token keyword">func</span><span class="token punctuation">(</span>url <span class="token builtin">string</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+       <span class="token keyword">defer</span> sem<span class="token punctuation">.</span><span class="token function">Release</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span> <span class="token comment">// 在完成时释放信号量权重</span>
+       <span class="token comment">// 使用请求者获取 URL 对应的响应</span>
+       res<span class="token punctuation">,</span> <span class="token boolean">_</span> <span class="token operator">:=</span> requester<span class="token punctuation">.</span><span class="token function">Get</span><span class="token punctuation">(</span>insrequester<span class="token punctuation">.</span>RequestEntity<span class="token punctuation">{<!-- --></span>Endpoint<span class="token punctuation">:</span> url<span class="token punctuation">}</span><span class="token punctuation">)</span>
+       fmt<span class="token punctuation">.</span><span class="token function">Printf</span><span class="token punctuation">(</span><span class="token string">"%s: %d\n"</span><span class="token punctuation">,</span> url<span class="token punctuation">,</span> res<span class="token punctuation">.</span>StatusCode<span class="token punctuation">)</span>
+    <span class="token punctuation">}</span><span class="token punctuation">(</span>url<span class="token punctuation">)</span>
+<span class="token punctuation">}</span>
+
+<span class="token comment">// 等待所有 goroutine 释放它们的信号量权重</span>
+<span class="token keyword">if</span> err <span class="token operator">:=</span> sem<span class="token punctuation">.</span><span class="token function">Acquire</span><span class="token punctuation">(</span>ctx<span class="token punctuation">,</span> maxConcurrency<span class="token punctuation">)</span><span class="token punctuation">;</span> err <span class="token operator">!=</span> <span class="token boolean">nil</span> <span class="token punctuation">{<!-- --></span>
+    fmt<span class="token punctuation">.</span><span class="token function">Printf</span><span class="token punctuation">(</span><span class="token string">"等待时无法获取信号量：%v\n"</span><span class="token punctuation">,</span> err<span class="token punctuation">)</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>与手动管理通道相比，这种使用信号量包的方法提供了一种更加结构化和可读的并发处理方式。当处理复杂的同步要求或需要更精细地控制并发级别时，它特别有用。</p> 
+<h2><a id="_240"></a>那么，最好的方法是什么？</h2> 
+<p>在探索了 Go 中处理并发 HTTP 请求的各种方法之后，问题出现了：最好的方法是什么？正如软件工程中经常出现的情况一样，答案取决于应用程序的具体要求和约束。让我们考虑确定最合适方法的关键因素：</p> 
+<h3><a id="_244"></a>评估你的需求</h3> 
+<ul><li><strong>请求规模</strong>：如果你正在处理大量请求，工作池或基于信号量的方法可以更好地控制资源使用。</li><li><strong>错误处理</strong>：如果强大的错误处理至关重要，那么使用通道或信号量包可以提供更结构化的错误管理。</li><li><strong>速率限制</strong>：对于需要遵守速率限制的应用程序，使用通道或信号量包限制 goroutine 可能是有效的。</li><li><strong>复杂性和可维护性</strong>：考虑每种方法的复杂性。虽然渠道提供了更多控制，但它们也增加了复杂性。另一方面，信号量包提供了更直接的解决方案。</li></ul> 
+<h2><a id="_251"></a>错误处理</h2> 
+<p>由于 Go 中并发执行的性质，goroutines 中的错误处理是一个棘手的话题。由于 goroutine 独立运行，管理和传播错误可能具有挑战性，但对于构​​建健壮的应用程序至关重要。以下是一些有效处理并发 Go 程序中错误的策略：</p> 
+<h3><a id="_255"></a>集中误差通道</h3> 
+<p>一种常见的方法是使用集中式错误通道，所有 goroutine 都可以通过该通道发送错误。然后，主 goroutine 可以监听该通道并采取适当的操作。</p> 
+<pre><code class="prism language-go"><span class="token keyword">func</span> <span class="token function">worker</span><span class="token punctuation">(</span>errChan <span class="token keyword">chan</span><span class="token operator">&lt;-</span> <span class="token builtin">error</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token comment">// 执行任务</span>
+    <span class="token keyword">if</span> err <span class="token operator">:=</span> <span class="token function">doTask</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span> err <span class="token operator">!=</span> <span class="token boolean">nil</span> <span class="token punctuation">{<!-- --></span>
+        errChan <span class="token operator">&lt;-</span> err <span class="token comment">// 将任何错误发送到错误通道</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">func</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    errChan <span class="token operator">:=</span> <span class="token function">make</span><span class="token punctuation">(</span><span class="token keyword">chan</span> <span class="token builtin">error</span><span class="token punctuation">,</span> <span class="token number">1</span><span class="token punctuation">)</span> <span class="token comment">// 用于存储错误的缓冲通道</span>
+
+    <span class="token keyword">go</span> <span class="token function">worker</span><span class="token punctuation">(</span>errChan<span class="token punctuation">)</span>
+
+    <span class="token keyword">if</span> err <span class="token operator">:=</span> <span class="token operator">&lt;-</span>errChan<span class="token punctuation">;</span> err <span class="token operator">!=</span> <span class="token boolean">nil</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token comment">// 处理错误</span>
+        log<span class="token punctuation">.</span><span class="token function">Printf</span><span class="token punctuation">(</span><span class="token string">"发生错误：%v"</span><span class="token punctuation">,</span> err<span class="token punctuation">)</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>或者你可以在不同的 goroutine 中监听 errChan。</p> 
+<pre><code class="prism language-go"><span class="token keyword">func</span> <span class="token function">worker</span><span class="token punctuation">(</span>errChan <span class="token keyword">chan</span><span class="token operator">&lt;-</span> <span class="token builtin">error</span><span class="token punctuation">,</span> job Job<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+ <span class="token comment">// 执行任务</span>
+ <span class="token keyword">if</span> err <span class="token operator">:=</span> <span class="token function">doTask</span><span class="token punctuation">(</span>job<span class="token punctuation">)</span><span class="token punctuation">;</span> err <span class="token operator">!=</span> <span class="token boolean">nil</span> <span class="token punctuation">{<!-- --></span>
+  errChan <span class="token operator">&lt;-</span> err <span class="token comment">// 将任何错误发送到错误通道</span>
+ <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">func</span> <span class="token function">listenErrors</span><span class="token punctuation">(</span>done <span class="token keyword">chan</span> <span class="token keyword">struct</span><span class="token punctuation">{<!-- --></span><span class="token punctuation">}</span><span class="token punctuation">,</span> errChan <span class="token operator">&lt;-</span><span class="token keyword">chan</span> <span class="token builtin">error</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+ <span class="token keyword">for</span> <span class="token punctuation">{<!-- --></span>
+  <span class="token keyword">select</span> <span class="token punctuation">{<!-- --></span>
+  <span class="token keyword">case</span> err <span class="token operator">:=</span> <span class="token operator">&lt;-</span>errChan<span class="token punctuation">:</span>
+   <span class="token comment">// 处理错误</span>
+  <span class="token keyword">case</span> <span class="token operator">&lt;-</span>done<span class="token punctuation">:</span>
+   <span class="token keyword">return</span>
+  <span class="token punctuation">}</span>
+ <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">func</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+ errChan <span class="token operator">:=</span> <span class="token function">make</span><span class="token punctuation">(</span><span class="token keyword">chan</span> <span class="token builtin">error</span><span class="token punctuation">,</span> <span class="token number">1000</span><span class="token punctuation">)</span> <span class="token comment">// 存储错误的通道</span>
+ done <span class="token operator">:=</span> <span class="token function">make</span><span class="token punctuation">(</span><span class="token keyword">chan</span> <span class="token keyword">struct</span><span class="token punctuation">{<!-- --></span><span class="token punctuation">}</span><span class="token punctuation">)</span>       <span class="token comment">// 用于通知 goroutine 停止的通道</span>
+
+ <span class="token keyword">go</span> <span class="token function">listenErrors</span><span class="token punctuation">(</span>done<span class="token punctuation">,</span> errChan<span class="token punctuation">)</span>
+ 
+ <span class="token keyword">for</span> <span class="token boolean">_</span><span class="token punctuation">,</span> job <span class="token operator">:=</span> <span class="token keyword">range</span> jobs <span class="token punctuation">{<!-- --></span>
+   <span class="token keyword">go</span> <span class="token function">worker</span><span class="token punctuation">(</span>errChan<span class="token punctuation">,</span> job<span class="token punctuation">)</span>
+ <span class="token punctuation">}</span>
+
+ <span class="token comment">// 等待所有 goroutine 完成（具体方式需要根据代码的实际情况进行实现）</span>
+ done <span class="token operator">&lt;-</span> <span class="token keyword">struct</span><span class="token punctuation">{<!-- --></span><span class="token punctuation">}</span><span class="token punctuation">{<!-- --></span><span class="token punctuation">}</span> <span class="token comment">// 通知 goroutine 停止监听错误</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<h3><a id="Error_Group_315"></a>Error Group</h3> 
+<p><code>golang.org/x/sync/errgroup</code> 包提供了一种便捷的方法来对多个 goroutine 进行分组并处理它们产生的任何错误。<code>errgroup.Group</code>确保一旦任何 goroutine 发生错误，所有后续操作都将被取消。</p> 
+<pre><code class="prism language-go"><span class="token keyword">import</span> <span class="token string">"golang.org/x/sync/errgroup"</span>
+
+<span class="token keyword">func</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    g<span class="token punctuation">,</span> ctx <span class="token operator">:=</span> errgroup<span class="token punctuation">.</span><span class="token function">WithContext</span><span class="token punctuation">(</span>context<span class="token punctuation">.</span><span class="token function">Background</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+
+    urls <span class="token operator">:=</span> <span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token builtin">string</span><span class="token punctuation">{<!-- --></span><span class="token string">"http://example.com"</span><span class="token punctuation">,</span> <span class="token string">"http://example.org"</span><span class="token punctuation">}</span>
+    <span class="token keyword">for</span> <span class="token boolean">_</span><span class="token punctuation">,</span> url <span class="token operator">:=</span> <span class="token keyword">range</span> urls <span class="token punctuation">{<!-- --></span>
+        <span class="token comment">// 为每个 URL 启动一个 goroutine</span>
+        g<span class="token punctuation">.</span><span class="token function">Go</span><span class="token punctuation">(</span><span class="token keyword">func</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token builtin">error</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token comment">// 替换为实际的 HTTP 请求逻辑</span>
+            <span class="token boolean">_</span><span class="token punctuation">,</span> err <span class="token operator">:=</span> <span class="token function">fetchURL</span><span class="token punctuation">(</span>ctx<span class="token punctuation">,</span> url<span class="token punctuation">)</span>
+            <span class="token keyword">return</span> err
+        <span class="token punctuation">}</span><span class="token punctuation">)</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token comment">// 等待所有请求完成</span>
+    <span class="token keyword">if</span> err <span class="token operator">:=</span> g<span class="token punctuation">.</span><span class="token function">Wait</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span> err <span class="token operator">!=</span> <span class="token boolean">nil</span> <span class="token punctuation">{<!-- --></span>
+        log<span class="token punctuation">.</span><span class="token function">Printf</span><span class="token punctuation">(</span><span class="token string">"发生错误：%v"</span><span class="token punctuation">,</span> err<span class="token punctuation">)</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>这种方法简化了错误处理，特别是在处理大量 goroutine 时。</p> 
+<h3><a id="_Goroutine_344"></a>包装 Goroutine</h3> 
+<p>另一种策略是将每个 goroutine 包装在一个处理其错误的函数中。这种封装可以包括从恐慌或其他错误管理逻辑中恢复。</p> 
+<pre><code class="prism language-go"><span class="token keyword">func</span> <span class="token function">work</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token builtin">error</span> <span class="token punctuation">{<!-- --></span>
+  <span class="token comment">// 进行一些工作</span>
+  <span class="token keyword">return</span> err
+<span class="token punctuation">}</span>
+
+<span class="token keyword">func</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+ <span class="token keyword">go</span> <span class="token keyword">func</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+   err <span class="token operator">:=</span> <span class="token function">work</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+   <span class="token keyword">if</span> err <span class="token operator">!=</span> <span class="token boolean">nil</span> <span class="token punctuation">{<!-- --></span>
+     <span class="token comment">// 处理错误</span>
+   <span class="token punctuation">}</span>
+ <span class="token punctuation">}</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+
+ <span class="token comment">// 等待工作完成的某种方式</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>综上所述，Go 并发编程中错误处理策略的选择取决于应用程序的具体要求和上下文。无论是通过集中式错误通道、专用错误处理 goroutine、使用错误组，还是将 goroutine 包装在错误管理函数中，每种方法都有自己的优点和权衡。</p> 
+<h2><a id="_368"></a>总结</h2> 
+<p>总之，本文探讨了在 Golang 中并发发送 HTTP 请求的各种方法，这是优化 Web 应用程序的一项关键技能。我们已经讨论了基本的 goroutine、sync.WaitGroup、通道、工作池以及限制 goroutine 的方法。每种方法都有其独特的特点，可以根据特定的应用要求进行选择。</p> 
+<p>此外，本文还强调了并发 Go 程序中错误处理的重要性。管理并发环境中的错误可能具有挑战性，但对于构建健壮的应用程序至关重要。已经讨论了使用集中式错误通道、errgroup 包或使用错误处理逻辑包装 goroutine 等策略来帮助开发人员有效地处理错误。</p> 
+<p>最终，在 Go 中处理并发 HTTP 请求的最佳方法的选择取决于请求规模、错误处理要求、速率限制以及代码的整体复杂性和可维护性等因素。开发人员在应用程序中实现并发功能时应仔细考虑这些因素。</p> 
+<h3><a id="__376"></a>⭐️ 好书推荐</h3> 
+<p><b>《Go专家编程（第2版）》</b></p> 
+<p><img src="https://images2.imgbox.com/ab/b6/fC53slIM_o.png" alt="在这里插入图片描述" width="300"></p> 
+<p>【内容简介】</p> 
+<p>本书深入地讲解了Go语言常见特性的内部机制和实现方式，大部分内容源自对Go源码的分析，并从中提炼出实现原理。通过阅读本书，读者可以快速、轻松地了解Go语言的内部运作机制。</p> 
+<p>本书首先介绍常见数据结构及控制结构的实现原理，包括管道、切片、Hash表、select 和 for-range 等，这部分内容大都以几个精心准备的测验题目开头，每个测验题目均对应一个知识点，读者借此可以测验自身对该知识点的掌握程度。接着介绍了Go语言最核心的概念，包括协程的概念、协程调度模型、协程调度策略，以及内存分配和垃圾回收相关的内容。本书还介绍了测试、泛型、依赖管理等比较实用的特性。最后结合笔者的见闻，整理了一些发生在真实项目中的编程陷阱。</p> 
+<p>📚 京东购买链接：<a href="https://item.jd.com/13710415.html" rel="nofollow">《Go专家编程（第2版）》</a></p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/ac3f5f1017ac328abb531edf444a7cd2/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">Linux--gcc版本过低导致redis安装失败</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/189cd6bc27c28fbe5f20aa67f9137ece/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">MoviePy，一个超强的Python库！</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

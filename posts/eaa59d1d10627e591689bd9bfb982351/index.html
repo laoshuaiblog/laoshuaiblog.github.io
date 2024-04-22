@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>SPI、I2C、UART（即串口）三种串行总线对比 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/eaa59d1d10627e591689bd9bfb982351/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="SPI、I2C、UART（即串口）三种串行总线对比">
+  <meta property="og:description" content="以下内容转载自：https://blog.csdn.net/oqqHuTu12345678/article/details/65445338
+以下内容均来源于网络资源的学习整理，如有侵权，请告知删除。
+参考博客
+https://blog.csdn.net/xiaodingqq/article/details/80342459
+https://blog.csdn.net/weiqifa0/article/details/8845281
+https://www.zhihu.com/question/22632011
+http://www.360doc.cn/article/13253385_330564821.html
+https://blog.csdn.net/zhuyongxin_6688/article/details/78001767（有图，荐）
+https://blog.csdn.net/Setul/article/details/78968242
+目录
+一、名字
+二、UART、SPI、I2C对比
+三、串行外设接口：SPI
+1、速览点
+2、数据传输
+3、spi读写
+四、IC之间总线：I2C
+1、速览点
+2、详细介绍
+3、时序
+4、代码
+五、通用异步收发器：UART
+1、速览点
+2、通信协议
+3、详细介绍
+4、代码学习
+六、心得体会
+1、通信接口分为物理层（硬件）和协议层
+2、关于总线的选择问题
+七、UART和RS232的联系和区别
+1、RS232
+2、UART
+3、TTL和RS232
+4、嵌入式常用串口实物图
+一、名字 SPI(Serial Peripheral Interface：串行外设接口)，是Motorola公司提出的一种同步串行数据传输标准。I2C(INTER IC BUS：IC之间总线)，是由PHILIPS公司开发的两线式串行总线，用于连接微控制器及其外围设备，是微电子通信控制领域广泛采用的一种总线标准。UART(Universal Asynchronous Receiver Transmitter：通用异步收发器)，是电脑硬件的一部分，它把将要传输的资料在串行通信与并行通信之间加以转换，UART通常被集成于其他通讯接口的连接上。UART即我们通常说的“串口”。 二、UART、SPI、I2C对比 UART、SPI、I2C对比表格 对比项 UART SPI I2C信号线数目3根，RX、TX、GND4根，SDO、SDI、SCLK、SS2根，SDA、SCLK设备从属关系 ——存在主从设备。SPI用片选信号选择从机 存在主从设备。IIC用地址选择从机。通信方式全双工通信全双工通信半双工通信通信速率速度慢比I2C总线要快，速度可达到几MbpsI2C的速度比SPI慢应用领域 1、UART常用于控制计算机与串行设备的芯片
+2、就是我们经常所说的串口，基本都用于调试。
+主要应用在EEPROM，FLASH，实时时钟，AD转换器，还有数字信号处理器和数字信号解码器之间I2C一般是用在同一个板子上的2个IC之间的通信 ，它可以替代标准的并行总线，连接各种集成电路和功能模块。传输距离 I2C需要有双向IO的支持，而且使用上拉电阻，抗干扰能力较弱，一般用于同一板卡上芯片之间的通信，较少用于远距离通信通信特征异步，一帧可以传5/6/7/8位同步，SPI允许数据一位一位的传送，甚至允许暂停。从最高位开始传。同步，电平信号，一次连续8bit。从最高位开始传协议复杂度结构比较复杂SPI实现要比UART简单，UART需要固定的波特率，就是说两位数据的间隔要相等，而SPI则无所谓，因为它是有时钟的协议。协议比SPI复杂，但是连线比标准的SPI要少对比 在点对点的通信中，SPI接口不需要进行寻址操作，且为全双工通信,显得简单高效。
+在多个从器件的系统中,每个从器件需要独立的使能信号,硬件上比I2C系统要稍微复杂一些。
+三、串行外设接口：SPI 1、速览点 （1）四条信号线：串行时钟(SCLK)、串行数据输出(SDO)、串行数据输入(SDI)、片选线（SS）。（所谓的进出，是针对信号进出主机而言）
+（2）SPI总线可以实现多SPI设备互相连接。提供时钟的SPI设备为主设备(Master)，其他设备为从设备(Slave)。SCLK信号线只由主设备控制，从设备不能控制信号线。
+（3）在SPI总线上，某一时刻可以出现多个从机，但只能存在一个主机。主机通过片选线来确定要通信的从机。这就要求从机的MISO口具有三态特性，使得该口线在器件未被选通时表现为高阻抗。
+（4）主从设备间可以实现全双工通信，收发独立，操作简单，数据传输速率较高，但需要占用主机较多的口线（每个从机都需要一根片选线），而且只支持单个主机，没有指定的流控制，没有应答机制确认是否接收到数据。
+（5）数据输出通过SDO线，数据在时钟上沿或下沿时改变（即发送），在紧接着的下沿或上沿被读取，从而完成一位数据传输。数据输入也使用同样原理。因此，8位数据的传输，至少需要8次时钟信号的改变（上沿和下沿为一次）。
+（6）普通的串行通讯一次连续传送至少8位数据，而SPI允许数据一位一位的传送，甚至允许暂停，因为SCK时钟线由主控设备控制，当没有时钟跳变时，从设备不采集或传送数据。也就是说，主设备通过对SCK时钟线的控制可以完成对通讯的控制。
+（7）SPI接口在CPU和外围低速器件之间进行同步串行数据传输，在主器件的移位脉冲下，数据按位传输，高位在前（先传？），低位在后，为全双工通信。
+2、数据传输 （1）SPI在数据传输的时候，需要确定两件事情：">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2021-08-31T14:24:54+08:00">
+    <meta property="article:modified_time" content="2021-08-31T14:24:54+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">SPI、I2C、UART（即串口）三种串行总线对比</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-dark">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <p>以下内容转载自：https://blog.csdn.net/oqqHuTu12345678/article/details/65445338</p> 
+<div id="content_views" class="htmledit_views"> 
+ <p>以下内容均来源于网络资源的学习整理，如有侵权，请告知删除。</p> 
+ <p>参考博客</p> 
+ <p><a href="https://blog.csdn.net/xiaodingqq/article/details/80342459">https://blog.csdn.net/xiaodingqq/article/details/80342459</a></p> 
+ <p><a href="https://blog.csdn.net/weiqifa0/article/details/8845281">https://blog.csdn.net/weiqifa0/article/details/8845281</a></p> 
+ <p><a href="https://www.zhihu.com/question/22632011" rel="nofollow">https://www.zhihu.com/question/22632011</a></p> 
+ <p><a href="http://www.360doc.cn/article/13253385_330564821.html" rel="nofollow">http://www.360doc.cn/article/13253385_330564821.html</a></p> 
+ <p><a href="https://blog.csdn.net/zhuyongxin_6688/article/details/78001767">https://blog.csdn.net/zhuyongxin_6688/article/details/78001767</a>（有图，荐）</p> 
+ <p><a href="https://blog.csdn.net/Setul/article/details/78968242">https://blog.csdn.net/Setul/article/details/78968242</a></p> 
+ <p id="main-toc"><strong>目录</strong></p> 
+ <p id=""><a href="#t0" rel="nofollow noopener noreferrer" target="_self">一、名字</a></p> 
+ <p id=""><a href="#t1" rel="nofollow noopener noreferrer" target="_self">二、UART、SPI、I2C对比</a></p> 
+ <p id=""><a href="#t2" rel="nofollow noopener noreferrer" target="_self">三、串行外设接口：SPI</a></p> 
+ <p id=""><a href="#t3" rel="nofollow noopener noreferrer" target="_self">1、速览点</a></p> 
+ <p id=""><a href="#t4" rel="nofollow noopener noreferrer" target="_self">2、数据传输</a></p> 
+ <p id=""><a href="#t5" rel="nofollow noopener noreferrer" target="_self">3、spi读写</a></p> 
+ <p id=""><a href="#t6" rel="nofollow noopener noreferrer" target="_self">四、IC之间总线：I2C</a></p> 
+ <p><a href="#1%E3%80%81%E9%80%9F%E8%A7%88%E7%82%B9" rel="nofollow noopener noreferrer" target="_self">1、速览点</a></p> 
+ <p id=""><a href="#t7" rel="nofollow noopener noreferrer" target="_self">2、详细介绍</a></p> 
+ <p id=""><a href="#t8" rel="nofollow noopener noreferrer" target="_self">3、时序</a></p> 
+ <p id=""><a href="#t9" rel="nofollow noopener noreferrer" target="_self">4、代码</a></p> 
+ <p id=""><a href="#t10" rel="nofollow noopener noreferrer" target="_self">五、通用异步收发器：UART</a></p> 
+ <p><a href="#1%E3%80%81%E9%80%9F%E8%A7%88%E7%82%B9" rel="nofollow noopener noreferrer" target="_self">1、速览点</a></p> 
+ <p id=""><a href="#t11" rel="nofollow noopener noreferrer" target="_self">2、通信协议</a></p> 
+ <p id=""><a href="#t12" rel="nofollow noopener noreferrer" target="_self">3、详细介绍</a></p> 
+ <p id=""><a href="#t13" rel="nofollow noopener noreferrer" target="_self">4、代码学习</a></p> 
+ <p id=""><a href="#t14" rel="nofollow noopener noreferrer" target="_self">六、心得体会</a></p> 
+ <p id=""><a href="#t15" rel="nofollow noopener noreferrer" target="_self">1、通信接口分为物理层（硬件）和协议层</a></p> 
+ <p id=""><a href="#t16" rel="nofollow noopener noreferrer" target="_self">2、关于总线的选择问题</a></p> 
+ <p id=""><a href="#t17" rel="nofollow noopener noreferrer" target="_self">七、UART和RS232的联系和区别</a></p> 
+ <p id=""><a href="#t18" rel="nofollow noopener noreferrer" target="_self">1、RS232</a></p> 
+ <p id=""><a href="#t19" rel="nofollow noopener noreferrer" target="_self">2、UART</a></p> 
+ <p id=""><a href="#t20" rel="nofollow noopener noreferrer" target="_self">3、TTL和RS232</a></p> 
+ <p id=""><a href="#t21" rel="nofollow noopener noreferrer" target="_self">4、嵌入式常用串口实物图</a></p> 
+ <hr id="hr-toc"> 
+ <h2 id="%E4%B8%80%E3%80%81%E5%90%8D%E5%AD%97"><strong>一、名字</strong></h2> 
+ <ul><li><strong>SPI</strong>(Serial Peripheral Interface：<strong>串行外设接口</strong>)，是Motorola公司提出的一种<strong>同步串行数据</strong>传输标准。</li><li><strong>I2C</strong>(INTER IC BUS：<strong>IC之间总线</strong>)，是由PHILIPS公司开发的<strong>两线式串行总线</strong>，用于连接微控制器及其外围设备，是微电子通信控制领域广泛采用的一种总线标准。</li><li><strong>UART</strong>(Universal Asynchronous Receiver Transmitter：<strong>通用异步收发器</strong>)，是电脑硬件的一部分，它把将要传输的资料在串行通信与并行通信之间加以转换，UART通常被集成于其他通讯接口的连接上。<strong>UART即我们通常说的“串口”。</strong></li></ul> 
+ <p> </p> 
+ <h2 id="%E4%BA%8C%E3%80%81UART%E3%80%81SPI%E3%80%81I2C%E5%AF%B9%E6%AF%94"><strong>二、UART、SPI、I2C对比</strong></h2> 
+ <div class="table-box"> 
+  <table border="1" cellpadding="1" cellspacing="1"><caption>
+     UART、SPI、I2C对比表格 
+   </caption><tbody><tr><td>对比项</td><td>         UART</td><td>                     SPI</td><td>            I2C</td></tr><tr><td>信号线数目</td><td>3根，RX、TX、GND</td><td>4根，SDO、SDI、SCLK、SS</td><td>2根，SDA、SCLK</td></tr><tr><td>设备从属关系</td><td>           ——</td><td>存在主从设备。SPI用片选信号选择从机 </td><td>存在主从设备。IIC用地址选择从机。</td></tr><tr><td>通信方式</td><td>全双工通信</td><td>全双工通信</td><td>半双工通信</td></tr><tr><td>通信速率</td><td>速度慢</td><td>比I2C总线要快，速度可达到几Mbps</td><td>I2C的速度比SPI慢</td></tr><tr><td>应用领域</td><td> <p>1、UART常用于控制计算机与串行设备的芯片</p> <p>2、就是我们经常所说的串口，基本都用于调试。</p> </td><td>主要应用在EEPROM，FLASH，实时时钟，AD转换器，还有数字信号处理器和数字信号解码器之间</td><td>I2C一般是用在同一个板子上的2个IC之间的通信 ，它可以替代标准的并行总线，连接各种集成电路和功能模块。</td></tr><tr><td>传输距离</td><td> </td><td> </td><td>I2C需要有双向IO的支持，而且使用上拉电阻，抗干扰能力较弱，一般用于同一板卡上芯片之间的通信，较少用于远距离通信</td></tr><tr><td>通信特征</td><td>异步，一帧可以传5/6/7/8位</td><td>同步，<strong>SPI允许数据一位一位的传送</strong>，甚至允许暂停。从最高位开始传。</td><td>同步，电平信号，一次连续8bit。从最高位开始传</td></tr><tr><td>协议复杂度</td><td>结构比较复杂</td><td>SPI实现要比UART简单，UART需要固定的波特率，就是说两位数据的间隔要相等，而SPI则无所谓，因为它是有时钟的协议。</td><td>协议比SPI复杂，但是连线比标准的SPI要少</td></tr><tr><td>对比</td><td> </td><td> <p>在点对点的通信中，SPI接口不需要进行寻址操作，且为全双工通信,显得简单高效。</p> <p>在多个从器件的系统中,每个从器件需要独立的使能信号,硬件上比I2C系统要稍微复杂一些。</p> </td><td> </td></tr></tbody></table> 
+ </div> 
+ <h2 id="%E4%B8%89%E3%80%81%E4%B8%B2%E8%A1%8C%E5%A4%96%E8%AE%BE%E6%8E%A5%E5%8F%A3%EF%BC%9ASPI"><br><strong>三、串行外设接口：SPI</strong></h2> 
+ <p><img alt="" class="has" src="https://images2.imgbox.com/59/60/Xd8SldRH_o.jpg"></p> 
+ <h3 id="1%E3%80%81%E9%80%9F%E8%A7%88%E7%82%B9"><strong>1、速览点</strong></h3> 
+ <p>（1）<strong>四条信号线</strong>：串行时钟(SCLK)、串行数据输出(SDO)、串行数据输入(SDI)、片选线（SS）。（所谓的进出，是针对信号进出主机而言）</p> 
+ <p>（2）SPI总线可以实现多SPI设备互相连接。<strong>提供时钟的SPI设备为主设备(Master)</strong>，其他设备为从设备(Slave)。SCLK信号线只由主设备控制，从设备不能控制信号线。</p> 
+ <p>（3）在SPI总线上，某一时刻可以出现多个从机，但只能存在一个主机。主机<strong>通过片选线来确定要通信的从机</strong>。这就要求从机的MISO口具有三态特性，使得该口线在器件未被选通时表现为高阻抗。</p> 
+ <p>（4）主从设备间可以实现<strong>全双工通信</strong>，收发独立，操作简单，数据传输速率较高，但需要占用主机较多的口线（每个从机都需要一根片选线），而且<strong>只支持单个主机，没有指定的流控制，<strong>没</strong>有应答机制确认是否接收到数据</strong>。</p> 
+ <p>（5）数据输出通过SDO线，数据在时钟上沿或下沿时<strong>改变（即发送）</strong>，在紧接着的下沿或上沿被读取，从而完成一位数据传输。数据输入也使用同样原理。因此，8位数据的传输，至少需要8次时钟信号的改变（上沿和下沿为一次）。</p> 
+ <p>（6）普通的串行通讯一次连续传送至少8位数据，而<strong>SPI允许数据一位一位的传送</strong>，甚至允许暂停，因为SCK时钟线由主控设备控制，当没有时钟跳变时，从设备不采集或传送数据。也就是说，主设备通过对SCK时钟线的控制可以完成对通讯的控制。</p> 
+ <p>（7）SPI接口在CPU和外围低速器件之间进行同步串行数据传输，在主器件的移位脉冲下，数据按位传输，<strong>高位在前（先传？），低位在后</strong>，为全双工通信。</p> 
+ <h3 id="2%E3%80%81%E6%95%B0%E6%8D%AE%E4%BC%A0%E8%BE%93"><strong>2、数据传输</strong></h3> 
+ <p>（1）SPI在数据传输的时候，需要确定两件事情：</p> 
+ <ul><li>其一，数据是在时钟的上升沿采集还是下降沿采集；</li><li>其二，时钟的初始(空闲)状态是为高电平还是低电平。</li><li>对比：I2C空闲状态时，时钟线（不是数据线？）为高电平，数据采集时，时钟线也为高电平，但SPI给出了更自由的方式。</li></ul> 
+ <p>（2）两个概念</p> 
+ <p><strong>CPOL</strong>：时钟极性，表示SPI在空闲时，时钟信号是高电平还是低电平。</p> 
+ <p><strong>CPHA</strong>：时钟相位，表示SPI设备是在在时钟的上升沿采集还是下降沿采集。</p> 
+ <p>则SPI数据传输就有四种可能---按照标准的说法，<strong>SPI数据传输就有四种模式</strong>。</p> 
+ <p>（3）四种模式</p> 
+ <div class="table-box"> 
+  <table border="1" cellpadding="1" cellspacing="1"><tbody><tr><td>模式</td><td>CPOL</td><td>CPHA</td></tr><tr><td>0</td><td>0</td><td>0</td></tr><tr><td>1</td><td>0</td><td>1</td></tr><tr><td>2</td><td>1</td><td>0</td></tr><tr><td>3</td><td>1</td><td>1</td></tr></tbody></table> 
+ </div> 
+ <p>模式0（杠cs表示片选信号）</p> 
+ <p><img alt="" class="has" src="https://images2.imgbox.com/b3/40/4CauwULL_o.jpg"></p> 
+ <p>模式1</p> 
+ <p><img alt="" class="has" src="https://images2.imgbox.com/75/d9/tlOSEkwd_o.jpg"></p> 
+ <p>模式2</p> 
+ <p><img alt="" class="has" src="https://images2.imgbox.com/b3/7b/SnszEpZp_o.jpg"></p> 
+ <p>模式3</p> 
+ <p><img alt="" class="has" src="https://images2.imgbox.com/ee/dc/m5Qz11Fh_o.jpg"></p> 
+ <h3 id="3%E3%80%81spi%E8%AF%BB%E5%86%99"><strong>3、spi读写</strong></h3> 
+ <p>（1）SPI在硬件设计上采用的双数据线制，根据设计，在SPI通信过程中，主从设备之间会形成一个数据环形链路——即主设备向从设备写一次数据，从设备就会回一次数据(至于从设备回复的数据是否有效，则另当别论——如果有效，主设备就把它读入，否则丢弃）</p> 
+ <p><img alt="" class="has" src="https://images2.imgbox.com/f1/b0/VRxn8n5A_o.jpg"></p> 
+ <p>（2）例子：假设上升沿发送、下降沿接收、高位先发送。</p> 
+ <p>假设主机8位寄存器装的是待发送的数据10101010</p> 
+ <p>那么第一个上升沿时，数据将会是SDO=1，寄存器=0101010x</p> 
+ <p>下降沿到来的时候，SDI上的电平将存到主机的寄存器中的最低位（最右边），SDO上的电平将存到从机的寄存器的最低位（最右边），则此时主机寄存器=0101010SDI（SDI表示1bit），从机寄存器=1010101SDO。</p> 
+ <p>这样在 8个时钟脉冲以后，两个寄存器的内容互相交换一次，这样就完成里一个spi时序。</p> 
+ <p>假定主机和从机初始化就绪，并且主机的sbuff=0xaa=0b1010 1010，从机的sbuff=0x55=0b0101 0101 </p> 
+ <p>下面将分步对SPI的8个时钟周期的数据情况演示一遍</p> 
+ <p><img alt="" class="has" src="https://images2.imgbox.com/df/f7/zssO4L4I_o.jpg"></p> 
+ <p><img alt="" class="has" src="https://images2.imgbox.com/82/83/kcrWjuxb_o.jpg"></p> 
+ <p>（1）上表示上升沿、下表示下降沿，SDI、SDO相对于主机而言的。</p> 
+ <p>（2）ss引脚作为主机时，从机可以把它拉低，被动选为从机；作为从机时，可以作为片选脚用。</p> 
+ <p>（3）根据以上分析，一个完整的传送周期是16位。因为主机首先要发送命令过去，然后从机准备数据，主机在下一个8位时钟周期才把数据读回来。</p> 
+ <p> </p> 
+ <h2 id="%E5%9B%9B%E3%80%81IC%E4%B9%8B%E9%97%B4%E6%80%BB%E7%BA%BF%EF%BC%9AI2C"><strong>四、IC之间总线：I2C</strong></h2> 
+ <p><img alt="" class="has" src="https://images2.imgbox.com/79/46/jUFKf4y8_o.jpg"></p> 
+ <h3><strong>1、速览点</strong></h3> 
+ <p>（1）由图可知</p> 
+ <ul><li>由两条信号线组成：串行数据线(SDA)、串行时钟线(SCL)。</li><li>由1，2箭头指示可知，I2C器件内部采用开漏的方法，总线被上拉。</li><li>那么总线状态只能被下拉为0（当MOS管输入0的时候）。</li><li>只要有一方下拉了总线，总线状态必定为0。</li></ul> 
+ <p><strong>（2）任何一个设备都能像主控器一样工作，并控制总线，但同一时刻只能有一个主控设备。</strong></p> 
+ <p>（3）总线上的每一个设备都有一个独一无二的地址，根据设备的能力，作为发射器或接收器工作。</p> 
+ <p>（4）在它的协议体系中，传输数据时都会带上目的设备的设备地址，因此可以实现设备组网。</p> 
+ <p>（5）连接到相同总线的IC 数量只受到总线的最大电容限制。</p> 
+ <p>（6）SDA传输数据是<strong>大端传输（高位先传，低位后传？）</strong>，是<strong>以字节为单位</strong>的。</p> 
+ <p> </p> 
+ <h3 id="2%E3%80%81%E8%AF%A6%E7%BB%86%E4%BB%8B%E7%BB%8D"><strong>2、详细介绍</strong></h3> 
+ <p><a href="https://blog.csdn.net/oqqHuTu12345678/article/details/72356722">https://blog.csdn.net/oqqHuTu12345678/article/details/72356722</a></p> 
+ <h3 id="3%E3%80%81%E6%97%B6%E5%BA%8F"><strong>3、时序</strong></h3> 
+ <p><a href="https://blog.csdn.net/oqqHuTu12345678/article/details/72356722">https://blog.csdn.net/oqqHuTu12345678/article/details/72356722</a></p> 
+ <p><a href="https://blog.csdn.net/Mr_Lyoko/article/details/79598106">https://blog.csdn.net/Mr_Lyoko/article/details/79598106</a></p> 
+ <h3 id="4%E3%80%81%E4%BB%A3%E7%A0%81"><strong>4、代码</strong></h3> 
+ <p><a href="https://blog.csdn.net/oqqHuTu12345678/article/details/72358553">https://blog.csdn.net/oqqHuTu12345678/article/details/72358553</a></p> 
+ <p> </p> 
+ <p> </p> 
+ <h2 id="%E4%BA%94%E3%80%81%E9%80%9A%E7%94%A8%E5%BC%82%E6%AD%A5%E6%94%B6%E5%8F%91%E5%99%A8%EF%BC%9AUART"><strong>五、</strong><strong>通用异步收发器：</strong><strong>UART</strong></h2> 
+ <p><img alt="" class="has" src="https://images2.imgbox.com/62/11/8hgB0HK2_o.png"></p> 
+ <h3><strong>1、速览点</strong></h3> 
+ <p>（1）UART由波特率产生器、UART接收器、UART发送器组成。</p> 
+ <p>（2）由三条信号线组成：RX、TX、GND</p> 
+ <p>（3）UART包括RS232、RS499、RS423、RS422和RS485等接口标准规范和总线标准规范。它们的主要区别在于其各自的电平范围不相同。 嵌入式设备中常常使用到的是TTL、TTL转RS232的这种方式。</p> 
+ <h3 id="2%E3%80%81%E9%80%9A%E4%BF%A1%E5%8D%8F%E8%AE%AE"><strong>2、通信协议</strong></h3> 
+ <p><img alt="" class="has" src="https://images2.imgbox.com/3d/e1/eEPuNRAG_o.jpg"></p> 
+ <p>（1）起始位：先发出一个逻辑”0”的信号，表示传输字符的开始。</p> 
+ <p>（2）数据位：紧接着起始位之后。数据位的个数可以是4、5、6、7、8等，构成一个字符。通常采用ASCII码。</p> 
+ <p>（3）奇偶校验位：数据位加上这一位后，使得“1”的位数应为偶数(偶校验)或奇数(奇校验)，以此来校验资料传送的正确性。</p> 
+ <p>（4）停止位：它是一个字符数据的结束标志。可以是1位、1.5位、2位的高电平。</p> 
+ <p>（5）空闲位：处于逻辑“1”状态，表示当前线路上没有资料传送。</p> 
+ <p>（6）波特率：数据传输的速率。有以下几个档位：300、600、1200、2400、4800、9600、19200、38400、43000、56000、57600、115200。在数据传输和接收双方，需要预先统一波特率，以便正确的传输数据。</p> 
+ <h3 id="3%E3%80%81%E8%AF%A6%E7%BB%86%E4%BB%8B%E7%BB%8D"><strong>3、详细介绍</strong></h3> 
+ <p><a href="https://blog.csdn.net/oqqHuTu12345678/article/details/71597893">https://blog.csdn.net/oqqHuTu12345678/article/details/71597893</a></p> 
+ <p><a href="https://blog.csdn.net/oqqHuTu12345678/article/details/71597575">https://blog.csdn.net/oqqHuTu12345678/article/details/71597575</a></p> 
+ <p><a href="https://blog.csdn.net/xiaodingqq/article/details/80342459">https://blog.csdn.net/xiaodingqq/article/details/80342459</a></p> 
+ <h3 id="4%E3%80%81%E4%BB%A3%E7%A0%81%E5%AD%A6%E4%B9%A0"><strong>4、代码学习</strong></h3> 
+ <p><a href="https://blog.csdn.net/oqqHuTu12345678/article/details/71601785">https://blog.csdn.net/oqqHuTu12345678/article/details/71601785</a></p> 
+ <p> </p> 
+ <h2 id="%E5%85%AD%E3%80%81%E5%BF%83%E5%BE%97%E4%BD%93%E4%BC%9A"><strong>六、心得体会</strong></h2> 
+ <h3 id="1%E3%80%81%E9%80%9A%E4%BF%A1%E6%8E%A5%E5%8F%A3%E5%88%86%E4%B8%BA%E7%89%A9%E7%90%86%E5%B1%82%EF%BC%88%E7%A1%AC%E4%BB%B6%EF%BC%89%E5%92%8C%E5%8D%8F%E8%AE%AE%E5%B1%82"><strong>1、通信接口分为物理层和协议层</strong></h3> 
+ <p>（1）物理层（硬件）：如UART，PC和单片机通信，PC机的串口是232电平而单片机的串口是TTL电平，两个设备之间通信如果电平不一致就相当于语言不通，造成逻辑混乱。因此一般的单片机系统板上都会有一个串口模块电路（串口控制器）用来进行电平转换，<strong>将PC机的232电平转化成单片机能识别的232电平，</strong>常用芯片如PL2303、CH340。</p> 
+ <p>（2）协议层：就相当于规定了一个标准或规则，比如SPI协议中，主机向从机发出一个数据，从机接收到后会发出应答信号，这就是协议规定的内容，不需要人为干预。当然有的单片机没有这些协议的控制器（硬件），如51单片机和24c02通信，需要模拟IIC协议，用软件来实现硬件的功能，这就增加了软件的复杂度。</p> 
+ <h3 id="2%E3%80%81%E5%85%B3%E4%BA%8E%E6%80%BB%E7%BA%BF%E7%9A%84%E9%80%89%E6%8B%A9%E9%97%AE%E9%A2%98"><strong>2、总线的选择</strong></h3> 
+ <p>（1）SPI总线有4根线，分别是SCK，SDO，SDI，SS，可以挂多个从设备，但是在挂多个从设备时，主设备端还需要做一个n选一的译码器，用于选择将要访问的从设备，因此，主设备上的管脚需求比较多。SPI总线在只有一个从设备时，只要用到SCK，SDO，SDI这三根线，此时选择SPI比I2C总线占优。</p> 
+ <p>（2）I2C总线只有两根线，SCL，SDA.，也可以挂多个从设备，对从设备的选择直接依靠协议完成，无需增加物理连线。一般情况下，<strong>当一块电路板上有多个从设备时，往往选用I2C而非SPI</strong>，因为SPI增加了额外额硬件开销以及电路板走线。</p> 
+ <p>（3）I2C和SPI总线一般是读取一些PROM等从设备用。 而串行通信接口SCI（<strong>UART?</strong>），主要应用在两个智能设备之间的互相通讯。有别于SPI和I2C总线的主从模式，SCI可以是主-主模式。</p> 
+ <p>-----另一种说法</p> 
+ <p>（1）总线拓扑结构/信号路由/硬件资源耗费</p> 
+ <p>IIC 只需两根信号线，而标准SPI至少四根信号，如果有多个从设备，信号需要更多。一些SPI变种虽然只使用三根线——SCLK, SS和双向的MISO/MOSI，但SS线还是要和从设备一对一根。另外，如果SPI要实现多主设备结构，总线系统需额外的逻辑和线路。用IIC 构建系统总线唯一的问题是有限的7位地址空间，但这个问题新标准已经解决——使用10位地址。从第一点上看，IIC是明显的大赢家。</p> 
+ <p>（2）数据吞吐/传输速度</p> 
+ <p>如果应用中必须使用高速数据传输，那么SPI是必然的选择。因为SPI是全双工，IIC 的不是。SPI没有定义速度限制，一般的实现通常能达到甚至超过10 Mbps。IIC 最高的速度也就快速+模式（1 Mbps）和高速模式（3.4 Mbps），后面的模式还需要额外的I/O缓冲区，还并不是总是容易实现的。</p> 
+ <p>（3）优雅性</p> 
+ <p>IIC 常被称更优雅于SPI。公正的说，我们更倾向于认为两者同等优雅和健壮。IIC的优雅在于它的特色——用很轻盈的架构实现了多主设备仲裁和设备路由。但是对使用的工程师来讲，理解总线结构更费劲，而且总线的性能不高。SPI的优点在于它的结构相当的直观简单，容易实现，并且有很好扩展性。SPI的简单性不足称其优雅，因为要用SPI搭建一个有用的通信平台，还需要在SPI之上构建特定的通信协议软件。也就是说要想获得SPI特有而IIC没有的特性——高速性能，工程师们需要付出更多的劳动。另外，这种自定的工作是完全自由的，这也说明为什么SPI没有官方标准。IIC和SPI都对低速设备通信提供了很好的支持，不过，SPI适合数据流应用，而IIC更适合“字节设备”的多主设备应用。</p> 
+ <p>（4）小结</p> 
+ <p>在数字通信协议簇中，IIC和SPI常称为“小”协议，相对Ethernet, USB, SATA, PCI-Express等传输速度达数百上千兆字节每秒的总线。但是，我们不能忘记的是各种总线的用途是什么。“大”协议是用于系统外的整个系统之间通信的，“小”协议是用于系统内各芯片间的通信，没有迹象表明“大”协议有必要取代“小”协议。IIC和SPI的存在和流行体现了“够用就好”的哲学。</p> 
+ <p> </p> 
+ <h2 id="%E4%B8%83%E3%80%81UART%E5%92%8CRS232%E7%9A%84%E8%81%94%E7%B3%BB%E5%92%8C%E5%8C%BA%E5%88%AB"><strong>七、UART和RS232的联系和区别</strong></h2> 
+ <h3 id="1%E3%80%81RS232">1、<strong>RS232</strong></h3> 
+ <p><strong>RS232是早期的一种串行通信标准</strong>，它描述了使用RS-232标准进行通信时的电平要求（<strong>定义多少电平表示数据0和1</strong>）、接线要求、线材要求，其实更多的是电平标准。</p> 
+ <h3 id="2%E3%80%81UART">2、UART</h3> 
+ <p>UART是通用异步收发传输器（Universal Asynchronous Receiver/Transmitter），既然是“器”，显然，它就是个设备而已，要<strong>完成一个特定功能的硬件</strong>。它最基本的功能是<strong>串并数据转换。</strong></p> 
+ <p>另外UART还要<strong>控制数据的格式</strong>（波特率、起始位、数据位、校验位、停止位等内容），这表示它也是异步串行通信的一种方式，它本身不是协议，但<strong>具有协议的特征</strong>，然而比RS232协议更具一般性。</p> 
+ <p>因此可以说，UART同时具有硬件和协议的范畴。</p> 
+ <h3 id="3%E3%80%81TTL%E5%92%8CRS232">3、TTL和RS232</h3> 
+ <p>在嵌入式MCU中的UART使用TTL电平，而在PC中的UART使用的则是RS232电平。所以UART并没有规范该使用什么电平，取决于你使用什么通信标准。即UART可以使用RS232规定的电平来通信，也可以用其他协议规定的电平来工作。</p> 
+ <p>P.s：RS232与常见的TTL电平不同，RS232采用的是负逻辑，因此一般会使用<strong>MAX-232双向转化</strong>芯片。</p> 
+ <p>TTL标准：低电平为0，高电平为1（+5V电平，3.3V以上即可）</p> 
+ <p>RS-232标准：正电平为0，负电平为1（±15V电平）</p> 
+ <p>------------------------------------------------------------------------</p> 
+ <p>4、注意RS232不是接口标准，DB9、DB25才叫接口标准，<strong>现在RS232用的多的都是DB9</strong>。</p> 
+ <p>5、接设备的时候，一般只接GND RX TX。不会接Vcc或者+3.3v的电源线，避免与目标设备上的供电冲突。</p> 
+ <p>6、PL2303、CP2102芯片是<strong>USB转TTL串口</strong>的芯片，用USB来扩展串口(TTL电平)。</p> 
+ <p>------------------------------------------------------------------------</p> 
+ <h3 id="4%E3%80%81%E5%B5%8C%E5%85%A5%E5%BC%8F%E5%B8%B8%E7%94%A8%E4%B8%B2%E5%8F%A3%E5%AE%9E%E7%89%A9%E5%9B%BE">4、嵌入式常用串口实物图</h3> 
+ <p>（1）串口（嵌入式中指的是UART）、COM口</p> 
+ <p>（两者同概念？COM口有两种物理标准：D型9针插头和 4针杜邦头。左图是UART，中间是4针杜邦头COM口，右图是D型9针插头。由此可知，4针杜邦头和UART是一样的？另外D型9针插头我们一般只接GND、RXD、TXD，因此其实和UART是一样的）</p> 
+ <p><img alt="" class="has" src="https://images2.imgbox.com/98/3e/ZLCawfe6_o.jpg">              <img alt="" class="has" src="https://images2.imgbox.com/58/7a/9JZqFFig_o.jpg">    <img alt="" class="has" src="https://images2.imgbox.com/4f/22/7RBv65gu_o.jpg"></p> 
+ <p>（2）下图是用PL2303芯片的USB转TTL串口</p> 
+ <p><img alt="" class="has" src="https://images2.imgbox.com/cc/cf/dV0Vj8gn_o.jpg"></p> 
+ <p>下图是用CP2102芯片的USB转TTL串口</p> 
+ <p><img alt="" class="has" src="https://images2.imgbox.com/e2/32/FLeLhCok_o.jpg"></p> 
+ <p>下图是USB转RS-232串口</p> 
+ <p><img alt="" class="has" src="https://images2.imgbox.com/99/d6/KISK9JJb_o.jpg"><br>  </p> 
+</div>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/7b4d257857de09d8297a13ac6ddf7717/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">python给类创建实例时提示无参数</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/c20e6c103cd68a9da5086b653a17082f/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">式非git账户密码提交的另外一种方式SSH转ppk</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

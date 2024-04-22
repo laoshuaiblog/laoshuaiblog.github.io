@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Dubbo学习之自动配置 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/8c19bb9bb6f28128cdbe08041f2ae652/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="Dubbo学习之自动配置">
+  <meta property="og:description" content="相关阅读 Dubbo学习之监听器Dubbo学习之DubboConfigInitEventDubbo学习之PostProcessorDubbo学习之DubboReference 简介 本文基于Spring Boot 2.6.6，dubbo-spring-boot-starter 3.0.6环境。
+引入dubbo-spring-boot-starter包，就会引入其依赖dubbo-spring-boot-autoconfigure，该依赖实现了Dubbo自动配置功能，其spring.factories文件内容如下：
+org.springframework.boot.autoconfigure.EnableAutoConfiguration=\ org.apache.dubbo.spring.boot.autoconfigure.DubboRelaxedBinding2AutoConfiguration dubbo-spring-boot-autoconfigure会引入依赖dubbo-spring-boot-autoconfigure-compatible，该依赖也存在一个spring.factories文件，其内容如下：
+org.springframework.boot.autoconfigure.EnableAutoConfiguration=\ org.apache.dubbo.spring.boot.autoconfigure.DubboAutoConfiguration,\ org.apache.dubbo.spring.boot.autoconfigure.DubboRelaxedBindingAutoConfiguration,\ org.apache.dubbo.spring.boot.autoconfigure.DubboListenerAutoConfiguration org.springframework.context.ApplicationListener=\ org.apache.dubbo.spring.boot.context.event.WelcomeLogoApplicationListener org.springframework.boot.env.EnvironmentPostProcessor=\ org.apache.dubbo.spring.boot.env.DubboDefaultPropertiesEnvironmentPostProcessor org.springframework.context.ApplicationContextInitializer=\ org.apache.dubbo.spring.boot.context.DubboApplicationContextInitializer 综上可知，dubbo-spring-boot-autoconfigure引入的自动配置类如下:
+org.apache.dubbo.spring.boot.autoconfigure.DubboRelaxedBinding2AutoConfiguration；org.apache.dubbo.spring.boot.autoconfigure.DubboAutoConfiguration；org.apache.dubbo.spring.boot.autoconfigure.DubboRelaxedBindingAutoConfiguration；org.apache.dubbo.spring.boot.autoconfigure.DubboListenerAutoConfiguration； DubboAutoConfiguration DubboAutoConfiguration是Dubbo自动配置的核心类，代码如下：
+// 默认开启，除非指定dubbo.enabled=false @ConditionalOnProperty(prefix = DUBBO_PREFIX, name = &#34;enabled&#34;, matchIfMissing = true) @Configuration // 在DubboRelaxedBindingAutoConfiguration之后配置 @AutoConfigureAfter(DubboRelaxedBindingAutoConfiguration.class) // 因为配置属性类DubboConfigurationProperties @EnableConfigurationProperties(DubboConfigurationProperties.class) // 开启Dubbo @EnableDubboConfig public class DubboAutoConfiguration { // 存在dubbo.scan.base-packages属性，且存在&#34;dubbo-service-class-base-packages&#34; Bean，则引入后置处理器ServiceAnnotationPostProcessor，用于解析DubboService注解 // Sprin Boot 2.6.6环境下，BASE_PACKAGES_BEAN_NAME由DubboRelaxedBinding2AutoConfiguration完成注入 // Spring Boot 1.x环境下，BASE_PACKAGES_BEAN_NAME由DubboRelaxedBindingAutoConfiguration完成注入 @ConditionalOnProperty(prefix = DUBBO_SCAN_PREFIX, name = BASE_PACKAGES_PROPERTY_NAME) @ConditionalOnBean(name = BASE_PACKAGES_BEAN_NAME) @Bean public ServiceAnnotationPostProcessor serviceAnnotationBeanProcessor(@Qualifier(BASE_PACKAGES_BEAN_NAME) Set&amp;lt;String&amp;gt; packagesToScan) { return new ServiceAnnotationPostProcessor(packagesToScan); } } 核心功能为：">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2022-05-07T18:57:15+08:00">
+    <meta property="article:modified_time" content="2022-05-07T18:57:15+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">Dubbo学习之自动配置</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-dark">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <h2><a id="_0"></a>相关阅读</h2> 
+<ul><li><a href="https://blog.csdn.net/xing_hung/article/details/124434300">Dubbo学习之监听器</a></li><li><a href="https://blog.csdn.net/xing_hung/article/details/124470105">Dubbo学习之DubboConfigInitEvent</a></li><li><a href="https://blog.csdn.net/xing_hung/article/details/124501737">Dubbo学习之PostProcessor</a></li><li><a href="https://blog.csdn.net/xing_hung/article/details/124637308">Dubbo学习之DubboReference</a></li></ul> 
+<h2><a id="_6"></a>简介</h2> 
+<p>本文基于<code>Spring Boot 2.6.6</code>，<code>dubbo-spring-boot-starter 3.0.6</code>环境。</p> 
+<p>引入<code>dubbo-spring-boot-starter</code>包，就会引入其依赖<code>dubbo-spring-boot-autoconfigure</code>，该依赖实现了Dubbo自动配置功能，其<code>spring.factories</code>文件内容如下：</p> 
+<pre><code class="prism language-properties">org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
+org.apache.dubbo.spring.boot.autoconfigure.DubboRelaxedBinding2AutoConfiguration
+</code></pre> 
+<p><code>dubbo-spring-boot-autoconfigure</code>会引入依赖<code>dubbo-spring-boot-autoconfigure-compatible</code>，该依赖也存在一个<code>spring.factories</code>文件，其内容如下：</p> 
+<pre><code class="prism language-properties">org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
+org.apache.dubbo.spring.boot.autoconfigure.DubboAutoConfiguration,\
+org.apache.dubbo.spring.boot.autoconfigure.DubboRelaxedBindingAutoConfiguration,\
+org.apache.dubbo.spring.boot.autoconfigure.DubboListenerAutoConfiguration
+org.springframework.context.ApplicationListener=\
+org.apache.dubbo.spring.boot.context.event.WelcomeLogoApplicationListener
+org.springframework.boot.env.EnvironmentPostProcessor=\
+org.apache.dubbo.spring.boot.env.DubboDefaultPropertiesEnvironmentPostProcessor
+org.springframework.context.ApplicationContextInitializer=\
+org.apache.dubbo.spring.boot.context.DubboApplicationContextInitializer
+</code></pre> 
+<p>综上可知，<code>dubbo-spring-boot-autoconfigure</code>引入的自动配置类如下:</p> 
+<ol><li><code>org.apache.dubbo.spring.boot.autoconfigure.DubboRelaxedBinding2AutoConfiguration</code>；</li><li><code>org.apache.dubbo.spring.boot.autoconfigure.DubboAutoConfiguration</code>；</li><li><code>org.apache.dubbo.spring.boot.autoconfigure.DubboRelaxedBindingAutoConfiguration</code>；</li><li><code>org.apache.dubbo.spring.boot.autoconfigure.DubboListenerAutoConfiguration</code>；</li></ol> 
+<h2><a id="DubboAutoConfiguration_35"></a>DubboAutoConfiguration</h2> 
+<p><code>DubboAutoConfiguration</code>是Dubbo自动配置的核心类，代码如下：</p> 
+<pre><code class="prism language-java"><span class="token comment">// 默认开启，除非指定dubbo.enabled=false</span>
+<span class="token annotation punctuation">@ConditionalOnProperty</span><span class="token punctuation">(</span>prefix <span class="token operator">=</span> DUBBO_PREFIX<span class="token punctuation">,</span> name <span class="token operator">=</span> <span class="token string">"enabled"</span><span class="token punctuation">,</span> matchIfMissing <span class="token operator">=</span> <span class="token boolean">true</span><span class="token punctuation">)</span>
+<span class="token annotation punctuation">@Configuration</span>
+<span class="token comment">// 在DubboRelaxedBindingAutoConfiguration之后配置</span>
+<span class="token annotation punctuation">@AutoConfigureAfter</span><span class="token punctuation">(</span><span class="token class-name">DubboRelaxedBindingAutoConfiguration</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">)</span>
+<span class="token comment">// 因为配置属性类DubboConfigurationProperties</span>
+<span class="token annotation punctuation">@EnableConfigurationProperties</span><span class="token punctuation">(</span><span class="token class-name">DubboConfigurationProperties</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">)</span>
+<span class="token comment">// 开启Dubbo</span>
+<span class="token annotation punctuation">@EnableDubboConfig</span>
+<span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">DubboAutoConfiguration</span> <span class="token punctuation">{<!-- --></span>
+
+    <span class="token comment">// 存在dubbo.scan.base-packages属性，且存在"dubbo-service-class-base-packages" Bean，则引入后置处理器ServiceAnnotationPostProcessor，用于解析DubboService注解</span>
+    <span class="token comment">// Sprin Boot 2.6.6环境下，BASE_PACKAGES_BEAN_NAME由DubboRelaxedBinding2AutoConfiguration完成注入</span>
+    <span class="token comment">// Spring Boot 1.x环境下，BASE_PACKAGES_BEAN_NAME由DubboRelaxedBindingAutoConfiguration完成注入</span>
+    <span class="token annotation punctuation">@ConditionalOnProperty</span><span class="token punctuation">(</span>prefix <span class="token operator">=</span> DUBBO_SCAN_PREFIX<span class="token punctuation">,</span> name <span class="token operator">=</span> BASE_PACKAGES_PROPERTY_NAME<span class="token punctuation">)</span>
+    <span class="token annotation punctuation">@ConditionalOnBean</span><span class="token punctuation">(</span>name <span class="token operator">=</span> BASE_PACKAGES_BEAN_NAME<span class="token punctuation">)</span>
+    <span class="token annotation punctuation">@Bean</span>
+    <span class="token keyword">public</span> <span class="token class-name">ServiceAnnotationPostProcessor</span> <span class="token function">serviceAnnotationBeanProcessor</span><span class="token punctuation">(</span><span class="token annotation punctuation">@Qualifier</span><span class="token punctuation">(</span>BASE_PACKAGES_BEAN_NAME<span class="token punctuation">)</span>
+                                                                       <span class="token class-name">Set</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">String</span><span class="token punctuation">&gt;</span></span> packagesToScan<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">return</span> <span class="token keyword">new</span> <span class="token class-name">ServiceAnnotationPostProcessor</span><span class="token punctuation">(</span>packagesToScan<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>核心功能为：</p> 
+<ol><li>引入属性配置类<code>DubboConfigurationProperties</code>；</li><li>通过注解<code>EnableDubboConfig</code>开启Dubbo功能；</li><li>注入<code>ServiceAnnotationPostProcessor</code>用于解析<code>DubboService</code>注解；</li></ol> 
+<h3><a id="DubboConfigurationProperties_67"></a>DubboConfigurationProperties</h3> 
+<p><code>DubboConfigurationProperties</code>声明了Dubbo中各组件的配置参数信息，核心代码如下：</p> 
+<pre><code class="prism language-java"><span class="token annotation punctuation">@ConfigurationProperties</span><span class="token punctuation">(</span>DUBBO_PREFIX<span class="token punctuation">)</span>
+<span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">DubboConfigurationProperties</span> <span class="token punctuation">{<!-- --></span>
+
+    <span class="token annotation punctuation">@NestedConfigurationProperty</span>
+    <span class="token keyword">private</span> <span class="token class-name">Config</span> config <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">Config</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token annotation punctuation">@NestedConfigurationProperty</span>
+    <span class="token keyword">private</span> <span class="token class-name">Scan</span> scan <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">Scan</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token comment">// Single Config Bindings</span>
+    <span class="token annotation punctuation">@NestedConfigurationProperty</span>
+    <span class="token keyword">private</span> <span class="token class-name">ApplicationConfig</span> application <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">ApplicationConfig</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token annotation punctuation">@NestedConfigurationProperty</span>
+    <span class="token keyword">private</span> <span class="token class-name">ModuleConfig</span> <span class="token keyword">module</span> <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">ModuleConfig</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token annotation punctuation">@NestedConfigurationProperty</span>
+    <span class="token keyword">private</span> <span class="token class-name">RegistryConfig</span> registry <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">RegistryConfig</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token annotation punctuation">@NestedConfigurationProperty</span>
+    <span class="token keyword">private</span> <span class="token class-name">ProtocolConfig</span> protocol <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">ProtocolConfig</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token annotation punctuation">@NestedConfigurationProperty</span>
+    <span class="token keyword">private</span> <span class="token class-name">MonitorConfig</span> monitor <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">MonitorConfig</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token annotation punctuation">@NestedConfigurationProperty</span>
+    <span class="token keyword">private</span> <span class="token class-name">ProviderConfig</span> provider <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">ProviderConfig</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token annotation punctuation">@NestedConfigurationProperty</span>
+    <span class="token keyword">private</span> <span class="token class-name">ConsumerConfig</span> consumer <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">ConsumerConfig</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token annotation punctuation">@NestedConfigurationProperty</span>
+    <span class="token keyword">private</span> <span class="token class-name">ConfigCenterBean</span> configCenter <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">ConfigCenterBean</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token annotation punctuation">@NestedConfigurationProperty</span>
+    <span class="token keyword">private</span> <span class="token class-name">MetadataReportConfig</span> metadataReport <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">MetadataReportConfig</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token annotation punctuation">@NestedConfigurationProperty</span>
+    <span class="token keyword">private</span> <span class="token class-name">MetricsConfig</span> metrics <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">MetricsConfig</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token comment">// Multiple Config Bindings</span>
+
+    <span class="token keyword">private</span> <span class="token class-name">Map</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">String</span><span class="token punctuation">,</span> <span class="token class-name">ModuleConfig</span><span class="token punctuation">&gt;</span></span> modules <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">LinkedHashMap</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token punctuation">&gt;</span></span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">private</span> <span class="token class-name">Map</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">String</span><span class="token punctuation">,</span> <span class="token class-name">RegistryConfig</span><span class="token punctuation">&gt;</span></span> registries <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">LinkedHashMap</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token punctuation">&gt;</span></span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">private</span> <span class="token class-name">Map</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">String</span><span class="token punctuation">,</span> <span class="token class-name">ProtocolConfig</span><span class="token punctuation">&gt;</span></span> protocols <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">LinkedHashMap</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token punctuation">&gt;</span></span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">private</span> <span class="token class-name">Map</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">String</span><span class="token punctuation">,</span> <span class="token class-name">MonitorConfig</span><span class="token punctuation">&gt;</span></span> monitors <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">LinkedHashMap</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token punctuation">&gt;</span></span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">private</span> <span class="token class-name">Map</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">String</span><span class="token punctuation">,</span> <span class="token class-name">ProviderConfig</span><span class="token punctuation">&gt;</span></span> providers <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">LinkedHashMap</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token punctuation">&gt;</span></span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">private</span> <span class="token class-name">Map</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">String</span><span class="token punctuation">,</span> <span class="token class-name">ConsumerConfig</span><span class="token punctuation">&gt;</span></span> consumers <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">LinkedHashMap</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token punctuation">&gt;</span></span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">private</span> <span class="token class-name">Map</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">String</span><span class="token punctuation">,</span> <span class="token class-name">ConfigCenterBean</span><span class="token punctuation">&gt;</span></span> configCenters <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">LinkedHashMap</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token punctuation">&gt;</span></span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">private</span> <span class="token class-name">Map</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">String</span><span class="token punctuation">,</span> <span class="token class-name">MetadataReportConfig</span><span class="token punctuation">&gt;</span></span> metadataReports <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">LinkedHashMap</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token punctuation">&gt;</span></span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">private</span> <span class="token class-name">Map</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">String</span><span class="token punctuation">,</span> <span class="token class-name">MetricsConfig</span><span class="token punctuation">&gt;</span></span> metricses <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">LinkedHashMap</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token punctuation">&gt;</span></span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<h3><a id="EnableDubboConfig_132"></a>EnableDubboConfig</h3> 
+<p><code>EnableDubboConfig</code>的核心就是引入<code>DubboConfigConfigurationRegistrar</code>，代码如下：</p> 
+<pre><code class="prism language-java"><span class="token annotation punctuation">@Target</span><span class="token punctuation">(</span><span class="token punctuation">{<!-- --></span><span class="token class-name">ElementType</span><span class="token punctuation">.</span>TYPE<span class="token punctuation">}</span><span class="token punctuation">)</span>
+<span class="token annotation punctuation">@Retention</span><span class="token punctuation">(</span><span class="token class-name">RetentionPolicy</span><span class="token punctuation">.</span>RUNTIME<span class="token punctuation">)</span>
+<span class="token annotation punctuation">@Inherited</span>
+<span class="token annotation punctuation">@Documented</span>
+<span class="token comment">// 借助Import机制引入DubboConfigConfigurationRegistrar</span>
+<span class="token annotation punctuation">@Import</span><span class="token punctuation">(</span><span class="token class-name">DubboConfigConfigurationRegistrar</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">)</span>
+<span class="token keyword">public</span> <span class="token annotation punctuation">@interface</span> <span class="token class-name">EnableDubboConfig</span> <span class="token punctuation">{<!-- --></span>
+
+    <span class="token comment">// 现在不用了，详见DubboConfigConfigurationRegistrar</span>
+    <span class="token keyword">boolean</span> <span class="token function">multiple</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token keyword">default</span> <span class="token boolean">true</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p><code>DubboConfigConfigurationRegistrar</code>的<code>registerBeanDefinitions</code>方法就是初始化Dubbo相关的Bean，代码如下：</p> 
+<pre><code class="prism language-java"><span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">DubboConfigConfigurationRegistrar</span> <span class="token keyword">implements</span> <span class="token class-name">ImportBeanDefinitionRegistrar</span> <span class="token punctuation">{<!-- --></span>
+
+    <span class="token annotation punctuation">@Override</span>
+    <span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">registerBeanDefinitions</span><span class="token punctuation">(</span><span class="token class-name">AnnotationMetadata</span> importingClassMetadata<span class="token punctuation">,</span> <span class="token class-name">BeanDefinitionRegistry</span> registry<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+
+        <span class="token comment">// 初始化Dubbo 相关Bean</span>
+        <span class="token class-name">DubboSpringInitializer</span><span class="token punctuation">.</span><span class="token function">initialize</span><span class="token punctuation">(</span>registry<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        <span class="token comment">// Config beans creating from props have move to ConfigManager</span>
+<span class="token comment">//        AnnotationAttributes attributes = AnnotationAttributes.fromMap(</span>
+<span class="token comment">//                importingClassMetadata.getAnnotationAttributes(EnableDubboConfig.class.getName()));</span>
+<span class="token comment">//</span>
+<span class="token comment">//        boolean multiple = attributes.getBoolean("multiple");</span>
+<span class="token comment">//</span>
+<span class="token comment">//        // Single Config Bindings</span>
+<span class="token comment">//        registerBeans(registry, DubboConfigConfiguration.Single.class);</span>
+<span class="token comment">//</span>
+<span class="token comment">//        if (multiple) { // Since 2.6.6 https://github.com/apache/dubbo/issues/3193</span>
+<span class="token comment">//            registerBeans(registry, DubboConfigConfiguration.Multiple.class);</span>
+<span class="token comment">//        }</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<h4><a id="DubboSpringInitializer_174"></a>DubboSpringInitializer</h4> 
+<p><code>DubboSpringInitializer</code>是Dubbo Spring初始化的入口，其<code>initialize</code>代码如下：</p> 
+<pre><code class="prism language-java"><span class="token keyword">public</span> <span class="token keyword">static</span> <span class="token keyword">void</span> <span class="token function">initialize</span><span class="token punctuation">(</span><span class="token class-name">BeanDefinitionRegistry</span> registry<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+
+    <span class="token comment">// 放入DubboSpringInitContext</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>contextMap<span class="token punctuation">.</span><span class="token function">putIfAbsent</span><span class="token punctuation">(</span>registry<span class="token punctuation">,</span> <span class="token keyword">new</span> <span class="token class-name">DubboSpringInitContext</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token operator">!=</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token comment">// 若已存在，则已初始化，直接退出</span>
+        <span class="token keyword">return</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token class-name">DubboSpringInitContext</span> context <span class="token operator">=</span> contextMap<span class="token punctuation">.</span><span class="token function">get</span><span class="token punctuation">(</span>registry<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token comment">// 根据BeanDefinitionRegistry查找ConfigurableListableBeanFactory</span>
+    <span class="token class-name">ConfigurableListableBeanFactory</span> beanFactory <span class="token operator">=</span> <span class="token function">findBeanFactory</span><span class="token punctuation">(</span>registry<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token comment">// 初始化DubboSpringInitContext</span>
+    <span class="token function">initContext</span><span class="token punctuation">(</span>context<span class="token punctuation">,</span> registry<span class="token punctuation">,</span> beanFactory<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">private</span> <span class="token keyword">static</span> <span class="token keyword">void</span> <span class="token function">initContext</span><span class="token punctuation">(</span><span class="token class-name">DubboSpringInitContext</span> context<span class="token punctuation">,</span> <span class="token class-name">BeanDefinitionRegistry</span> registry<span class="token punctuation">,</span>
+                                <span class="token class-name">ConfigurableListableBeanFactory</span> beanFactory<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    context<span class="token punctuation">.</span><span class="token function">setRegistry</span><span class="token punctuation">(</span>registry<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    context<span class="token punctuation">.</span><span class="token function">setBeanFactory</span><span class="token punctuation">(</span>beanFactory<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token comment">// 支持用户定制化处理DubboSpringInitContext</span>
+    <span class="token function">customize</span><span class="token punctuation">(</span>context<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token comment">// 初始化ModuleModel</span>
+    <span class="token class-name">ModuleModel</span> moduleModel <span class="token operator">=</span> context<span class="token punctuation">.</span><span class="token function">getModuleModel</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>moduleModel <span class="token operator">==</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token comment">// 如果当前DubboSpringInitContext中不存在ModuleModel，则使用默认值</span>
+
+        <span class="token class-name">ApplicationModel</span> applicationModel<span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">findContextForApplication</span><span class="token punctuation">(</span><span class="token class-name">ApplicationModel</span><span class="token punctuation">.</span><span class="token function">defaultModel</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token operator">==</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token comment">// 第一个DubboSpringInitContext使用ApplicationModel.defaultModel()</span>
+            applicationModel <span class="token operator">=</span> <span class="token class-name">ApplicationModel</span><span class="token punctuation">.</span><span class="token function">defaultModel</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            logger<span class="token punctuation">.</span><span class="token function">info</span><span class="token punctuation">(</span><span class="token string">"Use default application: "</span> <span class="token operator">+</span> <span class="token function">safeGetModelDesc</span><span class="token punctuation">(</span>applicationModel<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token comment">// 后续DubboSpringInitContext使用FrameworkModel.defaultModel().newApplication()</span>
+            applicationModel <span class="token operator">=</span> <span class="token class-name">FrameworkModel</span><span class="token punctuation">.</span><span class="token function">defaultModel</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">newApplication</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            logger<span class="token punctuation">.</span><span class="token function">info</span><span class="token punctuation">(</span><span class="token string">"Create new application: "</span> <span class="token operator">+</span> <span class="token function">safeGetModelDesc</span><span class="token punctuation">(</span>applicationModel<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+
+        moduleModel <span class="token operator">=</span> applicationModel<span class="token punctuation">.</span><span class="token function">getDefaultModule</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        context<span class="token punctuation">.</span><span class="token function">setModuleModel</span><span class="token punctuation">(</span>moduleModel<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        logger<span class="token punctuation">.</span><span class="token function">info</span><span class="token punctuation">(</span><span class="token string">"Use default module model of target application: "</span> <span class="token operator">+</span> <span class="token function">safeGetModelDesc</span><span class="token punctuation">(</span>moduleModel<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{<!-- --></span>
+        logger<span class="token punctuation">.</span><span class="token function">info</span><span class="token punctuation">(</span><span class="token string">"Use module model from customizer: "</span> <span class="token operator">+</span> <span class="token function">safeGetModelDesc</span><span class="token punctuation">(</span>moduleModel<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    logger<span class="token punctuation">.</span><span class="token function">info</span><span class="token punctuation">(</span><span class="token string">"Bind "</span> <span class="token operator">+</span> <span class="token function">safeGetModelDesc</span><span class="token punctuation">(</span>moduleModel<span class="token punctuation">)</span> <span class="token operator">+</span> <span class="token string">" to spring container: "</span> <span class="token operator">+</span> <span class="token class-name">ObjectUtils</span><span class="token punctuation">.</span><span class="token function">identityToString</span><span class="token punctuation">(</span>registry<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>context<span class="token punctuation">.</span><span class="token function">getModuleAttributes</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">size</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">&gt;</span> <span class="token number">0</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        context<span class="token punctuation">.</span><span class="token function">getModuleModel</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">getAttributes</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">putAll</span><span class="token punctuation">(</span>context<span class="token punctuation">.</span><span class="token function">getModuleAttributes</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token comment">// 注册Dubbo 初始化上下文到Spring容器中</span>
+    <span class="token function">registerContextBeans</span><span class="token punctuation">(</span>beanFactory<span class="token punctuation">,</span> context<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token comment">// 标记绑定标识</span>
+    context<span class="token punctuation">.</span><span class="token function">markAsBound</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token comment">// 注册Dubbo Bean</span>
+    <span class="token class-name">DubboBeanUtils</span><span class="token punctuation">.</span><span class="token function">registerCommonBeans</span><span class="token punctuation">(</span>registry<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p><code>DubboSpringInitializer.initContext</code>将初始化后的<code>DubboSpringInitContext</code>注册到Spring容器中，用户可实现自定义<code>DubboSpringInitCustomizer</code>来定制化处理<code>DubboSpringInitContext</code>；再借助<code>DubboBeanUtils</code>注册其它Dubbo Bean；<br> <code>DubboBeanUtils.registerCommonBeans</code>方法代码如下：</p> 
+<pre><code class="prism language-java"><span class="token keyword">static</span> <span class="token keyword">void</span> <span class="token function">registerCommonBeans</span><span class="token punctuation">(</span><span class="token class-name">BeanDefinitionRegistry</span> registry<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+
+    <span class="token function">registerInfrastructureBean</span><span class="token punctuation">(</span>registry<span class="token punctuation">,</span> <span class="token class-name">ServicePackagesHolder</span><span class="token punctuation">.</span>BEAN_NAME<span class="token punctuation">,</span> <span class="token class-name">ServicePackagesHolder</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token function">registerInfrastructureBean</span><span class="token punctuation">(</span>registry<span class="token punctuation">,</span> <span class="token class-name">ReferenceBeanManager</span><span class="token punctuation">.</span>BEAN_NAME<span class="token punctuation">,</span> <span class="token class-name">ReferenceBeanManager</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token comment">// Since 2.5.7 Register @Reference Annotation Bean Processor as an infrastructure Bean</span>
+    <span class="token function">registerInfrastructureBean</span><span class="token punctuation">(</span>registry<span class="token punctuation">,</span> <span class="token class-name">ReferenceAnnotationBeanPostProcessor</span><span class="token punctuation">.</span>BEAN_NAME<span class="token punctuation">,</span>
+        <span class="token class-name">ReferenceAnnotationBeanPostProcessor</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token comment">// TODO Whether DubboConfigAliasPostProcessor can be removed ?</span>
+    <span class="token comment">// Since 2.7.4 [Feature] https://github.com/apache/dubbo/issues/5093</span>
+    <span class="token function">registerInfrastructureBean</span><span class="token punctuation">(</span>registry<span class="token punctuation">,</span> <span class="token class-name">DubboConfigAliasPostProcessor</span><span class="token punctuation">.</span>BEAN_NAME<span class="token punctuation">,</span>
+        <span class="token class-name">DubboConfigAliasPostProcessor</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token comment">// Since 2.7.4 Register DubboBootstrapApplicationListener as an infrastructure Bean</span>
+<span class="token comment">//        registerInfrastructureBean(registry, DubboBootstrapApplicationListener.BEAN_NAME,</span>
+<span class="token comment">//            DubboBootstrapApplicationListener.class);</span>
+
+    <span class="token comment">// register ApplicationListeners</span>
+    <span class="token function">registerInfrastructureBean</span><span class="token punctuation">(</span>registry<span class="token punctuation">,</span> <span class="token class-name">DubboDeployApplicationListener</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">.</span><span class="token function">getName</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token class-name">DubboDeployApplicationListener</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">registerInfrastructureBean</span><span class="token punctuation">(</span>registry<span class="token punctuation">,</span> <span class="token class-name">DubboConfigApplicationListener</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">.</span><span class="token function">getName</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token class-name">DubboConfigApplicationListener</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token comment">// Since 2.7.6 Register DubboConfigDefaultPropertyValueBeanPostProcessor as an infrastructure Bean</span>
+    <span class="token function">registerInfrastructureBean</span><span class="token punctuation">(</span>registry<span class="token punctuation">,</span> <span class="token class-name">DubboConfigDefaultPropertyValueBeanPostProcessor</span><span class="token punctuation">.</span>BEAN_NAME<span class="token punctuation">,</span>
+        <span class="token class-name">DubboConfigDefaultPropertyValueBeanPostProcessor</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token comment">// Dubbo config initializer</span>
+    <span class="token function">registerInfrastructureBean</span><span class="token punctuation">(</span>registry<span class="token punctuation">,</span> <span class="token class-name">DubboConfigBeanInitializer</span><span class="token punctuation">.</span>BEAN_NAME<span class="token punctuation">,</span> <span class="token class-name">DubboConfigBeanInitializer</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token comment">// register infra bean if not exists later</span>
+    <span class="token function">registerInfrastructureBean</span><span class="token punctuation">(</span>registry<span class="token punctuation">,</span> <span class="token class-name">DubboInfraBeanRegisterPostProcessor</span><span class="token punctuation">.</span>BEAN_NAME<span class="token punctuation">,</span> <span class="token class-name">DubboInfraBeanRegisterPostProcessor</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<h3><a id="ServiceAnnotationPostProcessor_279"></a>ServiceAnnotationPostProcessor</h3> 
+<p>当存在配置参数<code>dubbo.scan.base-packages</code>且该参数以<code>dubbo-service-class-base-packages</code>Bean存在于Spring容器中，那么就需要注入<code>ServiceAnnotationPostProcessor</code>用于发现注解<code>DubboService</code>标注的类；<br> <code>ServiceAnnotationPostProcessor</code>支持的注解类型如下：</p> 
+<pre><code class="prism language-java"><span class="token keyword">private</span> <span class="token keyword">final</span> <span class="token keyword">static</span> <span class="token class-name">List</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Class</span><span class="token punctuation">&lt;</span><span class="token operator">?</span> <span class="token keyword">extends</span> <span class="token class-name">Annotation</span><span class="token punctuation">&gt;</span><span class="token punctuation">&gt;</span></span> serviceAnnotationTypes <span class="token operator">=</span> <span class="token function">asList</span><span class="token punctuation">(</span>
+        <span class="token comment">// @since 2.7.7 Add the @DubboService , the issue : https://github.com/apache/dubbo/issues/6007</span>
+        <span class="token class-name">DubboService</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">,</span>
+        <span class="token comment">// @since 2.7.0 the substitute @com.alibaba.dubbo.config.annotation.Service</span>
+        <span class="token class-name">Service</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">,</span>
+        <span class="token comment">// @since 2.7.3 Add the compatibility for legacy Dubbo's @Service , the issue : https://github.com/apache/dubbo/issues/4330</span>
+        <span class="token class-name"><span class="token namespace">com<span class="token punctuation">.</span>alibaba<span class="token punctuation">.</span>dubbo<span class="token punctuation">.</span>config<span class="token punctuation">.</span>annotation<span class="token punctuation">.</span></span>Service</span><span class="token punctuation">.</span><span class="token keyword">class</span>
+<span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre> 
+<p><code>ServiceAnnotationPostProcessor</code>实现了接口<code>BeanFactoryPostProcessor</code>，可用于在Bean初始化前对BeanFactory做处理；<code>AbstractApplicationContext.refresh</code>方法中执行<code>invokeBeanFactoryPostProcessors(beanFactory)</code>，会执行Spring容器中所有的<code>BeanFactoryPostProcessor</code>；<code>ServiceAnnotationPostProcessor.postProcessBeanDefinitionRegistry</code>主要是将指定扫描包路径下的标注了Dubbo Service注解的类包装为<code>AbstractBeanDefinition</code>并注入Spring容器，核心代码如下：</p> 
+<pre><code class="prism language-java"><span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">postProcessBeanDefinitionRegistry</span><span class="token punctuation">(</span><span class="token class-name">BeanDefinitionRegistry</span> registry<span class="token punctuation">)</span> <span class="token keyword">throws</span> <span class="token class-name">BeansException</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">this</span><span class="token punctuation">.</span>registry <span class="token operator">=</span> registry<span class="token punctuation">;</span>
+    <span class="token function">scanServiceBeans</span><span class="token punctuation">(</span>resolvedPackagesToScan<span class="token punctuation">,</span> registry<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">private</span> <span class="token keyword">void</span> <span class="token function">scanServiceBeans</span><span class="token punctuation">(</span><span class="token class-name">Set</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">String</span><span class="token punctuation">&gt;</span></span> packagesToScan<span class="token punctuation">,</span> <span class="token class-name">BeanDefinitionRegistry</span> registry<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+
+    scaned <span class="token operator">=</span> <span class="token boolean">true</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token class-name">CollectionUtils</span><span class="token punctuation">.</span><span class="token function">isEmpty</span><span class="token punctuation">(</span>packagesToScan<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token comment">// 如果不存在指定的扫描路径，则无需扫描</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>logger<span class="token punctuation">.</span><span class="token function">isWarnEnabled</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            logger<span class="token punctuation">.</span><span class="token function">warn</span><span class="token punctuation">(</span><span class="token string">"packagesToScan is empty , ServiceBean registry will be ignored!"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        <span class="token keyword">return</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token class-name">DubboClassPathBeanDefinitionScanner</span> scanner <span class="token operator">=</span>
+            <span class="token keyword">new</span> <span class="token class-name">DubboClassPathBeanDefinitionScanner</span><span class="token punctuation">(</span>registry<span class="token punctuation">,</span> environment<span class="token punctuation">,</span> resourceLoader<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token class-name">BeanNameGenerator</span> beanNameGenerator <span class="token operator">=</span> <span class="token function">resolveBeanNameGenerator</span><span class="token punctuation">(</span>registry<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    scanner<span class="token punctuation">.</span><span class="token function">setBeanNameGenerator</span><span class="token punctuation">(</span>beanNameGenerator<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token class-name">Class</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token operator">?</span> <span class="token keyword">extends</span> <span class="token class-name">Annotation</span><span class="token punctuation">&gt;</span></span> annotationType <span class="token operator">:</span> serviceAnnotationTypes<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        scanner<span class="token punctuation">.</span><span class="token function">addIncludeFilter</span><span class="token punctuation">(</span><span class="token keyword">new</span> <span class="token class-name">AnnotationTypeFilter</span><span class="token punctuation">(</span>annotationType<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token class-name">ScanExcludeFilter</span> scanExcludeFilter <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">ScanExcludeFilter</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    scanner<span class="token punctuation">.</span><span class="token function">addExcludeFilter</span><span class="token punctuation">(</span>scanExcludeFilter<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token class-name">String</span> packageToScan <span class="token operator">:</span> packagesToScan<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+
+        <span class="token comment">// 如果已经扫描过则无需再扫描</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>servicePackagesHolder<span class="token punctuation">.</span><span class="token function">isPackageScanned</span><span class="token punctuation">(</span>packageToScan<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span>logger<span class="token punctuation">.</span><span class="token function">isInfoEnabled</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                logger<span class="token punctuation">.</span><span class="token function">info</span><span class="token punctuation">(</span><span class="token string">"Ignore package who has already bean scanned: "</span> <span class="token operator">+</span> packageToScan<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+            <span class="token keyword">continue</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+
+        <span class="token comment">// 注册packageToScan包下Dubbo Service BeanDefinition</span>
+        scanner<span class="token punctuation">.</span><span class="token function">scan</span><span class="token punctuation">(</span>packageToScan<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        <span class="token comment">// 查找packageToScan包下所有的Dubbo Service，并包装为BeanDefinitionHolder</span>
+        <span class="token class-name">Set</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">BeanDefinitionHolder</span><span class="token punctuation">&gt;</span></span> beanDefinitionHolders <span class="token operator">=</span>
+                <span class="token function">findServiceBeanDefinitionHolders</span><span class="token punctuation">(</span>scanner<span class="token punctuation">,</span> packageToScan<span class="token punctuation">,</span> registry<span class="token punctuation">,</span> beanNameGenerator<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span><span class="token class-name">CollectionUtils</span><span class="token punctuation">.</span><span class="token function">isEmpty</span><span class="token punctuation">(</span>beanDefinitionHolders<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span>logger<span class="token punctuation">.</span><span class="token function">isInfoEnabled</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                <span class="token class-name">List</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">String</span><span class="token punctuation">&gt;</span></span> serviceClasses <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">ArrayList</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token punctuation">&gt;</span></span><span class="token punctuation">(</span>beanDefinitionHolders<span class="token punctuation">.</span><span class="token function">size</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token class-name">BeanDefinitionHolder</span> beanDefinitionHolder <span class="token operator">:</span> beanDefinitionHolders<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                    serviceClasses<span class="token punctuation">.</span><span class="token function">add</span><span class="token punctuation">(</span>beanDefinitionHolder<span class="token punctuation">.</span><span class="token function">getBeanDefinition</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">getBeanClassName</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token punctuation">}</span>
+                logger<span class="token punctuation">.</span><span class="token function">info</span><span class="token punctuation">(</span><span class="token string">"Found "</span> <span class="token operator">+</span> beanDefinitionHolders<span class="token punctuation">.</span><span class="token function">size</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">+</span> <span class="token string">" classes annotated by Dubbo @Service under package ["</span> <span class="token operator">+</span> packageToScan <span class="token operator">+</span> <span class="token string">"]: "</span> <span class="token operator">+</span> serviceClasses<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+
+            <span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token class-name">BeanDefinitionHolder</span> beanDefinitionHolder <span class="token operator">:</span> beanDefinitionHolders<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                <span class="token comment">// 处理经过扫描得到的BeanDefinitionHolder</span>
+                <span class="token function">processScannedBeanDefinition</span><span class="token punctuation">(</span>beanDefinitionHolder<span class="token punctuation">,</span> registry<span class="token punctuation">,</span> scanner<span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token comment">// 缓存该Class，避免再次扫描</span>
+                servicePackagesHolder<span class="token punctuation">.</span><span class="token function">addScannedClass</span><span class="token punctuation">(</span>beanDefinitionHolder<span class="token punctuation">.</span><span class="token function">getBeanDefinition</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">getBeanClassName</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+        <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span>logger<span class="token punctuation">.</span><span class="token function">isWarnEnabled</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                logger<span class="token punctuation">.</span><span class="token function">warn</span><span class="token punctuation">(</span><span class="token string">"No class annotated by Dubbo @Service was found under package ["</span>
+                        <span class="token operator">+</span> packageToScan <span class="token operator">+</span> <span class="token string">"], ignore re-scanned classes: "</span> <span class="token operator">+</span> scanExcludeFilter<span class="token punctuation">.</span><span class="token function">getExcludedCount</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+        <span class="token punctuation">}</span>
+        <span class="token comment">// 缓存该包，避免再次扫描</span>
+
+        servicePackagesHolder<span class="token punctuation">.</span><span class="token function">addScannedPackage</span><span class="token punctuation">(</span>packageToScan<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">private</span> <span class="token keyword">void</span> <span class="token function">processScannedBeanDefinition</span><span class="token punctuation">(</span><span class="token class-name">BeanDefinitionHolder</span> beanDefinitionHolder<span class="token punctuation">,</span> <span class="token class-name">BeanDefinitionRegistry</span> registry<span class="token punctuation">,</span>
+                                          <span class="token class-name">DubboClassPathBeanDefinitionScanner</span> scanner<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+
+    <span class="token class-name">Class</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token operator">?</span><span class="token punctuation">&gt;</span></span> beanClass <span class="token operator">=</span> <span class="token function">resolveClass</span><span class="token punctuation">(</span>beanDefinitionHolder<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token comment">// 获取Dubbo Service注解</span>
+    <span class="token class-name">Annotation</span> service <span class="token operator">=</span> <span class="token function">findServiceAnnotation</span><span class="token punctuation">(</span>beanClass<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token comment">// 获取Dubbo Service注解的属性值，忽略默认值</span>
+    <span class="token class-name">Map</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">String</span><span class="token punctuation">,</span> <span class="token class-name">Object</span><span class="token punctuation">&gt;</span></span> serviceAnnotationAttributes <span class="token operator">=</span> <span class="token class-name">AnnotationUtils</span><span class="token punctuation">.</span><span class="token function">getAttributes</span><span class="token punctuation">(</span>service<span class="token punctuation">,</span> <span class="token boolean">true</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token comment">// 获取接口类</span>
+    <span class="token class-name">String</span> serviceInterface <span class="token operator">=</span> <span class="token function">resolveInterfaceName</span><span class="token punctuation">(</span>serviceAnnotationAttributes<span class="token punctuation">,</span> beanClass<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token class-name">String</span> annotatedServiceBeanName <span class="token operator">=</span> beanDefinitionHolder<span class="token punctuation">.</span><span class="token function">getBeanName</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token comment">// 构造ServiceBean BeanName</span>
+    <span class="token class-name">String</span> beanName <span class="token operator">=</span> <span class="token function">generateServiceBeanName</span><span class="token punctuation">(</span>serviceAnnotationAttributes<span class="token punctuation">,</span> serviceInterface<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token comment">// 构造AbstractBeanDefinition</span>
+    <span class="token class-name">AbstractBeanDefinition</span> serviceBeanDefinition <span class="token operator">=</span>
+            <span class="token function">buildServiceBeanDefinition</span><span class="token punctuation">(</span>serviceAnnotationAttributes<span class="token punctuation">,</span> serviceInterface<span class="token punctuation">,</span> annotatedServiceBeanName<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token comment">// 注册AbstractBeanDefinition</span>
+    <span class="token function">registerServiceBeanDefinition</span><span class="token punctuation">(</span>beanName<span class="token punctuation">,</span> serviceBeanDefinition<span class="token punctuation">,</span> serviceInterface<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">private</span> <span class="token class-name">AbstractBeanDefinition</span> <span class="token function">buildServiceBeanDefinition</span><span class="token punctuation">(</span><span class="token class-name">Map</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">String</span><span class="token punctuation">,</span> <span class="token class-name">Object</span><span class="token punctuation">&gt;</span></span> serviceAnnotationAttributes<span class="token punctuation">,</span>
+                                                          <span class="token class-name">String</span> serviceInterface<span class="token punctuation">,</span>
+                                                          <span class="token class-name">String</span> refServiceBeanName<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+
+    <span class="token class-name">BeanDefinitionBuilder</span> builder <span class="token operator">=</span> <span class="token function">rootBeanDefinition</span><span class="token punctuation">(</span><span class="token class-name">ServiceBean</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token class-name">AbstractBeanDefinition</span> beanDefinition <span class="token operator">=</span> builder<span class="token punctuation">.</span><span class="token function">getBeanDefinition</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token class-name">MutablePropertyValues</span> propertyValues <span class="token operator">=</span> beanDefinition<span class="token punctuation">.</span><span class="token function">getPropertyValues</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token class-name">String</span><span class="token punctuation">[</span><span class="token punctuation">]</span> ignoreAttributeNames <span class="token operator">=</span> <span class="token function">of</span><span class="token punctuation">(</span><span class="token string">"provider"</span><span class="token punctuation">,</span> <span class="token string">"monitor"</span><span class="token punctuation">,</span> <span class="token string">"application"</span><span class="token punctuation">,</span> <span class="token string">"module"</span><span class="token punctuation">,</span> <span class="token string">"registry"</span><span class="token punctuation">,</span> <span class="token string">"protocol"</span><span class="token punctuation">,</span>
+            <span class="token string">"interface"</span><span class="token punctuation">,</span> <span class="token string">"interfaceName"</span><span class="token punctuation">,</span> <span class="token string">"parameters"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    propertyValues<span class="token punctuation">.</span><span class="token function">addPropertyValues</span><span class="token punctuation">(</span><span class="token keyword">new</span> <span class="token class-name">AnnotationPropertyValuesAdapter</span><span class="token punctuation">(</span>serviceAnnotationAttributes<span class="token punctuation">,</span> environment<span class="token punctuation">,</span> ignoreAttributeNames<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token comment">//set config id, for ConfigManager cache key</span>
+    <span class="token comment">//builder.addPropertyValue("id", beanName);</span>
+    <span class="token comment">// 设置ref属性</span>
+    <span class="token function">addPropertyReference</span><span class="token punctuation">(</span>builder<span class="token punctuation">,</span> <span class="token string">"ref"</span><span class="token punctuation">,</span> refServiceBeanName<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token comment">// 这是interface属性</span>
+    builder<span class="token punctuation">.</span><span class="token function">addPropertyValue</span><span class="token punctuation">(</span><span class="token string">"interface"</span><span class="token punctuation">,</span> serviceInterface<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token comment">// 设置parameters属性</span>
+    builder<span class="token punctuation">.</span><span class="token function">addPropertyValue</span><span class="token punctuation">(</span><span class="token string">"parameters"</span><span class="token punctuation">,</span> <span class="token class-name">DubboAnnotationUtils</span><span class="token punctuation">.</span><span class="token function">convertParameters</span><span class="token punctuation">(</span><span class="token punctuation">(</span><span class="token class-name">String</span><span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token punctuation">)</span> serviceAnnotationAttributes<span class="token punctuation">.</span><span class="token function">get</span><span class="token punctuation">(</span><span class="token string">"parameters"</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token comment">// 处理methods属性如果存在的话</span>
+    <span class="token class-name">List</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">MethodConfig</span><span class="token punctuation">&gt;</span></span> methodConfigs <span class="token operator">=</span> <span class="token function">convertMethodConfigs</span><span class="token punctuation">(</span>serviceAnnotationAttributes<span class="token punctuation">.</span><span class="token function">get</span><span class="token punctuation">(</span><span class="token string">"methods"</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>methodConfigs<span class="token punctuation">.</span><span class="token function">isEmpty</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        builder<span class="token punctuation">.</span><span class="token function">addPropertyValue</span><span class="token punctuation">(</span><span class="token string">"methods"</span><span class="token punctuation">,</span> methodConfigs<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token comment">// 处理provider属性如果存在的话</span>
+    <span class="token class-name">String</span> providerConfigId <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token class-name">String</span><span class="token punctuation">)</span> serviceAnnotationAttributes<span class="token punctuation">.</span><span class="token function">get</span><span class="token punctuation">(</span><span class="token string">"provider"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token class-name">StringUtils</span><span class="token punctuation">.</span><span class="token function">hasText</span><span class="token punctuation">(</span>providerConfigId<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token function">addPropertyValue</span><span class="token punctuation">(</span>builder<span class="token punctuation">,</span> <span class="token string">"providerIds"</span><span class="token punctuation">,</span> providerConfigId<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token comment">// 处理registry属性如果存在的话</span>
+    <span class="token class-name">String</span><span class="token punctuation">[</span><span class="token punctuation">]</span> registryConfigIds <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token class-name">String</span><span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token punctuation">)</span> serviceAnnotationAttributes<span class="token punctuation">.</span><span class="token function">get</span><span class="token punctuation">(</span><span class="token string">"registry"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>registryConfigIds <span class="token operator">!=</span> <span class="token keyword">null</span> <span class="token operator">&amp;&amp;</span> registryConfigIds<span class="token punctuation">.</span>length <span class="token operator">&gt;</span> <span class="token number">0</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token function">resolveStringArray</span><span class="token punctuation">(</span>registryConfigIds<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        builder<span class="token punctuation">.</span><span class="token function">addPropertyValue</span><span class="token punctuation">(</span><span class="token string">"registryIds"</span><span class="token punctuation">,</span> <span class="token class-name">StringUtils</span><span class="token punctuation">.</span><span class="token function">join</span><span class="token punctuation">(</span>registryConfigIds<span class="token punctuation">,</span> <span class="token char">','</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token comment">// 处理protocol属性如果存在的话</span>
+    <span class="token class-name">String</span><span class="token punctuation">[</span><span class="token punctuation">]</span> protocolConfigIds <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token class-name">String</span><span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token punctuation">)</span> serviceAnnotationAttributes<span class="token punctuation">.</span><span class="token function">get</span><span class="token punctuation">(</span><span class="token string">"protocol"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>protocolConfigIds <span class="token operator">!=</span> <span class="token keyword">null</span> <span class="token operator">&amp;&amp;</span> protocolConfigIds<span class="token punctuation">.</span>length <span class="token operator">&gt;</span> <span class="token number">0</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token function">resolveStringArray</span><span class="token punctuation">(</span>protocolConfigIds<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        builder<span class="token punctuation">.</span><span class="token function">addPropertyValue</span><span class="token punctuation">(</span><span class="token string">"protocolIds"</span><span class="token punctuation">,</span> <span class="token class-name">StringUtils</span><span class="token punctuation">.</span><span class="token function">join</span><span class="token punctuation">(</span>protocolConfigIds<span class="token punctuation">,</span> <span class="token char">','</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token comment">// TODO Could we ignore these attributes: applicatin/monitor/module ? Use global config</span>
+    <span class="token comment">// 处理monitor属性如果存在的话</span>
+    <span class="token class-name">String</span> monitorConfigId <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token class-name">String</span><span class="token punctuation">)</span> serviceAnnotationAttributes<span class="token punctuation">.</span><span class="token function">get</span><span class="token punctuation">(</span><span class="token string">"monitor"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token class-name">StringUtils</span><span class="token punctuation">.</span><span class="token function">hasText</span><span class="token punctuation">(</span>monitorConfigId<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token function">addPropertyReference</span><span class="token punctuation">(</span>builder<span class="token punctuation">,</span> <span class="token string">"monitor"</span><span class="token punctuation">,</span> monitorConfigId<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token comment">// deprecate application reference</span>
+<span class="token comment">//        String applicationConfigId = (String) serviceAnnotationAttributes.get("application");</span>
+<span class="token comment">//        if (StringUtils.hasText(applicationConfigId)) {<!-- --></span>
+<span class="token comment">//            addPropertyReference(builder, "application", applicationConfigId);</span>
+<span class="token comment">//        }</span>
+
+    <span class="token comment">// 处理module属性如果存在的话</span>
+    <span class="token class-name">String</span> moduleConfigId <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token class-name">String</span><span class="token punctuation">)</span> serviceAnnotationAttributes<span class="token punctuation">.</span><span class="token function">get</span><span class="token punctuation">(</span><span class="token string">"module"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token class-name">StringUtils</span><span class="token punctuation">.</span><span class="token function">hasText</span><span class="token punctuation">(</span>moduleConfigId<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token function">addPropertyReference</span><span class="token punctuation">(</span>builder<span class="token punctuation">,</span> <span class="token string">"module"</span><span class="token punctuation">,</span> moduleConfigId<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token keyword">return</span> builder<span class="token punctuation">.</span><span class="token function">getBeanDefinition</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<h2><a id="DubboRelaxedBindingAutoConfiguration_465"></a>DubboRelaxedBindingAutoConfiguration</h2> 
+<p><code>DubboRelaxedBindingAutoConfiguration</code>会注入<code>dubbo-service-class-base-packages</code>Bean，用于配置<code>ServiceAnnotationPostProcessor</code>，其配置条件如下：</p> 
+<pre><code class="prism language-java"><span class="token comment">// 默认开启，除非指定dubbo.enabled=false</span>
+<span class="token annotation punctuation">@ConditionalOnProperty</span><span class="token punctuation">(</span>prefix <span class="token operator">=</span> DUBBO_PREFIX<span class="token punctuation">,</span> name <span class="token operator">=</span> <span class="token string">"enabled"</span><span class="token punctuation">,</span> matchIfMissing <span class="token operator">=</span> <span class="token boolean">true</span><span class="token punctuation">)</span>
+<span class="token comment">// 要求类路径存在RelaxedPropertyResolver</span>
+<span class="token annotation punctuation">@ConditionalOnClass</span><span class="token punctuation">(</span>name <span class="token operator">=</span> <span class="token string">"org.springframework.boot.bind.RelaxedPropertyResolver"</span><span class="token punctuation">)</span>
+</code></pre> 
+<p>如上所述，本类适配Spring Boot 1.x，而本文基于Spring Boot 2.6.6，故不会触发<code>DubboRelaxedBindingAutoConfiguration</code>自动配置；<code>DubboRelaxedBinding2AutoConfiguration</code>适配Spring Boot 2.0及以上；</p> 
+<h2><a id="DubboRelaxedBinding2AutoConfiguration_476"></a>DubboRelaxedBinding2AutoConfiguration</h2> 
+<p>和<code>DubboRelaxedBindingAutoConfiguration</code>作用一样，<code>DubboRelaxedBinding2AutoConfiguration</code>会注入<code>dubbo-service-class-base-packages</code>Bean，用于配置<code>ServiceAnnotationPostProcessor</code>，其配置条件如下：</p> 
+<pre><code class="prism language-java"><span class="token comment">// 默认开启，除非指定dubbo.enabled=false</span>
+<span class="token annotation punctuation">@ConditionalOnProperty</span><span class="token punctuation">(</span>prefix <span class="token operator">=</span> DUBBO_PREFIX<span class="token punctuation">,</span> name <span class="token operator">=</span> <span class="token string">"enabled"</span><span class="token punctuation">,</span> matchIfMissing <span class="token operator">=</span> <span class="token boolean">true</span><span class="token punctuation">)</span>
+<span class="token comment">// 要求类路径存在Binder</span>
+<span class="token annotation punctuation">@ConditionalOnClass</span><span class="token punctuation">(</span>name <span class="token operator">=</span> <span class="token string">"org.springframework.boot.context.properties.bind.Binder"</span><span class="token punctuation">)</span>
+<span class="token comment">// 优先于DubboRelaxedBindingAutoConfiguration进行自动配置</span>
+<span class="token annotation punctuation">@AutoConfigureBefore</span><span class="token punctuation">(</span><span class="token class-name">DubboRelaxedBindingAutoConfiguration</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">)</span>
+</code></pre> 
+<p>本文基于Spring Boot 2.6.6，故会触发<code>DubboRelaxedBinding2AutoConfiguration</code>自动配置，其注入Bean代码如下：</p> 
+<pre><code class="prism language-java"><span class="token keyword">public</span> <span class="token class-name">PropertyResolver</span> <span class="token function">dubboScanBasePackagesPropertyResolver</span><span class="token punctuation">(</span><span class="token class-name">ConfigurableEnvironment</span> environment<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token class-name">ConfigurableEnvironment</span> propertyResolver <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">AbstractEnvironment</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token annotation punctuation">@Override</span>
+        <span class="token keyword">protected</span> <span class="token keyword">void</span> <span class="token function">customizePropertySources</span><span class="token punctuation">(</span><span class="token class-name">MutablePropertySources</span> propertySources<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token comment">// 查找dubbo.scan相关配置参数</span>
+            <span class="token class-name">Map</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">String</span><span class="token punctuation">,</span> <span class="token class-name">Object</span><span class="token punctuation">&gt;</span></span> dubboScanProperties <span class="token operator">=</span> <span class="token function">getSubProperties</span><span class="token punctuation">(</span>environment<span class="token punctuation">.</span><span class="token function">getPropertySources</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> DUBBO_SCAN_PREFIX<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            propertySources<span class="token punctuation">.</span><span class="token function">addLast</span><span class="token punctuation">(</span><span class="token keyword">new</span> <span class="token class-name">MapPropertySource</span><span class="token punctuation">(</span><span class="token string">"dubboScanProperties"</span><span class="token punctuation">,</span> dubboScanProperties<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span><span class="token punctuation">;</span>
+    <span class="token class-name">ConfigurationPropertySources</span><span class="token punctuation">.</span><span class="token function">attach</span><span class="token punctuation">(</span>propertyResolver<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">return</span> propertyResolver<span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token comment">// 如果还不存在BASE_PACKAGES_BEAN_NAME就注入BASE_PACKAGES_BEAN_NAME</span>
+<span class="token annotation punctuation">@ConditionalOnMissingBean</span><span class="token punctuation">(</span>name <span class="token operator">=</span> BASE_PACKAGES_BEAN_NAME<span class="token punctuation">)</span>
+<span class="token annotation punctuation">@Bean</span><span class="token punctuation">(</span>name <span class="token operator">=</span> BASE_PACKAGES_BEAN_NAME<span class="token punctuation">)</span>
+<span class="token keyword">public</span> <span class="token class-name">Set</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">String</span><span class="token punctuation">&gt;</span></span> <span class="token function">dubboBasePackages</span><span class="token punctuation">(</span><span class="token class-name">ConfigurableEnvironment</span> environment<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token comment">// 获取dubbo.scan相关配置属性</span>
+    <span class="token class-name">PropertyResolver</span> propertyResolver <span class="token operator">=</span> <span class="token function">dubboScanBasePackagesPropertyResolver</span><span class="token punctuation">(</span>environment<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token comment">// 返回dubbo.scan.base-packages配置参数</span>
+    <span class="token comment">// 即注入到Spring容器</span>
+    <span class="token keyword">return</span> propertyResolver<span class="token punctuation">.</span><span class="token function">getProperty</span><span class="token punctuation">(</span>BASE_PACKAGES_PROPERTY_NAME<span class="token punctuation">,</span> <span class="token class-name">Set</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">,</span> <span class="token function">emptySet</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token comment">// 如果还不存在RELAXED_DUBBO_CONFIG_BINDER_BEAN_NAME就注入RELAXED_DUBBO_CONFIG_BINDER_BEAN_NAME</span>
+<span class="token annotation punctuation">@ConditionalOnMissingBean</span><span class="token punctuation">(</span>name <span class="token operator">=</span> RELAXED_DUBBO_CONFIG_BINDER_BEAN_NAME<span class="token punctuation">,</span> value <span class="token operator">=</span> <span class="token class-name">ConfigurationBeanBinder</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">)</span>
+<span class="token annotation punctuation">@Bean</span><span class="token punctuation">(</span>RELAXED_DUBBO_CONFIG_BINDER_BEAN_NAME<span class="token punctuation">)</span>
+<span class="token annotation punctuation">@Scope</span><span class="token punctuation">(</span>scopeName <span class="token operator">=</span> SCOPE_PROTOTYPE<span class="token punctuation">)</span>
+<span class="token keyword">public</span> <span class="token class-name">ConfigurationBeanBinder</span> <span class="token function">relaxedDubboConfigBinder</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token comment">// 注入BinderDubboConfigBinder到Spring容器</span>
+    <span class="token keyword">return</span> <span class="token keyword">new</span> <span class="token class-name">BinderDubboConfigBinder</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<h2><a id="DubboListenerAutoConfiguration_523"></a>DubboListenerAutoConfiguration</h2> 
+<p><code>DubboListenerAutoConfiguration</code>用于注册Dubbo相关的<code>ApplicationListener</code>Bean如果不存在的话，代码如下：</p> 
+<pre><code class="prism language-java"><span class="token comment">// 默认开启，除非指定dubbo.enabled=false</span>
+<span class="token annotation punctuation">@ConditionalOnProperty</span><span class="token punctuation">(</span>prefix <span class="token operator">=</span> DUBBO_PREFIX<span class="token punctuation">,</span> name <span class="token operator">=</span> <span class="token string">"enabled"</span><span class="token punctuation">,</span> matchIfMissing <span class="token operator">=</span> <span class="token boolean">true</span><span class="token punctuation">)</span>
+<span class="token annotation punctuation">@Configuration</span>
+<span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">DubboListenerAutoConfiguration</span> <span class="token punctuation">{<!-- --></span>
+
+    <span class="token annotation punctuation">@ConditionalOnMissingBean</span>
+    <span class="token annotation punctuation">@Bean</span>
+    <span class="token keyword">public</span> <span class="token class-name">DubboConfigBeanDefinitionConflictApplicationListener</span> <span class="token function">dubboConfigBeanDefinitionConflictApplicationListener</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token comment">// 注入DubboConfigBeanDefinitionConflictApplicationListener</span>
+        <span class="token keyword">return</span> <span class="token keyword">new</span> <span class="token class-name">DubboConfigBeanDefinitionConflictApplicationListener</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token annotation punctuation">@ConditionalOnMissingBean</span>
+    <span class="token annotation punctuation">@Bean</span>
+    <span class="token keyword">public</span> <span class="token class-name">AwaitingNonWebApplicationListener</span> <span class="token function">awaitingNonWebApplicationListener</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token comment">// 注入AwaitingNonWebApplicationListener</span>
+        <span class="token keyword">return</span> <span class="token keyword">new</span> <span class="token class-name">AwaitingNonWebApplicationListener</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/9843b8f4b37e780de463e6f9748b82d9/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">Linux编译过程</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/ebe0c799345920eccc638061e2dde993/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">web学习——JavaScript(1)</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

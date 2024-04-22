@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>NIFI-实现从FTP服务器拉取文件入到clickhouse数据库 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/1ed7fa3f7b1abdcb83e05c2e85d4d05d/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="NIFI-实现从FTP服务器拉取文件入到clickhouse数据库">
+  <meta property="og:description" content="一、需求梳理： 1、从FTP服务器上拉取文件（文件名按照固定格式命名）。
+2、提取文件名上的一些字符串信息合并到数据流中，入库。
+3、替换文件流中的一些字段值。
+实现ETL的功能，其流程图如下：
+NIFI处理器的选择：
+处理器
+主要功能
+ListFTP
+列出服务器文件列表
+FetchFTP
+根据列表拉取数据
+UpdateAttribute
+新增流文件属性
+UpdateRecord
+新增流文件内容或路由逻辑
+MergeRecord
+文件流纵向合并
+MergeContent
+文件流横向合并
+QueryRecord
+从合并流文件中查询结果
+InvokeHTTP
+结果数据入库
+RouteOnAttribute
+路由结果数据
+HashContent
+释放掉结果数据
+二、文件流数据替换 选用UpdateRecord处理器、选用Schema Text格式。
+{ &#34;type&#34;:&#34;record&#34;, &#34;name&#34;:&#34;nifiRecord&#34;, &#34;namespace&#34;:&#34;org.apache.nifi&#34;, &#34;fields&#34;:[ { &#34;name&#34;:&#34;test_a&#34;, &#34;type&#34;:[ &#34;null&#34;, &#34;string&#34; ] }, ... {&#34;name&#34;:&#34;test_e&#34;, &#34;type&#34;:[&#34;null&#34; ]&#34;string&#34;] }] } 三、从FTP拉取csv文件 监控FTP服务器：ListFTP处理器
+拉取FTP服务器两个小时之后的数据：新增路由规则
+ListFTP-&amp;gt; UpdateAttribute-&amp;gt; RouteOnAttribute-&amp;gt; FetchFTP
+新增自定义属性：UpdateAttribute处理器
+fileTime： ${filename:getDelimitedField(5,&#39;-&#39;):trim():toDate(&#39;yyyyMMddHHmmss&#39;):toNumber()} timeNow： ${now():toNumber():minus(7200000)}
+延时拉取方案实现：
+2 hours old ${fileTime:le(${timeNow})}
+四、文件实现纵向合并 1、将文件格式转为avro数据格式（avro数据格式在大量数据合并时效率高）：updateRecord处理器
+2、文件合并：MergeRecord处理器">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2022-03-17T14:24:05+08:00">
+    <meta property="article:modified_time" content="2022-03-17T14:24:05+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">NIFI-实现从FTP服务器拉取文件入到clickhouse数据库</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <h3>一、需求梳理：</h3> 
+<p>1、从FTP服务器上拉取文件（文件名按照固定格式命名）。</p> 
+<p>2、提取文件名上的一些字符串信息合并到数据流中，入库。</p> 
+<p>3、替换文件流中的一些字段值。</p> 
+<p>实现ETL的功能，其流程图如下：</p> 
+<p><img alt="" height="293" src="https://images2.imgbox.com/48/fd/wHpaietN_o.png" width="454"></p> 
+<p>NIFI处理器的选择：</p> 
+<table border="0" cellpadding="0" cellspacing="0" style="width:643px;"><tbody><tr><td> <p>处理器</p> </td><td> <p>主要功能</p> </td></tr><tr><td> <p>ListFTP</p> </td><td> <p>列出服务器文件列表</p> </td></tr><tr><td> <p>FetchFTP</p> </td><td> <p>根据列表拉取数据</p> </td></tr><tr><td> <p>UpdateAttribute</p> </td><td> <p>新增流文件属性</p> </td></tr><tr><td> <p>UpdateRecord</p> </td><td> <p>新增流文件内容或路由逻辑</p> </td></tr><tr><td> <p>MergeRecord</p> </td><td> <p>文件流纵向合并</p> </td></tr><tr><td> <p>MergeContent</p> </td><td> <p>文件流横向合并</p> </td></tr><tr><td> <p>QueryRecord</p> </td><td> <p>从合并流文件中查询结果</p> </td></tr><tr><td> <p>InvokeHTTP</p> </td><td> <p>结果数据入库</p> </td></tr><tr><td> <p>RouteOnAttribute</p> </td><td> <p>路由结果数据</p> </td></tr><tr><td> <p>HashContent</p> </td><td> <p>释放掉结果数据</p> </td></tr></tbody></table> 
+<h3>二、文件流数据替换</h3> 
+<p>选用UpdateRecord处理器、选用Schema Text格式。</p> 
+<pre><code>{
+"type":"record",
+"name":"nifiRecord",
+"namespace":"org.apache.nifi",
+"fields":[
+{
+"name":"test_a",
+"type":[
+"null",
+"string"
+]
+},
+... {"name":"test_e",
+"type":["null"
+]"string"]
+}] }</code></pre> 
+<p><img alt="" height="165" src="https://images2.imgbox.com/50/55/4mKo8w9p_o.png" width="508"></p> 
+<h3>三、从FTP拉取csv文件</h3> 
+<p>监控FTP服务器：ListFTP处理器</p> 
+<p>拉取FTP服务器两个小时之后的数据：新增路由规则</p> 
+<p>ListFTP-&gt;     UpdateAttribute-&gt;     RouteOnAttribute-&gt;     FetchFTP</p> 
+<p>新增自定义属性：UpdateAttribute处理器</p> 
+<p>fileTime： ${filename:getDelimitedField(5,'-'):trim():toDate('yyyyMMddHHmmss'):toNumber()} timeNow： ${now():toNumber():minus(7200000)}</p> 
+<p><img alt="" height="177" src="https://images2.imgbox.com/92/37/ZRVV2MEE_o.png" width="510"></p> 
+<p> 延时拉取方案实现：</p> 
+<p>2 hours old ${fileTime:le(${timeNow})}</p> 
+<p><img alt="" height="252" src="https://images2.imgbox.com/35/3d/YRXWxfdh_o.png" width="498"></p> 
+<h3>四、文件实现纵向合并 </h3> 
+<p>1、将文件格式转为avro数据格式（avro数据格式在大量数据合并时效率高）：updateRecord处理器</p> 
+<p><img alt="" height="122" src="https://images2.imgbox.com/6d/f4/qNxySjKZ_o.png" width="510"></p> 
+<p>2、文件合并：MergeRecord处理器</p> 
+<p><img alt="" height="259" src="https://images2.imgbox.com/9b/7c/i0XlvrBc_o.png" width="514"> 3、AvroReader控制器服务：通过 Schema Name 和定义的Avro格式的数据字段连接映射关系。</p> 
+<p><img alt="" height="155" src="https://images2.imgbox.com/31/7d/d9FfZ5xr_o.png" width="569"></p> 
+<p>AvroSchemaRegistry 的配置：</p> 
+<p><img alt="" height="105" src="https://images2.imgbox.com/37/47/GwzywChu_o.png" width="606"></p> 
+<p>dafafile字段值包含性能文件和设备信息文件数据的所有的字段：</p> 
+<pre><code>{
+"name":"datafile",
+"type":"record",
+"fields":[
+{
+"name":"d",
+"type":"string"
+},
+{
+"name":"xxx",
+"type":[
+"null",
+"string"
+]
+},
+...... { "name": "data_update_time",
+"type": ["null"
+]"string"]
+}]}</code></pre> 
+<h3> 五、从合并后的flowfile中查询结果：QueryRecord处理器</h3> 
+<p> 新增路由关系：query 读控制器服务：AvroReader 写控制器服务：CSVRecordSetWriter</p> 
+<p>查询语句：</p> 
+<p><img alt="" height="244" src="https://images2.imgbox.com/9a/9e/I51UHRHb_o.png" width="399"></p> 
+<h3> 六、clickhouse入库：InvokeHTTP处理器</h3> 
+<p>HTTP请求方式：POST</p> 
+<p>配置clickhouse入库方式：用|分割的方式入库</p> 
+<p>http://ip:port/?input_format_with_names_use_header=0&amp;format_csv_delimiter=%7C&amp;query=INSERT INTO 库名.表名 FORMAT CSVWithNames</p> 
+<p><img alt="" height="166" src="https://images2.imgbox.com/d5/7c/4XjW72Y5_o.png" width="506"></p> 
+<h3>七、单机版本测试</h3> 
+<p>一个34M大小的csv文件、合并、提取1000个字段。从服务器拉取文件到实现文件纵向、入库整个流程用时1分半。</p> 
+<p><img alt="" height="167" src="https://images2.imgbox.com/e0/49/fkkAnmWj_o.png" width="529"></p> 
+<p>10万行888个字段的340M的csv大小文件，转为avro后数据451，整个流程用时15分钟左右。</p> 
+<p><img alt="" height="97" src="https://images2.imgbox.com/dc/2e/M3GnzEfU_o.png" width="524"></p> 
+<p>结论：对于大数据量计算，目前nifi在ETL中的性能瓶颈在QueryRecord中从大量的Avro格式的数据中查找部分数据，存在较大的计算量，用时较多。 </p> 
+<h3>八、版本控制</h3> 
+<p>NiFi 中，其实是可以对一组Data Pipieline 来做一个『版本控制』，就类似于git 一样，git 可以将每次修改好的版本commit 出去且push 到Github 或Gitlab 平台上对应的respository。那NiFi 是如何做到的呢？答案是今天的主角- NiFi Registry。 使用 NiFi Registry 在 Apache NiFi 中自动化工作流部署 可以在多个环境下切换。 参考资料：https://ithelp.ithome.com.tw/articles/10266633 https://pierrevillard.com/2018/04/09/automate-workflow-deployment-in-apache-nifi-with-the-nifi-registry/</p> 
+<h3>九、NiFi 工作流监控 – 带有拆分和合并的等待/通知模式</h3> 
+<p>考虑到当文件数量较大时，监控ETL合并及入库的情况，参考nifi的等待/通知模式，构思监控性能文件、设备文件合并日志，及入库clickhouse的日志记录信息。 参考资料：https://pierrevillard.com/2018/06/27/nifi-workflow-monitoring-wait-notify-pattern-with-split-and-merge/</p> 
+<p><img alt="" height="310" src="https://images2.imgbox.com/fe/58/O4dS7CYz_o.png" width="517"></p> 
+<p><img alt="" height="339" src="https://images2.imgbox.com/0d/08/apshPtkE_o.png" width="500"></p> 
+<h3> 十、了解 NiFi 的内容存储库归档的工作原理</h3> 
+<p>参考资料： https://community.cloudera.com/t5/Community-Articles/Understanding-how-NiFi-s-Content-Repository-Archiving-works/ta-p/249418 https://community.cloudera.com/t5/Support-Questions/Need-to-restart-Nifi-1-13-2-to-clean-content-repository/td-p/316610</p> 
+<p>配置文件：nifi.properties和bootstrap.conf</p> 
+<h3></h3> 
+<p></p> 
+<p></p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/372ab8281294068f5e2721e0ede185ed/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">Android Studio Bumblebee 新建项目模版build.gradle 如何添加 classpath plugins maven</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/6c993cdd8c204c0660c1cebf0bc1f76f/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">【Java基础系列教程】第二十三章 Java反射机制详解</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

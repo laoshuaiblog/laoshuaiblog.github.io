@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Lvs--部署DR集群 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/0079038f04703a86df170c8944bd1b83/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="Lvs--部署DR集群">
+  <meta property="og:description" content="一.Lvs有三种负载均衡的模式： VS/NAT（nat模式）
+VS/DR (路由模式）
+VS/TUN （隧道模式）
+（1）NAT模式（VS-NAT）
+原理：首先负载均衡器接收到客户端请求包时，根据调度算法决定将请求发送给哪个后端的真实 服务器（RS)
+然后负载均衡器就把客户端的请求数据包的目标IP地址及端口改成后端真实服务器的IP地址 （RIP）。真实服务器响应完请求后，查看默认路由，把响应后的数据发送给负载均衡器，
+负载均衡器在接收到到响应包后，把包的源地址改成虚拟地址（VIP），然后发送回给客户端。
+优点：集群中的服务器可以使用任何支持TCP/IP的操作系统，只要负载均衡器有一个合法的IP地址。
+缺点：扩展性有限，当服务器节点增长过多时，由于所有的请求和应答都需要经过负载均衡器，因此负载均衡器将成为整个系统的瓶颈。
+（2）直接路由模式（VS-DR）
+简称 DR 模式
+原理:首先负载均衡器接收到客户的请求数据包时，根据调度算法决定请求发送给哪个后端的真实 服务器（RS)。
+然后负载均衡器就把客户端发送的请求数据包的目标MAC地址改成后端真实服务器的MAC地 址（R-MAC）。
+真实服务器响应完请求后，查看默认路由，把响应后的数据包直接发送给客户端，不需要经 过负载均衡器。
+优点：负载均衡器只负责将请求包分发给后端服务器，而RS将应答包直接发给用户。所以，减少了负载均衡器的大量数据流动，负载均衡器不在是系统的瓶颈，也能处理很巨大的请求量。
+缺点：需要负载均衡器与真实服务器RS都有一块网卡连接到同一物理网段上，必须在同一个局域网环境。
+DR模式的特点：
+Director和各RS都配置有VIP
+确保前端路由器将目标IP为VIP的请求报文发往Director
+在前端网关做静态绑定VIP和Director的MAC地址
+在RS上使用arptables工具
+arptables -A IN -d $VIP -j DROP arptables -A OUT -s $VIP -j mangle --mangle-ip-s $RIP 在RS上修改内核参数以限制arp通告及应答级别
+/proc/sys/net/ipv4/conf/all/arp_ignore /proc/sys/net/ipv4/conf/all/arp_announce RS的RIP可以使用私网地址，也可以是公网地址；RIP与DIP在同一IP网络；RIP的网关不能指向DIP，以确保响应报文不会经由Director
+RS和Director要在同一个物理网络
+请求报文要经由Director，但响应报文不经由Director，而由RS直接发往Client
+不支持端口映射（端口不能修改）
+无需开启 ip_forward
+RS可使用大多数OS系统
+（3）IP隧道模式（VS-TUN）
+原理：首先负载均衡器接收到客户的请求数据包时，根据调度算法决定将请求发送给哪个后端的真实服务器（RS）。
+然负后载均衡器就把客户端发送的请求报文封装一层IP隧道(T-IP)转发到真实服务器（RS）。
+真实服务器响应完请求后，查看默认路由，把响应后的数据包直接发送给客户端，不需要经过负载均衡器。
+优点：负载均衡器在只负责将请求包分发给后端节点服务器，而RS将应答包直接发给用户。所以，减少了负载均衡器的大量数据流动，负载均衡器不再是系统的瓶颈，也能处理很巨大的请求量。
+缺点：隧道模式的RS节点需要合法IP。这种方式需要所有的服务器支持&#34;IP Tunneling&#34;
+二.LVS工作模式总结和比较 NATTUNDR优点端口转换WAN性能最好缺点性能瓶颈服务器支持隧道模式不支持跨网段真实服务器要求anyTunnelingNon-arp device支持网络private（私网）LAN/WAN（私网/公网）LAN（私网）真实服务器数量low (10~20)High (100)High (100)真实服务器网关lvs内网地址Own router（网工定义）Own router（网工定义） 三.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2024-03-13T15:39:03+08:00">
+    <meta property="article:modified_time" content="2024-03-13T15:39:03+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">Lvs--部署DR集群</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <h3><strong>一.Lvs有三种负载均衡的模式：</strong></h3> 
+<p>    VS/NAT（nat模式）</p> 
+<p>    VS/DR   (路由模式）</p> 
+<p>    VS/TUN （隧道模式）</p> 
+<p><strong>（1）NAT模式（VS-NAT）</strong></p> 
+<p>原理：首先负载均衡器接收到客户端请求包时，根据调度算法决定将请求发送给哪个后端的真实               服务器（RS)</p> 
+<p>      然后负载均衡器就把客户端的请求数据包的目标IP地址及端口改成后端真实服务器的IP地址         （RIP）。真实服务器响应完请求后，查看默认路由，把响应后的数据发送给负载均衡器，</p> 
+<p>     负载均衡器在接收到到响应包后，把包的源地址改成虚拟地址（VIP），然后发送回给客户端。</p> 
+<p>优点：集群中的服务器可以使用任何支持TCP/IP的操作系统，只要负载均衡器有一个合法的IP地址。</p> 
+<p>缺点：扩展性有限，当服务器节点增长过多时，由于所有的请求和应答都需要经过负载均衡器，因此负载均衡器将成为整个系统的瓶颈。</p> 
+<p><strong>（2）直接路由模式（VS-DR）</strong></p> 
+<p><strong>简称 DR 模式</strong></p> 
+<p>原理:首先负载均衡器接收到客户的请求数据包时，根据调度算法决定请求发送给哪个后端的真实          服务器（RS)。</p> 
+<p>       然后负载均衡器就把客户端发送的请求数据包的目标MAC地址改成后端真实服务器的MAC地         址（R-MAC）。</p> 
+<p>        真实服务器响应完请求后，查看默认路由，把响应后的数据包直接发送给客户端，不需要经           过负载均衡器。</p> 
+<p>优点：负载均衡器只负责将请求包分发给后端服务器，而RS将应答包直接发给用户。所以，减少了负载均衡器的大量数据流动，负载均衡器不在是系统的瓶颈，也能处理很巨大的请求量。</p> 
+<p>缺点：需要负载均衡器与真实服务器RS都有一块网卡连接到同一物理网段上，必须在同一个局域网环境。</p> 
+<p>DR模式的特点：</p> 
+<ol><li> <p>Director和各RS都配置有VIP</p> </li><li> <p>确保前端路由器将目标IP为VIP的请求报文发往Director</p> </li></ol> 
+<ul><li> <p>在前端网关做静态绑定VIP和Director的MAC地址</p> </li><li> <p>在RS上使用arptables工具</p> </li></ul> 
+<pre>arptables -A IN -d $VIP -j DROP
+arptables -A OUT -s $VIP -j mangle --mangle-ip-s $RIP</pre> 
+<p>在RS上修改内核参数以限制arp通告及应答级别</p> 
+<pre>/proc/sys/net/ipv4/conf/all/arp_ignore
+/proc/sys/net/ipv4/conf/all/arp_announce</pre> 
+<p>RS的RIP可以使用私网地址，也可以是公网地址；RIP与DIP在同一IP网络；RIP的网关不能指向DIP，以确保响应报文不会经由Director</p> 
+<ol><li> <p>RS和Director要在同一个物理网络</p> </li><li> <p>请求报文要经由Director，但响应报文不经由Director，而由RS直接发往Client</p> </li><li> <p>不支持端口映射（端口不能修改）</p> </li><li> <p>无需开启 ip_forward</p> </li><li> <p>RS可使用大多数OS系统</p> </li></ol> 
+<p><strong>（3）IP隧道模式（VS-TUN）</strong></p> 
+<p>原理：首先负载均衡器接收到客户的请求数据包时，根据调度算法决定将请求发送给哪个后端的真实服务器（RS）。</p> 
+<p>然负后载均衡器就把客户端发送的请求报文封装一层IP隧道(T-IP)转发到真实服务器（RS）。</p> 
+<p>真实服务器响应完请求后，查看默认路由，把响应后的数据包直接发送给客户端，不需要经过负载均衡器。</p> 
+<p>优点：负载均衡器在只负责将请求包分发给后端节点服务器，而RS将应答包直接发给用户。所以，减少了负载均衡器的大量数据流动，负载均衡器不再是系统的瓶颈，也能处理很巨大的请求量。</p> 
+<p>缺点：隧道模式的RS节点需要合法IP。这种方式需要所有的服务器支持"IP Tunneling"</p> 
+<h3><strong>二.LVS工作模式总结和比较</strong></h3> 
+<table><thead><tr><th></th><th><strong>NAT</strong></th><th><strong>TUN</strong></th><th><strong>DR</strong></th></tr></thead><tbody><tr><td>优点</td><td>端口转换</td><td>WAN</td><td>性能最好</td></tr><tr><td>缺点</td><td>性能瓶颈</td><td>服务器支持隧道模式</td><td>不支持跨网段</td></tr><tr><td>真实服务器要求</td><td>any</td><td>Tunneling</td><td>Non-arp device</td></tr><tr><td>支持网络</td><td>private（私网）</td><td>LAN/WAN（私网/公网）</td><td>LAN（私网）</td></tr><tr><td>真实服务器数量</td><td>low (10~20)</td><td>High (100)</td><td>High (100)</td></tr><tr><td>真实服务器网关</td><td>lvs内网地址</td><td>Own router（网工定义）</td><td>Own router（网工定义）</td></tr></tbody></table> 
+<h3>三.部署LVS-DR集群 实验</h3> 
+<p>环境简介<br> DR 服务器：192.168.91.88<br> web 服务器1：192.168.91.87<br> web 服务器2：192.168.91.86<br> vip（虚拟回环）：192.168.91.180<br> 客户端：192.168.91.188</p> 
+<h4 id="配置nfs共享服务器19216823940">（1）配置负载调度器</h4> 
+<h4>虚拟IP地址（VIP：192.168.6.180）</h4> 
+<p>关闭防火墙</p> 
+<p><img alt="" height="426" src="https://images2.imgbox.com/a0/47/9ZNdA8qO_o.png" width="1200"></p> 
+<p></p> 
+<p><img alt="" height="568" src="https://images2.imgbox.com/48/db/sBv5ZF0I_o.png" width="1200"></p> 
+<p></p> 
+<p><strong>调整/proc响应参数</strong></p> 
+<p><strong>(调整/proc响应参数  对于 DR 群集模式来说，由于 LVS 负载调度器和各节点需要共用 VIP 地址，应该关闭 Linux 内核的重定向参数响应服务器不是一台路由器，那么它不会发送重定向，所以可以关闭该功能)</strong></p> 
+<p><strong>vim  /etc/sysctl.conf</strong></p> 
+<p><strong>net.ipv4.ip_forward = 0<br> net.ipv4.conf.all.send_redirects = 0<br> net.ipv4.conf.default.send_redirects = 0<br> net.ipv4.conf.ens33.send_redirects = 0</strong></p> 
+<p><img alt="" height="800" src="https://images2.imgbox.com/1d/22/kbnBTjV0_o.png" width="1168"></p> 
+<p><strong> 刷新配置</strong></p> 
+<p><strong>sysctl -p</strong></p> 
+<p><img alt="" height="230" src="https://images2.imgbox.com/f1/36/bZLtFoFm_o.png" width="920"></p> 
+<p><strong> 加载ipvs内核模块</strong></p> 
+<p><img alt="" height="204" src="https://images2.imgbox.com/84/ac/X9zqTzXv_o.png" width="1134"></p> 
+<p> 通过重定向将当前规则重定向到系统默认的规则存放位置(重启服务会自动恢复里面的规则)</p> 
+<pre>ipvsadm-save &gt; /etc/sysconfig/ipvsadm</pre> 
+<p>(如果停止服务，会自动将该文件清空，可通过查看这个文件查看/usr/lib/systemd/system/ipvsadm.service )</p> 
+<p><img alt="" height="406" src="https://images2.imgbox.com/fc/63/wWcwGikS_o.png" width="1200"></p> 
+<p><strong>添加规则 </strong> </p> 
+<p>（ 添加真实服务器-a   指定VIP地址及TCP端口-t    指定RIP地址及TCP端口 -r   指定DR模式-g）</p> 
+<p><img alt="" height="159" src="https://images2.imgbox.com/00/d9/EkBtwAsC_o.png" width="1164"></p> 
+<p>查看 </p> 
+<p><img alt="" height="197" src="https://images2.imgbox.com/66/67/XuSE0w5A_o.png" width="969"></p> 
+<h3>（2）节点服务器</h3> 
+<p><strong>①</strong></p> 
+<p><img alt="" height="172" src="https://images2.imgbox.com/f4/dc/pjyjMjCx_o.png" width="855"></p> 
+<p>（另一程序占用  rm -rf /var/run/yum.pid) </p> 
+<p><img alt="" height="577" src="https://images2.imgbox.com/85/f5/mTvxBMAd_o.png" width="1085"></p> 
+<p><img alt="" height="194" src="https://images2.imgbox.com/61/34/2dD0AgI7_o.png" width="702"></p> 
+<p>添加系统只响应目的IP为本地IP的ARP请求<br> 系统不使用原地址来设置ARP请求的源地址，而是物理mac地址上的IP </p> 
+<p>vim /etc/sysctl.conf</p> 
+<p>net.ipv4.conf.all.arp_ignore = 1<br> net.ipv4.conf.all.arp_announce = 2<br> net.ipv4.conf.default.arp_ignore = 1<br> net.ipv4.conf.default.arp_announce = 2<br> net.ipv4.conf.lo.arp_ignore = 1<br> net.ipv4.conf.lo.arp_announce = 2</p> 
+<p>定义对目标地址为本地IP的ARP询问不同的应答模式0 <br> 0 - (默认值): 回应任何网络接口上对任何本地IP地址的arp查询请求 <br> 1 - 只回答目标IP地址是来访网络接口本地地址的ARP查询请求 <br> 2 -只回答目标IP地址是来访网络接口本地地址的ARP查询请求,且来访IP必须在该网络接口的子网段内 </p> 
+<p><strong>说明：</strong></p> 
+<p><strong>(</strong>　<strong>arp_ignore参数的</strong>作用是控制系统在收到外部的arp请求时，是否要返回arp响应。</p> 
+<p>　　arp_ignore参数常用的取值主要有0，1，2，3~8较少用到：</p> 
+<p>0：响应任意网卡上接收到的对本机IP地址的arp请求（包括环回网卡上的地址），而不管该目的IP是否在接收网卡上。</p> 
+<p>1：只响应目的IP地址为接收网卡上的本地地址的arp请求。</p> 
+<p>2：只响应目的IP地址为接收网卡上的本地地址的arp请求，并且arp请求的源IP必须和接收网卡同网段。</p> 
+<p>3：如果ARP请求数据包所请求的IP地址对应的本地地址其作用域（scope）为主机（host），则不回应ARP响应数据包，如果作用域为全局（global）或链路（link），则回应ARP响应数据包。</p> 
+<p>4~7：保留未使用</p> 
+<p>8：不回应所有的arp请求</p> 
+<p>　　sysctl.conf中包含all和eth/lo（具体网卡）的arp_ignore参数，取其中较大的值生效。</p> 
+<p><strong>arp_announce的作用</strong>是控制系统在对外发送arp请求时，如何选择arp请求数据包的源IP地址。</p> 
+<p>　　arp_announce参数常用的取值有0，1，2。</p> 
+<p>0：允许使用任意网卡上的IP地址作为arp请求的源IP，通常就是使用数据包a的源IP。</p> 
+<p>1：尽量避免使用不属于该发送网卡子网的本地地址作为发送arp请求的源IP地址。</p> 
+<p>2：忽略IP数据包的源IP地址，选择该发送网卡上最合适的本地地址作为arp请求的源IP地址。<br> 　　sysctl.conf中包含all和eth/lo（具体网卡）的arp_ignore参数，取其中较大的值生效。<strong>)</strong></p> 
+<p></p> 
+<p>可用命令查看sysctl -a |grep arp   (过滤参数）</p> 
+<p>复制到配置文件修改</p> 
+<p><img alt="" height="702" src="https://images2.imgbox.com/f8/87/sFt917gb_o.png" width="873"></p> 
+<p>或者sysctl -a |grep arp &gt;&gt;/etc/sysctl.conf直接导到配置文件下修改</p> 
+<p><img alt="" height="223" src="https://images2.imgbox.com/35/d2/v7zdV8Fr_o.png" width="1122"> </p> 
+<p><img alt="" height="496" src="https://images2.imgbox.com/e3/14/pUV6bJfu_o.png" width="1200"></p> 
+<p><img alt="" height="199" src="https://images2.imgbox.com/4c/14/LvYnIOpi_o.png" width="1051"></p> 
+<p><strong>②</strong></p> 
+<p><strong>跟上面操作一样</strong></p> 
+<p><img alt="" height="144" src="https://images2.imgbox.com/e5/96/QrRx0oS1_o.png" width="814"></p> 
+<p><img alt="" height="323" src="https://images2.imgbox.com/f1/d1/PoWlPmnX_o.png" width="1144"> </p> 
+<p><img alt="" height="763" src="https://images2.imgbox.com/d8/28/NVbrDuUJ_o.png" width="1079"></p> 
+<p><img alt="" height="606" src="https://images2.imgbox.com/a9/a9/XI9hYO1W_o.png" width="948"></p> 
+<p><strong>机器4测试效果</strong></p> 
+<p><img alt="" height="360" src="https://images2.imgbox.com/01/a8/aiXRA0WK_o.png" width="946"></p> 
+<p></p> 
+<p></p> 
+<p></p> 
+<p></p> 
+<p></p> 
+<p></p> 
+<p></p> 
+<p></p> 
+<p></p> 
+<p></p> 
+<p></p> 
+<p></p> 
+<p></p> 
+<p></p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/8e3eb131031a71292def818d3c12b9b1/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">kotlin使用教程</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/89cf4bc94a53f8b4e44753fb213ff44c/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">【Java】祖宗Object类</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

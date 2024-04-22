@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Unity编辑扩展：功能篇之Json数据编辑器 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/2574b1f0a368c835f059349ccdc06259/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="Unity编辑扩展：功能篇之Json数据编辑器">
+  <meta property="og:description" content="前言 编辑器扩展算是比较纯粹的功能开发，基本没有什么理论知识，都是一些Unity相关接口的使用与数据类型的设计操作等。在本篇文章主要的文字描述基本都是在做代码解释，为了使内容接受度更高，我会尽量描述到代码结构中的每个细节。如果有对此不太了解又很感兴趣的小伙伴可以尝试手动过一遍代码，相信很快很快就可以掌握编辑器开发方面的使用技巧
+在前篇文章中有对编辑器扩展UI控件方面的一些基础内容做了简单的描述，大概说明了Unity编辑器界面相关控件的创建接口，链接为：
+Unity编辑器扩展 UI控件篇
+在掌握编辑器界面控件使用的基础上，利用该控件完成数据编辑工具，对于编辑器扩展来说，通常来说都是以数据编辑为基础的功能扩展。而数据的存储通常以Json为媒介来记录信息，掌握了Json数据的编辑后，可以很方便的在此基础上扩展自己的功能逻辑
+一、 设定数据类结构 通常来说，功能模块使用数据的结构通常以类为基本单位。在本数据编辑工具开发案例中，需要先设定几个数据类，作为数据转换的基础
+在文章开头的动图中，核心数据块的结构如下，排序数值字段与唯一标识身份ID，除此之外就是一些功能性数据。在本案例中设定了一些字符串与枚举类型的数据字段
+为提升通用性，封装排序数值字段与唯一标识身份ID到BaseData作为数据类的基类，基于其特性直接设定两个Int数据值类型即可。而后续所有需编辑数据类作为BaseData的派生类设定。如下面代码中的CharacterData，在继承基类的基础上设定自身需编辑器的核心数据字段，这里简单的设计了字符串与枚举等几个数据，该数据类的数据内容与上图中的UI节点相对应，后面提到的数据节点代指该类
+public class BaseData { /// 编辑器状态下排序 public int SortNum; /// 唯一ID public int ID; } public class CharacterData : BaseData { public string name; public CharacterType type; public DetialCharacterData detialData; } public class MainData { public Dictionary&amp;lt;string, CharacterData&amp;gt; CharacterDatas; } 除了需要编辑的数据类外，编辑器本身也需要设定缓存一组数据来维护界面显示的相关格式，如节点的位置、节点被选中的状态等状态。创建数据类命名为EditorNodeData，并代称节点编辑器数据，而关于类中相关字段的具体使用方式会在后面数据初始化时提到：
+public class EditorNodeData { public int sortNum; public int DataID = 0; public bool isInstace; public bool isSelect; public Rect rect; } 二、将缓存数据初始化 开始编辑器界面绘制前，定义一些数据字段作为临时缓存使用， 并对数据做初始化：">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2022-08-24T16:47:15+08:00">
+    <meta property="article:modified_time" content="2022-08-24T16:47:15+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">Unity编辑扩展：功能篇之Json数据编辑器</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-tomorrow-night-eighties">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <p><img src="https://images2.imgbox.com/66/b6/Zyyst5hy_o.gif" alt="请添加图片描述"></p> 
+<h5><a id="_4"></a>前言</h5> 
+<p>编辑器扩展算是比较纯粹的功能开发，基本没有什么理论知识，都是一些<code>Unity</code>相关接口的使用与数据类型的设计操作等。在本篇文章主要的文字描述基本都是在做代码解释，为了使内容接受度更高，我会尽量描述到代码结构中的每个细节。如果有对此不太了解又很感兴趣的小伙伴可以尝试手动过一遍代码，相信很快很快就可以掌握编辑器开发方面的使用技巧</p> 
+<p>在前篇文章中有对编辑器扩展UI控件方面的一些基础内容做了简单的描述，大概说明了<code>Unity</code>编辑器界面相关控件的创建接口，链接为：</p> 
+<p><a href="https://blog.csdn.net/xinzhilinger/article/details/125462320?spm=1001.2014.3001.5501">Unity编辑器扩展 UI控件篇</a></p> 
+<p>在掌握编辑器界面控件使用的基础上，利用该控件完成数据编辑工具，对于编辑器扩展来说，通常来说都是以数据编辑为基础的功能扩展。而数据的存储通常以<code>Json</code>为媒介来记录信息，掌握了<code>Json</code>数据的编辑后，可以很方便的在此基础上扩展自己的功能逻辑</p> 
+<h5><a id="__13"></a>一、 设定数据类结构</h5> 
+<p>通常来说，功能模块使用数据的结构通常以类为基本单位。在本数据编辑工具开发案例中，需要先设定几个数据类，作为数据转换的基础</p> 
+<p>在文章开头的动图中，核心数据块的结构如下，排序数值字段与唯一标识身份ID，除此之外就是一些功能性数据。在本案例中设定了一些字符串与枚举类型的数据字段</p> 
+<p><img src="https://images2.imgbox.com/4c/14/FPBU4JEl_o.png" alt="在这里插入图片描述"><br> 为提升通用性，封装排序数值字段与唯一标识身份<code>ID</code>到<code>BaseData</code>作为数据类的基类，基于其特性直接设定两个<code>Int</code>数据值类型即可。而后续所有需编辑数据类作为<code>BaseData</code>的派生类设定。如下面代码中的<code>CharacterData</code>，在继承基类的基础上设定自身需编辑器的核心数据字段，这里简单的设计了字符串与枚举等几个数据，该数据类的数据内容与上图中的<code>UI</code>节点相对应，后面提到的数据节点代指该类</p> 
+<pre><code class="prism language-csharp">
+<span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">BaseData</span>
+<span class="token punctuation">{<!-- --></span>
+    <span class="token comment">/// 编辑器状态下排序</span>
+    <span class="token keyword">public</span> <span class="token class-name"><span class="token keyword">int</span></span> SortNum<span class="token punctuation">;</span>
+    <span class="token comment">/// 唯一ID</span>
+    <span class="token keyword">public</span> <span class="token class-name"><span class="token keyword">int</span></span> ID<span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">CharacterData</span> <span class="token punctuation">:</span> <span class="token type-list"><span class="token class-name">BaseData</span></span>
+<span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">public</span> <span class="token class-name"><span class="token keyword">string</span></span> name<span class="token punctuation">;</span>
+    <span class="token keyword">public</span> <span class="token class-name">CharacterType</span> type<span class="token punctuation">;</span>
+    <span class="token keyword">public</span> <span class="token class-name">DetialCharacterData</span> detialData<span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">MainData</span>
+<span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">public</span> <span class="token class-name">Dictionary<span class="token punctuation">&lt;</span><span class="token keyword">string</span><span class="token punctuation">,</span> CharacterData<span class="token punctuation">&gt;</span></span> CharacterDatas<span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>除了需要编辑的数据类外，编辑器本身也需要设定缓存一组数据来维护界面显示的相关格式，如节点的位置、节点被选中的状态等状态。创建数据类命名为<code>EditorNodeData</code>，并代称节点编辑器数据，而关于类中相关字段的具体使用方式会在后面数据初始化时提到：</p> 
+<pre><code class="prism language-csharp"><span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">EditorNodeData</span> 
+<span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">public</span> <span class="token class-name"><span class="token keyword">int</span></span> sortNum<span class="token punctuation">;</span>
+    <span class="token keyword">public</span> <span class="token class-name"><span class="token keyword">int</span></span> DataID <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+    <span class="token keyword">public</span> <span class="token class-name"><span class="token keyword">bool</span></span> isInstace<span class="token punctuation">;</span>
+    <span class="token keyword">public</span> <span class="token class-name"><span class="token keyword">bool</span></span> isSelect<span class="token punctuation">;</span>
+    <span class="token keyword">public</span> <span class="token class-name">Rect</span> rect<span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<h5><a id="_59"></a>二、将缓存数据初始化</h5> 
+<p>开始编辑器界面绘制前，定义一些数据字段作为临时缓存使用， 并对数据做初始化：</p> 
+<ul><li><code>mainData</code>：<code>MainData</code> 类型数据，用来管理由<code>Json</code>反序列化数据与序列化为<code>Json</code>数据，即<code>Json</code>数据编辑时的内存缓存数据载体</li><li><code>selectNode</code>：记录选中节点的节点编辑器数据</li><li><code>editorNodes</code>：所有节点编辑器数据</li><li><code>canvasScrollPosition</code>：用于背景拖动的坐标缓存数据</li></ul> 
+<p>在初始化数据时，除了对各种数据容器实例化外，比较重要的是读取<code>Json</code>内容并反序列化到<code>mainData</code>，用来载入上次编辑后的保存的节点数据内容，具体的反序列化过程会在后面的内容中提到</p> 
+<pre><code class="prism language-csharp">    <span class="token keyword">private</span> <span class="token class-name">MainData</span> mainData<span class="token punctuation">;</span>
+    <span class="token keyword">private</span> <span class="token class-name">Rect</span> viewRect<span class="token punctuation">;</span>
+    <span class="token keyword">private</span> <span class="token class-name">Vector2</span> canvasScrollPosition<span class="token punctuation">;</span>
+    <span class="token keyword">private</span> <span class="token class-name">EditorNodeData</span> selectNode<span class="token punctuation">;</span>
+    <span class="token keyword">private</span> <span class="token class-name">Dictionary<span class="token punctuation">&lt;</span><span class="token keyword">int</span><span class="token punctuation">,</span> EditorNodeData<span class="token punctuation">&gt;</span></span> editorNodes<span class="token punctuation">;</span>
+    <span class="token return-type class-name"><span class="token keyword">void</span></span> <span class="token function">InitData</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+    <span class="token punctuation">{<!-- --></span>
+        mainData <span class="token operator">=</span> <span class="token function">JsonToMainData</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span><span class="token punctuation">(</span>mainData <span class="token operator">==</span> <span class="token keyword">null</span><span class="token punctuation">)</span> mainData <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token constructor-invocation class-name">MainData</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>mainData<span class="token punctuation">.</span>CharacterData <span class="token operator">==</span> <span class="token keyword">null</span><span class="token punctuation">)</span> mainData<span class="token punctuation">.</span>CharacterData <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token constructor-invocation class-name">Dictionary<span class="token punctuation">&lt;</span><span class="token keyword">string</span><span class="token punctuation">,</span> CharacterData<span class="token punctuation">&gt;</span></span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        editorNodes <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token constructor-invocation class-name">Dictionary<span class="token punctuation">&lt;</span><span class="token keyword">int</span><span class="token punctuation">,</span> EditorNodeData<span class="token punctuation">&gt;</span></span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        viewRect <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token constructor-invocation class-name">Rect</span><span class="token punctuation">(</span><span class="token number">0</span><span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">,</span> position<span class="token punctuation">.</span>width<span class="token punctuation">,</span> position<span class="token punctuation">.</span>height<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        canvasScrollPosition <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token constructor-invocation class-name">Vector2</span><span class="token punctuation">(</span><span class="token number">0</span><span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">InitNodasData</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    
+
+</code></pre> 
+<p>完成对<code>mainData</code>的反序列化后，通过对数据节点编辑初始化编辑器界面对应的数据对象。具体到细节中，对排序字段与ID字段来说，字节读取<code>mainData</code>数据即可。同时由于反序列化而来的数据已存在实体，默认设定<code>isInstance</code>为<code>true</code>。最为关键的编辑器辅助数据就是<code>rect</code>矩形定位字段，用来确定当前数据具象化的<code>UI</code>节点在场景中的位置</p> 
+<pre><code class="prism language-csharp">    <span class="token keyword">public</span> <span class="token return-type class-name"><span class="token keyword">void</span></span> <span class="token function">InitNodasData</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+    <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>mainData <span class="token operator">==</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token keyword">return</span><span class="token punctuation">;</span>
+        <span class="token keyword">foreach</span> <span class="token punctuation">(</span><span class="token class-name"><span class="token keyword">var</span></span> data <span class="token keyword">in</span> mainData<span class="token punctuation">.</span>CharacterDatas<span class="token punctuation">.</span>Values<span class="token punctuation">)</span>
+        <span class="token punctuation">{<!-- --></span>
+            <span class="token class-name">EditorNodeData</span> node <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token constructor-invocation class-name">EditorNodeData</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            node<span class="token punctuation">.</span>sortNum <span class="token operator">=</span> data<span class="token punctuation">.</span>SortNum<span class="token punctuation">;</span>
+            node<span class="token punctuation">.</span>DataID <span class="token operator">=</span> data<span class="token punctuation">.</span>ID<span class="token punctuation">;</span>
+            node<span class="token punctuation">.</span>rect <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token constructor-invocation class-name">Rect</span><span class="token punctuation">(</span><span class="token number">20</span> <span class="token operator">+</span> node<span class="token punctuation">.</span>sortNum <span class="token operator">*</span> <span class="token number">250</span><span class="token punctuation">,</span> <span class="token number">80</span><span class="token punctuation">,</span> <span class="token number">230</span><span class="token punctuation">,</span> <span class="token number">160</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            node<span class="token punctuation">.</span>isInstance <span class="token operator">=</span> <span class="token boolean">true</span><span class="token punctuation">;</span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token number">250</span> <span class="token operator">+</span> node<span class="token punctuation">.</span>sortNum <span class="token operator">*</span> <span class="token number">250</span> <span class="token operator">&gt;</span> viewRect<span class="token punctuation">.</span>width<span class="token punctuation">)</span> 
+            <span class="token punctuation">{<!-- --></span>
+                viewRect<span class="token punctuation">.</span>width <span class="token operator">+=</span> <span class="token number">250</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+            editorNodes<span class="token punctuation">.</span><span class="token function">Add</span><span class="token punctuation">(</span>node<span class="token punctuation">.</span>sortNum<span class="token punctuation">,</span> node<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+</code></pre> 
+<h5><a id="Json_116"></a>三、数据类序列化与Json数据反序列化</h5> 
+<p>由于<code>Unity</code>内置的<code>Json</code>处理工具<code>JsonUtility</code>对于<code>List</code>与<code>Dictionary</code>支持不是很友好，在本案例中就选择使用<code>LitJson</code>作为对<code>Json</code>数据序列化与反序列化的处理工具。<code>LitJson</code>可以直接从<code>Github</code>上下载获取，链接地址：<a href="https://github.com/LitJSON/litjson">LitJson</a></p> 
+<p>既然要通过<code>Json</code>为介质媒体存储数据，首先创建以<code>.json</code>为后缀的文本文件并导入项目中，当然也可以直接使用<code>Txt</code>文件。然后获取到项目文件所在的路径，在前篇编辑器基础介绍中有描述到定位项目<code>Asset</code>文件路径的接口，并结合项目Asset的相对路径设定全局路径：</p> 
+<pre><code class="prism language-csharp">    <span class="token keyword">public</span> <span class="token keyword">static</span> <span class="token return-type class-name"><span class="token keyword">string</span></span> jsonFIlePath
+    <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">get</span>
+        <span class="token punctuation">{<!-- --></span>
+            <span class="token keyword">return</span> Application<span class="token punctuation">.</span>dataPath <span class="token operator">+</span> <span class="token string">"/Datas/dataDemo.json"</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+	<span class="token punctuation">}</span>
+</code></pre> 
+<p>前面数据初始化的时候，提到需要将本地存储数据反序列化到内存中。具体操作就是在得到存储数据的文本文件路径后，就可以通过该路径来获取到文件中的字节流并通过<code>LitJson</code>的接口方法将其反序列化，转换为实例化的数据结构<code>MainData</code>。由于本案例操作数据量较小，直接主线程内操作即可，如果<code>Json</code>数据量过大，可以考虑协程异步读取数据避免主线程的卡顿</p> 
+<pre><code class="prism language-csharp">    <span class="token keyword">private</span> <span class="token return-type class-name">MainData</span> <span class="token function">JsonToMainData</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+    <span class="token punctuation">{<!-- --></span>
+        <span class="token class-name"><span class="token keyword">byte</span><span class="token punctuation">[</span><span class="token punctuation">]</span></span> bts <span class="token operator">=</span> File<span class="token punctuation">.</span><span class="token function">ReadAllBytes</span><span class="token punctuation">(</span>jsonFIlePath<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>bts<span class="token punctuation">.</span>Length <span class="token operator">==</span> <span class="token number">0</span><span class="token punctuation">)</span> <span class="token keyword">return</span> <span class="token keyword">null</span><span class="token punctuation">;</span>
+        <span class="token class-name"><span class="token keyword">string</span></span> str<span class="token operator">=</span>System<span class="token punctuation">.</span>Text<span class="token punctuation">.</span>Encoding<span class="token punctuation">.</span>UTF8<span class="token punctuation">.</span><span class="token function">GetString</span><span class="token punctuation">(</span>bts<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span><span class="token punctuation">(</span><span class="token keyword">string</span><span class="token punctuation">.</span><span class="token function">IsNullOrEmpty</span><span class="token punctuation">(</span>str<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token keyword">return</span> <span class="token keyword">null</span><span class="token punctuation">;</span>
+        <span class="token keyword">return</span> JsonMapper<span class="token punctuation">.</span><span class="token generic-method"><span class="token function">ToObject</span><span class="token generic class-name"><span class="token punctuation">&lt;</span>MainData<span class="token punctuation">&gt;</span></span></span><span class="token punctuation">(</span>str<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+</code></pre> 
+<p>类似<code>Json</code>数据的反序列化，对于<code>Json</code>数据的序列化的过程做一个上面的反向操作即可。不过在序列化之前，需要对缓存数据做处理，即剔除未实例化数据的排序序号，使得编辑数据排序保持连续：</p> 
+<pre><code class="prism language-csharp">    <span class="token keyword">private</span> <span class="token return-type class-name"><span class="token keyword">void</span></span> <span class="token function">WriteDataToText</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+    <span class="token punctuation">{<!-- --></span>
+        <span class="token function">SortMainData</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token class-name"><span class="token keyword">string</span></span> str <span class="token operator">=</span> JsonMapper<span class="token punctuation">.</span><span class="token function">ToJson</span><span class="token punctuation">(</span>mainData<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token class-name"><span class="token keyword">byte</span><span class="token punctuation">[</span><span class="token punctuation">]</span></span> bts <span class="token operator">=</span> System<span class="token punctuation">.</span>Text<span class="token punctuation">.</span>Encoding<span class="token punctuation">.</span>UTF8<span class="token punctuation">.</span><span class="token function">GetBytes</span><span class="token punctuation">(</span>str<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        File<span class="token punctuation">.</span><span class="token function">WriteAllBytes</span><span class="token punctuation">(</span>jsonFIlePath<span class="token punctuation">,</span> bts<span class="token punctuation">)</span><span class="token punctuation">;</span>       
+    <span class="token punctuation">}</span>
+    <span class="token keyword">public</span> <span class="token return-type class-name"><span class="token keyword">void</span></span> <span class="token function">SortMainData</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+    <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>mainData <span class="token operator">==</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token keyword">return</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>editorNodes<span class="token punctuation">.</span><span class="token function">ContainsKey</span><span class="token punctuation">(</span>mainData<span class="token punctuation">.</span>CharacterDatas<span class="token punctuation">.</span>Count<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token keyword">return</span><span class="token punctuation">;</span>
+        <span class="token class-name"><span class="token keyword">int</span></span> index <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+        <span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token class-name"><span class="token keyword">int</span></span> i <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span> i <span class="token operator">&lt;</span> editorNodes<span class="token punctuation">.</span>Count<span class="token punctuation">;</span> i<span class="token operator">++</span><span class="token punctuation">)</span>
+        <span class="token punctuation">{<!-- --></span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span>editorNodes<span class="token punctuation">[</span>i<span class="token punctuation">]</span><span class="token punctuation">.</span>isInstance<span class="token punctuation">)</span>
+            <span class="token punctuation">{<!-- --></span>
+                <span class="token class-name">CharacterData</span> data <span class="token operator">=</span> mainData<span class="token punctuation">.</span>CharacterDatas<span class="token punctuation">[</span>editorNodes<span class="token punctuation">[</span>i<span class="token punctuation">]</span><span class="token punctuation">.</span>DataID<span class="token punctuation">.</span><span class="token function">ToString</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">]</span><span class="token punctuation">;</span>
+                data<span class="token punctuation">.</span>SortNum <span class="token operator">-=</span> index<span class="token punctuation">;</span>   
+            <span class="token punctuation">}</span>
+            <span class="token keyword">else</span>
+            <span class="token punctuation">{<!-- --></span>
+				index<span class="token operator">++</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+</code></pre> 
+<p>需要注意的是，在前面的数据准备阶段对<code>MainData</code>数据结构设计时，是以<code>CharacterData</code>的<code>ID</code>作为<code>CharacterDatas</code>的键，而比较特殊的地方就是将本来为<code>int</code>类型<code>ID</code>的键转换成了字符串类型，这是因为<code>LitJson</code>在对于<code>Dictionary</code>类型数据处理时，只支持以字符串为键的格式设定。不过可以通过修改其源码的类型判断方法来让其支持其他类型</p> 
+<p>如果想了解具体修改方法可以查看该链接：<br> <a href="https://zhuanlan.zhihu.com/p/551800343" rel="nofollow">修改LitJson以支持int类型的字典Key</a></p> 
+<h5><a id="_181"></a>创建编辑器界面</h5> 
+<p>在上篇文章已经介绍了编辑器界面的创建细节，所以这里就不再做详细的描述，如果对代码中的内容不理解，可以翻阅前篇文章或者<code>Unity</code>官方提供的文档介绍：</p> 
+<pre><code class="prism language-csharp"><span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">JsonEditor</span> <span class="token punctuation">:</span> <span class="token type-list"><span class="token class-name">EditorWindow</span></span>
+<span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">private</span> <span class="token keyword">static</span> <span class="token class-name">JsonEditor</span> editorWindow<span class="token punctuation">;</span>
+    <span class="token punctuation">[</span><span class="token attribute"><span class="token class-name">MenuItem</span><span class="token attribute-arguments"><span class="token punctuation">(</span><span class="token string">"Editor/JsonEditor &amp;1"</span><span class="token punctuation">)</span></span></span><span class="token punctuation">]</span>
+    <span class="token keyword">public</span> <span class="token keyword">static</span> <span class="token return-type class-name">JsonEditor</span> <span class="token function">CreateWindow</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+    <span class="token punctuation">{<!-- --></span>
+        editorWindow <span class="token operator">=</span> <span class="token generic-method"><span class="token function">GetWindow</span><span class="token generic class-name"><span class="token punctuation">&lt;</span>JsonEditor<span class="token punctuation">&gt;</span></span></span><span class="token punctuation">(</span> <span class="token string">"Json数据编辑器"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        editorWindow<span class="token punctuation">.</span>autoRepaintOnSceneChange <span class="token operator">=</span> <span class="token boolean">true</span><span class="token punctuation">;</span>
+        editorWindow<span class="token punctuation">.</span><span class="token function">Show</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">return</span> editorWindow<span class="token punctuation">;</span>        
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<h5><a id="_199"></a>编辑器内容绘制与功能实现</h5> 
+<p><strong>最上栏Button列表：</strong><br> <img src="https://images2.imgbox.com/05/d6/Knj7Enii_o.png" alt="在这里插入图片描述"></p> 
+<p>编辑器界面的第一部分是五个全局操作功能按钮，用来做数据节点的增删查与界面和数据的总体管理</p> 
+<pre><code class="prism language-csharp">	<span class="token keyword">private</span> <span class="token return-type class-name"><span class="token keyword">void</span></span> <span class="token function">UpButtonBlock</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+    <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>GUI<span class="token punctuation">.</span><span class="token function">Button</span><span class="token punctuation">(</span><span class="token keyword">new</span> <span class="token constructor-invocation class-name">Rect</span><span class="token punctuation">(</span><span class="token number">10</span><span class="token punctuation">,</span> <span class="token number">10</span><span class="token punctuation">,</span> <span class="token number">130</span><span class="token punctuation">,</span> <span class="token number">40</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token string">"添加节点"</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+        <span class="token punctuation">{<!-- --></span>
+            <span class="token function">AddNode</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>    
+        <span class="token keyword">if</span><span class="token punctuation">(</span>GUI<span class="token punctuation">.</span><span class="token function">Button</span><span class="token punctuation">(</span><span class="token keyword">new</span> <span class="token constructor-invocation class-name">Rect</span><span class="token punctuation">(</span><span class="token number">160</span><span class="token punctuation">,</span> <span class="token number">10</span><span class="token punctuation">,</span> <span class="token number">130</span><span class="token punctuation">,</span> <span class="token number">40</span><span class="token punctuation">)</span><span class="token punctuation">,</span><span class="token string">"删除选中节点"</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+        <span class="token punctuation">{<!-- --></span>
+            <span class="token function">RemoveSelectNode</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token keyword">return</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span> 
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>GUI<span class="token punctuation">.</span><span class="token function">Button</span><span class="token punctuation">(</span><span class="token keyword">new</span> <span class="token constructor-invocation class-name">Rect</span><span class="token punctuation">(</span><span class="token number">310</span><span class="token punctuation">,</span> <span class="token number">10</span><span class="token punctuation">,</span> <span class="token number">130</span><span class="token punctuation">,</span> <span class="token number">40</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token string">"查找节点"</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+        <span class="token punctuation">{<!-- --></span>
+            isShowFindWindow <span class="token operator">=</span> <span class="token boolean">true</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>GUI<span class="token punctuation">.</span><span class="token function">Button</span><span class="token punctuation">(</span><span class="token keyword">new</span> <span class="token constructor-invocation class-name">Rect</span><span class="token punctuation">(</span><span class="token number">460</span><span class="token punctuation">,</span> <span class="token number">10</span><span class="token punctuation">,</span> <span class="token number">130</span><span class="token punctuation">,</span> <span class="token number">40</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token string">"手动保存节点数据"</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+        <span class="token punctuation">{<!-- --></span>
+            <span class="token function">WriteDataToText</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>GUI<span class="token punctuation">.</span><span class="token function">Button</span><span class="token punctuation">(</span><span class="token keyword">new</span> <span class="token constructor-invocation class-name">Rect</span><span class="token punctuation">(</span><span class="token number">610</span><span class="token punctuation">,</span> <span class="token number">10</span><span class="token punctuation">,</span> <span class="token number">130</span><span class="token punctuation">,</span> <span class="token number">40</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token string">"关闭窗口"</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+        <span class="token punctuation">{<!-- --></span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span>EditorUtility<span class="token punctuation">.</span><span class="token function">DisplayDialog</span><span class="token punctuation">(</span><span class="token string">"提示"</span><span class="token punctuation">,</span> <span class="token string">"确定是否关闭界面"</span><span class="token punctuation">,</span> <span class="token string">"确定"</span><span class="token punctuation">,</span> <span class="token string">"取消"</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+            <span class="token punctuation">{<!-- --></span>
+                <span class="token function">Close</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+</code></pre> 
+<p>接下来根据UI功能设计数据处理逻辑代码</p> 
+<p><strong>添加节点数据：</strong></p> 
+<p>创建新的编辑器节点数据<code>EditorNodeData</code> 并初始化，加入到节点编辑缓存数据<code>editorNodes</code>中，其中关键节点的设计意义为：</p> 
+<ul><li><code>sortNum</code>：作为排序存在，根据当前已存在数据做累加</li><li><code>rect</code>：为<code>UI</code>节点定位并设定大小</li><li><code>isInstance</code> ：添加节点后，如果未填入节点<code>ID</code>，不会实例化该数据状态，以该字段记录</li></ul> 
+<pre><code class="prism language-csharp">    <span class="token keyword">private</span> <span class="token return-type class-name"><span class="token keyword">void</span></span> <span class="token function">AddNode</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+    <span class="token punctuation">{<!-- --></span>
+        <span class="token class-name">EditorNodeData</span> node <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token constructor-invocation class-name">EditorNodeData</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        node<span class="token punctuation">.</span>sortNum <span class="token operator">=</span> editorNodes<span class="token punctuation">.</span>Keys<span class="token punctuation">.</span>Count<span class="token punctuation">;</span>
+        node<span class="token punctuation">.</span>rect <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token constructor-invocation class-name">Rect</span><span class="token punctuation">(</span><span class="token number">20</span> <span class="token operator">+</span> node<span class="token punctuation">.</span>sortNum <span class="token operator">*</span> <span class="token number">250</span><span class="token punctuation">,</span> <span class="token number">80</span><span class="token punctuation">,</span> <span class="token number">230</span><span class="token punctuation">,</span> <span class="token number">160</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        editorNodes<span class="token punctuation">.</span><span class="token function">Add</span><span class="token punctuation">(</span>node<span class="token punctuation">.</span>sortNum<span class="token punctuation">,</span> node<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span> <span class="token number">250</span> <span class="token operator">+</span> node<span class="token punctuation">.</span>sortNum <span class="token operator">*</span> <span class="token number">250</span> <span class="token operator">&gt;</span> viewRect<span class="token punctuation">.</span>width<span class="token punctuation">)</span>
+        <span class="token punctuation">{<!-- --></span>
+            viewRect<span class="token punctuation">.</span>width<span class="token operator">=</span> viewRect<span class="token punctuation">.</span>width <span class="token operator">+</span> <span class="token number">250</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        node<span class="token punctuation">.</span>isInstance <span class="token operator">=</span> <span class="token boolean">false</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+</code></pre> 
+<p>由于增加节点个数，会使得内容窗口边长，如果不做处理，后面的节点内容无法显示，因此会在增加节点时，增大内容框的长度，而内容框的具体显示逻辑，会在后续的<code>UI</code>层逻辑时处理</p> 
+<p><strong>删除选中节点数据：</strong></p> 
+<p>维护一个节点数据<code>CharacterData</code>的引用做为选中节点数据的标定，如果该节点数据不为空时，可触发数据的删除逻辑，通过对<code>mainData</code>内的选中的<code>CharacterData</code>清除，并再次序列化与初始化所有数据，来达到节点编辑器数据数据<code>editorNodes</code>完整刷新的目的。虽然这种暴力这种方式算不上优雅，不过用起来倒是非常简单干脆</p> 
+<pre><code class="prism language-csharp">    <span class="token keyword">private</span> <span class="token return-type class-name"><span class="token keyword">void</span></span> <span class="token function">RemoveSelectNode</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+    <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>selectNode <span class="token operator">==</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token keyword">return</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>EditorUtility<span class="token punctuation">.</span><span class="token function">DisplayDialog</span><span class="token punctuation">(</span><span class="token string">"提示"</span><span class="token punctuation">,</span> <span class="token string">"确定删除当前节点数据，该行为不可回溯"</span><span class="token punctuation">,</span> <span class="token string">"确定"</span><span class="token punctuation">,</span> <span class="token string">"取消"</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+        <span class="token punctuation">{<!-- --></span>
+            mainData<span class="token punctuation">.</span>CharacterDatas<span class="token punctuation">.</span><span class="token function">Remove</span><span class="token punctuation">(</span>selectNode<span class="token punctuation">.</span>DataID<span class="token punctuation">.</span><span class="token function">ToString</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token keyword">foreach</span> <span class="token punctuation">(</span><span class="token class-name"><span class="token keyword">var</span></span> item <span class="token keyword">in</span> mainData<span class="token punctuation">.</span>CharacterDatas<span class="token punctuation">.</span>Values<span class="token punctuation">)</span>
+            <span class="token punctuation">{<!-- --></span>
+                <span class="token keyword">if</span><span class="token punctuation">(</span>item<span class="token punctuation">.</span>SortNum<span class="token operator">&gt;</span>selectNode<span class="token punctuation">.</span>sortNum<span class="token punctuation">)</span>
+                <span class="token punctuation">{<!-- --></span>
+                    item<span class="token punctuation">.</span>SortNum<span class="token operator">--</span><span class="token punctuation">;</span>
+                <span class="token punctuation">}</span>
+            <span class="token punctuation">}</span>
+            selectNode <span class="token operator">=</span> <span class="token keyword">null</span><span class="token punctuation">;</span>
+            <span class="token function">WriteDataToText</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token function">InitData</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>           
+        <span class="token punctuation">}</span>     
+    <span class="token punctuation">}</span>
+</code></pre> 
+<ul><li> <p>手动保存节点数据： 调用<code>WriteDataToText()</code>将编辑完的数据序列化并保存到本地文件内</p> </li><li> <p>查找节点：通过<code>bool</code>类型<code>isShowFindWindow </code>记录查找状态，在后续的界面逻辑处理切换到该状态</p> </li><li> <p>关闭窗口：对于<code>Unity</code>中编辑器关闭界面，调用<code>EditorWindow</code>中的 <code>Close</code>完成关闭</p> </li></ul> 
+<h5><a id="_293"></a>核心节点绘制：</h5> 
+<p>对于核心节点窗口有上面几种状态：<br> <img src="https://images2.imgbox.com/82/d1/nTZCG2A2_o.png" alt="在这里插入图片描述"></p> 
+<p>各个节点状态设定为：</p> 
+<ul><li>节点0：首次创建节点，在未填写<code>ID</code>时，无法填写其他数据</li><li>节点1：完成<code>ID</code>填写后，设定一些未初始化的数据提示</li><li>节点2：数据填写完整后的象时效果</li><li>节点3：选中状态下的显示效果</li></ul> 
+<p>创建一个新的节点时，由于尚未填写节点<code>ID</code>，所以无法直接创建节点数据的实例，需要设定提示输入数据节点的<code>ID</code>，同时对输入的<code>ID</code>做合法性判断，来确保其满足唯一性或者其他条件，例如在本案例中会通过字典查询方式来确保数据<code>ID</code>的唯一性</p> 
+<p>类似于<code>ID</code>，可以同样对于数据节点内字段的输入状态监控并添加风险提示，提升数据编辑的可靠性，如节点排序为1的节点编辑单位中，添加对角色名字是否为空字符串的判断提示，来尽量避免人为失误产生的数据格式错误</p> 
+<pre><code class="prism language-csharp">	<span class="token keyword">private</span> <span class="token return-type class-name"><span class="token keyword">void</span></span> <span class="token function">CreateNodeUI</span><span class="token punctuation">(</span><span class="token class-name"><span class="token keyword">int</span></span> sortNum<span class="token punctuation">)</span>
+    <span class="token punctuation">{<!-- --></span>
+        EditorGUI<span class="token punctuation">.</span><span class="token function">LabelField</span><span class="token punctuation">(</span><span class="token keyword">new</span> <span class="token constructor-invocation class-name">Rect</span><span class="token punctuation">(</span><span class="token number">100</span><span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">,</span> <span class="token number">50</span><span class="token punctuation">,</span> <span class="token number">30</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token string">"节点:"</span> <span class="token operator">+</span> sortNum<span class="token punctuation">.</span><span class="token function">ToString</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> titleFontStyle<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span><span class="token punctuation">(</span>editorNodes<span class="token punctuation">.</span><span class="token function">TryGetValue</span><span class="token punctuation">(</span>sortNum<span class="token punctuation">,</span><span class="token keyword">out</span> <span class="token class-name">EditorNodeData</span> node<span class="token punctuation">)</span><span class="token punctuation">)</span>
+        <span class="token punctuation">{<!-- --></span>
+            EditorGUILayout<span class="token punctuation">.</span><span class="token function">Space</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token keyword">if</span><span class="token punctuation">(</span>node<span class="token punctuation">.</span>isInstance<span class="token punctuation">)</span>
+            <span class="token punctuation">{<!-- --></span>
+                <span class="token keyword">if</span><span class="token punctuation">(</span>mainData<span class="token punctuation">.</span>CharacterDatas<span class="token punctuation">.</span><span class="token function">TryGetValue</span><span class="token punctuation">(</span>node<span class="token punctuation">.</span>DataID<span class="token punctuation">.</span><span class="token function">ToString</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span><span class="token keyword">out</span> <span class="token class-name">CharacterData</span> data<span class="token punctuation">)</span><span class="token punctuation">)</span>
+                <span class="token punctuation">{<!-- --></span>
+                    EditorGUILayout<span class="token punctuation">.</span><span class="token function">IntField</span><span class="token punctuation">(</span><span class="token string">"ID"</span><span class="token punctuation">,</span> data<span class="token punctuation">.</span>ID<span class="token punctuation">)</span><span class="token punctuation">;</span>
+                    data<span class="token punctuation">.</span>name <span class="token operator">=</span> EditorGUILayout<span class="token punctuation">.</span><span class="token function">TextField</span><span class="token punctuation">(</span><span class="token string">"角色名字："</span><span class="token punctuation">,</span> data<span class="token punctuation">.</span>name<span class="token punctuation">)</span><span class="token punctuation">;</span>
+                    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token keyword">string</span><span class="token punctuation">.</span><span class="token function">IsNullOrEmpty</span><span class="token punctuation">(</span>data<span class="token punctuation">.</span>name<span class="token punctuation">)</span><span class="token punctuation">)</span>
+                    <span class="token punctuation">{<!-- --></span>
+                        EditorGUILayout<span class="token punctuation">.</span><span class="token function">HelpBox</span><span class="token punctuation">(</span><span class="token string">"名字为空，未填写内容"</span><span class="token punctuation">,</span> MessageType<span class="token punctuation">.</span>Error<span class="token punctuation">)</span><span class="token punctuation">;</span>
+                    <span class="token punctuation">}</span>
+                    data<span class="token punctuation">.</span>type <span class="token operator">=</span> <span class="token punctuation">(</span>CharacterType<span class="token punctuation">)</span>EditorGUILayout<span class="token punctuation">.</span><span class="token function">EnumPopup</span><span class="token punctuation">(</span><span class="token string">"角色类型："</span><span class="token punctuation">,</span> data<span class="token punctuation">.</span>type<span class="token punctuation">)</span><span class="token punctuation">;</span>
+                    <span class="token keyword">if</span> <span class="token punctuation">(</span>node<span class="token punctuation">.</span>isSelect<span class="token punctuation">)</span>
+                    <span class="token punctuation">{<!-- --></span>
+                        <span class="token keyword">if</span> <span class="token punctuation">(</span>GUI<span class="token punctuation">.</span><span class="token function">Button</span><span class="token punctuation">(</span><span class="token keyword">new</span> <span class="token constructor-invocation class-name">Rect</span><span class="token punctuation">(</span><span class="token number">0</span><span class="token punctuation">,</span> <span class="token number">130</span><span class="token punctuation">,</span> <span class="token number">250</span><span class="token punctuation">,</span> <span class="token number">30</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token string">"处于选中状态"</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">{<!-- --></span><span class="token punctuation">}</span>
+                        GUI<span class="token punctuation">.</span><span class="token function">Button</span><span class="token punctuation">(</span><span class="token keyword">new</span> <span class="token constructor-invocation class-name">Rect</span><span class="token punctuation">(</span><span class="token number">0</span><span class="token punctuation">,</span> <span class="token number">130</span><span class="token punctuation">,</span> <span class="token number">30</span><span class="token punctuation">,</span> <span class="token number">30</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token string">""</span><span class="token punctuation">,</span> windowSelectStyle<span class="token punctuation">.</span>box<span class="token punctuation">)</span><span class="token punctuation">;</span>
+                    <span class="token punctuation">}</span>
+                    <span class="token keyword">else</span>
+                    <span class="token punctuation">{<!-- --></span>
+                        <span class="token keyword">if</span> <span class="token punctuation">(</span>GUI<span class="token punctuation">.</span><span class="token function">Button</span><span class="token punctuation">(</span><span class="token keyword">new</span> <span class="token constructor-invocation class-name">Rect</span><span class="token punctuation">(</span><span class="token number">0</span><span class="token punctuation">,</span> <span class="token number">130</span><span class="token punctuation">,</span> <span class="token number">250</span><span class="token punctuation">,</span> <span class="token number">30</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token string">"点我选中"</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+                        <span class="token punctuation">{<!-- --></span>
+                            <span class="token function">ChangeSelectNode</span><span class="token punctuation">(</span>node<span class="token punctuation">)</span><span class="token punctuation">;</span>
+                        <span class="token punctuation">}</span>
+                    <span class="token punctuation">}</span>                                       
+                <span class="token punctuation">}</span>
+            <span class="token punctuation">}</span>
+            <span class="token keyword">else</span>
+            <span class="token punctuation">{<!-- --></span>
+                node<span class="token punctuation">.</span>DataID <span class="token operator">=</span> EditorGUILayout<span class="token punctuation">.</span><span class="token function">DelayedIntField</span><span class="token punctuation">(</span><span class="token string">"ID"</span><span class="token punctuation">,</span> node<span class="token punctuation">.</span>DataID<span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token keyword">if</span> <span class="token punctuation">(</span>node<span class="token punctuation">.</span>DataID <span class="token operator">==</span> <span class="token number">0</span><span class="token punctuation">)</span>
+                <span class="token punctuation">{<!-- --></span>
+                    EditorGUILayout<span class="token punctuation">.</span><span class="token function">HelpBox</span><span class="token punctuation">(</span><span class="token string">"填写完ID后解锁功能（回车保存）"</span><span class="token punctuation">,</span> MessageType<span class="token punctuation">.</span>Error<span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token punctuation">}</span>
+                <span class="token keyword">else</span>
+                <span class="token punctuation">{<!-- --></span>
+                    <span class="token keyword">if</span> <span class="token punctuation">(</span>mainData<span class="token punctuation">.</span>CharacterDatas<span class="token punctuation">.</span><span class="token function">ContainsKey</span><span class="token punctuation">(</span>node<span class="token punctuation">.</span>DataID<span class="token punctuation">.</span><span class="token function">ToString</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+                    <span class="token punctuation">{<!-- --></span>
+                        EditorGUILayout<span class="token punctuation">.</span><span class="token function">HelpBox</span><span class="token punctuation">(</span><span class="token string">"该ID已存在，不可使用"</span><span class="token punctuation">,</span> MessageType<span class="token punctuation">.</span>Error<span class="token punctuation">)</span><span class="token punctuation">;</span>
+                    <span class="token punctuation">}</span>
+                    <span class="token keyword">else</span>
+                    <span class="token punctuation">{<!-- --></span>
+                        <span class="token function">CreateCharacterData</span><span class="token punctuation">(</span>node<span class="token punctuation">)</span><span class="token punctuation">;</span>
+                        node<span class="token punctuation">.</span>isInstance <span class="token operator">=</span> <span class="token boolean">true</span><span class="token punctuation">;</span>
+                    <span class="token punctuation">}</span>
+                <span class="token punctuation">}</span>
+            <span class="token punctuation">}</span>          
+        <span class="token punctuation">}</span>
+        <span class="token keyword">else</span>
+        <span class="token punctuation">{<!-- --></span>
+            EditorGUILayout<span class="token punctuation">.</span><span class="token function">HelpBox</span><span class="token punctuation">(</span><span class="token string">"系统出现未知错误"</span><span class="token punctuation">,</span> MessageType<span class="token punctuation">.</span>Error<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+</code></pre> 
+<p>在上面的节点界面中，节点标题与选中状态会额外设定格式，添加示意图突出选中状态。该效果的实现就需要通过手动设定控件皮肤格式<img src="https://images2.imgbox.com/fd/9c/tgxBCnNC_o.png" alt="在这里插入图片描述"></p> 
+<pre><code class="prism language-csharp">    <span class="token keyword">private</span> <span class="token return-type class-name"><span class="token keyword">void</span></span> <span class="token function">InitStyleData</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+    <span class="token punctuation">{<!-- --></span>
+        titleFontStyle <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token constructor-invocation class-name">GUIStyle</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        titleFontStyle<span class="token punctuation">.</span>fontStyle <span class="token operator">=</span> FontStyle<span class="token punctuation">.</span>Bold<span class="token punctuation">;</span>
+        titleFontStyle<span class="token punctuation">.</span>fontSize <span class="token operator">=</span> <span class="token number">16</span><span class="token punctuation">;</span>
+        titleFontStyle<span class="token punctuation">.</span>normal<span class="token punctuation">.</span>textColor <span class="token operator">=</span> Color<span class="token punctuation">.</span>white<span class="token punctuation">;</span>
+
+        windowSelectStyle <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token constructor-invocation class-name">GUISkin</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        windowSelectStyle<span class="token punctuation">.</span>box<span class="token punctuation">.</span>normal<span class="token punctuation">.</span>textColor <span class="token operator">=</span> Color<span class="token punctuation">.</span>blue<span class="token punctuation">;</span>       
+        windowSelectStyle<span class="token punctuation">.</span>box<span class="token punctuation">.</span>normal<span class="token punctuation">.</span>background <span class="token operator">=</span> AssetDatabase<span class="token punctuation">.</span><span class="token generic-method"><span class="token function">LoadAssetAtPath</span><span class="token generic class-name"><span class="token punctuation">&lt;</span>Texture2D<span class="token punctuation">&gt;</span></span></span><span class="token punctuation">(</span>textureAssetpath<span class="token punctuation">)</span><span class="token punctuation">;</span> 
+    <span class="token punctuation">}</span>
+</code></pre> 
+<p><code>Unity</code>中默认不存在对号的提示图片，需要从外部下载并放入项目内，然后通过资源路径加载</p> 
+<p>需要注意的是，为了避免游戏运行无用的资源被打包，会将该<code>Texture2D</code>放置于<code>Editor</code>路径下，而将其加载到内存中可以通过<code>AssetDatabase.LoadAssetAtPath</code>接口实现</p> 
+<h5><a id="_395"></a>节点数据查找：</h5> 
+<p><img src="https://images2.imgbox.com/d1/7b/cnev1oBD_o.gif" alt="请添加图片描述"></p> 
+<p>通过<code>ID</code>来执行索引，查找<code>mainData</code>数据中是否存在该<code>ID</code>的节点数据，如果存在，将相关字段的数据编辑<code>UI</code>显示出来，不存在则显示提示内容</p> 
+<pre><code class="prism language-csharp">	<span class="token keyword">private</span> <span class="token return-type class-name"><span class="token keyword">void</span></span> <span class="token function">FindNodeWindow</span><span class="token punctuation">(</span><span class="token class-name"><span class="token keyword">int</span></span> id<span class="token punctuation">)</span>
+    <span class="token punctuation">{<!-- --></span>
+        EditorGUI<span class="token punctuation">.</span><span class="token function">LabelField</span><span class="token punctuation">(</span><span class="token keyword">new</span> <span class="token constructor-invocation class-name">Rect</span><span class="token punctuation">(</span><span class="token number">100</span><span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">,</span> <span class="token number">50</span><span class="token punctuation">,</span> <span class="token number">30</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token string">"查找数据节点"</span><span class="token punctuation">,</span> titleFontStyle<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>GUILayout<span class="token punctuation">.</span><span class="token function">Button</span><span class="token punctuation">(</span><span class="token string">"关闭界面"</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+        <span class="token punctuation">{<!-- --></span>
+            isShowFindWindow <span class="token operator">=</span> <span class="token boolean">false</span><span class="token punctuation">;</span>
+            <span class="token keyword">return</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        EditorGUILayout<span class="token punctuation">.</span><span class="token function">LabelField</span><span class="token punctuation">(</span><span class="token string">"请输入要查找的数据ID："</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        findDataKey <span class="token operator">=</span> EditorGUILayout<span class="token punctuation">.</span><span class="token function">IntField</span><span class="token punctuation">(</span>findDataKey<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        EditorGUILayout<span class="token punctuation">.</span><span class="token function">Space</span><span class="token punctuation">(</span><span class="token number">20</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>mainData<span class="token punctuation">.</span>CharacterDatas<span class="token punctuation">.</span><span class="token function">TryGetValue</span><span class="token punctuation">(</span>findDataKey<span class="token punctuation">.</span><span class="token function">ToString</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token keyword">out</span> <span class="token class-name">CharacterData</span> data<span class="token punctuation">)</span><span class="token punctuation">)</span>
+        <span class="token punctuation">{<!-- --></span>
+            EditorGUILayout<span class="token punctuation">.</span><span class="token function">LabelField</span><span class="token punctuation">(</span><span class="token string">"基本信息(不可修改）："</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            EditorGUILayout<span class="token punctuation">.</span><span class="token function">IntField</span><span class="token punctuation">(</span><span class="token string">"ID"</span><span class="token punctuation">,</span> data<span class="token punctuation">.</span>ID<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            EditorGUILayout<span class="token punctuation">.</span><span class="token function">TextField</span><span class="token punctuation">(</span><span class="token string">"名字："</span><span class="token punctuation">,</span> data<span class="token punctuation">.</span>name<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+            <span class="token keyword">if</span> <span class="token punctuation">(</span>data<span class="token punctuation">.</span>detialData <span class="token operator">==</span> <span class="token keyword">null</span><span class="token punctuation">)</span>
+            <span class="token punctuation">{<!-- --></span>
+                data<span class="token punctuation">.</span>detialData <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token constructor-invocation class-name">DetialCharacterData</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+            EditorGUILayout<span class="token punctuation">.</span><span class="token function">Space</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            EditorGUILayout<span class="token punctuation">.</span><span class="token function">LabelField</span><span class="token punctuation">(</span><span class="token string">"详细信息(可修改）："</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            EditorGUILayout<span class="token punctuation">.</span><span class="token function">LabelField</span><span class="token punctuation">(</span><span class="token string">"详细描述："</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            data<span class="token punctuation">.</span>detialData<span class="token punctuation">.</span>describe <span class="token operator">=</span> EditorGUILayout<span class="token punctuation">.</span><span class="token function">TextField</span><span class="token punctuation">(</span>data<span class="token punctuation">.</span>detialData<span class="token punctuation">.</span>describe<span class="token punctuation">,</span> GUILayout<span class="token punctuation">.</span><span class="token function">MaxHeight</span><span class="token punctuation">(</span><span class="token number">50</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            data<span class="token punctuation">.</span>detialData<span class="token punctuation">.</span>IsHardStraight <span class="token operator">=</span> EditorGUILayout<span class="token punctuation">.</span><span class="token function">Toggle</span><span class="token punctuation">(</span><span class="token string">"是否无敌"</span><span class="token punctuation">,</span> data<span class="token punctuation">.</span>detialData<span class="token punctuation">.</span>IsHardStraight<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        <span class="token keyword">else</span>
+        <span class="token punctuation">{<!-- --></span>
+            EditorGUILayout<span class="token punctuation">.</span><span class="token function">HelpBox</span><span class="token punctuation">(</span><span class="token string">"不存在该ID的数据"</span><span class="token punctuation">,</span> MessageType<span class="token punctuation">.</span>Warning<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+</code></pre> 
+<h5><a id="_436"></a>实现窗口拖拽效果</h5> 
+<p>将窗口设定为一个大的<code>ScrollView</code>,通过控制外边框与内嵌的框体大小，然后调整内框位置实现滑动，首先是外边框，通常将其与窗口宽高绑定，内框则需要根据窗口内的节点数量做计算。计算相关的代码在前面初始化阶段与添加几点编辑数据时有涉及到</p> 
+<p>而拖动效果需要监控数据的输入状态，通过定义<code>Event</code>即<code>Unity</code>的事件监控系统，可以得到鼠标移动的速度向量。根据该速度向量就可以对<code>ScrollView</code>的内嵌框坐标位移，得到窗口的拖动效果</p> 
+<p>需要注意的<code>EditorWindow</code>的控件刷新并不一定是每帧更新，如果希望编辑器界面可以实时响应我们的操作，通过<code>GUI.changed = true</code>来强制刷新界面状态</p> 
+<pre><code class="prism language-csharp">
+        canvasScrollPosition <span class="token operator">=</span> GUI<span class="token punctuation">.</span><span class="token function">BeginScrollView</span><span class="token punctuation">(</span><span class="token keyword">new</span> <span class="token constructor-invocation class-name">Rect</span><span class="token punctuation">(</span><span class="token number">0</span><span class="token punctuation">,</span><span class="token number">0</span><span class="token punctuation">,</span> position<span class="token punctuation">.</span>width<span class="token punctuation">,</span> position<span class="token punctuation">.</span>height<span class="token punctuation">)</span><span class="token punctuation">,</span> canvasScrollPosition<span class="token punctuation">,</span> viewRect<span class="token punctuation">,</span> <span class="token boolean">true</span><span class="token punctuation">,</span> <span class="token boolean">true</span><span class="token punctuation">)</span><span class="token punctuation">;</span>        
+        <span class="token class-name">Event</span> e <span class="token operator">=</span> Event<span class="token punctuation">.</span>current<span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>e<span class="token punctuation">.</span>isMouse<span class="token punctuation">)</span>
+        <span class="token punctuation">{<!-- --></span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span>canvasScrollPosition<span class="token punctuation">.</span>x <span class="token operator">&gt;=</span> <span class="token number">0</span> <span class="token operator">&amp;&amp;</span> canvasScrollPosition<span class="token punctuation">.</span>x <span class="token operator">&lt;=</span> viewRect<span class="token punctuation">.</span>width<span class="token punctuation">)</span>
+            <span class="token punctuation">{<!-- --></span>
+                canvasScrollPosition <span class="token operator">-=</span> e<span class="token punctuation">.</span>delta <span class="token operator">*</span> <span class="token number">1.2f</span><span class="token punctuation">;</span>
+                GUI<span class="token punctuation">.</span>changed <span class="token operator">=</span> <span class="token boolean">true</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+        <span class="token punctuation">}</span>
+        <span class="token function">RefreshNoteDatas</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        GUI<span class="token punctuation">.</span><span class="token function">EndScrollView</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre> 
+<h5><a id="_461"></a>总结</h5> 
+<p>整个<code>Json</code>数据可视化编辑器的基础代码结构已经完成。不过其中还有一些需要完善的地方，比如数据的批量操作，节点数据的复制粘贴、节点灵活性排序等等的功能扩展</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/3b24843f6bfd9194e9f2568b0d2b89fb/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">springboot利用mybatis批量写入clickhouse报错及解决方法</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/815f5753632fe39a1632e30d60a9a81f/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">mach-o file, but is an incompatible architecture (have ‘x86_64‘, need ＞ ‘arm64e‘解决办法</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

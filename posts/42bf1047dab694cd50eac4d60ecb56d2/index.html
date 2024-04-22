@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>ZK-SNARKS | 创建第一个零知识snark电路 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/42bf1047dab694cd50eac4d60ecb56d2/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="ZK-SNARKS | 创建第一个零知识snark电路">
+  <meta property="og:description" content="前言：本文我们使用两个公开库circom、snarkjs尝试构建一个简单的零知识证明。其中，circom库用于构建和编译代数电路，snarkjs库是zk-snarks协议的独立实现。本文使用的方法主要参考的是snarkjs库0.4.6官方教程（英文）和博文circom与snarkjs经典教程（中文）。感谢这两篇文献的作者。
+另，github上面也给出了一个较为完整的英文版的tutorial，感兴趣的盆友可以点击链接​​​​​​​学习。
+目录 准备：安装Node.js
+1. 安装circom&amp;amp;snarkjs
+2. 可信设置
+3. 构建电路 4. 生成groth16算法密钥 5. 计算见证（witness）
+6. 证明与验证
+准备：安装Node.js 具体方法参考我的另一篇博文。
+1. 安装circom&amp;amp;snarkjs 在终端输入如下安装命令：
+npm install -g circom npm install -g snarkjs 在执行第二条命令时出现git报错：
+上网搜索发现可能原因是(1) ipv6，(2) 之前开了网络代理，git默认走代理通道，导致现在关掉代理之后用不了了。
+方法1：在终端输入如下命令禁用ipv6：
+networksetup -setv6off Wi-Fi 方法2： 首先查看git配置，在终端输入“git config --global --list ”，若发现返回内容中包含http.https或者https.https字样，说明设置了网络代理。输入如下命令撤掉代理即可：
+git config --global --unset http.proxy git config --global --unset https.proxy 我遇到的是问题(1)，使用方法1解决了。
+2. 可信设置 2.1 创建一个新文件夹，用于包含后续所有文件： mkdir factor cd factor 2.2 执行new命令： snarkjs powersoftau new bn128 12 pot12_0000.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2021-08-09T14:18:25+08:00">
+    <meta property="article:modified_time" content="2021-08-09T14:18:25+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">ZK-SNARKS | 创建第一个零知识snark电路</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <p></p> 
+<p><strong>前言</strong>：本文我们使用两个公开库circom、snarkjs尝试构建一个简单的零知识证明。其中，<a href="https://github.com/iden3/circom">circom库</a>用于构建和编译代数电路，<a href="https://github.com/iden3/snarkjs">snarkjs库</a>是zk-snarks协议的独立实现。本文使用的方法主要参考的是<a href="https://www.npmjs.com/package/snarkjs" rel="nofollow">snarkjs库0.4.6官方教程</a>（英文）和博文<a href="https://learnblockchain.cn/article/1078" rel="nofollow">circom与snarkjs经典教程</a>（中文）。感谢这两篇文献的作者。</p> 
+<p>另，github上面也给出了一个较为完整的英文版的tutorial，感兴趣的盆友可以<a href="https://github.com/iden3/circom/blob/master/TUTORIAL.md">点击链接</a>​​​​​​​学习。</p> 
+<p></p> 
+<h2 id="main-toc"><strong>目录</strong></h2> 
+<p id="%E5%87%86%E5%A4%87%EF%BC%9A%E5%AE%89%E8%A3%85Node.js-toc" style="margin-left:0px;"><a href="#%E5%87%86%E5%A4%87%EF%BC%9A%E5%AE%89%E8%A3%85Node.js" rel="nofollow">准备：安装Node.js</a></p> 
+<p id="1.%20%E5%AE%89%E8%A3%85circom%26snarkjs-toc" style="margin-left:0px;"><a href="#1.%20%E5%AE%89%E8%A3%85circom%26snarkjs" rel="nofollow">1. 安装circom&amp;snarkjs</a></p> 
+<p id="2.%20%E5%8F%AF%E4%BF%A1%E8%AE%BE%E7%BD%AE-toc" style="margin-left:0px;"><a href="#2.%20%E5%8F%AF%E4%BF%A1%E8%AE%BE%E7%BD%AE" rel="nofollow">2. 可信设置</a></p> 
+<p id="3.%20%C2%A0%E6%9E%84%E5%BB%BA%E7%94%B5%E8%B7%AF%C2%A0-toc" style="margin-left:0px;"><a href="#3.%20%C2%A0%E6%9E%84%E5%BB%BA%E7%94%B5%E8%B7%AF%C2%A0" rel="nofollow">3.  构建电路 </a></p> 
+<p id="4.%20%E7%94%9F%E6%88%90groth16%E7%AE%97%E6%B3%95%E5%AF%86%E9%92%A5%C2%A0-toc" style="margin-left:0px;"><a href="#4.%20%E7%94%9F%E6%88%90groth16%E7%AE%97%E6%B3%95%E5%AF%86%E9%92%A5%C2%A0" rel="nofollow">4. 生成groth16算法密钥 </a></p> 
+<p id="5.%20%E8%AE%A1%E7%AE%97%E8%A7%81%E8%AF%81%EF%BC%88witness%EF%BC%89-toc" style="margin-left:0px;"><a href="#5.%20%E8%AE%A1%E7%AE%97%E8%A7%81%E8%AF%81%EF%BC%88witness%EF%BC%89" rel="nofollow">5. 计算见证（witness）</a></p> 
+<p id="6.%20%E8%AF%81%E6%98%8E%E4%B8%8E%E9%AA%8C%E8%AF%81-toc" style="margin-left:0px;"><a href="#6.%20%E8%AF%81%E6%98%8E%E4%B8%8E%E9%AA%8C%E8%AF%81" rel="nofollow">6. 证明与验证</a></p> 
+<hr id="hr-toc"> 
+<h4></h4> 
+<h2 id="%E5%87%86%E5%A4%87%EF%BC%9A%E5%AE%89%E8%A3%85Node.js">准备：安装Node.js</h2> 
+<p>具体方法参考我的<a href="https://blog.csdn.net/simmel_92/article/details/119515522">另一篇博文</a>。</p> 
+<h4></h4> 
+<h2 id="1.%20%E5%AE%89%E8%A3%85circom%26snarkjs">1. 安装circom&amp;snarkjs</h2> 
+<p>在终端输入如下安装命令：</p> 
+<pre><code class="language-bash">npm install -g circom
+npm install -g snarkjs</code></pre> 
+<p>在执行第二条命令时出现git报错：</p> 
+<p><img alt="" height="185" src="https://images2.imgbox.com/1a/8d/vVE1oOqA_o.png" width="698"></p> 
+<p>  上网搜索发现可能原因是(1) ipv6，(2) 之前开了网络代理，git默认走代理通道，导致现在关掉代理之后用不了了。</p> 
+<p>方法1：在终端输入如下命令禁用ipv6：</p> 
+<pre><code class="language-bash">networksetup -setv6off Wi-Fi</code></pre> 
+<p>方法2： 首先查看git配置，在终端输入“git config --global --list<strong> </strong>”，若发现返回内容中包含http.https或者https.https字样，说明设置了网络代理。输入如下命令撤掉代理即可：</p> 
+<pre><code class="language-bash">git config --global --unset http.proxy
+git config --global --unset https.proxy</code></pre> 
+<p>我遇到的是问题(1)，使用方法1解决了。</p> 
+<p></p> 
+<h2 id="2.%20%E5%8F%AF%E4%BF%A1%E8%AE%BE%E7%BD%AE">2. 可信设置</h2> 
+<h4 id="2.1%C2%A0%E5%88%9B%E5%BB%BA%E4%B8%80%E4%B8%AA%E6%96%B0%E6%96%87%E4%BB%B6%E5%A4%B9%EF%BC%8C%E7%94%A8%E4%BA%8E%E5%8C%85%E5%90%AB%E5%90%8E%E7%BB%AD%E6%89%80%E6%9C%89%E6%96%87%E4%BB%B6%EF%BC%9A">2.1 创建一个新文件夹，用于包含后续所有文件：</h4> 
+<pre><code class="language-bash">mkdir factor
+cd factor</code></pre> 
+<h4></h4> 
+<h4 id="2.2%C2%A0%E6%89%A7%E8%A1%8Cnew%E5%91%BD%E4%BB%A4%EF%BC%9A">2.2 执行new命令：</h4> 
+<pre><code class="language-bash">snarkjs powersoftau new bn128 12 pot12_0000.ptau -v</code></pre> 
+<p>* 解释：</p> 
+<p>[new]：用于开启一个新的 powers of tau ceremony （该叫法摘自<a href="https://www.npmjs.com/package/snarkjs" rel="nofollow">snarkjs库0.4.6官方教程</a>）</p> 
+<p>[bn128]：选择bn128曲线（可选的还有bls12-381曲线，bn和bls的简介见后面“补充”部分）</p> 
+<p>[12]：规定了我们接下来要构建的电路的两个限制。限制1：电路中constraints（稍后会解释）的数量不能多于<img alt="2^{12}= 4096" class="mathcode" src="https://images2.imgbox.com/66/cb/NZ6Zm33g_o.png">个；限制2：电路中parameter的数量不能多于<img alt="2^{28}\approx 268\times 10^{6}" class="mathcode" src="https://images2.imgbox.com/5a/ce/IROlQrLW_o.png">个。</p> 
+<p>* 效果：</p> 
+<p>此条命令会创建一个pot12_0000.ptau文件，执行命令后会打印以下字段：</p> 
+<p><img alt="" height="320" src="https://images2.imgbox.com/47/8f/XmJGySS6_o.png" width="562"></p> 
+<p> * 补充</p> 
+<p>参考博文<a href="https://blog.csdn.net/mutourend/article/details/92784689">zk-SNARK零知识证明曲线选择</a>及<a href="https://electriccoin.co/blog/new-snark-curve/" rel="nofollow">Electric Coin Co. 官网</a>的相关内容，Barreto-Naehrig (BN) 和Barreto-Lynn-Scott (BLS)都是pairing-friendly椭圆曲线。不同之处在于，BN曲线若想要达到128-bit的安全性，需要q≈2384，相应的BN曲线的阶数r也会提高到2384量级，r值的增大会影响multi-exponentiation、FFT等运算性能，从而影响zk-SNARK以及安全多方计算的执行效率，同时也会影响key文件不必要的增大。 而对于BLS曲线，当q≈2384 且 embedding degree k=12时，具有128-bit的安全性，而相应的阶数r≈2256，远小于BN曲线的2384量级。</p> 
+<h4></h4> 
+<h4 id="2.3%C2%A0%E6%89%A7%E8%A1%8Ccontribute%E5%91%BD%E4%BB%A4">2.3 执行contribute命令</h4> 
+<pre><code class="language-bash">snarkjs powersoftau contribute pot12_0000.ptau pot12_0001.ptau --name="First contribution" -v</code></pre> 
+<p>* 解释：</p> 
+<p>[contribute] 该命令将上一步创建的pot12_0000.ptau文件作为输入，并输出一个新的ptau文件pot12_0001.ptau。ptau文件包含所有已经进行过的challenge和response计算。</p> 
+<p>[name] 这一字段内你可以任意填入一些内容。在后面执行验证（第6步）的时候这个内容会被打印出来。</p> 
+<p>* 效果：</p> 
+<p>执行此条命令，会被要求输入一些随机内容，输入后打印如下内容：</p> 
+<p><img alt="" height="475" src="https://images2.imgbox.com/6b/05/GQRK3iTW_o.png" width="571"></p> 
+<p></p> 
+<p></p> 
+<h4></h4> 
+<h4></h4> 
+<h4></h4> 
+<h4></h4> 
+<h4></h4> 
+<h4></h4> 
+<h4></h4> 
+<h4></h4> 
+<h4></h4> 
+<h4></h4> 
+<h4></h4> 
+<h4>2.4 第二次contribute</h4> 
+<pre><code class="language-bash">snarkjs powersoftau contribute pot12_0001.ptau pot12_0002.ptau --name="Second contribution" -v -e="some random text"</code></pre> 
+<p>* 解释：</p> 
+<p>此条命令与上一条功能相同，不同点在于，加入了[-e]命令，直接输入了一些随机值（上一步是交互式地输入随机值，这一步直接将随机值写入了命令中）。</p> 
+<p>* 效果：</p> 
+<p><img alt="" height="326" src="https://images2.imgbox.com/72/98/ius1ViN5_o.png" width="528"></p> 
+<p></p> 
+<p style="text-align:center;"></p> 
+<p></p> 
+<p></p> 
+<p></p> 
+<p></p> 
+<p></p> 
+<h4></h4> 
+<h4></h4> 
+<h4 id="2.5%C2%A0%E7%AC%AC%E4%B8%89%E6%AC%A1contribute%EF%BC%88%E7%AC%AC%E4%B8%89%E6%96%B9contribute%EF%BC%89">2.5 第三次contribute（第三方contribute）</h4> 
+<pre><code class="language-bash">snarkjs powersoftau export challenge pot12_0002.ptau challenge_0003
+snarkjs powersoftau challenge contribute bn128 challenge_0003 response_0003 -e="some random text"
+snarkjs powersoftau import response pot12_0002.ptau response_0003 pot12_0003.ptau -n="Third contribution name"</code></pre> 
+<p> 不太确定这步跟上两步的异同，但是执行完成后会生成pot12_0003.ptau文件：</p> 
+<p><img alt="" height="79" src="https://images2.imgbox.com/97/7e/CI095nyM_o.png" width="462"></p> 
+<h4></h4> 
+<h4 id="2.6%C2%A0%E9%AA%8C%E8%AF%81">2.6 验证</h4> 
+<pre><code class="language-bash">snarkjs powersoftau verify pot12_0003.ptau</code></pre> 
+<p>如果验证通过，在打印信息的第一行会显示“[INFO] snarkJS: Powers Of tau file OK!” ：</p> 
+<p><img alt="" height="185" src="https://images2.imgbox.com/b8/65/ktM5UYVY_o.png" width="510"></p> 
+<p></p> 
+<p></p> 
+<p></p> 
+<p></p> 
+<p></p> 
+<p></p> 
+<h4 id="2.7%C2%A0%E5%BC%95%E5%85%A5random%20beacon">2.7 引入random beacon</h4> 
+<pre><code class="language-bash">snarkjs powersoftau beacon pot12_0003.ptau pot12_beacon.ptau 0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f 10 -n="Final Beacon"</code></pre> 
+<p> 此条命令会生成一个pot12_beacon.ptau文件。</p> 
+<p></p> 
+<h4 id="2.8%C2%A0%E7%94%9F%E6%88%90%E5%85%AC%E5%BC%80%E4%BF%A1%E6%81%AF">2.8 生成公开信息</h4> 
+<pre><code class="language-bash">snarkjs powersoftau prepare phase2 pot12_beacon.ptau pot12_final.ptau -v</code></pre> 
+<p>* 解释：</p> 
+<p>[prepare phase2]：生成多项式在点<img alt="\tau" class="mathcode" src="https://images2.imgbox.com/26/5d/bdfF8hHC_o.png">、点<img alt="\alpha \cdot \tau" class="mathcode" src="https://images2.imgbox.com/ef/15/H7iGyNm1_o.png">、点<img alt="\beta \cdot \tau" class="mathcode" src="https://images2.imgbox.com/b0/c0/NBzd168N_o.png">的值的密文。</p> 
+<p>此命令将pot12_beacon.ptau文件作为输入，生成一个新文件pot12_final.ptau。</p> 
+<p></p> 
+<h4 id="2.9%C2%A0%E6%9C%80%E7%BB%88%E9%AA%8C%E8%AF%81">2.9 最终验证</h4> 
+<pre><code class="language-bash">snarkjs powersoftau verify pot12_final.ptau</code></pre> 
+<p>* 解释：</p> 
+<p>在开始下一步（构建电路）之前，执行一个最终验证。</p> 
+<p>* 效果：</p> 
+<p>执行此条命令，部分打印信息如下：</p> 
+<p><img alt="" height="189" src="https://images2.imgbox.com/e5/1b/2HE5fgok_o.png" width="571"></p> 
+<p></p> 
+<h2 id="3.%20%C2%A0%E6%9E%84%E5%BB%BA%E7%94%B5%E8%B7%AF%C2%A0">3.  构建电路 </h2> 
+<p>我们准备证明的问题是：我们知道数字a和b（秘密），它们相乘得到c（公开值）。</p> 
+<h4 id="2.1%20%E8%AE%BE%E8%AE%A1%E7%94%B5%E8%B7%AF">3.1 创建一个circom文件：</h4> 
+<pre><code class="language-bash">vim circuit.circom</code></pre> 
+<p>文件内容如下：</p> 
+<pre><code class="language-bash">1. template Multiplier() {
+2.    signal private input a;
+3.    signal private input b;
+4.    signal output c;
+5.    c &lt;== a*b;
+6. }
+7. 
+8. component main = Multiplier();</code></pre> 
+<p>* 解释：</p> 
+<p>2-4行：这个电路有两个private输入信号，即a和b；有一个输出信号，即c。</p> 
+<p>第5行：输入和输出使用<code>&lt;==</code>运算符进行关联。 在circom中，&lt;==运算符做两件事。 首先是连接信号。 第二个是施加约束。在本例中，我们使用<code>&lt;==</code>将<code>c</code>连接到<code>a</code>和<code>b</code>，同时将<code>c</code>约束为<code>a * b</code>的值，即电路做的事情是让强制信号 <code>c</code> 为 <code>a*b</code>的值。</p> 
+<p>第8行：在声明 <code>Multiplier</code> 模板之后, 我们使用名为<code>main</code>的组件实例化它。编译电路时，必须始终有一个名为<code>main</code>的组件。</p> 
+<p>（对第5行和第8行的解释摘自博文<a href="https://learnblockchain.cn/article/1078" rel="nofollow">circom与snarkjs经典教程</a>）</p> 
+<h4></h4> 
+<h4 id="3.2%20%E7%BC%96%E8%AF%91%E7%94%B5%E8%B7%AF">3.2 编译电路</h4> 
+<pre><code class="language-bash">circom circuit.circom --r1cs --wasm --sym -v</code></pre> 
+<h4></h4> 
+<h4 id="3.3%20%E7%94%A8snarkjs%E6%9F%A5%E7%9C%8B%E7%BC%96%E8%AF%91%E5%90%8E%E7%9A%84%E7%94%B5%E8%B7%AF">3.3 用snarkjs查看编译后的电路</h4> 
+<pre><code class="language-bash">snarkjs r1cs info circuit.r1cs</code></pre> 
+<p>获得如下输出：</p> 
+<p><img alt="" height="172" src="https://images2.imgbox.com/94/e8/OuWMJWSM_o.png" width="422"></p> 
+<p></p> 
+<h4 id="3.4%20%E6%89%93%E5%8D%B0constraints">3.4 打印constraints</h4> 
+<pre><code class="language-bash">snarkjs r1cs print circuit.r1cs circuit.sym</code></pre> 
+<p>打印信息如下：</p> 
+<h2 id="%E2%80%8B"><img alt="" height="84" src="https://images2.imgbox.com/73/c3/l0cOIz7L_o.png" width="560"></h2> 
+<p></p> 
+<h4 id="3.5%20%E5%B0%86%E7%94%B5%E8%B7%AF%E8%BE%93%E5%87%BA%E6%88%90json%E6%A0%BC%E5%BC%8F">3.5 将电路输出成json格式</h4> 
+<pre><code class="language-bash">snarkjs r1cs export json circuit.r1cs circuit.r1cs.json
+cat circuit.r1cs.json</code></pre> 
+<p>执行这两条语句后会打印json字符串。</p> 
+<p></p> 
+<h2 id="4.%20%E7%94%9F%E6%88%90groth16%E7%AE%97%E6%B3%95%E5%AF%86%E9%92%A5%C2%A0">4. 生成groth16算法密钥 </h2> 
+<p><span style="color:#ff9900;">** 步骤4.2--4.7类似于上文步骤2.3--2.7, 2.9</span></p> 
+<h4 id="4.1%20%E8%AE%BE%E7%BD%AE">4.1 设置</h4> 
+<pre><code class="language-bash">snarkjs groth16 setup circuit.r1cs pot12_final.ptau circuit_0000.zkey</code></pre> 
+<p>* 解释：</p> 
+<p>此命令生成zkey，即零知识证明密钥，包含证明密钥（proving key）和验证密钥（verification key）。每个电路都单独生成一个zkey，我们可以验证一个zkey是否属于某个电路。</p> 
+<blockquote> 
+ <p>Note that <code>circuit_0000.zkey</code> (the output of the <code>zkey</code> command above) does not include any contributions yet, so it cannot be used in a final circuit.</p> 
+ <p>——摘自<a href="https://www.npmjs.com/package/snarkjs" rel="nofollow">snarkjs库0.4.6官方教程</a></p> 
+</blockquote> 
+<p></p> 
+<h4 id="4.2%20zkey%20Contribute">4.2 zkey Contribute</h4> 
+<pre><code class="language-bash">snarkjs zkey contribute circuit_0000.zkey circuit_0001.zkey --name="1st Contributor Name" -v</code></pre> 
+<p>此命令会生成一个新的circuit_0001.zkey文件，里面包含了一个contribution。这一步会要求输入一些随机内容，如下：</p> 
+<p><img alt="" height="282" src="https://images2.imgbox.com/f6/54/OnVVRUNH_o.png" width="520"></p> 
+<p></p> 
+<p></p> 
+<p></p> 
+<p></p> 
+<p></p> 
+<p></p> 
+<p></p> 
+<p></p> 
+<h4>4.3 第二次contribute</h4> 
+<pre><code class="language-bash">snarkjs zkey contribute circuit_0001.zkey circuit_0002.zkey --name="Second contribution Name" -v -e="Another random entropy"</code></pre> 
+<p></p> 
+<h4 id="4.4%20%E7%AC%AC%E4%B8%89%E6%AC%A1contribution%EF%BC%88%E7%AC%AC%E4%B8%89%E6%96%B9contribute%EF%BC%89">4.4 第三次contribution（第三方contribute）</h4> 
+<pre><code class="language-bash">snarkjs zkey export bellman circuit_0002.zkey  challenge_phase2_0003
+snarkjs zkey bellman contribute bn128 challenge_phase2_0003 response_phase2_0003 -e="some random text"
+snarkjs zkey import bellman circuit_0002.zkey response_phase2_0003 circuit_0003.zkey -n="Third contribution name"</code></pre> 
+<p></p> 
+<h4 id="4.5%20%E9%AA%8C%E8%AF%81">4.5 验证</h4> 
+<pre><code class="language-bash">snarkjs zkey verify circuit.r1cs pot12_final.ptau circuit_0003.zkey</code></pre> 
+<p></p> 
+<h4 id="4.6%20%E5%BC%95%E5%85%A5random%20beacon">4.6 引入random beacon</h4> 
+<pre><code class="language-bash">snarkjs zkey beacon circuit_0003.zkey circuit_final.zkey 0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f 10 -n="Final Beacon phase2"</code></pre> 
+<h4></h4> 
+<h4 id="4.7%20%E9%AA%8C%E8%AF%81%E6%9C%80%E7%BB%88zkey">4.7 验证最终zkey</h4> 
+<pre><code class="language-bash">snarkjs zkey verify circuit.r1cs pot12_final.ptau circuit_final.zkey</code></pre> 
+<h4></h4> 
+<h4 id="4.8%20%E8%BE%93%E5%87%BA%E9%AA%8C%E8%AF%81%E5%AF%86%E9%92%A5">4.8 输出验证密钥</h4> 
+<pre><code class="language-bash">snarkjs zkey export verificationkey circuit_final.zkey verification_key.json</code></pre> 
+<p></p> 
+<h2 id="5.%20%E8%AE%A1%E7%AE%97%E8%A7%81%E8%AF%81%EF%BC%88witness%EF%BC%89">5. 计算见证（witness）</h2> 
+<p>witness中包含与已知电路所有constraints相匹配的信号，可以理解为问题的答案。在我们的例子中，一个见证包含a、b、c。我们先生成witness，然后再用witness生成零知识证明。</p> 
+<h4 id="5.1%20%E5%88%9B%E5%BB%BAinput%E6%96%87%E4%BB%B6">5.1 创建input文件</h4> 
+<p>创建一个json文件：</p> 
+<pre><code class="language-bash">vim input.json</code></pre> 
+<p>在json文件中写入如下内容并保存：</p> 
+<pre><code class="language-bash">{"a": 3, "b": 11}</code></pre> 
+<h4></h4> 
+<h4 id="5.2%20%E8%BF%90%E8%A1%8C%E8%AE%A1%E7%AE%97%E5%91%BD%E4%BB%A4">5.2 运行计算命令</h4> 
+<pre><code class="language-bash">snarkjs wtns calculate circuit.wasm input.json witness.wtns</code></pre> 
+<p></p> 
+<h4 id="5.3%20%E6%A3%80%E6%9F%A5witness%E8%AE%A1%E7%AE%97%E6%9C%89%E6%97%A0%E9%94%99%E8%AF%AF">5.3 检查witness计算有无错误</h4> 
+<pre><code class="language-bash">snarkjs wtns debug circuit.wasm input.json witness.wtns circuit.sym --trigger --get --set</code></pre> 
+<p>* 效果：</p> 
+<p>此命令会打印我们输入的a、b以及相应的输出c：</p> 
+<p><img alt="" height="175" src="https://images2.imgbox.com/56/02/kFTqZSif_o.png" width="534"></p> 
+<p></p> 
+<p></p> 
+<h2 id="6.%20%E8%AF%81%E6%98%8E%E4%B8%8E%E9%AA%8C%E8%AF%81">6. 证明与验证</h2> 
+<h4 id="6.1%20%E6%9E%84%E5%BB%BA%E9%9B%B6%E7%9F%A5%E8%AF%86%E8%AF%81%E6%98%8E">6.1 构建零知识证明</h4> 
+<pre><code class="language-bash">snarkjs groth16 prove circuit_final.zkey witness.wtns proof.json public.json</code></pre> 
+<p>* 解释：</p> 
+<p>这一命令生成文件proof.json和public.json，前者包含证明，后者包含公开输入和公开输出。</p> 
+<p>* 注：</p> 
+<p>第5步（计算witness）和第6.1步（生成证明）可以合并为一条语句：</p> 
+<pre><code class="language-bash">snarkjs groth16 fullprove input.json circuit.wasm circuit_final.zkey proof.json public.json</code></pre> 
+<p></p> 
+<h4 id="6.2%20%E9%AA%8C%E8%AF%81">6.2 验证</h4> 
+<pre><code class="language-bash">snarkjs groth16 verify verification_key.json public.json proof.json</code></pre> 
+<p>* 效果：</p> 
+<p>若验证成功将打印“OK!”：</p> 
+<h2><img alt="" height="65" src="https://images2.imgbox.com/f7/d3/WeuGx9FZ_o.png" width="572"></h2> 
+<p></p> 
+<p></p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/991e7c5d5b7f5d6e6eea133d93d6a044/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">手机麻将服务器维护,手机麻将是云服务器</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/15546076f4e936817545a6691851c730/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">车库系统服务器配置,车辆管理方法、车库管理设备、服务器、客户端及系统</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

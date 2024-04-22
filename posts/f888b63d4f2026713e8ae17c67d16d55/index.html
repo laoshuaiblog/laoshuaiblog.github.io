@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Unity编辑器扩展： 程序化打图集工具 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/f888b63d4f2026713e8ae17c67d16d55/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="Unity编辑器扩展： 程序化打图集工具">
+  <meta property="og:description" content="开始前的声明：该案例中图集所使用图片资源均来源于网络，仅限于学习使用
+一、前言 关于编辑器扩展相关的知识，在前面的两篇内容中做了详细的描述，链接地址：
+第一篇 ：Unity编辑器扩展 UI控件篇
+第二篇 ：Unity编辑扩展：功能篇之Json数据编辑器
+前两篇着重于介绍编辑器界面扩展相关控件接口的使用方式。作为系列文章的第三篇，会更偏重于引擎内编辑器扩展承担 的提升开发效率的功能模块设计
+通过程序化打图集减少工作量的同时可以稳定全局的管理图集，避免随着项目膨胀手动管理产生资源上的混乱。从图集整个生命周期来说，对于图集管理通常需要下面的模块支持：
+程序化图集打包UI界面引用图集检测工具图集资源自动/手动加载、卸载框架支持 本篇文章介绍第一部分，即图集程序化打包的逻辑执行
+1、关于图集 官方文档对精灵图集的描述：
+在2D 项目使用精灵和其他图形来创建其场景的视觉效果。这意味着单个项目可能包含许多纹理文件。Unity 通常会为场景中的每个纹理发出一个绘制调用。但是，在具有许多纹理的项目中，多个绘制调用会占用大量资源，并会对项目的性能产生负面影响
+精灵图集 (Sprite Atlas) 是一种将多个纹理合并为一个组合纹理的资源。Unity 可以调用此单个纹理来发出单个绘制调用而不是发出多个绘制调用，能够以较小的性能开销一次性访问压缩的纹理。此外，精灵图集 API 还可以控制如何在项目运行时加载精灵图集
+图集对性能开销的正向影响：
+从文档描述中可以看出，图集主要在两方面影响影响性能开销：
+第一，减少绘制调用，即提升合批数量，减少Draw Call
+从文档的描述可以看出，图集概念出现与渲染的绘制调用相关,衡量绘制调用通常以Draw Call数量为标准。而在Unity中UI合批策略，不同的Image控件要执行合批必须要有相同的材质、Texture。为了满足该条件，将一些小图合并成为大图片，就可以在渲染时，尽可能的一次性的将渲染数据提交给GPU
+第二，合理的图集打包策略利于资源的压缩
+在前面的性能优化文章中有提到过，某些压缩策略通常只会对规则大小的图片资源生效。如下图提示，当导入的图片资源非2倍数时，引擎会弹出对应警告信息。Unity引擎对Texture资源的常用的DXT压缩处理需要满足其宽度与高度的必须为4的倍数（这是因为DXT压缩策略是以4X4的像素块为基本单位做处理）
+而对于图集而言，其尺寸设定策略时基于是以2的次方为基本数值，即图集是可以执行压缩的。而资源的压缩无疑会提升资源的载入速度
+图集对性能开销的负面影响：
+如果图集使用不当，也可能会额外占用大量的内存，举例来说，如果当前界面只使用了某一图集中很小的一张图片，却不得已将整张图集加载到内存中。亦或者说由于打入图集的Sprite的尺寸不合理，使得图集产生大量的空白，产生额外的性能消耗
+2、Unity中图集打包方法 在Unity中手动打出图集的方法，在之前的文章有描述，这里稍微做一些描述，如果想了解详细的操作过程，可以查看该文章，链接地址：
+Unity 将Sprite打包进图集
+Sprite Packer：
+在2020.1或更早的版本中，Unity提供了Sprite Packer图集纹理的生成和使用方法。相比于其他的打图集方式，Sprite Packer是封装性较高的方式。通常只会对相应的Sprite预设好指定图集标签。后续图集本身的资源管理基本由引擎自设定。这样做的优势可以减少开发者的工作量，但同时也牺牲了开发者对资源管理的灵活性。而不同项目的资源利用策略的不同又很需要这样的灵活性来定制
+Sprite Atlas：
+通过Sprite Atlas打出图集会生成对应的序列化配置文件，并且在资源面板是可见与可编辑的，可以灵活的控制图集资源的载入与卸载，当然也可以默认使用Unity自设定的加载与删除策略
+动态图集：
+动态图集是相对比较高阶的打图集解决方案，由于Unity没有提供与之对应的处理方法，意味着要自己实现一套集合动态资源管理、高效的图集生成算法等等
+抛弃实现难度，动态图集目前是对于某些动态UI元素（如王者荣耀英雄头像）界面少有的解决方案
+二、代码结构 在对图集的理论知识做完解释后，开启核心的程序设计阶段。后面的内容主要集中于对图集程序化过程的代码解释，主要是路径围绕编辑器内资源的遍历查询、创建删除与对图集打出参数操作方面的功能模块做设计
+1、数据结构设计： 该图集生成工具的编辑器的界面操作逻辑不是很复杂，不过也需要维护一个简单的数据类。来记录编辑的缓存数据
+除了一些常规的标识ID字段与简单的资源索引字段。稍微需要注意的是，在于对本地文件索引后SpriteAtlas的对象的直接保存在某些操作后造成索引丢失而出现空引用。所以这里的atlas字段会指向本地资源的实例话数据的缓存，来避免指向丢失，影响后续的数据操作
+public class AtlasData { public string atlasName; public string assetPath; /// &amp;lt;summary&amp;gt; /// 缓存中的SpriteAtlas，不直接指向本地资源 /// &amp;lt;/summary&amp;gt; public SpriteAtlas atlas; public List&amp;lt;Sprite&amp;gt; sprites; //编辑器界面数据 public bool isShowDital; } 2、获取某文件夹下的所有符合图集生成规范的Sprite类型的资源： 通过遍历该文件夹下所有文件（不包括子文件下的文件），并筛选出满足条件的Sprite文件，得到该路径文件夹下的Sprite列表。">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2022-09-07T06:00:00+08:00">
+    <meta property="article:modified_time" content="2022-09-07T06:00:00+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">Unity编辑器扩展： 程序化打图集工具</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-tomorrow-night-eighties">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <p><img src="https://images2.imgbox.com/41/7e/xy2w1uor_o.gif" alt="请添加图片描述"></p> 
+<p>开始前的声明：该案例中图集所使用图片资源均来源于网络，仅限于学习使用</p> 
+<h5><a id="_7"></a>一、前言</h5> 
+<p>关于编辑器扩展相关的知识，在前面的两篇内容中做了详细的描述，链接地址：</p> 
+<p>第一篇 ：<a href="https://blog.csdn.net/xinzhilinger/article/details/125462320?spm=1001.2014.3001.5501">Unity编辑器扩展 UI控件篇</a></p> 
+<p>第二篇 ：<a href="https://blog.csdn.net/xinzhilinger/article/details/126199946?spm=1001.2014.3001.5501">Unity编辑扩展：功能篇之Json数据编辑器</a></p> 
+<p>前两篇着重于介绍编辑器界面扩展相关控件接口的使用方式。作为系列文章的第三篇，会更偏重于引擎内编辑器扩展承担 的提升开发效率的功能模块设计</p> 
+<p>通过程序化打图集减少工作量的同时可以稳定全局的管理图集，避免随着项目膨胀手动管理产生资源上的混乱。从图集整个生命周期来说，对于图集管理通常需要下面的模块支持：</p> 
+<ul><li>程序化图集打包</li><li>UI界面引用图集检测工具</li><li>图集资源自动/手动加载、卸载框架支持</li></ul> 
+<p>本篇文章介绍第一部分，即图集程序化打包的逻辑执行</p> 
+<h5><a id="1_24"></a>1、关于图集</h5> 
+<p><strong>官方文档对精灵图集的描述：</strong></p> 
+<p>在<code>2D </code>项目使用精灵和其他图形来创建其场景的视觉效果。这意味着单个项目可能包含许多纹理文件。<code>Unity</code> 通常会为场景中的每个纹理发出一个绘制调用。但是，在具有许多纹理的项目中，多个绘制调用会占用大量资源，并会对项目的性能产生负面影响</p> 
+<p>精灵图集 (<code>Sprite Atlas</code>) 是一种将多个纹理合并为一个组合纹理的资源。<code>Unity </code>可以调用此单个纹理来发出单个绘制调用而不是发出多个绘制调用，能够以较小的性能开销一次性访问压缩的纹理。此外，精灵图集 <code>API</code> 还可以控制如何在项目运行时加载精灵图集</p> 
+<p><strong>图集对性能开销的正向影响：</strong></p> 
+<p>从文档描述中可以看出，图集主要在两方面影响影响性能开销：</p> 
+<p>第一，减少绘制调用，即提升合批数量，减少<code>Draw Call</code></p> 
+<p>从文档的描述可以看出，图集概念出现与渲染的绘制调用相关,衡量绘制调用通常以Draw Call数量为标准。而在Unity中UI合批策略，不同的<code>Image</code>控件要执行合批必须要有相同的材质、<code>Texture</code>。为了满足该条件，将一些小图合并成为大图片，就可以在渲染时，尽可能的一次性的将渲染数据提交给<code>GPU</code></p> 
+<p>第二，合理的图集打包策略利于资源的压缩</p> 
+<p>在前面的性能优化文章中有提到过，某些压缩策略通常只会对规则大小的图片资源生效。如下图提示，当导入的图片资源非2倍数时，引擎会弹出对应警告信息。<code>Unity</code>引擎对<code>Texture</code>资源的常用的<code>DXT</code>压缩处理需要满足其宽度与高度的必须为4的倍数（这是因为DXT压缩策略是以4X4的像素块为基本单位做处理）<br> <img src="https://images2.imgbox.com/4b/a2/VXtQP6t6_o.png" alt="在这里插入图片描述"></p> 
+<p>而对于图集而言，其尺寸设定策略时基于是以2的次方为基本数值，即图集是可以执行压缩的。而资源的压缩无疑会提升资源的载入速度</p> 
+<p><strong>图集对性能开销的负面影响：</strong></p> 
+<p>如果图集使用不当，也可能会额外占用大量的内存，举例来说，如果当前界面只使用了某一图集中很小的一张图片，却不得已将整张图集加载到内存中。亦或者说由于打入图集的<code>Sprite</code>的尺寸不合理，使得图集产生大量的空白，产生额外的性能消耗</p> 
+<h5><a id="2Unity_51"></a>2、Unity中图集打包方法</h5> 
+<p>在Unity中手动打出图集的方法，在之前的文章有描述，这里稍微做一些描述，如果想了解详细的操作过程，可以查看该文章，链接地址：</p> 
+<p><a href="https://blog.csdn.net/xinzhilinger/article/details/116043662?spm=1001.2014.3001.5501">Unity 将Sprite打包进图集</a></p> 
+<p><strong>Sprite Packer：</strong></p> 
+<p>在<code>2020.1</code>或更早的版本中，<code>Unity</code>提供了<code>Sprite Packer</code>图集纹理的生成和使用方法。相比于其他的打图集方式，<code>Sprite Packer</code>是封装性较高的方式。通常只会对相应的<code>Sprite</code>预设好指定图集标签。后续图集本身的资源管理基本由引擎自设定。这样做的优势可以减少开发者的工作量，但同时也牺牲了开发者对资源管理的灵活性。而不同项目的资源利用策略的不同又很需要这样的灵活性来定制</p> 
+<p><strong>Sprite Atlas：</strong></p> 
+<p>通过Sprite Atlas打出图集会生成对应的序列化配置文件，并且在资源面板是可见与可编辑的，可以灵活的控制图集资源的载入与卸载，当然也可以默认使用Unity自设定的加载与删除策略</p> 
+<p><strong>动态图集：</strong></p> 
+<p>动态图集是相对比较高阶的打图集解决方案，由于Unity没有提供与之对应的处理方法，意味着要自己实现一套集合动态资源管理、高效的图集生成算法等等</p> 
+<p>抛弃实现难度，动态图集目前是对于某些动态UI元素（如王者荣耀英雄头像）界面少有的解决方案</p> 
+<h4><a id="_72"></a>二、代码结构</h4> 
+<p>在对图集的理论知识做完解释后，开启核心的程序设计阶段。后面的内容主要集中于对图集程序化过程的代码解释，主要是路径围绕编辑器内资源的遍历查询、创建删除与对图集打出参数操作方面的功能模块做设计</p> 
+<h5><a id="1_76"></a>1、数据结构设计：</h5> 
+<p>该图集生成工具的编辑器的界面操作逻辑不是很复杂，不过也需要维护一个简单的数据类。来记录编辑的缓存数据</p> 
+<p>除了一些常规的标识<code>ID</code>字段与简单的资源索引字段。稍微需要注意的是，在于对本地文件索引后<code>SpriteAtlas</code>的对象的直接保存在某些操作后造成索引丢失而出现空引用。所以这里的<code>atlas</code>字段会指向本地资源的实例话数据的缓存，来避免指向丢失，影响后续的数据操作</p> 
+<pre><code class="prism language-csharp"><span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">AtlasData</span>
+<span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">public</span> <span class="token class-name"><span class="token keyword">string</span></span> atlasName<span class="token punctuation">;</span>
+    <span class="token keyword">public</span> <span class="token class-name"><span class="token keyword">string</span></span> assetPath<span class="token punctuation">;</span>
+    <span class="token comment">/// &lt;summary&gt;</span>
+    <span class="token comment">/// 缓存中的SpriteAtlas，不直接指向本地资源</span>
+    <span class="token comment">/// &lt;/summary&gt;</span>
+    <span class="token keyword">public</span> <span class="token class-name">SpriteAtlas</span> atlas<span class="token punctuation">;</span>
+    <span class="token keyword">public</span> <span class="token class-name">List<span class="token punctuation">&lt;</span>Sprite<span class="token punctuation">&gt;</span></span> sprites<span class="token punctuation">;</span>
+
+    <span class="token comment">//编辑器界面数据</span>
+    <span class="token keyword">public</span> <span class="token class-name"><span class="token keyword">bool</span></span> isShowDital<span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+</code></pre> 
+<h5><a id="2Sprite_99"></a>2、获取某文件夹下的所有符合图集生成规范的Sprite类型的资源：</h5> 
+<p>通过遍历该文件夹下所有文件（不包括子文件下的文件），并筛选出满足条件的<code>Sprite</code>文件，得到该路径文件夹下的<code>Sprite</code>列表。</p> 
+<p>这部分代码的逻辑设计集中于资源路径的读取遍历，基于<code>DirectoryInfo</code>得到所有的文件信息，得到文件路径并通过<code>AssetDataBase</code>来加载特定的<code>Sprite</code>类型文件资源</p> 
+<p>在对特定类型资源文件执行遍历时，可以优先排除数量较大的<code>Meta</code>文件，减少查询数量，提升文件遍历的操作效率。<code>Unity</code>中文件类型通常有资源文件、代码文件、文本文件、序列化文件、<code>Meta</code>文件等，通常来说，所有在<code>Unity</code>中<code>Asset</code>面板中可见的文件资源都会对应一份同名的<code>meta</code>文件，用来记录类似于<code>GUID</code>等标识身份相关的信息或者与对应资源相关的设定数据</p> 
+<pre><code class="prism language-csharp">	<span class="token return-type class-name">List<span class="token punctuation">&lt;</span>Sprite<span class="token punctuation">&gt;</span></span> <span class="token function">GetFileSprites</span><span class="token punctuation">(</span><span class="token class-name"><span class="token keyword">string</span></span> relativePath<span class="token punctuation">)</span>
+    <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>Directory<span class="token punctuation">.</span><span class="token function">Exists</span><span class="token punctuation">(</span>relativePath<span class="token punctuation">)</span><span class="token punctuation">)</span>
+        <span class="token punctuation">{<!-- --></span>
+            <span class="token class-name">DirectoryInfo</span> direction <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token constructor-invocation class-name">DirectoryInfo</span><span class="token punctuation">(</span>relativePath<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token class-name">FileInfo<span class="token punctuation">[</span><span class="token punctuation">]</span></span> files <span class="token operator">=</span> direction<span class="token punctuation">.</span><span class="token function">GetFiles</span><span class="token punctuation">(</span><span class="token string">"*"</span><span class="token punctuation">)</span><span class="token punctuation">;</span><span class="token comment">//只查找本文件夹下</span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span>files <span class="token operator">==</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token keyword">return</span> <span class="token keyword">null</span><span class="token punctuation">;</span>
+            
+            <span class="token class-name">List<span class="token punctuation">&lt;</span>Sprite<span class="token punctuation">&gt;</span></span> sprites <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token constructor-invocation class-name">List<span class="token punctuation">&lt;</span>Sprite<span class="token punctuation">&gt;</span></span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token keyword">foreach</span> <span class="token punctuation">(</span><span class="token class-name"><span class="token keyword">var</span></span> file <span class="token keyword">in</span> files<span class="token punctuation">)</span>
+            <span class="token punctuation">{<!-- --></span>
+                <span class="token keyword">if</span><span class="token punctuation">(</span>file<span class="token punctuation">.</span>Name<span class="token punctuation">.</span><span class="token function">EndsWith</span><span class="token punctuation">(</span><span class="token string">".meta"</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token keyword">continue</span><span class="token punctuation">;</span>
+                <span class="token class-name"><span class="token keyword">var</span></span> item <span class="token operator">=</span> AssetDatabase<span class="token punctuation">.</span><span class="token generic-method"><span class="token function">LoadAssetAtPath</span><span class="token generic class-name"><span class="token punctuation">&lt;</span>Sprite<span class="token punctuation">&gt;</span></span></span><span class="token punctuation">(</span>relativePath <span class="token operator">+</span> file<span class="token punctuation">.</span>Name<span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token keyword">if</span> <span class="token punctuation">(</span>item <span class="token operator">!=</span> <span class="token keyword">null</span> <span class="token operator">&amp;&amp;</span> <span class="token function">ChackSpritePackerState</span><span class="token punctuation">(</span>item<span class="token punctuation">)</span><span class="token punctuation">)</span> 
+                <span class="token punctuation">{<!-- --></span>
+                     sprites<span class="token punctuation">.</span><span class="token function">Add</span><span class="token punctuation">(</span><span class="token punctuation">(</span>Sprite<span class="token punctuation">)</span>item<span class="token punctuation">)</span><span class="token punctuation">;</span>                
+                <span class="token punctuation">}</span>
+            <span class="token punctuation">}</span>
+            <span class="token keyword">return</span> sprites<span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        <span class="token keyword">return</span> <span class="token keyword">null</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+</code></pre> 
+<h5><a id="3_135"></a>3、打入图集策略</h5> 
+<p>打图集需要考虑合批效率与图集空间利用率之间的平衡，通常与项目的具体设定有关</p> 
+<p>筛选策略主要集中于对<code>Sprite</code>尺寸的限制，避免在图集中打入过大的纹理，之所以这么说，是因为越大尺寸的纹理，会有更高的概率产生更多的空白空间浪费。即尺寸越大，对空间的利用率越低</p> 
+<ul><li><code>Sprite</code>的宽度小于设定值</li><li><code>Sprite</code>的高度小于设定值</li><li><code>Sprite</code>的像素点小于设定值</li></ul> 
+<p>对<code>Sprite</code>打入图集时，会对整个UI资源文件中的<code>Sprite</code>资源执行遍历，可以依托这个机会对图片资源的美术规范执行监测。对不符合条件的资源及时检测与处理。由于该操作不是本文的重点，所以做了简单的日志打印处理</p> 
+<pre><code class="prism language-csharp">	<span class="token keyword">private</span> <span class="token return-type class-name"><span class="token keyword">bool</span></span> <span class="token function">ChackSpritePackerState</span><span class="token punctuation">(</span><span class="token class-name">Sprite</span> sprite<span class="token punctuation">)</span>
+    <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>sprite<span class="token punctuation">.</span>rect<span class="token punctuation">.</span>width <span class="token operator">&gt;</span> maxSpriteSize<span class="token punctuation">)</span>
+        <span class="token punctuation">{<!-- --></span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span>sprite<span class="token punctuation">.</span>rect<span class="token punctuation">.</span>width <span class="token operator">%</span> <span class="token number">2</span> <span class="token operator">!=</span> <span class="token number">0</span><span class="token operator">||</span> sprite<span class="token punctuation">.</span>rect<span class="token punctuation">.</span>height <span class="token operator">%</span> <span class="token number">2</span> <span class="token operator">!=</span> <span class="token number">0</span><span class="token punctuation">)</span> 
+            <span class="token punctuation">{<!-- --></span>
+                Debug<span class="token punctuation">.</span><span class="token function">LogError</span><span class="token punctuation">(</span><span class="token interpolation-string"><span class="token string">$"</span><span class="token interpolation"><span class="token punctuation">{<!-- --></span><span class="token expression language-csharp">sprite<span class="token punctuation">.</span>name</span><span class="token punctuation">}</span></span><span class="token string">尺寸不符合压缩规范（宽高均为2的倍数），请注意"</span></span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+            <span class="token keyword">return</span> <span class="token boolean">false</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>sprite<span class="token punctuation">.</span>rect<span class="token punctuation">.</span>height <span class="token operator">&gt;</span> maxSpriteSize<span class="token punctuation">)</span>
+        <span class="token punctuation">{<!-- --></span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span>sprite<span class="token punctuation">.</span>rect<span class="token punctuation">.</span>width <span class="token operator">%</span> <span class="token number">2</span> <span class="token operator">!=</span> <span class="token number">0</span> <span class="token operator">||</span> sprite<span class="token punctuation">.</span>rect<span class="token punctuation">.</span>height <span class="token operator">%</span> <span class="token number">2</span> <span class="token operator">!=</span> <span class="token number">0</span><span class="token punctuation">)</span>
+            <span class="token punctuation">{<!-- --></span>
+                Debug<span class="token punctuation">.</span><span class="token function">LogError</span><span class="token punctuation">(</span><span class="token interpolation-string"><span class="token string">$"</span><span class="token interpolation"><span class="token punctuation">{<!-- --></span><span class="token expression language-csharp">sprite<span class="token punctuation">.</span>name</span><span class="token punctuation">}</span></span><span class="token string">宽度不符合压缩规范（宽高均为2的倍数），请注意"</span></span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+            <span class="token keyword">return</span> <span class="token boolean">false</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>sprite<span class="token punctuation">.</span>rect<span class="token punctuation">.</span>width <span class="token operator">*</span> sprite<span class="token punctuation">.</span>rect<span class="token punctuation">.</span>height <span class="token operator">&gt;</span> maxSpritepixelNum <span class="token operator">*</span><span class="token number">1024</span><span class="token punctuation">)</span>
+        <span class="token punctuation">{<!-- --></span>
+            <span class="token keyword">return</span> <span class="token boolean">false</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        <span class="token keyword">return</span> <span class="token boolean">true</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+</code></pre> 
+<p>上述的打图集策略是对于单个UI面板内的Sprite执行管理。而对于整个项目而言，有一个比较重要的概念就是通用图集。其存在的意义是为了解决项目中存在的在很多UI界面都有使用的Srpite资源，如返回<code>Button</code>控件的<code>Texture</code>，可能游戏中的每个界面使用的都是同一张。为了避免图集的低效率引用，有下面两种打图集策略：</p> 
+<ul><li>每个界面都单独复制一张，优点合批效率高，缺点会过多的增加包体的占用空间</li><li>以通用图集方式管理多界面使用纹理，优点减少资源载入（和资源管理策略有关）</li></ul> 
+<p>对通用图集中也有一定的利弊权衡，首先最直接的是通用图集与当前界面图集中的纹理无法合批，其次就是同一时间内对通用图集内的资源使用率可能很低，造成一定的内存浪费</p> 
+<h5><a id="4_187"></a>4、递归遍历文件夹并根据获取信息创建数据节点：</h5> 
+<p>简单来说，该过程是通过遍历文件夹下得到当前文件夹下的<code>Sprite</code>资源与其子文件夹，同时对存在所有的子文件夹执行递归遍历，来得到该文件夹打成图集需要的数据</p> 
+<p>对于项目而言，资源不可能都保存在一个层级下面，通常会根据UI功能模块产生多级文件夹划分。即某一文件夹下除了有当前文件夹对应界面UI元素的<code>Texture</code>资源，还有可能有其子功能界面的资源文件夹。为了可以完整的对资源文件执行查询与图集打出，需要对整个文件夹的树形结构执行遍历，方式最简单的就是递归调用</p> 
+<p>文件夹的操作遍历依旧是基于<code>DirectoryInfo</code>来完成的，通过其接口<code>GetDirectories</code>可以得到该文件夹下所有子文件夹的信息，</p> 
+<pre><code class="prism language-csharp">      <span class="token return-type class-name"><span class="token keyword">void</span></span> <span class="token function">ChackAssetFile</span><span class="token punctuation">(</span><span class="token class-name"><span class="token keyword">string</span></span> relativePath<span class="token punctuation">)</span>
+    <span class="token punctuation">{<!-- --></span>
+        <span class="token class-name">List<span class="token punctuation">&lt;</span>Sprite<span class="token punctuation">&gt;</span></span> sprites <span class="token operator">=</span> <span class="token function">GetFileSprites</span><span class="token punctuation">(</span>relativePath<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>sprites <span class="token operator">!=</span> <span class="token keyword">null</span> <span class="token operator">&amp;&amp;</span> sprites<span class="token punctuation">.</span>Count <span class="token operator">&gt;</span> <span class="token number">1</span><span class="token punctuation">)</span> 
+        <span class="token punctuation">{<!-- --></span>
+            <span class="token class-name"><span class="token keyword">string</span></span> atlasname <span class="token operator">=</span> <span class="token function">GetAtlasNameFromPath</span><span class="token punctuation">(</span>relativePath<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token class-name"><span class="token keyword">string</span></span> atlasPath <span class="token operator">=</span> relativePath <span class="token operator">+</span> atlasname<span class="token punctuation">;</span>
+            <span class="token function">CreateSpriteAtlas</span><span class="token punctuation">(</span>atlasname<span class="token punctuation">,</span> atlasPath<span class="token punctuation">,</span> sprites<span class="token punctuation">)</span><span class="token punctuation">;</span>           
+        <span class="token punctuation">}</span>
+
+        <span class="token class-name">DirectoryInfo</span> direction <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token constructor-invocation class-name">DirectoryInfo</span><span class="token punctuation">(</span>relativePath<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>direction <span class="token operator">==</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token keyword">return</span><span class="token punctuation">;</span>
+
+        <span class="token class-name">DirectoryInfo<span class="token punctuation">[</span><span class="token punctuation">]</span></span> dirChild <span class="token operator">=</span> direction<span class="token punctuation">.</span><span class="token function">GetDirectories</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">foreach</span> <span class="token punctuation">(</span><span class="token class-name"><span class="token keyword">var</span></span> item <span class="token keyword">in</span> dirChild<span class="token punctuation">)</span>
+        <span class="token punctuation">{<!-- --></span>
+            <span class="token function">ChackAssetFile</span><span class="token punctuation">(</span>relativePath <span class="token operator">+</span> item<span class="token punctuation">.</span>Name <span class="token operator">+</span> <span class="token string">"/"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+</code></pre> 
+<p>在得到根据路径索引的图集设定数据后，创建实例数据类<code>AtlasData</code>并初始化相关字段保存到<code>atlasDatas</code>字典中，以便在后续的逻辑中使用</p> 
+<pre><code class="prism language-csharp">    <span class="token return-type class-name"><span class="token keyword">void</span></span> <span class="token function">CreateSpriteAtlas</span><span class="token punctuation">(</span><span class="token class-name"><span class="token keyword">string</span></span> atlasname<span class="token punctuation">,</span> <span class="token class-name"><span class="token keyword">string</span></span> atlasPath<span class="token punctuation">,</span> <span class="token class-name">List<span class="token punctuation">&lt;</span>Sprite<span class="token punctuation">&gt;</span></span> sprites<span class="token punctuation">)</span>
+    <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">if</span><span class="token punctuation">(</span>atlasDatas<span class="token punctuation">.</span><span class="token function">ContainsKey</span><span class="token punctuation">(</span>atlasPath<span class="token punctuation">)</span><span class="token punctuation">)</span>
+        <span class="token punctuation">{<!-- --></span>
+            Debug<span class="token punctuation">.</span><span class="token function">LogError</span><span class="token punctuation">(</span><span class="token string">"警告，有相同名字的Sprite资源文件夹！！！"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token keyword">return</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>      
+        <span class="token class-name">AtlasData</span> data <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token constructor-invocation class-name">AtlasData</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+        <span class="token punctuation">{<!-- --></span>
+            atlasName <span class="token operator">=</span> atlasname<span class="token punctuation">.</span><span class="token function">Replace</span><span class="token punctuation">(</span><span class="token string">".asset"</span><span class="token punctuation">,</span><span class="token string">""</span><span class="token punctuation">)</span><span class="token punctuation">,</span>
+            assetPath <span class="token operator">=</span> atlasPath<span class="token punctuation">,</span>
+            sprites <span class="token operator">=</span> sprites
+        <span class="token punctuation">}</span><span class="token punctuation">;</span>
+        atlasDatas<span class="token punctuation">.</span><span class="token function">Add</span><span class="token punctuation">(</span>atlasPath<span class="token punctuation">,</span>data<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+</code></pre> 
+<h5><a id="5_237"></a>5、全局设定图集状态：</h5> 
+<p><img src="https://images2.imgbox.com/e7/69/ALTRv77y_o.png" alt="在这里插入图片描述"></p> 
+<p>在上面的图片中，标识了对于图集状态设定的三个区域，分别用来设定打包资源策略的<code>Packing</code>、图集资源设定<code>Texture</code>与图集尺寸和压缩格式的设定。 该其各项参数可以参考<code>Unity</code>官方文档的解释：<br> <img src="https://images2.imgbox.com/31/8d/GHGU7bEX_o.png" alt="在这里插入图片描述"></p> 
+<p><strong>Include in build：</strong></p> 
+<p><code>Unity</code>官方描述对<code>Include in build</code>的描述文字”选中此复选框可在当前构建中包含精灵图集资源“`比较简洁,可能会让开发者忽略其功能作用，但是实际上该参数选项代表着两套较为复杂的图集资源管理逻辑的切换系统</p> 
+<p>在<code>Asset</code>路径下创建的<code>Sprite Atlas</code>是响应图集生成策略所对应的序列化配置文件。在编辑器状态下，真正的图集纹理资源文件会暂时存储于项目<code>Asset</code>文件夹同级的缓存<code>Library</code>文件夹下的<code>AtlasCache</code>目录下，会游戏构建中时将其打包进游戏内。编辑器状态下项目文件目录如下图所示：</p> 
+<p><img src="https://images2.imgbox.com/81/e5/lo9k5mbe_o.png" alt="在这里插入图片描述"><br> 如果项目中图集资源生命周期的管理依托引擎自设定策略，编辑器状态下的图集使用需确保勾选<code>Include in build</code>。如果未勾选，图集纹理不会被自动载入到内存中，游戏中的<code>UI</code>会显示白图状态。不过此状态下运行时会触发<code>SpriteAtlasManager.atlasRequested</code>事件，开发可以注册事件到该函数来手动管理<code>Sprite Atlas</code>的加载、卸载</p> 
+<p><strong>Use Crunch Compression：</strong></p> 
+<p>文档描述：<code>Crunch</code> 是一种基于 <code>DXT</code> 或 <code>ETC</code> 纹理压缩的有损压缩格式。<code>Unity </code>在 <code>CPU </code>上将纹理解压缩为 <code>DXT </code>或 <code>ETC</code>，然后在运行时将其上传到 <code>GPU</code>。<code>Crunch </code>压缩有助于纹理在磁盘上使用尽可能少的空间并方便下载。<code>Crunch </code>纹理可能需要很长时间进行压缩，但在运行时的解压缩速度非常快</p> 
+<p>可以简单的将其理解基于<code>DXT</code>的二次压缩，该阶段发生于<code>CPU</code>阶段对<code>Texure</code>的载入，然后由<code>CPU</code>解码为<code> DXT</code> 或 <code>ETC</code>压缩格式的资源并传给<code>GPU</code>。即通过少量额外解压缩计算提升资源的加载速度，但是需要注意该压缩方式是有损压缩，需要权衡性能与效果</p> 
+<p><strong>sRGB：</strong></p> 
+<p>可以默认勾选，通常来说<code>Color Space</code>为<code>Linear</code>空间时，勾选<code>sRGB</code>会对在伽马空间内绘制的图片做一个伽马矫正，来确保最终的显示效果与美术绘制的效果相同</p> 
+<p>之所以要默认勾选是因为美术通过显示器绘制图片时，是经过被伽马矫正后显示的。而实际的图片资源数据是处于伽马空间下的。当资源导入引擎内后，如果直接按照<code>Linear</code>空间处理，色彩亮度就会出现偏差。就需要<code>sRGB</code>选项控制对其做伽马矫正</p> 
+<p><strong>代码结构：</strong></p> 
+<p>设定图集的代码如下。因为稍微偷懒了一下，对于核心功能参数利用编辑器<code>UI</code>接口输入控制，非核心参数就直接代码写死了</p> 
+<pre><code class="prism language-csharp">   <span class="token return-type class-name"><span class="token keyword">void</span></span> <span class="token function">SetUpAtlasInfo</span><span class="token punctuation">(</span><span class="token keyword">ref</span> <span class="token class-name">SpriteAtlas</span> atlas<span class="token punctuation">)</span>
+    <span class="token punctuation">{<!-- --></span>
+        atlas<span class="token punctuation">.</span><span class="token function">SetIncludeInBuild</span><span class="token punctuation">(</span>isIncludeInBuild<span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token comment">//A区域参数设定</span>
+        <span class="token class-name">SpriteAtlasPackingSettings</span> packSetting <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token constructor-invocation class-name">SpriteAtlasPackingSettings</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+        <span class="token punctuation">{<!-- --></span>
+            blockOffset <span class="token operator">=</span> <span class="token number">1</span><span class="token punctuation">,</span>
+            enableRotation <span class="token operator">=</span> <span class="token boolean">false</span><span class="token punctuation">,</span>
+            enableTightPacking <span class="token operator">=</span> <span class="token boolean">false</span><span class="token punctuation">,</span>
+            padding <span class="token operator">=</span> <span class="token number">2</span><span class="token punctuation">,</span>
+        <span class="token punctuation">}</span><span class="token punctuation">;</span>
+        atlas<span class="token punctuation">.</span><span class="token function">SetPackingSettings</span><span class="token punctuation">(</span>packSetting<span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token comment">//B区域参数设定</span>
+        <span class="token class-name">SpriteAtlasTextureSettings</span> textureSetting <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token constructor-invocation class-name">SpriteAtlasTextureSettings</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+        <span class="token punctuation">{<!-- --></span>
+            readable <span class="token operator">=</span> <span class="token boolean">false</span><span class="token punctuation">,</span>
+            generateMipMaps <span class="token operator">=</span> <span class="token boolean">false</span><span class="token punctuation">,</span>
+            sRGB <span class="token operator">=</span> <span class="token boolean">true</span><span class="token punctuation">,</span>
+            filterMode <span class="token operator">=</span> FilterMode<span class="token punctuation">.</span>Bilinear<span class="token punctuation">,</span>
+        <span class="token punctuation">}</span><span class="token punctuation">;</span>
+        atlas<span class="token punctuation">.</span><span class="token function">SetTextureSettings</span><span class="token punctuation">(</span>textureSetting<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token comment">//C区域参数设定</span>
+        <span class="token class-name">TextureImporterPlatformSettings</span> platformSetting <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token constructor-invocation class-name">TextureImporterPlatformSettings</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+        <span class="token punctuation">{<!-- --></span>
+
+            maxTextureSize <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token keyword">int</span><span class="token punctuation">)</span>maxSpriteAtlasSize<span class="token punctuation">,</span>
+            format <span class="token operator">=</span> TextureImporterFormat<span class="token punctuation">.</span>Automatic<span class="token punctuation">,</span>
+            crunchedCompression <span class="token operator">=</span> <span class="token boolean">true</span><span class="token punctuation">,</span>
+            textureCompression <span class="token operator">=</span> TextureImporterCompression<span class="token punctuation">.</span>Compressed<span class="token punctuation">,</span>
+            compressionQuality <span class="token operator">=</span> <span class="token number">50</span><span class="token punctuation">,</span>
+        <span class="token punctuation">}</span><span class="token punctuation">;</span>
+        atlas<span class="token punctuation">.</span><span class="token function">SetPlatformSettings</span><span class="token punctuation">(</span>platformSetting<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+</code></pre> 
+<h5><a id="6_314"></a>6、将缓存数据本地化保存：</h5> 
+<p>根据前面操作得到的<code>atlasDatas</code>缓存数据，来对本地<code>SpriteAtlas</code>资源执行修改或创建操作。</p> 
+<p>通过使用路径信息对图集资源执行索引，如果返回结果不为空，则对返回<code>SpriteAtlas</code>执行操作，设定图集参数格式，并将符合条件未打入该图集的Sprite添加到其中，如果不存在图集资源，就设定好参数与数据后，利用<code>AssetDataBase</code>的接口来创建本地序列化文件<code>SpriteAtlas</code></p> 
+<pre><code class="prism language-csharp">	<span class="token return-type class-name"><span class="token keyword">void</span></span> <span class="token function">SaveAtlasData</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+    <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">foreach</span> <span class="token punctuation">(</span><span class="token class-name"><span class="token keyword">var</span></span> item <span class="token keyword">in</span> atlasDatas<span class="token punctuation">.</span>Values<span class="token punctuation">)</span>
+        <span class="token punctuation">{<!-- --></span>
+            <span class="token class-name"><span class="token keyword">string</span></span> path <span class="token operator">=</span> item<span class="token punctuation">.</span>assetPath<span class="token punctuation">;</span>
+            <span class="token class-name">SpriteAtlas</span> atlas <span class="token operator">=</span> AssetDatabase<span class="token punctuation">.</span><span class="token generic-method"><span class="token function">LoadAssetAtPath</span><span class="token generic class-name"><span class="token punctuation">&lt;</span>SpriteAtlas<span class="token punctuation">&gt;</span></span></span><span class="token punctuation">(</span>path<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span>atlas <span class="token operator">!=</span> <span class="token keyword">null</span><span class="token punctuation">)</span> 
+            <span class="token punctuation">{<!-- --></span>
+                <span class="token function">SetUpAtlasInfo</span><span class="token punctuation">(</span><span class="token keyword">ref</span> atlas<span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token class-name">List<span class="token punctuation">&lt;</span>Sprite<span class="token punctuation">&gt;</span></span> sprites <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token constructor-invocation class-name">List<span class="token punctuation">&lt;</span>Sprite<span class="token punctuation">&gt;</span></span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token keyword">foreach</span> <span class="token punctuation">(</span><span class="token class-name"><span class="token keyword">var</span></span> sprite <span class="token keyword">in</span> item<span class="token punctuation">.</span>sprites<span class="token punctuation">)</span>
+                <span class="token punctuation">{<!-- --></span>
+                    <span class="token keyword">if</span><span class="token punctuation">(</span>atlas<span class="token punctuation">.</span><span class="token function">GetSprite</span><span class="token punctuation">(</span>sprite<span class="token punctuation">.</span>name<span class="token punctuation">)</span><span class="token operator">==</span><span class="token keyword">null</span><span class="token punctuation">)</span>
+                    <span class="token punctuation">{<!-- --></span>
+                        sprites<span class="token punctuation">.</span><span class="token function">Add</span><span class="token punctuation">(</span>sprite<span class="token punctuation">)</span><span class="token punctuation">;</span>
+                    <span class="token punctuation">}</span>
+                <span class="token punctuation">}</span>
+                atlas<span class="token punctuation">.</span><span class="token function">Add</span><span class="token punctuation">(</span>sprites<span class="token punctuation">.</span><span class="token function">ToArray</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+                item<span class="token punctuation">.</span>atlas <span class="token operator">=</span> <span class="token function">Instantiate</span><span class="token punctuation">(</span>atlas<span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token keyword">continue</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+            atlas <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token constructor-invocation class-name">SpriteAtlas</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token function">SetUpAtlasInfo</span><span class="token punctuation">(</span><span class="token keyword">ref</span> atlas<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            atlas<span class="token punctuation">.</span><span class="token function">Add</span><span class="token punctuation">(</span>item<span class="token punctuation">.</span>sprites<span class="token punctuation">.</span><span class="token function">ToArray</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            item<span class="token punctuation">.</span>atlas <span class="token operator">=</span> atlas<span class="token punctuation">;</span>
+            AssetDatabase<span class="token punctuation">.</span><span class="token function">CreateAsset</span><span class="token punctuation">(</span>atlas<span class="token punctuation">,</span> path<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+</code></pre> 
+<h5><a id="7_352"></a>7、编辑工具界面绘制：</h5> 
+<p><strong>参数控制区域：</strong></p> 
+<p>对于要设定调整的参数通过编辑器扩展的相关接口，这里挑选了几个相对比较重要的参数通过编辑器控件APIU设计了UI输入控制接口</p> 
+<p><img src="https://images2.imgbox.com/d1/41/u6rATd7G_o.png" alt="在这里插入图片描述"></p> 
+<pre><code class="prism language-csharp"> 	<span class="token return-type class-name"><span class="token keyword">void</span></span> <span class="token function">DrawSpriteAtlasSetting</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+    <span class="token punctuation">{<!-- --></span>
+        EditorGUILayout<span class="token punctuation">.</span><span class="token function">LabelField</span><span class="token punctuation">(</span><span class="token string">"图集相关设定："</span><span class="token punctuation">,</span>titleStyle<span class="token punctuation">)</span><span class="token punctuation">;</span> GUILayout<span class="token punctuation">.</span><span class="token function">Space</span><span class="token punctuation">(</span><span class="token number">4</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        maxSpriteAtlasSize <span class="token operator">=</span> EditorGUILayout<span class="token punctuation">.</span><span class="token function">IntPopup</span><span class="token punctuation">(</span><span class="token string">"图集最大尺寸为"</span><span class="token punctuation">,</span>maxSpriteAtlasSize<span class="token punctuation">,</span> sizeStrs<span class="token punctuation">,</span>sizes<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        isIncludeInBuild <span class="token operator">=</span> EditorGUILayout<span class="token punctuation">.</span><span class="token function">Toggle</span><span class="token punctuation">(</span><span class="token string">"是否将图集打入包内"</span><span class="token punctuation">,</span> isIncludeInBuild<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        GUILayout<span class="token punctuation">.</span><span class="token function">Space</span><span class="token punctuation">(</span><span class="token number">5</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        EditorGUILayout<span class="token punctuation">.</span><span class="token function">LabelField</span><span class="token punctuation">(</span><span class="token string">"Sprite资源限制策略："</span><span class="token punctuation">,</span>titleStyle<span class="token punctuation">)</span><span class="token punctuation">;</span> GUILayout<span class="token punctuation">.</span><span class="token function">Space</span><span class="token punctuation">(</span><span class="token number">4</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        maxSpritepixelNum  <span class="token operator">=</span> EditorGUILayout<span class="token punctuation">.</span><span class="token function">Slider</span><span class="token punctuation">(</span><span class="token string">"Sprite最大像素量（单位K）："</span><span class="token punctuation">,</span> maxSpritepixelNum <span class="token punctuation">,</span><span class="token number">0</span><span class="token punctuation">,</span><span class="token number">1024</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        maxSpriteSize <span class="token operator">=</span> EditorGUILayout<span class="token punctuation">.</span><span class="token function">IntPopup</span><span class="token punctuation">(</span><span class="token string">"Sprite最大尺寸限制"</span><span class="token punctuation">,</span> maxSpriteSize<span class="token punctuation">,</span> sizeStrs<span class="token punctuation">,</span> sizes<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        
+    <span class="token punctuation">}</span>
+</code></pre> 
+<p><strong>打包数据列表显示：</strong></p> 
+<p>在<code>atlasDatas</code>里面记录了所有图集的状态信息，为了更好的检测管理，将其显示在界面上：</p> 
+<p><img src="https://images2.imgbox.com/e0/90/D7RuLIh7_o.png" alt="在这里插入图片描述"></p> 
+<p>在上图的编辑器界面中，涉及到两个特殊的编辑器效果</p> 
+<p>第一个是资源选中路径索引与状态展示，是通过对编辑器接口中的<code>Selection.activeObject</code>设定要选中的<code>Object</code>来实现，注意要指向的对象是通过路径加载的本地资源文件，而不是由之前编辑状态所保存的实例缓存数据</p> 
+<p>第二个效果需要通过<code>BeginFoldoutHeaderGroup</code>与<code>EndFoldoutHeaderGroup</code>编辑器扩展接口来完成界面UI的展开收起效果</p> 
+<p>代码结构为：</p> 
+<pre><code class="prism language-csharp">	<span class="token return-type class-name"><span class="token keyword">void</span></span> <span class="token function">DrawAtlasInfo</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+    <span class="token punctuation">{<!-- --></span>
+        GUILayout<span class="token punctuation">.</span><span class="token function">Label</span><span class="token punctuation">(</span><span class="token string">"图集资源列表： "</span><span class="token punctuation">,</span>titleStyle<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        GUILayout<span class="token punctuation">.</span><span class="token function">Space</span><span class="token punctuation">(</span><span class="token number">10</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">foreach</span> <span class="token punctuation">(</span><span class="token class-name"><span class="token keyword">var</span></span> item <span class="token keyword">in</span> atlasDatas<span class="token punctuation">.</span>Values<span class="token punctuation">)</span>
+        <span class="token punctuation">{<!-- --></span>
+            item<span class="token punctuation">.</span>isShowDital <span class="token operator">=</span> EditorGUILayout<span class="token punctuation">.</span><span class="token function">BeginFoldoutHeaderGroup</span><span class="token punctuation">(</span>item<span class="token punctuation">.</span>isShowDital<span class="token punctuation">,</span> <span class="token string">"展开:   "</span> <span class="token operator">+</span> item<span class="token punctuation">.</span>atlasName<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span>item<span class="token punctuation">.</span>isShowDital<span class="token punctuation">)</span>
+            <span class="token punctuation">{<!-- --></span>
+                EditorGUILayout<span class="token punctuation">.</span><span class="token function">TextField</span><span class="token punctuation">(</span><span class="token string">"      图集名字："</span><span class="token punctuation">,</span> item<span class="token punctuation">.</span>atlasName<span class="token punctuation">)</span><span class="token punctuation">;</span>
+                EditorGUILayout<span class="token punctuation">.</span><span class="token function">TextField</span><span class="token punctuation">(</span><span class="token string">"      资源路径："</span><span class="token punctuation">,</span> item<span class="token punctuation">.</span>assetPath<span class="token punctuation">)</span><span class="token punctuation">;</span>
+                EditorGUILayout<span class="token punctuation">.</span><span class="token function">IntField</span><span class="token punctuation">(</span><span class="token string">"      图集中Sprite数量"</span><span class="token punctuation">,</span> item<span class="token punctuation">.</span>atlas<span class="token punctuation">.</span>spriteCount<span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token keyword">if</span><span class="token punctuation">(</span>GUILayout<span class="token punctuation">.</span><span class="token function">Button</span><span class="token punctuation">(</span><span class="token string">"打开并查看该图集资源"</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+                <span class="token punctuation">{<!-- --></span>
+                    AssetDatabase<span class="token punctuation">.</span><span class="token function">MakeEditable</span><span class="token punctuation">(</span>item<span class="token punctuation">.</span>assetPath<span class="token punctuation">)</span><span class="token punctuation">;</span>
+                    Selection<span class="token punctuation">.</span>activeObject <span class="token operator">=</span> AssetDatabase<span class="token punctuation">.</span><span class="token generic-method"><span class="token function">LoadAssetAtPath</span><span class="token generic class-name"><span class="token punctuation">&lt;</span>SpriteAtlas<span class="token punctuation">&gt;</span></span></span><span class="token punctuation">(</span>item<span class="token punctuation">.</span>assetPath<span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token punctuation">}</span>
+            <span class="token punctuation">}</span>
+            EditorGUILayout<span class="token punctuation">.</span><span class="token function">EndFoldoutHeaderGroup</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            GUILayout<span class="token punctuation">.</span><span class="token function">Space</span><span class="token punctuation">(</span><span class="token number">5</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+</code></pre> 
+<h4><a id="_423"></a>三、总结</h4> 
+<p>程序化打出图集，本质是对本地资源的操作处理，逻辑上的东西不复杂。主要是通过<code>DirectoryInfo</code>与<code>AssetDataBase</code>两个文件操作类执行本地文件的查询编辑与对<code>SpriteAtlas</code>的创建删除等操作。核心还是对于图集的功能理解与参数设定以及对打出图集策略的考虑</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/c76b0d69327212ea0ca39cae98919a48/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">postMessage，addEventListener， 前端跨域请求之js代码解析</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/f3134e5f08672ce8ad692ee9839e1310/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">simulink与modelsim联合仿真buck闭环设计 主电路用simulink搭建，控制电路完全有verilog语言实现</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

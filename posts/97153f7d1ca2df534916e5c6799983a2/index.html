@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>学习实战三：基于Cocos2d-x引擎模仿微信打飞机游戏 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/97153f7d1ca2df534916e5c6799983a2/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="学习实战三：基于Cocos2d-x引擎模仿微信打飞机游戏">
+  <meta property="og:description" content="学习Cocos2d-x游戏引擎有一个来月了，这一个来月的时间里，做了两个小游戏，一个是模仿的打地鼠游戏(做了大概十天)；另一个是模仿的打飞机游戏(做了五天)。关于前一个，只是在网上下了个叫做疯狂地鼠的安卓版游戏，然后便开始模仿，用的游戏素材也是那个安装包里提取出来的，对这个游戏的模仿应该说是限于用了素材吧，具体的功能实现是自己想的，因为没有源码可以看。而第二个游戏，微信打飞机，因为前段时间这个游戏火了一把，所以有网友利用Cocos2d引擎和Cocos2d-x引擎做出来了。我做完打地鼠游戏之所以选择了做打飞机这个游戏，也主要是看中了网上有教程。因为自己刚学，所以之前那个打地鼠的游戏只能说有功能了，而有些功能的代码为什么要这么写，我还不是很清楚，我只知道有这个功能，我就模仿，或者说引擎自带了某个效果，我就把这个效果做到我的游戏中了。所以总的来说有点朦胧感，因而想通过做个有系统讲解某个游戏怎么做，有源码可以看的来学着做。
+微信打飞机这个游戏，是跟着CSDN上一个博客专栏写的，在前几篇的博客中提到过。他的专栏没有全看完，只是看了前几篇的介绍，了解了下大致的写的思路，然后主要是看他给的源码了。
+做这个游戏的过程中，前期工作：如子弹的生成、敌机的生成、碰撞检测、利用数组对子弹和敌机进行管理，这两块模仿着源码做的，也可以说是抄了一遍。然后逐步深入，对这个游戏的主要功能的理解加深，后面的工作主要是自己来做了，源码只是在遇到了某个困难、或者说某个功能没有思路了就去看了看。对于这个游戏我自己感觉做的好的地方主要有：后期自己写了关于敌机生成的代码，作者是单独控制三种飞机的生成，而我后来是重写了这块的代码，单独写敌机类，在初始化的时候根据初始化参数来生成不同的飞机，具体代码，enemy类，继承自CCNode：
+enemy.h typedef enum { k_Enemy_Type_Small=0, k_Enemy_Type_Middle, k_Enemy_Type_Large, k_Enemy_Type_Count }EnemyType; 首先定义了三种飞机。然后重写了enemy的create函数，使能传入一个飞机类型的参数：
+Enemy* Enemy::create(EnemyType type) { Enemy* enemy=new Enemy(); enemy-&amp;gt;init(type); enemy-&amp;gt;autorelease(); return enemy; } 接着在enemy的init函数中根据传递过来的飞机类型参数来生成不同类型的飞机：
+bool Enemy::init(EnemyType type/* =k_Enemy_Type_Small */) { _type=type; _life=pow((double)type,2)*16&#43;1; CCString* frameName=CCString::createWithFormat(&#34;enemy%d.png&#34;,type); _enemy=CCSprite::createWithSpriteFrameName(frameName-&amp;gt;getCString()); this-&amp;gt;addChild(_enemy); return true; } 这样就实现了一个函数控制不同类型飞机的生成了，代码显得更为简洁。最后在飞机显示的enemyLayer类中飞机生成类型的参数：
+void EnemyLayer::update(float delta) { addSmall&#43;&#43;; addMiddle&#43;&#43;; addLarge&#43;&#43;; float speed=gameSpeed; if (addSmall&amp;gt;50-gameSpeed) { Enemy* enemySmall=Enemy::create(k_Enemy_Type_Small); enemySmall-&amp;gt;setTag(k_Enemy_Type_Small); this-&amp;gt;flyTo(enemySmall,3.0f-speed); addSmall=0; } if (addMiddle&amp;gt;300-gameSpeed) { Enemy* enemyMiddle=Enemy::create(k_Enemy_Type_Middle); enemyMiddle-&amp;gt;setTag(k_Enemy_Type_Middle); this-&amp;gt;flyTo(enemyMiddle,5.0f-speed); addMiddle=0; } if (addLarge&amp;gt;800-gameSpeed) { Enemy* enemyLarge=Enemy::create(k_Enemy_Type_Large); enemyLarge-&amp;gt;setTag(k_Enemy_Type_Large); enemyLarge-&amp;gt;getEnemySprite()-&amp;gt;runAction(enemyLarge-&amp;gt;flyAction()); this-&amp;gt;flyTo(enemyLarge,6.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2019-07-04T11:10:11+08:00">
+    <meta property="article:modified_time" content="2019-07-04T11:10:11+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">学习实战三：基于Cocos2d-x引擎模仿微信打飞机游戏</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <div id="cnblogs_post_body" class="blogpost-body"> 
+ <p>学习Cocos2d-x游戏引擎有一个来月了，这一个来月的时间里，做了两个小游戏，一个是模仿的打地鼠游戏(做了大概十天)；另一个是模仿的打飞机游戏(做了五天)。关于前一个，只是在网上下了个叫做疯狂地鼠的安卓版游戏，然后便开始模仿，用的游戏素材也是那个安装包里提取出来的，对这个游戏的模仿应该说是限于用了素材吧，具体的功能实现是自己想的，因为没有源码可以看。而第二个游戏，微信打飞机，因为前段时间这个游戏火了一把，所以有网友利用Cocos2d引擎和Cocos2d-x引擎做出来了。我做完打地鼠游戏之所以选择了做打飞机这个游戏，也主要是看中了网上有教程。因为自己刚学，所以之前那个打地鼠的游戏只能说有功能了，而有些功能的代码为什么要这么写，我还不是很清楚，我只知道有这个功能，我就模仿，或者说引擎自带了某个效果，我就把这个效果做到我的游戏中了。所以总的来说有点朦胧感，因而想通过做个有系统讲解某个游戏怎么做，有源码可以看的来学着做。</p> 
+ <p>微信打飞机这个游戏，是跟着CSDN上一个博客专栏写的，在前几篇的博客中提到过。他的专栏没有全看完，只是看了前几篇的介绍，了解了下大致的写的思路，然后主要是看他给的源码了。</p> 
+ <p>做这个游戏的过程中，前期工作：如子弹的生成、敌机的生成、碰撞检测、利用数组对子弹和敌机进行管理，这两块模仿着源码做的，也可以说是抄了一遍。然后逐步深入，对这个游戏的主要功能的理解加深，后面的工作主要是自己来做了，源码只是在遇到了某个困难、或者说某个功能没有思路了就去看了看。对于这个游戏我自己感觉做的好的地方主要有：后期自己写了关于敌机生成的代码，作者是单独控制三种飞机的生成，而我后来是重写了这块的代码，单独写敌机类，在初始化的时候根据初始化参数来生成不同的飞机，具体代码，enemy类，继承自CCNode：</p> 
+ <p> </p> 
+ <pre><code class="language-cpp">enemy.h</code></pre> 
+ <pre><code class="language-cpp">typedef enum
+{
+	k_Enemy_Type_Small=0,
+	k_Enemy_Type_Middle,
+	k_Enemy_Type_Large,
+	k_Enemy_Type_Count
+}EnemyType;</code></pre> 
+ <p>首先定义了三种飞机。然后重写了enemy的create函数，使能传入一个飞机类型的参数：</p> 
+ <p> </p> 
+ <p> </p> 
+ <pre><code class="language-cpp">Enemy* Enemy::create(EnemyType type)
+{
+	Enemy* enemy=new Enemy();
+	enemy-&gt;init(type);
+	enemy-&gt;autorelease();
+	return enemy;
+}</code></pre> 
+ <p><br> 接着在enemy的init函数中根据传递过来的飞机类型参数来生成不同类型的飞机：</p> 
+ <p> </p> 
+ <p> </p> 
+ <pre><code class="language-cpp">bool Enemy::init(EnemyType type/* =k_Enemy_Type_Small */)
+{
+	_type=type;
+	_life=pow((double)type,2)*16+1;
+	CCString* frameName=CCString::createWithFormat("enemy%d.png",type);
+	_enemy=CCSprite::createWithSpriteFrameName(frameName-&gt;getCString());
+	this-&gt;addChild(_enemy);
+	return true;
+}</code></pre> 
+ <p><br> 这样就实现了一个函数控制不同类型飞机的生成了，代码显得更为简洁。最后在飞机显示的enemyLayer类中飞机生成类型的参数：</p> 
+ <p> </p> 
+ <p> </p> 
+ <pre><code class="language-cpp">void EnemyLayer::update(float delta)
+{
+	addSmall++;
+	addMiddle++;
+	addLarge++;
+	float speed=gameSpeed;
+	if (addSmall&gt;50-gameSpeed)
+	{
+		Enemy* enemySmall=Enemy::create(k_Enemy_Type_Small);
+		enemySmall-&gt;setTag(k_Enemy_Type_Small);
+		this-&gt;flyTo(enemySmall,3.0f-speed);
+		addSmall=0;
+	}
+	if (addMiddle&gt;300-gameSpeed)
+	{
+		Enemy* enemyMiddle=Enemy::create(k_Enemy_Type_Middle);
+		enemyMiddle-&gt;setTag(k_Enemy_Type_Middle);
+		this-&gt;flyTo(enemyMiddle,5.0f-speed);
+		addMiddle=0;
+	}
+	if (addLarge&gt;800-gameSpeed)
+	{
+		Enemy* enemyLarge=Enemy::create(k_Enemy_Type_Large);
+		enemyLarge-&gt;setTag(k_Enemy_Type_Large);
+		enemyLarge-&gt;getEnemySprite()-&gt;runAction(enemyLarge-&gt;flyAction());
+		this-&gt;flyTo(enemyLarge,6.0f-speed);
+		addLarge=0;
+	}
+}</code></pre> 
+ <p><br> 这里巧妙的利用引擎的定时器功能(这个方法是参考另外一个网友的，通过设定不同的数值来生成不同的飞机)，而我在这里加入的功能主要是加入了游戏速度的影响功能，即代码中的gameSpeed参数，这个参数会根据游戏得分的增加而变动，数值会变大，然后在这里的影响就是每种飞机的生成时间会随着gameSpeed数值增大而缩短。可以在代码中看到，每个if函数的函数体中enemy的create参数都是不同的，参数不同就会生成不同的敌机。</p> 
+ <p> </p> 
+ <p>敌机生成之后，要用一个数组控制飞机，我参考的博客专栏中作者是用了三个数组，而我想到，在之后的碰撞检测中会增加代码量，所以只用到一个数组。前段的update函数中每个if函数体只控制飞机的生成，而飞机的飞行没有控制，我把控制独立的抽象为一个函数，并且这个函数带enemy类型对象的参数和一个float型的参数，这个float参数是控制飞机的飞行时间的，而enemy类型的对象主要是为了设置飞机的初始位置而用，具体代码如下：</p> 
+ <p> </p> 
+ <pre><code class="language-cpp">void EnemyLayer::flyTo(Enemy* sender,float speed)
+{
+	CCSize winSize=CCDirector::sharedDirector()-&gt;getWinSize();
+	//计算飞机随机产生的横坐标
+	int max=winSize.width-sender-&gt;getEnemySprite()-&gt;getContentSize().width/2;
+	int min=sender-&gt;getEnemySprite()-&gt;getContentSize().width/2;
+	float randomX=rand()%max;
+	if (randomX&lt;min)
+	{
+		randomX+=min;
+	}
+
+	//设定位置
+	sender-&gt;setPosition(ccp(randomX,winSize.height));
+	this-&gt;addChild(sender);
+	allEnemys-&gt;addObject(sender);
+
+	//飞行目的地
+	CCPoint pos=CCPointMake(randomX,-sender-&gt;getEnemySprite()-&gt;getContentSize().height/2);
+	//飞机飞向目的地
+	CCMoveTo* flyTo=CCMoveTo::create(speed,pos);
+	flyTo-&gt;setTag(9);
+	CCCallFuncN* moveDone=CCCallFuncN::create(this,callfuncN_selector(EnemyLayer::moveDone));
+	CCSequence* seq=CCSequence::create(flyTo,moveDone,NULL);
+	sender-&gt;runAction(seq);
+}</code></pre> 
+ <p><br> 可以看到这段代码也是较短的。同一个函数控制三种不同类型飞机的飞行，并且这里是同一个数组控制不同类型的飞机，这个是我自己想的功能，当然也是在那位博客作者提出了思路，我照抄一遍后才想到了新的方法。</p> 
+ <p> </p> 
+ <p>可以说，整个游戏代码中，我对这段代码的满意度是最高的，因为这个复杂度我感觉是整个代码文件中最复杂的一段，所以有点小小的满足感。这个工作做好了之后，游戏后段的碰撞检测代码量也少了很多，比如做敌机和子弹的检测只要一个函数就可以，而敌机和英雄飞机的碰撞检测也只需要一个函数就可以解决：</p> 
+ <p> </p> 
+ <pre><code class="language-cpp">//敌机和子弹的碰撞检测
+void GameScene::collisionBetweenBulletAndEnemy()
+{
+	CCObject *bobj,*eobj;
+	//遍历子弹数组
+	CCARRAY_FOREACH(_bulletLayer-&gt;allBulltets,bobj)
+	{
+		CCSprite* bullet=(CCSprite*)bobj;
+		CCArray* enemys=_enemyLayer-&gt;getEnemys();
+		CCARRAY_FOREACH(enemys,eobj)
+		{
+			Enemy* enemy=(Enemy*)eobj;
+			int type=enemy-&gt;getType();
+			if (enemy-&gt;getBoundingBox().intersectsRect(bullet-&gt;boundingBox()))
+			{
+				if(enemy-&gt;getEnemyLife()==1)
+				{
+					this-&gt;alterScore((EnemyType)type);
+					bullet-&gt;setVisible(false);
+					_enemyLayer-&gt;enemyBlowUp(enemy,(EnemyType)type);
+					enemys-&gt;removeObject(enemy);
+				}
+				if (enemy-&gt;getEnemyLife()&gt;1)
+				{
+					_bulletLayer-&gt;allBulltets-&gt;removeObject(bullet);
+					bullet-&gt;setVisible(false);
+					enemy-&gt;enemyBeHit(enemy,(EnemyType)type);
+					enemy-&gt;lostLife(1);
+				}
+			}
+		}
+	}
+}</code></pre> 
+ <p> </p> 
+ <pre><code class="language-cpp">//英雄飞机和敌机的碰撞检测
+void GameScene::collisionBetweenHeroAndEnemy(bool enable)
+{
+	if (enable)
+	{
+		//遍历所有敌机
+		CCObject* bobj;
+		CCArray* enemys=_enemyLayer-&gt;getEnemys();
+		CCARRAY_FOREACH(enemys,bobj)
+		{
+			Enemy* enemy=(Enemy*)bobj;
+			if (_planeLayer-&gt;getChildByTag(AirPlane)-&gt;boundingBox().intersectsRect(enemy-&gt;getBoundingBox()))
+			{
+				//CCLog("collision");
+				_planeLayer-&gt;isCollision();
+				this-&gt;over();
+			}
+		}
+	}
+}</code></pre> 
+ <p><br> 可以看到，代码量少了很多。</p> 
+ <p> </p> 
+ <p>我感觉关于敌机生成、子弹生成、碰撞检测这三块是整个游戏主要的工作量所在，因而这三块所占用的时间大概有三天左右吧~(我的时间是几乎一天的时间都用在了这个上面，有的时候晚上也会写代码写到十点多，所以一天的时间花的比较多了)，做完了这三块，剩下的工作量就少多了，主要是道具和得分显示的功能实现了。</p> 
+ <p>关于道具显示。因为有了关于敌机生成的相关经验，在道具生成这里我也是用的一个函数控制两种道具，思路和敌机类类似，代码：</p> 
+ <p> </p> 
+ <pre><code class="language-cpp">void PropLayer::initThisType(PropType type/* =k_Prop_Bomb */)
+{
+
+	CCSize winSize=CCDirector::sharedDirector()-&gt;getWinSize();
+
+	CCString* propName=CCString::createWithFormat("prop_type_%d.png",type);
+	_prop=CCSprite::createWithSpriteFrameName(propName-&gt;getCString());
+
+	_prop-&gt;setTag((int)type);
+	//计算道具随机产生的横坐标
+	int max=winSize.width-_prop-&gt;getContentSize().width/2;
+	int min=_prop-&gt;getContentSize().width/2;
+	float randomX=rand()%max;
+	if (randomX&lt;min)
+	{
+		randomX+=min;
+	}
+	//设定位置
+	_prop-&gt;setPosition(ccp(randomX,winSize.height));
+	this-&gt;addChild(_prop);
+	allProps-&gt;addObject(_prop);
+
+	//道具飞行动画
+	CCMoveTo* move1=CCMoveTo::create(0.2f,ccp(randomX,winSize.height*0.7));
+	CCMoveTo* move2=CCMoveTo::create(0.4f,ccp(randomX,winSize.height*0.75));
+	CCMoveTo* move3=CCMoveTo::create(0.4f,ccp(randomX,0));
+	CCCallFuncN* remove=CCCallFuncN::create(this,callfuncN_selector(PropLayer::moveDone));
+	
+	CCSequence* seq=CCSequence::create(move1,move2,move3,remove,NULL);
+	_prop-&gt;runAction(seq);
+}</code></pre> 
+ <p>在这里考虑到道具量少，只有两个，且不是主要的游戏元素。所以我没有单独写道具类，只是单独写了一个道具层在层中写了一个initThisType函数，用于控制不同的道具类型。然后通过定时器控制道具的生成：</p> 
+ <p> </p> 
+ <p> </p> 
+ <pre><code class="language-cpp">void GameScene::addProp(float dt)
+{
+	int i=rand()%2;
+	_propLayer-&gt;initThisType((PropType)i);
+}</code></pre> 
+ <p><br> 随机生成道具的类型。之后便是道具和英雄飞机的碰撞检测了：</p> 
+ <p> </p> 
+ <p> </p> 
+ <pre><code class="language-cpp">void GameScene::collisionBetweenHeroAndProp()
+{
+	CCObject* pobj;
+	CCARRAY_FOREACH(_propLayer-&gt;allProps,pobj)
+	{
+		CCSprite* prop=(CCSprite*)pobj;
+		if (prop-&gt;boundingBox().intersectsRect(_planeLayer-&gt;getBoundingBox()))
+		{
+			CCLog("Get porp");
+			if (prop-&gt;getTag()==(int)k_Prop_Bullet)
+			{
+				AudioEngine::sharedEngine()-&gt;playEffect("sound/get_double_laser.mp3");
+				_bulletLayer-&gt;switchBulletType(k_Bullet_Double);
+				this-&gt;setDPStatus(true);
+			}
+			if (prop-&gt;getTag()==(int)k_Prop_Bomb)
+			{
+				AudioEngine::sharedEngine()-&gt;playEffect("sound/get_bomb.mp3");
+				int i=this-&gt;getBombNumber();
+				i++;
+				_panelLayer-&gt;getChildByTag(800)-&gt;setVisible(true);
+				_panelLayer-&gt;getChildByTag(801)-&gt;setVisible(true);
+				_panelLayer-&gt;alterBomb(i);
+				this-&gt;setBombNumber(i);
+			}
+			_propLayer-&gt;allProps-&gt;removeObject(prop);
+			_propLayer-&gt;removeChild(prop);
+		}
+	}
+	if (this-&gt;getDPStatus()==true)
+	{
+		bulletLastTime--;
+		if (bulletLastTime==0)
+		{
+			_bulletLayer-&gt;switchBulletType(k_Bullet_Single);
+			bulletLastTime=1200;
+			this-&gt;setDPStatus(false);
+		}
+	}
+}</code></pre> 
+ <p><br> 这个函数感觉有点乱。主要是两种道具的功能不一样，一个是得到炸弹，另一个是双排子弹，且双排子弹是由时间控制的，所以写了一个if函数用来控制双排子弹的存在时间。得到道具之后便是激活相关的功能了。炸弹道具的使用便是遍历一遍敌机数组，使屏幕上的所有敌机全部调用单个飞机挨打的爆炸动画：</p> 
+ <p> </p> 
+ <p> </p> 
+ <pre><code class="language-cpp">//全部爆炸
+void EnemyLayer::allBlowUp(CCArray* enemys)
+{
+	GameScene* pGameScene=(GameScene*)this-&gt;getParent();
+	CCObject* obj;
+	CCARRAY_FOREACH(enemys,obj)
+	{
+		Enemy* enemy=(Enemy*)obj;
+		if (enemy-&gt;getEnemyLife()&gt;0&amp;&amp;enemy-&gt;isRunning())
+		{
+			int type=enemy-&gt;getType();
+			this-&gt;enemyBlowUp(enemy,(EnemyType)type);
+			pGameScene-&gt;alterScore((EnemyType)type);
+			enemys-&gt;removeAllObjects();
+		}	
+	}
+}</code></pre> 
+ <p><br> 而关于双排子弹，则是两种类型子弹间的切换。因为子弹的生成是用定时器生成的，所以单排子弹生成的时候要停止双排子弹的生成定时器，而双排子弹生成的时候则相反，我实现的具体方法是：</p> 
+ <p> </p> 
+ <p> </p> 
+ <pre><code class="language-cpp">//子弹切换
+void BulletLayer::switchBulletType(BulletType type)
+{
+	if (type==k_Bullet_Single)
+	{
+		this-&gt;unschedule(schedule_selector(BulletLayer::addDoubleBullet));
+		this-&gt;schedule(schedule_selector(BulletLayer::addSingleBullet),0.1f);
+	}
+	else if (type==k_Bullet_Double)
+	{
+		this-&gt;unschedule(schedule_selector(BulletLayer::addSingleBullet));
+		this-&gt;schedule(schedule_selector(BulletLayer::addDoubleBullet),0.1f);
+	}
+}</code></pre> 
+ <p><br> 这段代码我没有把握，不知道是不是这样做的。切换代码后就是不同种类子弹的飞行了。</p> 
+ <p> </p> 
+ <p><br></p> 
+ <p>游戏中主要的东西便是这些，我写的也主要是这些。而关于游戏得分的显示，我参考了专栏的作者，因为那个确实不会，参考之后也需要加强学习才行啊。</p> 
+ <p>最后有一个关于历史得分的功能，我这里用到了引擎的CCUserDefault方法，直接用的明文存储。并且才游戏结束后有个历史得分和本局得分的比较：</p> 
+ <p> </p> 
+ <pre><code class="language-cpp">//历史最高
+	highScore=CCUserDefault::sharedUserDefault()-&gt;getIntegerForKey("HighScore");
+	if (highScore&gt;finalScore)
+	{
+		CCString* strHighScore=CCString::createWithFormat("%d",highScore);
+		CCLabelBMFont* high=CCLabelBMFont::create(strHighScore-&gt;m_sString.c_str(),"fonts/font.fnt");
+		high-&gt;setColor(ccc3(143,146,147));
+		high-&gt;setPosition((ccp(winSize.width/2,winSize.height*0.65)));
+		this-&gt;addChild(high);
+	}
+	else if(highScore&lt;finalScore)
+	{
+		AudioEngine::sharedEngine()-&gt;playEffect("sound/achievement.mp3");
+		CCUserDefault::sharedUserDefault()-&gt;setIntegerForKey("HighScore",finalScore);
+		CCString* strHighScore=CCString::createWithFormat("%d",finalScore);
+		CCLabelBMFont* high=CCLabelBMFont::create(strHighScore-&gt;m_sString.c_str(),"fonts/font.fnt");
+		high-&gt;setColor(ccc3(143,146,147));
+		high-&gt;setPosition((ccp(winSize.width/2,winSize.height*0.65)));
+		this-&gt;addChild(high);
+	}</code></pre> 
+ <p><br> 哪个分值高，历史最高得分就是显示哪个~</p> 
+ <p> </p> 
+ <p>好啦，差不多啦~~~作为一个非计算机专业的文科生，在学习了两个来月的C++和一个来月的Cocos2d-x引擎后能写出两个小游戏，我觉得挺开心的。</p> 
+ <p>来几张游戏截图吧~</p> 
+ <p><img src="https://images2.imgbox.com/5d/38/sjC1xPcH_o.png" alt=""><br></p> 
+ <p><img src="https://images2.imgbox.com/ec/73/0pc5IwSs_o.png" alt=""><br></p> 
+ <p><img src="https://images2.imgbox.com/b1/81/4cUmN4zl_o.png" alt=""><br></p> 
+ <p><img src="https://images2.imgbox.com/1f/d6/SNKdLOmO_o.png" alt=""><br></p> 
+ <p><br></p> 
+ <p><br></p> 
+ <p>源码地址：<span style="font-size:32px;"><a style="color:#ff0000;" href="https://github.com/zhongtao1992/Airplane">戳这里</a><span style="color:#ff6666;">。</span></span><span style="font-size:14px;">第一次用github，折腾了好久的说。。。</span></p> 
+ <p><br></p> 
+ <p> </p> 
+</div> 
+<p>转载于:https://www.cnblogs.com/zhong-dev/p/4044608.html</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/21e5a7dcba7145971fb7e2e7519b765e/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">Kotlin的关键字</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/11813e907fa50285bbc054869373da50/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">hadoop安装需要开放的端口</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

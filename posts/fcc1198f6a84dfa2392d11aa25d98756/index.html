@@ -1,0 +1,1002 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Spring @Async 原理 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/fcc1198f6a84dfa2392d11aa25d98756/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="Spring @Async 原理">
+  <meta property="og:description" content="Spring @Async 原理 @EnableAsyncAsyncConfigurationSelectorProxyAsyncConfigurationAbstractAsyncConfigurationAsyncConfigurerAsyncAnnotationBeanPostProcessorAsyncAnnotationAdvisorAnnotationAsyncExecutionInterceptorAsyncUncaughtExceptionHandler @EnableAsync 开启异步功能需要 @EnableAsync 注解，可以以此作为切入点。
+@Target(ElementType.TYPE) @Retention(RetentionPolicy.RUNTIME) @Documented // 导入了 AsyncConfigurationSelector，很重要 @Import(AsyncConfigurationSelector.class) public @interface EnableAsync { // 可以自定义异步的注解来代替 @Async，一般不会使用 Class&amp;lt;? extends Annotation&amp;gt; annotation() default Annotation.class; // 是否使用 CGLIB 代理，这个配置会影响所有使用代理的地方，不止是 @Async boolean proxyTargetClass() default false; // 代理的 advice 是使用 JDK 还是使用 ASPECTJ，一般不修改 AdviceMode mode() default AdviceMode.PROXY; /** * Indicate the order in which the {@link AsyncAnnotationBeanPostProcessor} * should be applied. * &amp;lt;p&amp;gt;The default is {@link Ordered#LOWEST_PRECEDENCE} in order to run * after all other post-processors, so that it can add an advisor to * existing proxies rather than double-proxy.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2024-01-24T15:22:08+08:00">
+    <meta property="article:modified_time" content="2024-01-24T15:22:08+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">Spring @Async 原理</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-dracula">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <p></p> 
+<div class="toc"> 
+ <h4>Spring @Async 原理</h4> 
+ <ul><li><ul><li><a href="#EnableAsync_2" rel="nofollow">@EnableAsync</a></li><li><a href="#AsyncConfigurationSelector_36" rel="nofollow">AsyncConfigurationSelector</a></li><li><a href="#ProxyAsyncConfiguration_98" rel="nofollow">ProxyAsyncConfiguration</a></li><li><a href="#AbstractAsyncConfiguration_130" rel="nofollow">AbstractAsyncConfiguration</a></li><li><a href="#AsyncConfigurer_188" rel="nofollow">AsyncConfigurer</a></li><li><a href="#AsyncAnnotationBeanPostProcessor_208" rel="nofollow">AsyncAnnotationBeanPostProcessor</a></li><li><a href="#AsyncAnnotationAdvisor_543" rel="nofollow">AsyncAnnotationAdvisor</a></li><li><a href="#AnnotationAsyncExecutionInterceptor_643" rel="nofollow">AnnotationAsyncExecutionInterceptor</a></li><li><a href="#AsyncUncaughtExceptionHandler_908" rel="nofollow">AsyncUncaughtExceptionHandler</a></li></ul> 
+ </li></ul> 
+</div> 
+<p></p> 
+<h3><a id="EnableAsync_2"></a>@EnableAsync</h3> 
+<p>开启异步功能需要 <code>@EnableAsync</code> 注解，可以以此作为切入点。</p> 
+<pre><code class="prism language-java"><span class="token annotation punctuation">@Target</span><span class="token punctuation">(</span><span class="token class-name">ElementType</span><span class="token punctuation">.</span>TYPE<span class="token punctuation">)</span>
+<span class="token annotation punctuation">@Retention</span><span class="token punctuation">(</span><span class="token class-name">RetentionPolicy</span><span class="token punctuation">.</span>RUNTIME<span class="token punctuation">)</span>
+<span class="token annotation punctuation">@Documented</span>
+<span class="token comment">// 导入了 AsyncConfigurationSelector，很重要</span>
+<span class="token annotation punctuation">@Import</span><span class="token punctuation">(</span><span class="token class-name">AsyncConfigurationSelector</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">)</span>
+<span class="token keyword">public</span> <span class="token annotation punctuation">@interface</span> <span class="token class-name">EnableAsync</span> <span class="token punctuation">{<!-- --></span>
+
+    <span class="token comment">// 可以自定义异步的注解来代替 @Async，一般不会使用</span>
+	<span class="token class-name">Class</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token operator">?</span> <span class="token keyword">extends</span> <span class="token class-name">Annotation</span><span class="token punctuation">&gt;</span></span> <span class="token function">annotation</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token keyword">default</span> <span class="token class-name">Annotation</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">;</span>
+
+    <span class="token comment">// 是否使用 CGLIB 代理，这个配置会影响所有使用代理的地方，不止是 @Async</span>
+	<span class="token keyword">boolean</span> <span class="token function">proxyTargetClass</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token keyword">default</span> <span class="token boolean">false</span><span class="token punctuation">;</span>
+
+    <span class="token comment">// 代理的 advice 是使用 JDK 还是使用 ASPECTJ，一般不修改</span>
+	<span class="token class-name">AdviceMode</span> <span class="token function">mode</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token keyword">default</span> <span class="token class-name">AdviceMode</span><span class="token punctuation">.</span>PROXY<span class="token punctuation">;</span>
+
+	<span class="token comment">/**
+	 * Indicate the order in which the {@link AsyncAnnotationBeanPostProcessor}
+	 * should be applied.
+	 * &lt;p&gt;The default is {@link Ordered#LOWEST_PRECEDENCE} in order to run
+	 * after all other post-processors, so that it can add an advisor to
+	 * existing proxies rather than double-proxy.
+	 */</span>
+    <span class="token comment">// 决定 AsyncAnnotationBeanPostProcessor 被应用的顺序，默认是最低优先级，在运行完其他 post-processors 后再被应用</span>
+	<span class="token keyword">int</span> <span class="token function">order</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token keyword">default</span> <span class="token class-name">Ordered</span><span class="token punctuation">.</span>LOWEST_PRECEDENCE<span class="token punctuation">;</span>
+
+<span class="token punctuation">}</span>
+</code></pre> 
+<h3><a id="AsyncConfigurationSelector_36"></a>AsyncConfigurationSelector</h3> 
+<pre><code class="prism language-java"><span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">AsyncConfigurationSelector</span> <span class="token keyword">extends</span> <span class="token class-name">AdviceModeImportSelector</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">EnableAsync</span><span class="token punctuation">&gt;</span></span> <span class="token punctuation">{<!-- --></span>
+
+    <span class="token keyword">private</span> <span class="token keyword">static</span> <span class="token keyword">final</span> <span class="token class-name">String</span> ASYNC_EXECUTION_ASPECT_CONFIGURATION_CLASS_NAME <span class="token operator">=</span>
+          <span class="token string">"org.springframework.scheduling.aspectj.AspectJAsyncConfiguration"</span><span class="token punctuation">;</span>
+
+
+    <span class="token annotation punctuation">@Override</span>
+    <span class="token annotation punctuation">@NonNull</span>
+    <span class="token keyword">public</span> <span class="token class-name">String</span><span class="token punctuation">[</span><span class="token punctuation">]</span> <span class="token function">selectImports</span><span class="token punctuation">(</span><span class="token class-name">AdviceMode</span> adviceMode<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+       <span class="token keyword">return</span> <span class="token keyword">switch</span> <span class="token punctuation">(</span>adviceMode<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+          <span class="token comment">// 向 Spring 注入一个 ProxyAsyncConfiguration</span>
+          <span class="token keyword">case</span> PROXY <span class="token operator">-&gt;</span> <span class="token keyword">new</span> <span class="token class-name">String</span><span class="token punctuation">[</span><span class="token punctuation">]</span> <span class="token punctuation">{<!-- --></span><span class="token class-name">ProxyAsyncConfiguration</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">.</span><span class="token function">getName</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">}</span><span class="token punctuation">;</span>
+          <span class="token keyword">case</span> ASPECTJ <span class="token operator">-&gt;</span> <span class="token keyword">new</span> <span class="token class-name">String</span><span class="token punctuation">[</span><span class="token punctuation">]</span> <span class="token punctuation">{<!-- --></span>ASYNC_EXECUTION_ASPECT_CONFIGURATION_CLASS_NAME<span class="token punctuation">}</span><span class="token punctuation">;</span>
+       <span class="token punctuation">}</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+<span class="token punctuation">}</span>
+</code></pre> 
+<p><code>AsyncConfigurationSelector</code> 继承于 <code>AdviceModeImportSelector</code>，可以通过解析子类的泛型，泛型一般是 <code>EnableXXX</code> 注解类型，比如 <code>AsyncConfigurationSelector</code> 的泛型是 <code>AdviceModeImportSelector&lt;EnableAsync&gt;</code>；<code>CachingConfigurationSelector</code> 的泛型是 <code>AdviceModeImportSelector&lt;EnableCaching&gt;</code>，然后根据 <code>AdviceMode</code> 选择要 import 的配置。</p> 
+<pre><code class="prism language-java"><span class="token keyword">public</span> <span class="token keyword">abstract</span> <span class="token keyword">class</span> <span class="token class-name">AdviceModeImportSelector</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">A</span> <span class="token keyword">extends</span> <span class="token class-name">Annotation</span><span class="token punctuation">&gt;</span></span> <span class="token keyword">implements</span> <span class="token class-name">ImportSelector</span> <span class="token punctuation">{<!-- --></span>
+	
+    <span class="token comment">// EnableAsync、EnableCaching 注解中都会有一个 mode 属性代表 AdviceMode</span>
+    <span class="token keyword">public</span> <span class="token keyword">static</span> <span class="token keyword">final</span> <span class="token class-name">String</span> DEFAULT_ADVICE_MODE_ATTRIBUTE_NAME <span class="token operator">=</span> <span class="token string">"mode"</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">protected</span> <span class="token class-name">String</span> <span class="token function">getAdviceModeAttributeName</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+       <span class="token keyword">return</span> DEFAULT_ADVICE_MODE_ATTRIBUTE_NAME<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token annotation punctuation">@Override</span>
+    <span class="token keyword">public</span> <span class="token keyword">final</span> <span class="token class-name">String</span><span class="token punctuation">[</span><span class="token punctuation">]</span> <span class="token function">selectImports</span><span class="token punctuation">(</span><span class="token class-name">AnnotationMetadata</span> importingClassMetadata<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+       <span class="token comment">// 获取类上的泛型，即 EnableAsync</span>
+       <span class="token class-name">Class</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token operator">?</span><span class="token punctuation">&gt;</span></span> annType <span class="token operator">=</span> <span class="token class-name">GenericTypeResolver</span><span class="token punctuation">.</span><span class="token function">resolveTypeArgument</span><span class="token punctuation">(</span><span class="token function">getClass</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token class-name">AdviceModeImportSelector</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+       <span class="token class-name">Assert</span><span class="token punctuation">.</span><span class="token function">state</span><span class="token punctuation">(</span>annType <span class="token operator">!=</span> <span class="token keyword">null</span><span class="token punctuation">,</span> <span class="token string">"Unresolvable type argument for AdviceModeImportSelector"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+	   <span class="token comment">// 获取 EnableAsync 的属性</span>
+       <span class="token class-name">AnnotationAttributes</span> attributes <span class="token operator">=</span> <span class="token class-name">AnnotationConfigUtils</span><span class="token punctuation">.</span><span class="token function">attributesFor</span><span class="token punctuation">(</span>importingClassMetadata<span class="token punctuation">,</span> annType<span class="token punctuation">)</span><span class="token punctuation">;</span>
+       <span class="token keyword">if</span> <span class="token punctuation">(</span>attributes <span class="token operator">==</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+          <span class="token keyword">throw</span> <span class="token keyword">new</span> <span class="token class-name">IllegalArgumentException</span><span class="token punctuation">(</span><span class="token class-name">String</span><span class="token punctuation">.</span><span class="token function">format</span><span class="token punctuation">(</span>
+                <span class="token string">"@%s is not present on importing class '%s' as expected"</span><span class="token punctuation">,</span>
+                annType<span class="token punctuation">.</span><span class="token function">getSimpleName</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> importingClassMetadata<span class="token punctuation">.</span><span class="token function">getClassName</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+       <span class="token punctuation">}</span>
+	   <span class="token comment">// 获取 EnableAsync 的 mode 属性</span>
+       <span class="token class-name">AdviceMode</span> adviceMode <span class="token operator">=</span> attributes<span class="token punctuation">.</span><span class="token function">getEnum</span><span class="token punctuation">(</span><span class="token function">getAdviceModeAttributeName</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+       <span class="token comment">// 调用 AsyncConfigurationSelector 的 selectImports</span>
+       <span class="token class-name">String</span><span class="token punctuation">[</span><span class="token punctuation">]</span> imports <span class="token operator">=</span> <span class="token function">selectImports</span><span class="token punctuation">(</span>adviceMode<span class="token punctuation">)</span><span class="token punctuation">;</span>
+       <span class="token keyword">if</span> <span class="token punctuation">(</span>imports <span class="token operator">==</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+          <span class="token keyword">throw</span> <span class="token keyword">new</span> <span class="token class-name">IllegalArgumentException</span><span class="token punctuation">(</span><span class="token string">"Unknown AdviceMode: "</span> <span class="token operator">+</span> adviceMode<span class="token punctuation">)</span><span class="token punctuation">;</span>
+       <span class="token punctuation">}</span>
+       <span class="token keyword">return</span> imports<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token annotation punctuation">@Nullable</span>
+    <span class="token keyword">protected</span> <span class="token keyword">abstract</span> <span class="token class-name">String</span><span class="token punctuation">[</span><span class="token punctuation">]</span> <span class="token function">selectImports</span><span class="token punctuation">(</span><span class="token class-name">AdviceMode</span> adviceMode<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+<span class="token punctuation">}</span>
+</code></pre> 
+<h3><a id="ProxyAsyncConfiguration_98"></a>ProxyAsyncConfiguration</h3> 
+<p>主要就是注册一个 <code>AsyncAnnotationBeanPostProcessor</code></p> 
+<pre><code class="prism language-java"><span class="token annotation punctuation">@Configuration</span>
+<span class="token annotation punctuation">@Role</span><span class="token punctuation">(</span><span class="token class-name">BeanDefinition</span><span class="token punctuation">.</span>ROLE_INFRASTRUCTURE<span class="token punctuation">)</span>
+<span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">ProxyAsyncConfiguration</span> <span class="token keyword">extends</span> <span class="token class-name">AbstractAsyncConfiguration</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token comment">// 注册一个 AsyncAnnotationBeanPostProcessor</span>
+	<span class="token annotation punctuation">@Bean</span><span class="token punctuation">(</span>name <span class="token operator">=</span> <span class="token class-name">TaskManagementConfigUtils</span><span class="token punctuation">.</span>ASYNC_ANNOTATION_PROCESSOR_BEAN_NAME<span class="token punctuation">)</span>
+	<span class="token annotation punctuation">@Role</span><span class="token punctuation">(</span><span class="token class-name">BeanDefinition</span><span class="token punctuation">.</span>ROLE_INFRASTRUCTURE<span class="token punctuation">)</span>
+	<span class="token keyword">public</span> <span class="token class-name">AsyncAnnotationBeanPostProcessor</span> <span class="token function">asyncAdvisor</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+		<span class="token class-name">Assert</span><span class="token punctuation">.</span><span class="token function">notNull</span><span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">.</span>enableAsync<span class="token punctuation">,</span> <span class="token string">"@EnableAsync annotation metadata was not injected"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token comment">// AsyncAnnotationBeanPostProcessor</span>
+		<span class="token class-name">AsyncAnnotationBeanPostProcessor</span> bpp <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">AsyncAnnotationBeanPostProcessor</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token comment">// 配置线程池、错误处理器 AsyncUncaughtExceptionHandler</span>
+		bpp<span class="token punctuation">.</span><span class="token function">configure</span><span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">.</span>executor<span class="token punctuation">,</span> <span class="token keyword">this</span><span class="token punctuation">.</span>exceptionHandler<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token comment">// this.enableAsync 是 EnableAsync 的属性有，由父类 AbstractAsyncConfiguration 赋值</span>
+		<span class="token class-name">Class</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token operator">?</span> <span class="token keyword">extends</span> <span class="token class-name">Annotation</span><span class="token punctuation">&gt;</span></span> customAsyncAnnotation <span class="token operator">=</span> <span class="token keyword">this</span><span class="token punctuation">.</span>enableAsync<span class="token punctuation">.</span><span class="token function">getClass</span><span class="token punctuation">(</span><span class="token string">"annotation"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token comment">// 设置自定义的异步注解</span>
+		<span class="token keyword">if</span> <span class="token punctuation">(</span>customAsyncAnnotation <span class="token operator">!=</span> <span class="token class-name">AnnotationUtils</span><span class="token punctuation">.</span><span class="token function">getDefaultValue</span><span class="token punctuation">(</span><span class="token class-name">EnableAsync</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">,</span> <span class="token string">"annotation"</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+			bpp<span class="token punctuation">.</span><span class="token function">setAsyncAnnotationType</span><span class="token punctuation">(</span>customAsyncAnnotation<span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token punctuation">}</span>
+        <span class="token comment">// 是否使用 CGLIB</span>
+		bpp<span class="token punctuation">.</span><span class="token function">setProxyTargetClass</span><span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">.</span>enableAsync<span class="token punctuation">.</span><span class="token function">getBoolean</span><span class="token punctuation">(</span><span class="token string">"proxyTargetClass"</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token comment">// Order</span>
+		bpp<span class="token punctuation">.</span><span class="token function">setOrder</span><span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">.</span>enableAsync<span class="token punctuation">.</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Integer</span><span class="token punctuation">&gt;</span></span><span class="token function">getNumber</span><span class="token punctuation">(</span><span class="token string">"order"</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token keyword">return</span> bpp<span class="token punctuation">;</span>
+	<span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<h3><a id="AbstractAsyncConfiguration_130"></a>AbstractAsyncConfiguration</h3> 
+<pre><code class="prism language-java"><span class="token annotation punctuation">@Configuration</span><span class="token punctuation">(</span>proxyBeanMethods <span class="token operator">=</span> <span class="token boolean">false</span><span class="token punctuation">)</span>
+<span class="token keyword">public</span> <span class="token keyword">abstract</span> <span class="token keyword">class</span> <span class="token class-name">AbstractAsyncConfiguration</span> <span class="token keyword">implements</span> <span class="token class-name">ImportAware</span> <span class="token punctuation">{<!-- --></span>
+
+    <span class="token comment">// EnableAsync 的属性</span>
+	<span class="token annotation punctuation">@Nullable</span>
+	<span class="token keyword">protected</span> <span class="token class-name">AnnotationAttributes</span> enableAsync<span class="token punctuation">;</span>
+	<span class="token comment">// 线程池</span>
+	<span class="token annotation punctuation">@Nullable</span>
+	<span class="token keyword">protected</span> <span class="token class-name">Supplier</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Executor</span><span class="token punctuation">&gt;</span></span> executor<span class="token punctuation">;</span>
+	<span class="token comment">// 异常处理器</span>
+	<span class="token annotation punctuation">@Nullable</span>
+	<span class="token keyword">protected</span> <span class="token class-name">Supplier</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">AsyncUncaughtExceptionHandler</span><span class="token punctuation">&gt;</span></span> exceptionHandler<span class="token punctuation">;</span>
+
+	<span class="token annotation punctuation">@Override</span>
+	<span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">setImportMetadata</span><span class="token punctuation">(</span><span class="token class-name">AnnotationMetadata</span> importMetadata<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token comment">// EnableAsync 的属性</span>
+		<span class="token keyword">this</span><span class="token punctuation">.</span>enableAsync <span class="token operator">=</span> <span class="token class-name">AnnotationAttributes</span><span class="token punctuation">.</span><span class="token function">fromMap</span><span class="token punctuation">(</span>
+				importMetadata<span class="token punctuation">.</span><span class="token function">getAnnotationAttributes</span><span class="token punctuation">(</span><span class="token class-name">EnableAsync</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">.</span><span class="token function">getName</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">.</span>enableAsync <span class="token operator">==</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+			<span class="token keyword">throw</span> <span class="token keyword">new</span> <span class="token class-name">IllegalArgumentException</span><span class="token punctuation">(</span>
+					<span class="token string">"@EnableAsync is not present on importing class "</span> <span class="token operator">+</span> importMetadata<span class="token punctuation">.</span><span class="token function">getClassName</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token punctuation">}</span>
+	<span class="token punctuation">}</span>
+
+	<span class="token comment">/**
+	 * Collect any {@link AsyncConfigurer} beans through autowiring.
+	 */</span>
+	<span class="token annotation punctuation">@Autowired</span>
+	<span class="token keyword">void</span> <span class="token function">setConfigurers</span><span class="token punctuation">(</span><span class="token class-name">ObjectProvider</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">AsyncConfigurer</span><span class="token punctuation">&gt;</span></span> configurers<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token comment">// 获取唯一的线程池、异常处理器的配置</span>
+		<span class="token class-name">Supplier</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">AsyncConfigurer</span><span class="token punctuation">&gt;</span></span> configurer <span class="token operator">=</span> <span class="token class-name">SingletonSupplier</span><span class="token punctuation">.</span><span class="token function">of</span><span class="token punctuation">(</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">-&gt;</span> <span class="token punctuation">{<!-- --></span>
+			<span class="token class-name">List</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">AsyncConfigurer</span><span class="token punctuation">&gt;</span></span> candidates <span class="token operator">=</span> configurers<span class="token punctuation">.</span><span class="token function">stream</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">toList</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+			<span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token class-name">CollectionUtils</span><span class="token punctuation">.</span><span class="token function">isEmpty</span><span class="token punctuation">(</span>candidates<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+				<span class="token keyword">return</span> <span class="token keyword">null</span><span class="token punctuation">;</span>
+			<span class="token punctuation">}</span>
+			<span class="token keyword">if</span> <span class="token punctuation">(</span>candidates<span class="token punctuation">.</span><span class="token function">size</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">&gt;</span> <span class="token number">1</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+				<span class="token keyword">throw</span> <span class="token keyword">new</span> <span class="token class-name">IllegalStateException</span><span class="token punctuation">(</span><span class="token string">"Only one AsyncConfigurer may exist"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+			<span class="token punctuation">}</span>
+			<span class="token keyword">return</span> candidates<span class="token punctuation">.</span><span class="token function">get</span><span class="token punctuation">(</span><span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token comment">// 配置线程池、异常处理器</span>
+		<span class="token keyword">this</span><span class="token punctuation">.</span>executor <span class="token operator">=</span> <span class="token function">adapt</span><span class="token punctuation">(</span>configurer<span class="token punctuation">,</span> <span class="token class-name">AsyncConfigurer</span><span class="token operator">::</span><span class="token function">getAsyncExecutor</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token keyword">this</span><span class="token punctuation">.</span>exceptionHandler <span class="token operator">=</span> <span class="token function">adapt</span><span class="token punctuation">(</span>configurer<span class="token punctuation">,</span> <span class="token class-name">AsyncConfigurer</span><span class="token operator">::</span><span class="token function">getAsyncUncaughtExceptionHandler</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+	<span class="token punctuation">}</span>
+
+	<span class="token keyword">private</span> <span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">T</span><span class="token punctuation">&gt;</span></span> <span class="token class-name">Supplier</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">T</span><span class="token punctuation">&gt;</span></span> <span class="token function">adapt</span><span class="token punctuation">(</span><span class="token class-name">Supplier</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">AsyncConfigurer</span><span class="token punctuation">&gt;</span></span> supplier<span class="token punctuation">,</span> <span class="token class-name">Function</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">AsyncConfigurer</span><span class="token punctuation">,</span> <span class="token class-name">T</span><span class="token punctuation">&gt;</span></span> provider<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+		<span class="token keyword">return</span> <span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">-&gt;</span> <span class="token punctuation">{<!-- --></span>
+			<span class="token class-name">AsyncConfigurer</span> configurer <span class="token operator">=</span> supplier<span class="token punctuation">.</span><span class="token function">get</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+			<span class="token keyword">return</span> <span class="token punctuation">(</span>configurer <span class="token operator">!=</span> <span class="token keyword">null</span> <span class="token operator">?</span> provider<span class="token punctuation">.</span><span class="token function">apply</span><span class="token punctuation">(</span>configurer<span class="token punctuation">)</span> <span class="token operator">:</span> <span class="token keyword">null</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token punctuation">}</span><span class="token punctuation">;</span>
+	<span class="token punctuation">}</span>
+
+<span class="token punctuation">}</span>
+</code></pre> 
+<h3><a id="AsyncConfigurer_188"></a>AsyncConfigurer</h3> 
+<p>用于配置异步处理的线程池、异常处理器</p> 
+<pre><code class="prism language-java"><span class="token keyword">public</span> <span class="token keyword">interface</span> <span class="token class-name">AsyncConfigurer</span> <span class="token punctuation">{<!-- --></span>
+	<span class="token comment">// 线程池</span>
+	<span class="token annotation punctuation">@Nullable</span>
+	<span class="token keyword">default</span> <span class="token class-name">Executor</span> <span class="token function">getAsyncExecutor</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+		<span class="token keyword">return</span> <span class="token keyword">null</span><span class="token punctuation">;</span>
+	<span class="token punctuation">}</span>
+
+    <span class="token comment">// 异常处理器</span>
+	<span class="token annotation punctuation">@Nullable</span>
+	<span class="token keyword">default</span> <span class="token class-name">AsyncUncaughtExceptionHandler</span> <span class="token function">getAsyncUncaughtExceptionHandler</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+		<span class="token keyword">return</span> <span class="token keyword">null</span><span class="token punctuation">;</span>
+	<span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<h3><a id="AsyncAnnotationBeanPostProcessor_208"></a>AsyncAnnotationBeanPostProcessor</h3> 
+<p><img src="https://images2.imgbox.com/16/95/KSRC1Tv7_o.png" alt="image-20240124151911662"></p> 
+<p>在 <code>setBeanFactory()</code> 方法中将 <code>AsyncAnnotationAdvisor</code> 赋值给 <code>this.advisor</code>，<code>AsyncAnnotationAdvisor</code> 就是 AOP 的增强。</p> 
+<p>设置了自定义的异步注解。</p> 
+<p>设置了线程池、异常处理器。</p> 
+<p>在 <code>postProcessAfterInitialization()</code> 方法中创建了代理对象，代理对象中有 <code>AsyncAnnotationAdvisor</code> 增强，进而拥有了异步执行的功能。</p> 
+<pre><code class="prism language-java"><span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">AsyncAnnotationBeanPostProcessor</span> <span class="token keyword">extends</span> <span class="token class-name">AbstractBeanFactoryAwareAdvisingPostProcessor</span> <span class="token punctuation">{<!-- --></span>
+
+	<span class="token keyword">public</span> <span class="token keyword">static</span> <span class="token keyword">final</span> <span class="token class-name">String</span> DEFAULT_TASK_EXECUTOR_BEAN_NAME <span class="token operator">=</span>
+			<span class="token class-name">AnnotationAsyncExecutionInterceptor</span><span class="token punctuation">.</span>DEFAULT_TASK_EXECUTOR_BEAN_NAME<span class="token punctuation">;</span>
+
+	<span class="token keyword">protected</span> <span class="token keyword">final</span> <span class="token class-name">Log</span> logger <span class="token operator">=</span> <span class="token class-name">LogFactory</span><span class="token punctuation">.</span><span class="token function">getLog</span><span class="token punctuation">(</span><span class="token function">getClass</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+	<span class="token comment">// 线程池</span>
+	<span class="token annotation punctuation">@Nullable</span>
+	<span class="token keyword">private</span> <span class="token class-name">Supplier</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Executor</span><span class="token punctuation">&gt;</span></span> executor<span class="token punctuation">;</span>
+	<span class="token comment">// 异常处理器</span>
+	<span class="token annotation punctuation">@Nullable</span>
+	<span class="token keyword">private</span> <span class="token class-name">Supplier</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">AsyncUncaughtExceptionHandler</span><span class="token punctuation">&gt;</span></span> exceptionHandler<span class="token punctuation">;</span>
+    <span class="token comment">// 自定义的异步注解，一般为空</span>
+	<span class="token annotation punctuation">@Nullable</span>
+	<span class="token keyword">private</span> <span class="token class-name">Class</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token operator">?</span> <span class="token keyword">extends</span> <span class="token class-name">Annotation</span><span class="token punctuation">&gt;</span></span> asyncAnnotationType<span class="token punctuation">;</span>
+
+	<span class="token keyword">public</span> <span class="token class-name">AsyncAnnotationBeanPostProcessor</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token comment">// 控制将 AsyncAnnotationAdvisor 放到所有 Advisor 的前面</span>
+		<span class="token function">setBeforeExistingAdvisors</span><span class="token punctuation">(</span><span class="token boolean">true</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+	<span class="token punctuation">}</span>
+
+
+    <span class="token comment">// 配置线程池、异常处理器，被 ProxyAsyncConfiguration 的 asyncAdvisor() 方法调用</span>
+	<span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">configure</span><span class="token punctuation">(</span>
+			<span class="token annotation punctuation">@Nullable</span> <span class="token class-name">Supplier</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Executor</span><span class="token punctuation">&gt;</span></span> executor<span class="token punctuation">,</span> <span class="token annotation punctuation">@Nullable</span> <span class="token class-name">Supplier</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">AsyncUncaughtExceptionHandler</span><span class="token punctuation">&gt;</span></span> exceptionHandler<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+
+		<span class="token keyword">this</span><span class="token punctuation">.</span>executor <span class="token operator">=</span> executor<span class="token punctuation">;</span>
+		<span class="token keyword">this</span><span class="token punctuation">.</span>exceptionHandler <span class="token operator">=</span> exceptionHandler<span class="token punctuation">;</span>
+	<span class="token punctuation">}</span>
+	<span class="token comment">// 配置线程池</span>
+	<span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">setExecutor</span><span class="token punctuation">(</span><span class="token class-name">Executor</span> executor<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+		<span class="token keyword">this</span><span class="token punctuation">.</span>executor <span class="token operator">=</span> <span class="token class-name">SingletonSupplier</span><span class="token punctuation">.</span><span class="token function">of</span><span class="token punctuation">(</span>executor<span class="token punctuation">)</span><span class="token punctuation">;</span>
+	<span class="token punctuation">}</span>
+	<span class="token comment">// 配置异常处理器</span>
+	<span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">setExceptionHandler</span><span class="token punctuation">(</span><span class="token class-name">AsyncUncaughtExceptionHandler</span> exceptionHandler<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+		<span class="token keyword">this</span><span class="token punctuation">.</span>exceptionHandler <span class="token operator">=</span> <span class="token class-name">SingletonSupplier</span><span class="token punctuation">.</span><span class="token function">of</span><span class="token punctuation">(</span>exceptionHandler<span class="token punctuation">)</span><span class="token punctuation">;</span>
+	<span class="token punctuation">}</span>
+	<span class="token comment">// 配置自定义的异步注解</span>
+	<span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">setAsyncAnnotationType</span><span class="token punctuation">(</span><span class="token class-name">Class</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token operator">?</span> <span class="token keyword">extends</span> <span class="token class-name">Annotation</span><span class="token punctuation">&gt;</span></span> asyncAnnotationType<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+		<span class="token class-name">Assert</span><span class="token punctuation">.</span><span class="token function">notNull</span><span class="token punctuation">(</span>asyncAnnotationType<span class="token punctuation">,</span> <span class="token string">"'asyncAnnotationType' must not be null"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token keyword">this</span><span class="token punctuation">.</span>asyncAnnotationType <span class="token operator">=</span> asyncAnnotationType<span class="token punctuation">;</span>
+	<span class="token punctuation">}</span>
+
+
+	<span class="token annotation punctuation">@Override</span>
+	<span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">setBeanFactory</span><span class="token punctuation">(</span><span class="token class-name">BeanFactory</span> beanFactory<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token comment">// 设置 BeanFactory</span>
+		<span class="token keyword">super</span><span class="token punctuation">.</span><span class="token function">setBeanFactory</span><span class="token punctuation">(</span>beanFactory<span class="token punctuation">)</span><span class="token punctuation">;</span>
+		
+        <span class="token comment">// AsyncAnnotationAdvisor 随机 AOP 的增强，异步的逻辑就在其中</span>
+		<span class="token class-name">AsyncAnnotationAdvisor</span> advisor <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">AsyncAnnotationAdvisor</span><span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">.</span>executor<span class="token punctuation">,</span> <span class="token keyword">this</span><span class="token punctuation">.</span>exceptionHandler<span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">.</span>asyncAnnotationType <span class="token operator">!=</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token comment">// 配置自定义的异步注解</span>
+			advisor<span class="token punctuation">.</span><span class="token function">setAsyncAnnotationType</span><span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">.</span>asyncAnnotationType<span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token punctuation">}</span>
+		advisor<span class="token punctuation">.</span><span class="token function">setBeanFactory</span><span class="token punctuation">(</span>beanFactory<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token comment">// advisor 字段在 AbstractAdvisingBeanPostProcessor 中，下面会用到</span>
+		<span class="token keyword">this</span><span class="token punctuation">.</span>advisor <span class="token operator">=</span> advisor<span class="token punctuation">;</span>
+	<span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p><code>AbstractBeanFactoryAwareAdvisingPostProcessor</code> 是 <code>AsyncAnnotationBeanPostProcessor</code> 的父类</p> 
+<pre><code class="prism language-java"><span class="token keyword">public</span> <span class="token keyword">abstract</span> <span class="token keyword">class</span> <span class="token class-name">AbstractBeanFactoryAwareAdvisingPostProcessor</span> <span class="token keyword">extends</span> <span class="token class-name">AbstractAdvisingBeanPostProcessor</span>
+		<span class="token keyword">implements</span> <span class="token class-name">BeanFactoryAware</span> <span class="token punctuation">{<!-- --></span>
+
+	<span class="token annotation punctuation">@Nullable</span>
+	<span class="token keyword">private</span> <span class="token class-name">ConfigurableListableBeanFactory</span> beanFactory<span class="token punctuation">;</span>
+
+
+	<span class="token annotation punctuation">@Override</span>
+	<span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">setBeanFactory</span><span class="token punctuation">(</span><span class="token class-name">BeanFactory</span> beanFactory<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+		<span class="token keyword">this</span><span class="token punctuation">.</span>beanFactory <span class="token operator">=</span> <span class="token punctuation">(</span>beanFactory <span class="token keyword">instanceof</span> <span class="token class-name">ConfigurableListableBeanFactory</span> clbf <span class="token operator">?</span> clbf <span class="token operator">:</span> <span class="token keyword">null</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+	<span class="token punctuation">}</span>
+
+	<span class="token annotation punctuation">@Override</span>
+	<span class="token keyword">protected</span> <span class="token class-name">ProxyFactory</span> <span class="token function">prepareProxyFactory</span><span class="token punctuation">(</span><span class="token class-name">Object</span> bean<span class="token punctuation">,</span> <span class="token class-name">String</span> beanName<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token comment">// 设置</span>
+		<span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">.</span>beanFactory <span class="token operator">!=</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+			<span class="token class-name">AutoProxyUtils</span><span class="token punctuation">.</span><span class="token function">exposeTargetClass</span><span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">.</span>beanFactory<span class="token punctuation">,</span> beanName<span class="token punctuation">,</span> bean<span class="token punctuation">.</span><span class="token function">getClass</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token punctuation">}</span>
+
+		<span class="token class-name">ProxyFactory</span> proxyFactory <span class="token operator">=</span> <span class="token keyword">super</span><span class="token punctuation">.</span><span class="token function">prepareProxyFactory</span><span class="token punctuation">(</span>bean<span class="token punctuation">,</span> beanName<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token comment">// 是否使用 CGLIB</span>
+		<span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>proxyFactory<span class="token punctuation">.</span><span class="token function">isProxyTargetClass</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">&amp;&amp;</span> <span class="token keyword">this</span><span class="token punctuation">.</span>beanFactory <span class="token operator">!=</span> <span class="token keyword">null</span> <span class="token operator">&amp;&amp;</span>
+				<span class="token class-name">AutoProxyUtils</span><span class="token punctuation">.</span><span class="token function">shouldProxyTargetClass</span><span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">.</span>beanFactory<span class="token punctuation">,</span> beanName<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+			proxyFactory<span class="token punctuation">.</span><span class="token function">setProxyTargetClass</span><span class="token punctuation">(</span><span class="token boolean">true</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token punctuation">}</span>
+		<span class="token keyword">return</span> proxyFactory<span class="token punctuation">;</span>
+	<span class="token punctuation">}</span>
+
+	<span class="token annotation punctuation">@Override</span>
+	<span class="token keyword">protected</span> <span class="token keyword">boolean</span> <span class="token function">isEligible</span><span class="token punctuation">(</span><span class="token class-name">Object</span> bean<span class="token punctuation">,</span> <span class="token class-name">String</span> beanName<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+		<span class="token keyword">return</span> <span class="token punctuation">(</span><span class="token operator">!</span><span class="token class-name">AutoProxyUtils</span><span class="token punctuation">.</span><span class="token function">isOriginalInstance</span><span class="token punctuation">(</span>beanName<span class="token punctuation">,</span> bean<span class="token punctuation">.</span><span class="token function">getClass</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token operator">&amp;&amp;</span>
+				<span class="token keyword">super</span><span class="token punctuation">.</span><span class="token function">isEligible</span><span class="token punctuation">(</span>bean<span class="token punctuation">,</span> beanName<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+	<span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p><code>AbstractAdvisingBeanPostProcessor</code> 是 <code>AbstractBeanFactoryAwareAdvisingPostProcessor</code> 的父类，实现了 <code>SmartInstantiationAwareBeanPostProcessor</code>，在 <code>postProcessAfterInitialization</code> 方法中处理 AOP 增强的逻辑。</p> 
+<pre><code class="prism language-java"><span class="token keyword">public</span> <span class="token keyword">abstract</span> <span class="token keyword">class</span> <span class="token class-name">AbstractAdvisingBeanPostProcessor</span> <span class="token keyword">extends</span> <span class="token class-name">ProxyProcessorSupport</span>
+		<span class="token keyword">implements</span> <span class="token class-name">SmartInstantiationAwareBeanPostProcessor</span> <span class="token punctuation">{<!-- --></span>
+	<span class="token comment">// AOP 的增强，AsyncAnnotationAdvisor</span>
+	<span class="token annotation punctuation">@Nullable</span>
+	<span class="token keyword">protected</span> <span class="token class-name">Advisor</span> advisor<span class="token punctuation">;</span>
+	<span class="token comment">// AsyncAnnotationBeanPostProcessor 的工作方法中设置成了 true，将 AsyncAnnotationAdvisor 放到所有 Advisor 的前面</span>
+	<span class="token keyword">protected</span> <span class="token keyword">boolean</span> beforeExistingAdvisors <span class="token operator">=</span> <span class="token boolean">false</span><span class="token punctuation">;</span>
+	<span class="token comment">// Class 是否适用于 AsyncAnnotationAdvisor 的缓存</span>
+	<span class="token keyword">private</span> <span class="token keyword">final</span> <span class="token class-name">Map</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Class</span><span class="token punctuation">&lt;</span><span class="token operator">?</span><span class="token punctuation">&gt;</span><span class="token punctuation">,</span> <span class="token class-name">Boolean</span><span class="token punctuation">&gt;</span></span> eligibleBeans <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">ConcurrentHashMap</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token punctuation">&gt;</span></span><span class="token punctuation">(</span><span class="token number">256</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+	<span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">setBeforeExistingAdvisors</span><span class="token punctuation">(</span><span class="token keyword">boolean</span> beforeExistingAdvisors<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+		<span class="token keyword">this</span><span class="token punctuation">.</span>beforeExistingAdvisors <span class="token operator">=</span> beforeExistingAdvisors<span class="token punctuation">;</span>
+	<span class="token punctuation">}</span>
+
+
+	<span class="token annotation punctuation">@Override</span>
+	<span class="token keyword">public</span> <span class="token class-name">Class</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token operator">?</span><span class="token punctuation">&gt;</span></span> <span class="token function">determineBeanType</span><span class="token punctuation">(</span><span class="token class-name">Class</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token operator">?</span><span class="token punctuation">&gt;</span></span> beanClass<span class="token punctuation">,</span> <span class="token class-name">String</span> beanName<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+		<span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">.</span>advisor <span class="token operator">!=</span> <span class="token keyword">null</span> <span class="token operator">&amp;&amp;</span> <span class="token function">isEligible</span><span class="token punctuation">(</span>beanClass<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+			<span class="token class-name">ProxyFactory</span> proxyFactory <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">ProxyFactory</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+			proxyFactory<span class="token punctuation">.</span><span class="token function">copyFrom</span><span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+			proxyFactory<span class="token punctuation">.</span><span class="token function">setTargetClass</span><span class="token punctuation">(</span>beanClass<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+			<span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>proxyFactory<span class="token punctuation">.</span><span class="token function">isProxyTargetClass</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+				<span class="token function">evaluateProxyInterfaces</span><span class="token punctuation">(</span>beanClass<span class="token punctuation">,</span> proxyFactory<span class="token punctuation">)</span><span class="token punctuation">;</span>
+			<span class="token punctuation">}</span>
+			proxyFactory<span class="token punctuation">.</span><span class="token function">addAdvisor</span><span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">.</span>advisor<span class="token punctuation">)</span><span class="token punctuation">;</span>
+			<span class="token function">customizeProxyFactory</span><span class="token punctuation">(</span>proxyFactory<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+			<span class="token comment">// Use original ClassLoader if bean class not locally loaded in overriding class loader</span>
+			<span class="token class-name">ClassLoader</span> classLoader <span class="token operator">=</span> <span class="token function">getProxyClassLoader</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+			<span class="token keyword">if</span> <span class="token punctuation">(</span>classLoader <span class="token keyword">instanceof</span> <span class="token class-name">SmartClassLoader</span> smartClassLoader <span class="token operator">&amp;&amp;</span>
+					classLoader <span class="token operator">!=</span> beanClass<span class="token punctuation">.</span><span class="token function">getClassLoader</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+				classLoader <span class="token operator">=</span> smartClassLoader<span class="token punctuation">.</span><span class="token function">getOriginalClassLoader</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+			<span class="token punctuation">}</span>
+			<span class="token keyword">return</span> proxyFactory<span class="token punctuation">.</span><span class="token function">getProxyClass</span><span class="token punctuation">(</span>classLoader<span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token punctuation">}</span>
+
+		<span class="token keyword">return</span> beanClass<span class="token punctuation">;</span>
+	<span class="token punctuation">}</span>
+
+	<span class="token annotation punctuation">@Override</span>
+	<span class="token keyword">public</span> <span class="token class-name">Object</span> <span class="token function">postProcessAfterInitialization</span><span class="token punctuation">(</span><span class="token class-name">Object</span> bean<span class="token punctuation">,</span> <span class="token class-name">String</span> beanName<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+		<span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">.</span>advisor <span class="token operator">==</span> <span class="token keyword">null</span> <span class="token operator">||</span> bean <span class="token keyword">instanceof</span> <span class="token class-name">AopInfrastructureBean</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+			<span class="token comment">// Ignore AOP infrastructure such as scoped proxies.</span>
+			<span class="token keyword">return</span> bean<span class="token punctuation">;</span>
+		<span class="token punctuation">}</span>
+		<span class="token comment">// 当前 bean 已经是代理对象了，只需要向 advisor 链中添加 advisor 即可</span>
+		<span class="token keyword">if</span> <span class="token punctuation">(</span>bean <span class="token keyword">instanceof</span> <span class="token class-name">Advised</span> advised<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token comment">// advised 没有冻结，且 bean 能应用 AsyncAnnotationAdvisor</span>
+			<span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>advised<span class="token punctuation">.</span><span class="token function">isFrozen</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">&amp;&amp;</span> <span class="token function">isEligible</span><span class="token punctuation">(</span><span class="token class-name">AopUtils</span><span class="token punctuation">.</span><span class="token function">getTargetClass</span><span class="token punctuation">(</span>bean<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+				<span class="token comment">// Add our local Advisor to the existing proxy's Advisor chain.</span>
+                <span class="token comment">// 将 AsyncAnnotationAdvisor 放到其他 Advisor 的前面</span>
+				<span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">.</span>beforeExistingAdvisors<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+					advised<span class="token punctuation">.</span><span class="token function">addAdvisor</span><span class="token punctuation">(</span><span class="token number">0</span><span class="token punctuation">,</span> <span class="token keyword">this</span><span class="token punctuation">.</span>advisor<span class="token punctuation">)</span><span class="token punctuation">;</span>
+				<span class="token punctuation">}</span>
+				<span class="token keyword">else</span> <span class="token keyword">if</span> <span class="token punctuation">(</span>advised<span class="token punctuation">.</span><span class="token function">getTargetSource</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">==</span> <span class="token class-name">AdvisedSupport</span><span class="token punctuation">.</span>EMPTY_TARGET_SOURCE <span class="token operator">&amp;&amp;</span>
+						advised<span class="token punctuation">.</span><span class="token function">getAdvisorCount</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">&gt;</span> <span class="token number">0</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+					<span class="token comment">// No target, leave last Advisor in place and add new Advisor right before.</span>
+					advised<span class="token punctuation">.</span><span class="token function">addAdvisor</span><span class="token punctuation">(</span>advised<span class="token punctuation">.</span><span class="token function">getAdvisorCount</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">-</span> <span class="token number">1</span><span class="token punctuation">,</span> <span class="token keyword">this</span><span class="token punctuation">.</span>advisor<span class="token punctuation">)</span><span class="token punctuation">;</span>
+					<span class="token keyword">return</span> bean<span class="token punctuation">;</span>
+				<span class="token punctuation">}</span>
+				<span class="token keyword">else</span> <span class="token punctuation">{<!-- --></span>
+					advised<span class="token punctuation">.</span><span class="token function">addAdvisor</span><span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">.</span>advisor<span class="token punctuation">)</span><span class="token punctuation">;</span>
+				<span class="token punctuation">}</span>
+				<span class="token keyword">return</span> bean<span class="token punctuation">;</span>
+			<span class="token punctuation">}</span>
+		<span class="token punctuation">}</span>
+		<span class="token comment">// 当前 bean 不是代理对象，需要创建代理对象</span>
+        <span class="token comment">// bean 能应用 AsyncAnnotationAdvisor</span>
+		<span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">isEligible</span><span class="token punctuation">(</span>bean<span class="token punctuation">,</span> beanName<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token comment">// 创建代理工厂</span>
+			<span class="token class-name">ProxyFactory</span> proxyFactory <span class="token operator">=</span> <span class="token function">prepareProxyFactory</span><span class="token punctuation">(</span>bean<span class="token punctuation">,</span> beanName<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token comment">// 如果不是 CGLIB 代理，遍历目标类的实现所有接口，排除 Spring 的接口和一些特殊的内部语言的接口，将其添加到 proxyFactory，</span>
+            <span class="token comment">// 如果排除后没有合适的接口了，就切换到 CGLIB</span>
+			<span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>proxyFactory<span class="token punctuation">.</span><span class="token function">isProxyTargetClass</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+				<span class="token function">evaluateProxyInterfaces</span><span class="token punctuation">(</span>bean<span class="token punctuation">.</span><span class="token function">getClass</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> proxyFactory<span class="token punctuation">)</span><span class="token punctuation">;</span>
+			<span class="token punctuation">}</span>
+            <span class="token comment">// 添加 AsyncAnnotationAdvisor</span>
+			proxyFactory<span class="token punctuation">.</span><span class="token function">addAdvisor</span><span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">.</span>advisor<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token comment">// 可自定义，默认为空</span>
+			<span class="token function">customizeProxyFactory</span><span class="token punctuation">(</span>proxyFactory<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+			<span class="token comment">// Use original ClassLoader if bean class not locally loaded in overriding class loader</span>
+			<span class="token class-name">ClassLoader</span> classLoader <span class="token operator">=</span> <span class="token function">getProxyClassLoader</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+			<span class="token keyword">if</span> <span class="token punctuation">(</span>classLoader <span class="token keyword">instanceof</span> <span class="token class-name">SmartClassLoader</span> smartClassLoader <span class="token operator">&amp;&amp;</span>
+					classLoader <span class="token operator">!=</span> bean<span class="token punctuation">.</span><span class="token function">getClass</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">getClassLoader</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+				classLoader <span class="token operator">=</span> smartClassLoader<span class="token punctuation">.</span><span class="token function">getOriginalClassLoader</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+			<span class="token punctuation">}</span>
+            <span class="token comment">// 生成代理对象</span>
+			<span class="token keyword">return</span> proxyFactory<span class="token punctuation">.</span><span class="token function">getProxy</span><span class="token punctuation">(</span>classLoader<span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token punctuation">}</span>
+		
+        <span class="token comment">// 无法使用代理，返回原始对象</span>
+		<span class="token comment">// No proxy needed.</span>
+		<span class="token keyword">return</span> bean<span class="token punctuation">;</span>
+	<span class="token punctuation">}</span>
+
+	<span class="token keyword">protected</span> <span class="token keyword">boolean</span> <span class="token function">isEligible</span><span class="token punctuation">(</span><span class="token class-name">Object</span> bean<span class="token punctuation">,</span> <span class="token class-name">String</span> beanName<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+		<span class="token keyword">return</span> <span class="token function">isEligible</span><span class="token punctuation">(</span>bean<span class="token punctuation">.</span><span class="token function">getClass</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+	<span class="token punctuation">}</span>
+
+	<span class="token comment">/**
+	 * Check whether the given class is eligible for advising with this
+	 * post-processor's {@link Advisor}.
+	 * &lt;p&gt;Implements caching of {@code canApply} results per bean target class.
+	 * @param targetClass the class to check against
+	 * @see AopUtils#canApply(Advisor, Class)
+	 */</span>
+    <span class="token comment">// 检查给定的 Class 是否适用于</span>
+	<span class="token keyword">protected</span> <span class="token keyword">boolean</span> <span class="token function">isEligible</span><span class="token punctuation">(</span><span class="token class-name">Class</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token operator">?</span><span class="token punctuation">&gt;</span></span> targetClass<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token comment">// 先查缓存</span>
+		<span class="token class-name">Boolean</span> eligible <span class="token operator">=</span> <span class="token keyword">this</span><span class="token punctuation">.</span>eligibleBeans<span class="token punctuation">.</span><span class="token function">get</span><span class="token punctuation">(</span>targetClass<span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token keyword">if</span> <span class="token punctuation">(</span>eligible <span class="token operator">!=</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+			<span class="token keyword">return</span> eligible<span class="token punctuation">;</span>
+		<span class="token punctuation">}</span>
+        <span class="token comment">// 增强为空，则无需代理</span>
+		<span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">.</span>advisor <span class="token operator">==</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+			<span class="token keyword">return</span> <span class="token boolean">false</span><span class="token punctuation">;</span>
+		<span class="token punctuation">}</span>
+        <span class="token comment">// 判断切点能否应用于 targetClass，AOP 的内容，这里不展开</span>
+        <span class="token comment">// 切点的构建在 AsyncAnnotationAdvisor#buildPointcut() 中</span>
+		eligible <span class="token operator">=</span> <span class="token class-name">AopUtils</span><span class="token punctuation">.</span><span class="token function">canApply</span><span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">.</span>advisor<span class="token punctuation">,</span> targetClass<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token comment">// 填充缓存</span>
+		<span class="token keyword">this</span><span class="token punctuation">.</span>eligibleBeans<span class="token punctuation">.</span><span class="token function">put</span><span class="token punctuation">(</span>targetClass<span class="token punctuation">,</span> eligible<span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token keyword">return</span> eligible<span class="token punctuation">;</span>
+	<span class="token punctuation">}</span>
+
+    <span class="token comment">// 创建代理工厂</span>
+	<span class="token keyword">protected</span> <span class="token class-name">ProxyFactory</span> <span class="token function">prepareProxyFactory</span><span class="token punctuation">(</span><span class="token class-name">Object</span> bean<span class="token punctuation">,</span> <span class="token class-name">String</span> beanName<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+		<span class="token class-name">ProxyFactory</span> proxyFactory <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">ProxyFactory</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+		proxyFactory<span class="token punctuation">.</span><span class="token function">copyFrom</span><span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+		proxyFactory<span class="token punctuation">.</span><span class="token function">setTarget</span><span class="token punctuation">(</span>bean<span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token keyword">return</span> proxyFactory<span class="token punctuation">;</span>
+	<span class="token punctuation">}</span>
+
+	<span class="token keyword">protected</span> <span class="token keyword">void</span> <span class="token function">customizeProxyFactory</span><span class="token punctuation">(</span><span class="token class-name">ProxyFactory</span> proxyFactory<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+	<span class="token punctuation">}</span>
+
+<span class="token punctuation">}</span>
+</code></pre> 
+<p><code>ProxyProcessorSupport</code> 是 <code>AbstractAdvisingBeanPostProcessor</code> 的父类</p> 
+<pre><code class="prism language-java"><span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">ProxyProcessorSupport</span> <span class="token keyword">extends</span> <span class="token class-name">ProxyConfig</span> <span class="token keyword">implements</span> <span class="token class-name">Ordered</span><span class="token punctuation">,</span> <span class="token class-name">BeanClassLoaderAware</span><span class="token punctuation">,</span> <span class="token class-name">AopInfrastructureBean</span> <span class="token punctuation">{<!-- --></span>
+
+	<span class="token keyword">private</span> <span class="token keyword">int</span> order <span class="token operator">=</span> <span class="token class-name">Ordered</span><span class="token punctuation">.</span>LOWEST_PRECEDENCE<span class="token punctuation">;</span>
+
+	<span class="token annotation punctuation">@Nullable</span>
+	<span class="token keyword">private</span> <span class="token class-name">ClassLoader</span> proxyClassLoader <span class="token operator">=</span> <span class="token class-name">ClassUtils</span><span class="token punctuation">.</span><span class="token function">getDefaultClassLoader</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+	<span class="token keyword">private</span> <span class="token keyword">boolean</span> classLoaderConfigured <span class="token operator">=</span> <span class="token boolean">false</span><span class="token punctuation">;</span>
+
+	<span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">setOrder</span><span class="token punctuation">(</span><span class="token keyword">int</span> order<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+		<span class="token keyword">this</span><span class="token punctuation">.</span>order <span class="token operator">=</span> order<span class="token punctuation">;</span>
+	<span class="token punctuation">}</span>
+
+	<span class="token annotation punctuation">@Override</span>
+	<span class="token keyword">public</span> <span class="token keyword">int</span> <span class="token function">getOrder</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+		<span class="token keyword">return</span> <span class="token keyword">this</span><span class="token punctuation">.</span>order<span class="token punctuation">;</span>
+	<span class="token punctuation">}</span>
+
+	<span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">setProxyClassLoader</span><span class="token punctuation">(</span><span class="token annotation punctuation">@Nullable</span> <span class="token class-name">ClassLoader</span> classLoader<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+		<span class="token keyword">this</span><span class="token punctuation">.</span>proxyClassLoader <span class="token operator">=</span> classLoader<span class="token punctuation">;</span>
+		<span class="token keyword">this</span><span class="token punctuation">.</span>classLoaderConfigured <span class="token operator">=</span> <span class="token punctuation">(</span>classLoader <span class="token operator">!=</span> <span class="token keyword">null</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+	<span class="token punctuation">}</span>
+
+	<span class="token annotation punctuation">@Nullable</span>
+	<span class="token keyword">protected</span> <span class="token class-name">ClassLoader</span> <span class="token function">getProxyClassLoader</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+		<span class="token keyword">return</span> <span class="token keyword">this</span><span class="token punctuation">.</span>proxyClassLoader<span class="token punctuation">;</span>
+	<span class="token punctuation">}</span>
+
+	<span class="token annotation punctuation">@Override</span>
+	<span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">setBeanClassLoader</span><span class="token punctuation">(</span><span class="token class-name">ClassLoader</span> classLoader<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+		<span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span><span class="token keyword">this</span><span class="token punctuation">.</span>classLoaderConfigured<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+			<span class="token keyword">this</span><span class="token punctuation">.</span>proxyClassLoader <span class="token operator">=</span> classLoader<span class="token punctuation">;</span>
+		<span class="token punctuation">}</span>
+	<span class="token punctuation">}</span>
+
+	<span class="token keyword">protected</span> <span class="token keyword">void</span> <span class="token function">evaluateProxyInterfaces</span><span class="token punctuation">(</span><span class="token class-name">Class</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token operator">?</span><span class="token punctuation">&gt;</span></span> beanClass<span class="token punctuation">,</span> <span class="token class-name">ProxyFactory</span> proxyFactory<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token comment">// 获取 beanClass 实现的所有接口</span>
+		<span class="token class-name">Class</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token operator">?</span><span class="token punctuation">&gt;</span></span><span class="token punctuation">[</span><span class="token punctuation">]</span> targetInterfaces <span class="token operator">=</span> <span class="token class-name">ClassUtils</span><span class="token punctuation">.</span><span class="token function">getAllInterfacesForClass</span><span class="token punctuation">(</span>beanClass<span class="token punctuation">,</span> <span class="token function">getProxyClassLoader</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token comment">// 是否有合适的代理接口</span>
+		<span class="token keyword">boolean</span> hasReasonableProxyInterface <span class="token operator">=</span> <span class="token boolean">false</span><span class="token punctuation">;</span>
+		<span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token class-name">Class</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token operator">?</span><span class="token punctuation">&gt;</span></span> ifc <span class="token operator">:</span> targetInterfaces<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token comment">// 排除 Spring 的回调接口、一些特殊的内部语言的接口</span>
+			<span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span><span class="token function">isConfigurationCallbackInterface</span><span class="token punctuation">(</span>ifc<span class="token punctuation">)</span> <span class="token operator">&amp;&amp;</span> <span class="token operator">!</span><span class="token function">isInternalLanguageInterface</span><span class="token punctuation">(</span>ifc<span class="token punctuation">)</span> <span class="token operator">&amp;&amp;</span>
+					ifc<span class="token punctuation">.</span><span class="token function">getMethods</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span>length <span class="token operator">&gt;</span> <span class="token number">0</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+				hasReasonableProxyInterface <span class="token operator">=</span> <span class="token boolean">true</span><span class="token punctuation">;</span>
+				<span class="token keyword">break</span><span class="token punctuation">;</span>
+			<span class="token punctuation">}</span>
+		<span class="token punctuation">}</span>
+        <span class="token comment">// 如果有合适的代理接口，将其添加到 proxyFactory，并继续使用 JDK 代理</span>
+		<span class="token keyword">if</span> <span class="token punctuation">(</span>hasReasonableProxyInterface<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+			<span class="token comment">// Must allow for introductions; can't just set interfaces to the target's interfaces only.</span>
+			<span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token class-name">Class</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token operator">?</span><span class="token punctuation">&gt;</span></span> ifc <span class="token operator">:</span> targetInterfaces<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+				proxyFactory<span class="token punctuation">.</span><span class="token function">addInterface</span><span class="token punctuation">(</span>ifc<span class="token punctuation">)</span><span class="token punctuation">;</span>
+			<span class="token punctuation">}</span>
+		<span class="token punctuation">}</span>
+        <span class="token comment">// 如果没有合适的代理接口，改用 CGLIB</span>
+		<span class="token keyword">else</span> <span class="token punctuation">{<!-- --></span>
+			proxyFactory<span class="token punctuation">.</span><span class="token function">setProxyTargetClass</span><span class="token punctuation">(</span><span class="token boolean">true</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token punctuation">}</span>
+	<span class="token punctuation">}</span>
+	<span class="token comment">// 是否是 Spring 的回调接口</span>
+	<span class="token keyword">protected</span> <span class="token keyword">boolean</span> <span class="token function">isConfigurationCallbackInterface</span><span class="token punctuation">(</span><span class="token class-name">Class</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token operator">?</span><span class="token punctuation">&gt;</span></span> ifc<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+		<span class="token keyword">return</span> <span class="token punctuation">(</span><span class="token class-name">InitializingBean</span><span class="token punctuation">.</span><span class="token keyword">class</span> <span class="token operator">==</span> ifc <span class="token operator">||</span> <span class="token class-name">DisposableBean</span><span class="token punctuation">.</span><span class="token keyword">class</span> <span class="token operator">==</span> ifc <span class="token operator">||</span> <span class="token class-name">Closeable</span><span class="token punctuation">.</span><span class="token keyword">class</span> <span class="token operator">==</span> ifc <span class="token operator">||</span>
+				<span class="token class-name">AutoCloseable</span><span class="token punctuation">.</span><span class="token keyword">class</span> <span class="token operator">==</span> ifc <span class="token operator">||</span> <span class="token class-name">ObjectUtils</span><span class="token punctuation">.</span><span class="token function">containsElement</span><span class="token punctuation">(</span>ifc<span class="token punctuation">.</span><span class="token function">getInterfaces</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token class-name">Aware</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+	<span class="token punctuation">}</span>
+
+	<span class="token keyword">protected</span> <span class="token keyword">boolean</span> <span class="token function">isInternalLanguageInterface</span><span class="token punctuation">(</span><span class="token class-name">Class</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token operator">?</span><span class="token punctuation">&gt;</span></span> ifc<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+		<span class="token keyword">return</span> <span class="token punctuation">(</span>ifc<span class="token punctuation">.</span><span class="token function">getName</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">equals</span><span class="token punctuation">(</span><span class="token string">"groovy.lang.GroovyObject"</span><span class="token punctuation">)</span> <span class="token operator">||</span>
+				ifc<span class="token punctuation">.</span><span class="token function">getName</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">endsWith</span><span class="token punctuation">(</span><span class="token string">".cglib.proxy.Factory"</span><span class="token punctuation">)</span> <span class="token operator">||</span>
+				ifc<span class="token punctuation">.</span><span class="token function">getName</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">endsWith</span><span class="token punctuation">(</span><span class="token string">".bytebuddy.MockAccess"</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+	<span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<h3><a id="AsyncAnnotationAdvisor_543"></a>AsyncAnnotationAdvisor</h3> 
+<pre><code class="prism language-java"><span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">AsyncAnnotationAdvisor</span> <span class="token keyword">extends</span> <span class="token class-name">AbstractPointcutAdvisor</span> <span class="token keyword">implements</span> <span class="token class-name">BeanFactoryAware</span> <span class="token punctuation">{<!-- --></span>
+	<span class="token comment">// AnnotationAsyncExecutionInterceptor 拦截器：实际的异步逻辑</span>
+	<span class="token keyword">private</span> <span class="token keyword">final</span> <span class="token class-name">Advice</span> advice<span class="token punctuation">;</span>
+	<span class="token comment">// 切点</span>
+	<span class="token keyword">private</span> <span class="token class-name">Pointcut</span> pointcut<span class="token punctuation">;</span>
+    
+	<span class="token keyword">public</span> <span class="token class-name">AsyncAnnotationAdvisor</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+		<span class="token keyword">this</span><span class="token punctuation">(</span><span class="token punctuation">(</span><span class="token class-name">Supplier</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Executor</span><span class="token punctuation">&gt;</span></span><span class="token punctuation">)</span> <span class="token keyword">null</span><span class="token punctuation">,</span> <span class="token punctuation">(</span><span class="token class-name">Supplier</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">AsyncUncaughtExceptionHandler</span><span class="token punctuation">&gt;</span></span><span class="token punctuation">)</span> <span class="token keyword">null</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+	<span class="token punctuation">}</span>
+
+	<span class="token keyword">public</span> <span class="token class-name">AsyncAnnotationAdvisor</span><span class="token punctuation">(</span>
+			<span class="token annotation punctuation">@Nullable</span> <span class="token class-name">Executor</span> executor<span class="token punctuation">,</span> <span class="token annotation punctuation">@Nullable</span> <span class="token class-name">AsyncUncaughtExceptionHandler</span> exceptionHandler<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+
+		<span class="token keyword">this</span><span class="token punctuation">(</span><span class="token class-name">SingletonSupplier</span><span class="token punctuation">.</span><span class="token function">ofNullable</span><span class="token punctuation">(</span>executor<span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token class-name">SingletonSupplier</span><span class="token punctuation">.</span><span class="token function">ofNullable</span><span class="token punctuation">(</span>exceptionHandler<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+	<span class="token punctuation">}</span>
+
+	<span class="token annotation punctuation">@SuppressWarnings</span><span class="token punctuation">(</span><span class="token string">"unchecked"</span><span class="token punctuation">)</span>
+	<span class="token keyword">public</span> <span class="token class-name">AsyncAnnotationAdvisor</span><span class="token punctuation">(</span>
+			<span class="token annotation punctuation">@Nullable</span> <span class="token class-name">Supplier</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Executor</span><span class="token punctuation">&gt;</span></span> executor<span class="token punctuation">,</span> <span class="token annotation punctuation">@Nullable</span> <span class="token class-name">Supplier</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">AsyncUncaughtExceptionHandler</span><span class="token punctuation">&gt;</span></span> exceptionHandler<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+		<span class="token comment">// 支持的异步注解</span>
+		<span class="token class-name">Set</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Class</span><span class="token punctuation">&lt;</span><span class="token operator">?</span> <span class="token keyword">extends</span> <span class="token class-name">Annotation</span><span class="token punctuation">&gt;</span><span class="token punctuation">&gt;</span></span> asyncAnnotationTypes <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">LinkedHashSet</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token punctuation">&gt;</span></span><span class="token punctuation">(</span><span class="token number">2</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token comment">// 支持 Async</span>
+		asyncAnnotationTypes<span class="token punctuation">.</span><span class="token function">add</span><span class="token punctuation">(</span><span class="token class-name">Async</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+		<span class="token class-name">ClassLoader</span> classLoader <span class="token operator">=</span> <span class="token class-name">AsyncAnnotationAdvisor</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">.</span><span class="token function">getClassLoader</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token keyword">try</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token comment">// 支持 jakarta.ejb.Asynchronous</span>
+			asyncAnnotationTypes<span class="token punctuation">.</span><span class="token function">add</span><span class="token punctuation">(</span><span class="token punctuation">(</span><span class="token class-name">Class</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token operator">?</span> <span class="token keyword">extends</span> <span class="token class-name">Annotation</span><span class="token punctuation">&gt;</span></span><span class="token punctuation">)</span>
+					<span class="token class-name">ClassUtils</span><span class="token punctuation">.</span><span class="token function">forName</span><span class="token punctuation">(</span><span class="token string">"jakarta.ejb.Asynchronous"</span><span class="token punctuation">,</span> classLoader<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token punctuation">}</span>
+		<span class="token keyword">catch</span> <span class="token punctuation">(</span><span class="token class-name">ClassNotFoundException</span> ex<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+			<span class="token comment">// If EJB API not present, simply ignore.</span>
+		<span class="token punctuation">}</span>
+		<span class="token keyword">try</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token comment">// 支持 jakarta.enterprise.concurrent.Asynchronous</span>
+			asyncAnnotationTypes<span class="token punctuation">.</span><span class="token function">add</span><span class="token punctuation">(</span><span class="token punctuation">(</span><span class="token class-name">Class</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token operator">?</span> <span class="token keyword">extends</span> <span class="token class-name">Annotation</span><span class="token punctuation">&gt;</span></span><span class="token punctuation">)</span>
+					<span class="token class-name">ClassUtils</span><span class="token punctuation">.</span><span class="token function">forName</span><span class="token punctuation">(</span><span class="token string">"jakarta.enterprise.concurrent.Asynchronous"</span><span class="token punctuation">,</span> classLoader<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token punctuation">}</span>
+		<span class="token keyword">catch</span> <span class="token punctuation">(</span><span class="token class-name">ClassNotFoundException</span> ex<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+			<span class="token comment">// If Jakarta Concurrent API not present, simply ignore.</span>
+		<span class="token punctuation">}</span>
+		<span class="token comment">// 构建 advice、pointcut</span>
+		<span class="token keyword">this</span><span class="token punctuation">.</span>advice <span class="token operator">=</span> <span class="token function">buildAdvice</span><span class="token punctuation">(</span>executor<span class="token punctuation">,</span> exceptionHandler<span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token keyword">this</span><span class="token punctuation">.</span>pointcut <span class="token operator">=</span> <span class="token function">buildPointcut</span><span class="token punctuation">(</span>asyncAnnotationTypes<span class="token punctuation">)</span><span class="token punctuation">;</span>
+	<span class="token punctuation">}</span>
+
+    <span class="token comment">// 如果有自定义的异步注解会覆盖掉工作方法中的 3 哥注解</span>
+	<span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">setAsyncAnnotationType</span><span class="token punctuation">(</span><span class="token class-name">Class</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token operator">?</span> <span class="token keyword">extends</span> <span class="token class-name">Annotation</span><span class="token punctuation">&gt;</span></span> asyncAnnotationType<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+		<span class="token class-name">Assert</span><span class="token punctuation">.</span><span class="token function">notNull</span><span class="token punctuation">(</span>asyncAnnotationType<span class="token punctuation">,</span> <span class="token string">"'asyncAnnotationType' must not be null"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token class-name">Set</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Class</span><span class="token punctuation">&lt;</span><span class="token operator">?</span> <span class="token keyword">extends</span> <span class="token class-name">Annotation</span><span class="token punctuation">&gt;</span><span class="token punctuation">&gt;</span></span> asyncAnnotationTypes <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">HashSet</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token punctuation">&gt;</span></span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+		asyncAnnotationTypes<span class="token punctuation">.</span><span class="token function">add</span><span class="token punctuation">(</span>asyncAnnotationType<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token comment">// 重新构造 pointcut</span>
+		<span class="token keyword">this</span><span class="token punctuation">.</span>pointcut <span class="token operator">=</span> <span class="token function">buildPointcut</span><span class="token punctuation">(</span>asyncAnnotationTypes<span class="token punctuation">)</span><span class="token punctuation">;</span>
+	<span class="token punctuation">}</span>
+
+	<span class="token annotation punctuation">@Override</span>
+	<span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">setBeanFactory</span><span class="token punctuation">(</span><span class="token class-name">BeanFactory</span> beanFactory<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+		<span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">.</span>advice <span class="token keyword">instanceof</span> <span class="token class-name">BeanFactoryAware</span> beanFactoryAware<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+			beanFactoryAware<span class="token punctuation">.</span><span class="token function">setBeanFactory</span><span class="token punctuation">(</span>beanFactory<span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token punctuation">}</span>
+	<span class="token punctuation">}</span>
+    <span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+
+	<span class="token keyword">protected</span> <span class="token class-name">Advice</span> <span class="token function">buildAdvice</span><span class="token punctuation">(</span>
+			<span class="token annotation punctuation">@Nullable</span> <span class="token class-name">Supplier</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Executor</span><span class="token punctuation">&gt;</span></span> executor<span class="token punctuation">,</span> <span class="token annotation punctuation">@Nullable</span> <span class="token class-name">Supplier</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">AsyncUncaughtExceptionHandler</span><span class="token punctuation">&gt;</span></span> exceptionHandler<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+		<span class="token comment">// 异步执行的 AOP 拦截器</span>
+		<span class="token class-name">AnnotationAsyncExecutionInterceptor</span> interceptor <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">AnnotationAsyncExecutionInterceptor</span><span class="token punctuation">(</span><span class="token keyword">null</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+		interceptor<span class="token punctuation">.</span><span class="token function">configure</span><span class="token punctuation">(</span>executor<span class="token punctuation">,</span> exceptionHandler<span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token keyword">return</span> interceptor<span class="token punctuation">;</span>
+	<span class="token punctuation">}</span>
+
+	<span class="token comment">/**
+	 * Calculate a pointcut for the given async annotation types, if any.
+	 * @param asyncAnnotationTypes the async annotation types to introspect
+	 * @return the applicable Pointcut object, or {@code null} if none
+	 */</span>
+	<span class="token keyword">protected</span> <span class="token class-name">Pointcut</span> <span class="token function">buildPointcut</span><span class="token punctuation">(</span><span class="token class-name">Set</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Class</span><span class="token punctuation">&lt;</span><span class="token operator">?</span> <span class="token keyword">extends</span> <span class="token class-name">Annotation</span><span class="token punctuation">&gt;</span><span class="token punctuation">&gt;</span></span> asyncAnnotationTypes<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+		<span class="token class-name">ComposablePointcut</span> result <span class="token operator">=</span> <span class="token keyword">null</span><span class="token punctuation">;</span>
+		<span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token class-name">Class</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token operator">?</span> <span class="token keyword">extends</span> <span class="token class-name">Annotation</span><span class="token punctuation">&gt;</span></span> asyncAnnotationType <span class="token operator">:</span> asyncAnnotationTypes<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token comment">// 匹配类上的异步注解</span>
+			<span class="token class-name">Pointcut</span> cpc <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">AnnotationMatchingPointcut</span><span class="token punctuation">(</span>asyncAnnotationType<span class="token punctuation">,</span> <span class="token boolean">true</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token comment">// 匹配方法上的异步注解</span>
+			<span class="token class-name">Pointcut</span> mpc <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">AnnotationMatchingPointcut</span><span class="token punctuation">(</span><span class="token keyword">null</span><span class="token punctuation">,</span> asyncAnnotationType<span class="token punctuation">,</span> <span class="token boolean">true</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+			<span class="token keyword">if</span> <span class="token punctuation">(</span>result <span class="token operator">==</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+				result <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">ComposablePointcut</span><span class="token punctuation">(</span>cpc<span class="token punctuation">)</span><span class="token punctuation">;</span>
+			<span class="token punctuation">}</span>
+			<span class="token keyword">else</span> <span class="token punctuation">{<!-- --></span>
+				result<span class="token punctuation">.</span><span class="token function">union</span><span class="token punctuation">(</span>cpc<span class="token punctuation">)</span><span class="token punctuation">;</span>
+			<span class="token punctuation">}</span>
+			result <span class="token operator">=</span> result<span class="token punctuation">.</span><span class="token function">union</span><span class="token punctuation">(</span>mpc<span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token punctuation">}</span>
+		<span class="token keyword">return</span> <span class="token punctuation">(</span>result <span class="token operator">!=</span> <span class="token keyword">null</span> <span class="token operator">?</span> result <span class="token operator">:</span> <span class="token class-name">Pointcut</span><span class="token punctuation">.</span>TRUE<span class="token punctuation">)</span><span class="token punctuation">;</span>
+	<span class="token punctuation">}</span>
+
+<span class="token punctuation">}</span>
+</code></pre> 
+<h3><a id="AnnotationAsyncExecutionInterceptor_643"></a>AnnotationAsyncExecutionInterceptor</h3> 
+<pre><code class="prism language-java"><span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">AnnotationAsyncExecutionInterceptor</span> <span class="token keyword">extends</span> <span class="token class-name">AsyncExecutionInterceptor</span> <span class="token punctuation">{<!-- --></span>
+
+	<span class="token keyword">public</span> <span class="token class-name">AnnotationAsyncExecutionInterceptor</span><span class="token punctuation">(</span><span class="token annotation punctuation">@Nullable</span> <span class="token class-name">Executor</span> defaultExecutor<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+		<span class="token keyword">super</span><span class="token punctuation">(</span>defaultExecutor<span class="token punctuation">)</span><span class="token punctuation">;</span>
+	<span class="token punctuation">}</span>
+
+	<span class="token keyword">public</span> <span class="token class-name">AnnotationAsyncExecutionInterceptor</span><span class="token punctuation">(</span><span class="token annotation punctuation">@Nullable</span> <span class="token class-name">Executor</span> defaultExecutor<span class="token punctuation">,</span> <span class="token class-name">AsyncUncaughtExceptionHandler</span> exceptionHandler<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+		<span class="token keyword">super</span><span class="token punctuation">(</span>defaultExecutor<span class="token punctuation">,</span> exceptionHandler<span class="token punctuation">)</span><span class="token punctuation">;</span>
+	<span class="token punctuation">}</span>
+
+	<span class="token annotation punctuation">@Override</span>
+	<span class="token annotation punctuation">@Nullable</span>
+	<span class="token keyword">protected</span> <span class="token class-name">String</span> <span class="token function">getExecutorQualifier</span><span class="token punctuation">(</span><span class="token class-name">Method</span> method<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+		<span class="token comment">// Maintainer's note: changes made here should also be made in</span>
+		<span class="token comment">// AnnotationAsyncExecutionAspect#getExecutorQualifier</span>
+        <span class="token comment">// 获取线程池的 beanName，即 Async 的 value 属性</span>
+		<span class="token class-name">Async</span> async <span class="token operator">=</span> <span class="token class-name">AnnotatedElementUtils</span><span class="token punctuation">.</span><span class="token function">findMergedAnnotation</span><span class="token punctuation">(</span>method<span class="token punctuation">,</span> <span class="token class-name">Async</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token keyword">if</span> <span class="token punctuation">(</span>async <span class="token operator">==</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+			async <span class="token operator">=</span> <span class="token class-name">AnnotatedElementUtils</span><span class="token punctuation">.</span><span class="token function">findMergedAnnotation</span><span class="token punctuation">(</span>method<span class="token punctuation">.</span><span class="token function">getDeclaringClass</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token class-name">Async</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token punctuation">}</span>
+		<span class="token keyword">return</span> <span class="token punctuation">(</span>async <span class="token operator">!=</span> <span class="token keyword">null</span> <span class="token operator">?</span> async<span class="token punctuation">.</span><span class="token function">value</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">:</span> <span class="token keyword">null</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+	<span class="token punctuation">}</span>
+
+<span class="token punctuation">}</span>
+</code></pre> 
+<p><code>AsyncExecutionInterceptor</code></p> 
+<pre><code class="prism language-java"><span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">AsyncExecutionInterceptor</span> <span class="token keyword">extends</span> <span class="token class-name">AsyncExecutionAspectSupport</span> <span class="token keyword">implements</span> <span class="token class-name">MethodInterceptor</span><span class="token punctuation">,</span> <span class="token class-name">Ordered</span> <span class="token punctuation">{<!-- --></span>
+
+	<span class="token keyword">public</span> <span class="token class-name">AsyncExecutionInterceptor</span><span class="token punctuation">(</span><span class="token annotation punctuation">@Nullable</span> <span class="token class-name">Executor</span> defaultExecutor<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+		<span class="token keyword">super</span><span class="token punctuation">(</span>defaultExecutor<span class="token punctuation">)</span><span class="token punctuation">;</span>
+	<span class="token punctuation">}</span>
+
+	<span class="token keyword">public</span> <span class="token class-name">AsyncExecutionInterceptor</span><span class="token punctuation">(</span><span class="token annotation punctuation">@Nullable</span> <span class="token class-name">Executor</span> defaultExecutor<span class="token punctuation">,</span> <span class="token class-name">AsyncUncaughtExceptionHandler</span> exceptionHandler<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+		<span class="token keyword">super</span><span class="token punctuation">(</span>defaultExecutor<span class="token punctuation">,</span> exceptionHandler<span class="token punctuation">)</span><span class="token punctuation">;</span>
+	<span class="token punctuation">}</span>
+
+	<span class="token annotation punctuation">@Override</span>
+	<span class="token annotation punctuation">@Nullable</span>
+	<span class="token keyword">public</span> <span class="token class-name">Object</span> <span class="token function">invoke</span><span class="token punctuation">(</span><span class="token keyword">final</span> <span class="token class-name">MethodInvocation</span> invocation<span class="token punctuation">)</span> <span class="token keyword">throws</span> <span class="token class-name">Throwable</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token comment">// 获取原始的类型</span>
+		<span class="token class-name">Class</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token operator">?</span><span class="token punctuation">&gt;</span></span> targetClass <span class="token operator">=</span> <span class="token punctuation">(</span>invocation<span class="token punctuation">.</span><span class="token function">getThis</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">!=</span> <span class="token keyword">null</span> <span class="token operator">?</span> <span class="token class-name">AopUtils</span><span class="token punctuation">.</span><span class="token function">getTargetClass</span><span class="token punctuation">(</span>invocation<span class="token punctuation">.</span><span class="token function">getThis</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token operator">:</span> <span class="token keyword">null</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token class-name">Method</span> specificMethod <span class="token operator">=</span> <span class="token class-name">ClassUtils</span><span class="token punctuation">.</span><span class="token function">getMostSpecificMethod</span><span class="token punctuation">(</span>invocation<span class="token punctuation">.</span><span class="token function">getMethod</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> targetClass<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token comment">// 获取要执行的方法</span>
+		<span class="token keyword">final</span> <span class="token class-name">Method</span> userDeclaredMethod <span class="token operator">=</span> <span class="token class-name">BridgeMethodResolver</span><span class="token punctuation">.</span><span class="token function">findBridgedMethod</span><span class="token punctuation">(</span>specificMethod<span class="token punctuation">)</span><span class="token punctuation">;</span>
+		
+        <span class="token comment">// 获取线程池，实现在父类 AsyncExecutionAspectSupport 中</span>
+		<span class="token class-name">AsyncTaskExecutor</span> executor <span class="token operator">=</span> <span class="token function">determineAsyncExecutor</span><span class="token punctuation">(</span>userDeclaredMethod<span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token keyword">if</span> <span class="token punctuation">(</span>executor <span class="token operator">==</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+			<span class="token keyword">throw</span> <span class="token keyword">new</span> <span class="token class-name">IllegalStateException</span><span class="token punctuation">(</span>
+					<span class="token string">"No executor specified and no default executor set on AsyncExecutionInterceptor either"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token punctuation">}</span>
+		<span class="token comment">// 构建一个 Callable</span>
+		<span class="token class-name">Callable</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Object</span><span class="token punctuation">&gt;</span></span> task <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">-&gt;</span> <span class="token punctuation">{<!-- --></span>
+			<span class="token keyword">try</span> <span class="token punctuation">{<!-- --></span>
+                <span class="token comment">// 执行真正的方法</span>
+				<span class="token class-name">Object</span> result <span class="token operator">=</span> invocation<span class="token punctuation">.</span><span class="token function">proceed</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token comment">// 如果方法的返回值是 Future，则调用 get()</span>
+				<span class="token keyword">if</span> <span class="token punctuation">(</span>result <span class="token keyword">instanceof</span>  <span class="token generics"><span class="token punctuation">&lt;</span><span class="token operator">?</span><span class="token punctuation">&gt;</span></span> future<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+					<span class="token keyword">return</span> future<span class="token punctuation">.</span><span class="token function">get</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+				<span class="token punctuation">}</span>
+			<span class="token punctuation">}</span>
+			<span class="token keyword">catch</span> <span class="token punctuation">(</span><span class="token class-name">ExecutionException</span> ex<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                <span class="token comment">// 使用异常处理器 AsyncUncaughtExceptionHandler 处理异常</span>
+				<span class="token function">handleError</span><span class="token punctuation">(</span>ex<span class="token punctuation">.</span><span class="token function">getCause</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> userDeclaredMethod<span class="token punctuation">,</span> invocation<span class="token punctuation">.</span><span class="token function">getArguments</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+			<span class="token punctuation">}</span>
+			<span class="token keyword">catch</span> <span class="token punctuation">(</span><span class="token class-name">Throwable</span> ex<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                <span class="token comment">// 使用异常处理器 AsyncUncaughtExceptionHandler 处理异常</span>
+				<span class="token function">handleError</span><span class="token punctuation">(</span>ex<span class="token punctuation">,</span> userDeclaredMethod<span class="token punctuation">,</span> invocation<span class="token punctuation">.</span><span class="token function">getArguments</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+			<span class="token punctuation">}</span>
+			<span class="token keyword">return</span> <span class="token keyword">null</span><span class="token punctuation">;</span>
+		<span class="token punctuation">}</span><span class="token punctuation">;</span>
+		<span class="token comment">// 向线程池提交任务</span>
+		<span class="token keyword">return</span> <span class="token function">doSubmit</span><span class="token punctuation">(</span>task<span class="token punctuation">,</span> executor<span class="token punctuation">,</span> invocation<span class="token punctuation">.</span><span class="token function">getMethod</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">getReturnType</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+	<span class="token punctuation">}</span>
+    
+    <span class="token comment">// AnnotationAsyncExecutionInterceptor 重写了</span>
+	<span class="token annotation punctuation">@Override</span>
+	<span class="token annotation punctuation">@Nullable</span>
+	<span class="token keyword">protected</span> <span class="token class-name">String</span> <span class="token function">getExecutorQualifier</span><span class="token punctuation">(</span><span class="token class-name">Method</span> method<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+		<span class="token keyword">return</span> <span class="token keyword">null</span><span class="token punctuation">;</span>
+	<span class="token punctuation">}</span>
+
+	<span class="token annotation punctuation">@Override</span>
+	<span class="token annotation punctuation">@Nullable</span>
+	<span class="token keyword">protected</span> <span class="token class-name">Executor</span> <span class="token function">getDefaultExecutor</span><span class="token punctuation">(</span><span class="token annotation punctuation">@Nullable</span> <span class="token class-name">BeanFactory</span> beanFactory<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token comment">// 获取默认的线程池，如何没有则创建一个 SimpleAsyncTaskExecutor，默认情况下会为每个任务创建一个线程</span>
+		<span class="token class-name">Executor</span> defaultExecutor <span class="token operator">=</span> <span class="token keyword">super</span><span class="token punctuation">.</span><span class="token function">getDefaultExecutor</span><span class="token punctuation">(</span>beanFactory<span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token keyword">return</span> <span class="token punctuation">(</span>defaultExecutor <span class="token operator">!=</span> <span class="token keyword">null</span> <span class="token operator">?</span> defaultExecutor <span class="token operator">:</span> <span class="token keyword">new</span> <span class="token class-name">SimpleAsyncTaskExecutor</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+	<span class="token punctuation">}</span>
+
+	<span class="token annotation punctuation">@Override</span>
+	<span class="token keyword">public</span> <span class="token keyword">int</span> <span class="token function">getOrder</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+		<span class="token keyword">return</span> <span class="token class-name">Ordered</span><span class="token punctuation">.</span>HIGHEST_PRECEDENCE<span class="token punctuation">;</span>
+	<span class="token punctuation">}</span>
+
+<span class="token punctuation">}</span>
+</code></pre> 
+<pre><code class="prism language-java"><span class="token keyword">public</span> <span class="token keyword">abstract</span> <span class="token keyword">class</span> <span class="token class-name">AsyncExecutionAspectSupport</span> <span class="token keyword">implements</span> <span class="token class-name">BeanFactoryAware</span> <span class="token punctuation">{<!-- --></span>
+	<span class="token comment">// 默认 TaskExecutor 的 beanName</span>
+	<span class="token keyword">public</span> <span class="token keyword">static</span> <span class="token keyword">final</span> <span class="token class-name">String</span> DEFAULT_TASK_EXECUTOR_BEAN_NAME <span class="token operator">=</span> <span class="token string">"taskExecutor"</span><span class="token punctuation">;</span>
+
+	<span class="token keyword">protected</span> <span class="token keyword">final</span> <span class="token class-name">Log</span> logger <span class="token operator">=</span> <span class="token class-name">LogFactory</span><span class="token punctuation">.</span><span class="token function">getLog</span><span class="token punctuation">(</span><span class="token function">getClass</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+	<span class="token comment">// 默认线程池</span>
+	<span class="token keyword">private</span> <span class="token class-name">SingletonSupplier</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Executor</span><span class="token punctuation">&gt;</span></span> defaultExecutor<span class="token punctuation">;</span>
+	<span class="token comment">// 异常处理器</span>
+	<span class="token keyword">private</span> <span class="token class-name">SingletonSupplier</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">AsyncUncaughtExceptionHandler</span><span class="token punctuation">&gt;</span></span> exceptionHandler<span class="token punctuation">;</span>
+
+	<span class="token annotation punctuation">@Nullable</span>
+	<span class="token keyword">private</span> <span class="token class-name">BeanFactory</span> beanFactory<span class="token punctuation">;</span>
+
+	<span class="token annotation punctuation">@Nullable</span>
+	<span class="token keyword">private</span> <span class="token class-name">StringValueResolver</span> embeddedValueResolver<span class="token punctuation">;</span>
+	<span class="token comment">// 每个方法所对应的线程池的缓存</span>
+	<span class="token keyword">private</span> <span class="token keyword">final</span> <span class="token class-name">Map</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Method</span><span class="token punctuation">,</span> <span class="token class-name">AsyncTaskExecutor</span><span class="token punctuation">&gt;</span></span> executors <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">ConcurrentHashMap</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token punctuation">&gt;</span></span><span class="token punctuation">(</span><span class="token number">16</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+
+	<span class="token comment">/**
+	 * Determine the specific executor to use when executing the given method.
+	 * @return the executor to use (or {@code null}, but just if no default executor is available)
+	 */</span>
+	<span class="token annotation punctuation">@Nullable</span>
+	<span class="token keyword">protected</span> <span class="token class-name">AsyncTaskExecutor</span> <span class="token function">determineAsyncExecutor</span><span class="token punctuation">(</span><span class="token class-name">Method</span> method<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token comment">// 先从缓存中取</span>
+		<span class="token class-name">AsyncTaskExecutor</span> executor <span class="token operator">=</span> <span class="token keyword">this</span><span class="token punctuation">.</span>executors<span class="token punctuation">.</span><span class="token function">get</span><span class="token punctuation">(</span>method<span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token keyword">if</span> <span class="token punctuation">(</span>executor <span class="token operator">==</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token comment">// 缓存中没有</span>
+			<span class="token class-name">Executor</span> targetExecutor<span class="token punctuation">;</span>
+            <span class="token comment">// 获取线程池的 beanName，AnnotationAsyncExecutionInterceptor 重写为取 @Async 的 value 属性</span>
+			<span class="token class-name">String</span> qualifier <span class="token operator">=</span> <span class="token function">getExecutorQualifier</span><span class="token punctuation">(</span>method<span class="token punctuation">)</span><span class="token punctuation">;</span>
+			<span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">.</span>embeddedValueResolver <span class="token operator">!=</span> <span class="token keyword">null</span> <span class="token operator">&amp;&amp;</span> <span class="token class-name">StringUtils</span><span class="token punctuation">.</span><span class="token function">hasLength</span><span class="token punctuation">(</span>qualifier<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+				qualifier <span class="token operator">=</span> <span class="token keyword">this</span><span class="token punctuation">.</span>embeddedValueResolver<span class="token punctuation">.</span><span class="token function">resolveStringValue</span><span class="token punctuation">(</span>qualifier<span class="token punctuation">)</span><span class="token punctuation">;</span>
+			<span class="token punctuation">}</span>
+            <span class="token comment">// 如果 beanName 不为空</span>
+			<span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token class-name">StringUtils</span><span class="token punctuation">.</span><span class="token function">hasLength</span><span class="token punctuation">(</span>qualifier<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                <span class="token comment">// 从容器获取对应名称的线程池</span>
+				targetExecutor <span class="token operator">=</span> <span class="token function">findQualifiedExecutor</span><span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">.</span>beanFactory<span class="token punctuation">,</span> qualifier<span class="token punctuation">)</span><span class="token punctuation">;</span>
+			<span class="token punctuation">}</span>
+			<span class="token keyword">else</span> <span class="token punctuation">{<!-- --></span>
+                <span class="token comment">// 获取默认的，在 AsyncAnnotationAdvisor#buildAdvice() 设置的</span>
+				targetExecutor <span class="token operator">=</span> <span class="token keyword">this</span><span class="token punctuation">.</span>defaultExecutor<span class="token punctuation">.</span><span class="token function">get</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+			<span class="token punctuation">}</span>
+			<span class="token keyword">if</span> <span class="token punctuation">(</span>targetExecutor <span class="token operator">==</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+				<span class="token keyword">return</span> <span class="token keyword">null</span><span class="token punctuation">;</span>
+			<span class="token punctuation">}</span>
+            <span class="token comment">// 如何获取的类型不是 AsyncTaskExecutor 的话，需要用适配器适配一下</span>
+			executor <span class="token operator">=</span> <span class="token punctuation">(</span>targetExecutor <span class="token keyword">instanceof</span> <span class="token class-name">AsyncTaskExecutor</span> asyncTaskExecutor <span class="token operator">?</span>
+					asyncTaskExecutor <span class="token operator">:</span> <span class="token keyword">new</span> <span class="token class-name">TaskExecutorAdapter</span><span class="token punctuation">(</span>targetExecutor<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token comment">// 填充缓存</span>
+			<span class="token keyword">this</span><span class="token punctuation">.</span>executors<span class="token punctuation">.</span><span class="token function">put</span><span class="token punctuation">(</span>method<span class="token punctuation">,</span> executor<span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token punctuation">}</span>
+		<span class="token keyword">return</span> executor<span class="token punctuation">;</span>
+	<span class="token punctuation">}</span>
+
+	<span class="token comment">// AnnotationAsyncExecutionInterceptor 重写为取 @Async 的 value 属性</span>
+	<span class="token annotation punctuation">@Nullable</span>
+	<span class="token keyword">protected</span> <span class="token keyword">abstract</span> <span class="token class-name">String</span> <span class="token function">getExecutorQualifier</span><span class="token punctuation">(</span><span class="token class-name">Method</span> method<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+	<span class="token annotation punctuation">@Nullable</span>
+	<span class="token keyword">protected</span> <span class="token class-name">Executor</span> <span class="token function">findQualifiedExecutor</span><span class="token punctuation">(</span><span class="token annotation punctuation">@Nullable</span> <span class="token class-name">BeanFactory</span> beanFactory<span class="token punctuation">,</span> <span class="token class-name">String</span> qualifier<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+		<span class="token keyword">if</span> <span class="token punctuation">(</span>beanFactory <span class="token operator">==</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+			<span class="token keyword">throw</span> <span class="token keyword">new</span> <span class="token class-name">IllegalStateException</span><span class="token punctuation">(</span><span class="token string">"BeanFactory must be set on "</span> <span class="token operator">+</span> <span class="token function">getClass</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">getSimpleName</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">+</span>
+					<span class="token string">" to access qualified executor '"</span> <span class="token operator">+</span> qualifier <span class="token operator">+</span> <span class="token string">"'"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token punctuation">}</span>
+		<span class="token keyword">return</span> <span class="token class-name">BeanFactoryAnnotationUtils</span><span class="token punctuation">.</span><span class="token function">qualifiedBeanOfType</span><span class="token punctuation">(</span>beanFactory<span class="token punctuation">,</span> <span class="token class-name">Executor</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">,</span> qualifier<span class="token punctuation">)</span><span class="token punctuation">;</span>
+	<span class="token punctuation">}</span>
+	<span class="token comment">// 获取默认的线程池</span>
+	<span class="token annotation punctuation">@Nullable</span>
+	<span class="token keyword">protected</span> <span class="token class-name">Executor</span> <span class="token function">getDefaultExecutor</span><span class="token punctuation">(</span><span class="token annotation punctuation">@Nullable</span> <span class="token class-name">BeanFactory</span> beanFactory<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+		<span class="token keyword">if</span> <span class="token punctuation">(</span>beanFactory <span class="token operator">!=</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+			<span class="token keyword">try</span> <span class="token punctuation">{<!-- --></span>
+                <span class="token comment">// 如果容器中有唯一的 TaskExecutor，则直接返回</span>
+				<span class="token comment">// Search for TaskExecutor bean... not plain Executor since that would</span>
+				<span class="token comment">// match with ScheduledExecutorService as well, which is unusable for</span>
+				<span class="token comment">// our purposes here. TaskExecutor is more clearly designed for it.</span>
+				<span class="token keyword">return</span> beanFactory<span class="token punctuation">.</span><span class="token function">getBean</span><span class="token punctuation">(</span><span class="token class-name">TaskExecutor</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+			<span class="token punctuation">}</span>
+			<span class="token keyword">catch</span> <span class="token punctuation">(</span><span class="token class-name">NoUniqueBeanDefinitionException</span> ex<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+				logger<span class="token punctuation">.</span><span class="token function">debug</span><span class="token punctuation">(</span><span class="token string">"Could not find unique TaskExecutor bean. "</span> <span class="token operator">+</span>
+						<span class="token string">"Continuing search for an Executor bean named 'taskExecutor'"</span><span class="token punctuation">,</span> ex<span class="token punctuation">)</span><span class="token punctuation">;</span>
+				<span class="token keyword">try</span> <span class="token punctuation">{<!-- --></span>
+                    <span class="token comment">// 如果容器中有多个 TaskExecutor，需要按照名称获取 Executor</span>
+					<span class="token keyword">return</span> beanFactory<span class="token punctuation">.</span><span class="token function">getBean</span><span class="token punctuation">(</span>DEFAULT_TASK_EXECUTOR_BEAN_NAME<span class="token punctuation">,</span> <span class="token class-name">Executor</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+				<span class="token punctuation">}</span>
+				<span class="token keyword">catch</span> <span class="token punctuation">(</span><span class="token class-name">NoSuchBeanDefinitionException</span> ex2<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+					<span class="token keyword">if</span> <span class="token punctuation">(</span>logger<span class="token punctuation">.</span><span class="token function">isInfoEnabled</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+						logger<span class="token punctuation">.</span><span class="token function">info</span><span class="token punctuation">(</span><span class="token string">"More than one TaskExecutor bean found within the context, and none is named "</span> <span class="token operator">+</span>
+								<span class="token string">"'taskExecutor'. Mark one of them as primary or name it 'taskExecutor' (possibly "</span> <span class="token operator">+</span>
+								<span class="token string">"as an alias) in order to use it for async processing: "</span> <span class="token operator">+</span> ex<span class="token punctuation">.</span><span class="token function">getBeanNamesFound</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+					<span class="token punctuation">}</span>
+				<span class="token punctuation">}</span>
+			<span class="token punctuation">}</span>
+			<span class="token keyword">catch</span> <span class="token punctuation">(</span><span class="token class-name">NoSuchBeanDefinitionException</span> ex<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+				logger<span class="token punctuation">.</span><span class="token function">debug</span><span class="token punctuation">(</span><span class="token string">"Could not find default TaskExecutor bean. "</span> <span class="token operator">+</span>
+						<span class="token string">"Continuing search for an Executor bean named 'taskExecutor'"</span><span class="token punctuation">,</span> ex<span class="token punctuation">)</span><span class="token punctuation">;</span>
+				<span class="token keyword">try</span> <span class="token punctuation">{<!-- --></span>
+                    <span class="token comment">// 如果容器中没有 TaskExecutor，需要按照名称获取 Executor</span>
+					<span class="token keyword">return</span> beanFactory<span class="token punctuation">.</span><span class="token function">getBean</span><span class="token punctuation">(</span>DEFAULT_TASK_EXECUTOR_BEAN_NAME<span class="token punctuation">,</span> <span class="token class-name">Executor</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+				<span class="token punctuation">}</span>
+				<span class="token keyword">catch</span> <span class="token punctuation">(</span><span class="token class-name">NoSuchBeanDefinitionException</span> ex2<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+					logger<span class="token punctuation">.</span><span class="token function">info</span><span class="token punctuation">(</span><span class="token string">"No task executor bean found for async processing: "</span> <span class="token operator">+</span>
+							<span class="token string">"no bean of type TaskExecutor and no bean named 'taskExecutor' either"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+				<span class="token punctuation">}</span>
+				<span class="token comment">// Giving up -&gt; either using local default executor or none at all...</span>
+			<span class="token punctuation">}</span>
+		<span class="token punctuation">}</span>
+		<span class="token keyword">return</span> <span class="token keyword">null</span><span class="token punctuation">;</span>
+	<span class="token punctuation">}</span>
+
+    <span class="token comment">// 提交任务</span>
+	<span class="token annotation punctuation">@Nullable</span>
+	<span class="token annotation punctuation">@SuppressWarnings</span><span class="token punctuation">(</span><span class="token string">"deprecation"</span><span class="token punctuation">)</span>
+	<span class="token keyword">protected</span> <span class="token class-name">Object</span> <span class="token function">doSubmit</span><span class="token punctuation">(</span><span class="token class-name">Callable</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Object</span><span class="token punctuation">&gt;</span></span> task<span class="token punctuation">,</span> <span class="token class-name">AsyncTaskExecutor</span> executor<span class="token punctuation">,</span> <span class="token class-name">Class</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token operator">?</span><span class="token punctuation">&gt;</span></span> returnType<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+		<span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token class-name">CompletableFuture</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">.</span><span class="token function">isAssignableFrom</span><span class="token punctuation">(</span>returnType<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token comment">// 方法的返回值是 CompletableFuture</span>
+			<span class="token keyword">return</span> executor<span class="token punctuation">.</span><span class="token function">submitCompletable</span><span class="token punctuation">(</span>task<span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token punctuation">}</span>
+		<span class="token keyword">else</span> <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token class-name"><span class="token namespace">org<span class="token punctuation">.</span>springframework<span class="token punctuation">.</span>util<span class="token punctuation">.</span>concurrent<span class="token punctuation">.</span></span>ListenableFuture</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">.</span><span class="token function">isAssignableFrom</span><span class="token punctuation">(</span>returnType<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token comment">// 方法的返回值是 ListenableFuture</span>
+            <span class="token comment">// ListenableFuture 基础于 FutureTask，对 done() 方法进行了扩展，可以在执行成功或失败后执行回调</span>
+			<span class="token keyword">return</span> <span class="token punctuation">(</span><span class="token punctuation">(</span><span class="token class-name"><span class="token namespace">org<span class="token punctuation">.</span>springframework<span class="token punctuation">.</span>core<span class="token punctuation">.</span>task<span class="token punctuation">.</span></span>AsyncListenableTaskExecutor</span><span class="token punctuation">)</span> executor<span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">submitListenable</span><span class="token punctuation">(</span>task<span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token punctuation">}</span>
+		<span class="token keyword">else</span> <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token class-name">Future</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">.</span><span class="token function">isAssignableFrom</span><span class="token punctuation">(</span>returnType<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token comment">// 方法的返回值是 Future</span>
+			<span class="token keyword">return</span> executor<span class="token punctuation">.</span><span class="token function">submit</span><span class="token punctuation">(</span>task<span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token punctuation">}</span>
+		<span class="token keyword">else</span> <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token keyword">void</span><span class="token punctuation">.</span><span class="token keyword">class</span> <span class="token operator">==</span> returnType<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token comment">// 方法没有返回值</span>
+			executor<span class="token punctuation">.</span><span class="token function">submit</span><span class="token punctuation">(</span>task<span class="token punctuation">)</span><span class="token punctuation">;</span>
+			<span class="token keyword">return</span> <span class="token keyword">null</span><span class="token punctuation">;</span>
+		<span class="token punctuation">}</span>
+		<span class="token keyword">else</span> <span class="token punctuation">{<!-- --></span>
+			<span class="token keyword">throw</span> <span class="token keyword">new</span> <span class="token class-name">IllegalArgumentException</span><span class="token punctuation">(</span>
+					<span class="token string">"Invalid return type for async method (only Future and void supported): "</span> <span class="token operator">+</span> returnType<span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token punctuation">}</span>
+	<span class="token punctuation">}</span>
+    
+	<span class="token keyword">protected</span> <span class="token keyword">void</span> <span class="token function">handleError</span><span class="token punctuation">(</span><span class="token class-name">Throwable</span> ex<span class="token punctuation">,</span> <span class="token class-name">Method</span> method<span class="token punctuation">,</span> <span class="token class-name">Object</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span> params<span class="token punctuation">)</span> <span class="token keyword">throws</span> <span class="token class-name">Exception</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token comment">// 如果方法的返回值为 Future，会向上抛出异常</span>
+		<span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token class-name">Future</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">.</span><span class="token function">isAssignableFrom</span><span class="token punctuation">(</span>method<span class="token punctuation">.</span><span class="token function">getReturnType</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+			<span class="token class-name">ReflectionUtils</span><span class="token punctuation">.</span><span class="token function">rethrowException</span><span class="token punctuation">(</span>ex<span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token punctuation">}</span>
+		<span class="token keyword">else</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token comment">// 否则调用 AsyncUncaughtExceptionHandler#handleUncaughtException()</span>
+			<span class="token comment">// Could not transmit the exception to the caller with default executor</span>
+			<span class="token keyword">try</span> <span class="token punctuation">{<!-- --></span>
+				<span class="token keyword">this</span><span class="token punctuation">.</span>exceptionHandler<span class="token punctuation">.</span><span class="token function">obtain</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">handleUncaughtException</span><span class="token punctuation">(</span>ex<span class="token punctuation">,</span> method<span class="token punctuation">,</span> params<span class="token punctuation">)</span><span class="token punctuation">;</span>
+			<span class="token punctuation">}</span>
+			<span class="token keyword">catch</span> <span class="token punctuation">(</span><span class="token class-name">Throwable</span> ex2<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+				logger<span class="token punctuation">.</span><span class="token function">warn</span><span class="token punctuation">(</span><span class="token string">"Exception handler for async method '"</span> <span class="token operator">+</span> method<span class="token punctuation">.</span><span class="token function">toGenericString</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">+</span>
+						<span class="token string">"' threw unexpected exception itself"</span><span class="token punctuation">,</span> ex2<span class="token punctuation">)</span><span class="token punctuation">;</span>
+			<span class="token punctuation">}</span>
+		<span class="token punctuation">}</span>
+	<span class="token punctuation">}</span>
+
+<span class="token punctuation">}</span>
+</code></pre> 
+<h3><a id="AsyncUncaughtExceptionHandler_908"></a>AsyncUncaughtExceptionHandler</h3> 
+<p>用于处理异步执行时抛出的异常，但只处理返回值不为 <code>Future</code> 的方法抛出的异常，如上 <code>AsyncExecutionAspectSupport#handleError()</code> 所述。</p> 
+<pre><code class="prism language-java"><span class="token annotation punctuation">@FunctionalInterface</span>
+<span class="token keyword">public</span> <span class="token keyword">interface</span> <span class="token class-name">AsyncUncaughtExceptionHandler</span> <span class="token punctuation">{<!-- --></span>
+
+	<span class="token comment">/**
+	 * Handle the given uncaught exception thrown from an asynchronous method.
+	 * @param ex the exception thrown from the asynchronous method
+	 * @param method the asynchronous method
+	 * @param params the parameters used to invoke the method
+	 */</span>
+	<span class="token keyword">void</span> <span class="token function">handleUncaughtException</span><span class="token punctuation">(</span><span class="token class-name">Throwable</span> ex<span class="token punctuation">,</span> <span class="token class-name">Method</span> method<span class="token punctuation">,</span> <span class="token class-name">Object</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span> params<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+<span class="token punctuation">}</span>
+</code></pre> 
+<p><code>SimpleAsyncUncaughtExceptionHandler</code> 是其简单实现，打印 error 日志。</p> 
+<pre><code class="prism language-java"><span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">SimpleAsyncUncaughtExceptionHandler</span> <span class="token keyword">implements</span> <span class="token class-name">AsyncUncaughtExceptionHandler</span> <span class="token punctuation">{<!-- --></span>
+
+	<span class="token keyword">private</span> <span class="token keyword">static</span> <span class="token keyword">final</span> <span class="token class-name">Log</span> logger <span class="token operator">=</span> <span class="token class-name">LogFactory</span><span class="token punctuation">.</span><span class="token function">getLog</span><span class="token punctuation">(</span><span class="token class-name">SimpleAsyncUncaughtExceptionHandler</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+	<span class="token annotation punctuation">@Override</span>
+	<span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">handleUncaughtException</span><span class="token punctuation">(</span><span class="token class-name">Throwable</span> ex<span class="token punctuation">,</span> <span class="token class-name">Method</span> method<span class="token punctuation">,</span> <span class="token class-name">Object</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span> params<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+		<span class="token keyword">if</span> <span class="token punctuation">(</span>logger<span class="token punctuation">.</span><span class="token function">isErrorEnabled</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+			logger<span class="token punctuation">.</span><span class="token function">error</span><span class="token punctuation">(</span><span class="token string">"Unexpected exception occurred invoking async method: "</span> <span class="token operator">+</span> method<span class="token punctuation">,</span> ex<span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token punctuation">}</span>
+	<span class="token punctuation">}</span>
+
+<span class="token punctuation">}</span>
+</code></pre>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/bf78828beeefc957f607ca3c8e2b1b44/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">LSTM的多变量时间序列预测（北京PM2.5预测）</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/5b6d9cd85711569d1a5280419020d9d2/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">uniapp微信小程序-秋云u-charts层级过高</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

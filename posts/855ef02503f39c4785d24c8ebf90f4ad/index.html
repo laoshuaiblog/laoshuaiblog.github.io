@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>keras实现resnet50 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/855ef02503f39c4785d24c8ebf90f4ad/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="keras实现resnet50">
+  <meta property="og:description" content="数据集结构如第一篇文章（keras实现LeNet5）。
+1.model.py 构造网络
+# coding=utf-8 from keras.models import Model from keras.layers import Input, Dense, BatchNormalization, Conv2D, MaxPooling2D, AveragePooling2D, ZeroPadding2D from keras.layers import add, Flatten, Activation from keras.optimizers import SGD from keras.preprocessing.image import ImageDataGenerator import numpy as np from keras.callbacks import TensorBoard from keras.utils import plot_model seed = 7 np.random.seed(seed) def Conv2d_BN(x, nb_filter, kernel_size, strides=(1, 1), padding=&#39;same&#39;, name=None): if name is not None: bn_name = name &#43; &#39;_bn&#39; conv_name = name &#43; &#39;_conv&#39; else: bn_name = None conv_name = None x = Conv2D(nb_filter, kernel_size, padding=padding, strides=strides, name=conv_name)(x) x = BatchNormalization(axis=3, name=bn_name)(x) x = Activation(&#39;relu&#39;)(x) return x def Conv_Block(inpt, nb_filter, kernel_size, strides=(1, 1), with_conv_shortcut=False): x = Conv2d_BN(inpt, nb_filter=nb_filter[0], kernel_size=(1, 1), strides=strides, padding=&#39;same&#39;) x = Conv2d_BN(x, nb_filter=nb_filter[1], kernel_size=(3, 3), padding=&#39;same&#39;) x = Conv2d_BN(x, nb_filter=nb_filter[2], kernel_size=(1, 1), padding=&#39;same&#39;) if with_conv_shortcut: shortcut = Conv2d_BN(inpt, nb_filter=nb_filter[2], strides=strides, kernel_size=kernel_size) x = add([x, shortcut]) return x else: x = add([x, inpt]) return x def creatcnn(): inpt = Input(shape=(224, 224, 3)) x = ZeroPadding2D((3, 3))(inpt) x = Conv2d_BN(x, nb_filter=64, kernel_size=(7, 7), strides=(2, 2), padding=&#39;valid&#39;) x = MaxPooling2D(pool_size=(3, 3), strides=(2, 2), padding=&#39;same&#39;)(x) x = Conv_Block(x, nb_filter=[64, 64, 256], kernel_size=(3, 3), strides=(1, 1), with_conv_shortcut=True) x = Conv_Block(x, nb_filter=[64, 64, 256], kernel_size=(3, 3)) x = Conv_Block(x, nb_filter=[64, 64, 256], kernel_size=(3, 3)) x = Conv_Block(x, nb_filter=[128, 128, 512], kernel_size=(3, 3), strides=(2, 2), with_conv_shortcut=True) x = Conv_Block(x, nb_filter=[128, 128, 512], kernel_size=(3, 3)) x = Conv_Block(x, nb_filter=[128, 128, 512], kernel_size=(3, 3)) x = Conv_Block(x, nb_filter=[128, 128, 512], kernel_size=(3, 3)) x = Conv_Block(x, nb_filter=[256, 256, 1024], kernel_size=(3, 3), strides=(2, 2), with_conv_shortcut=True) x = Conv_Block(x, nb_filter=[256, 256, 1024], kernel_size=(3, 3)) x = Conv_Block(x, nb_filter=[256, 256, 1024], kernel_size=(3, 3)) x = Conv_Block(x, nb_filter=[256, 256, 1024], kernel_size=(3, 3)) x = Conv_Block(x, nb_filter=[256, 256, 1024], kernel_size=(3, 3)) x = Conv_Block(x, nb_filter=[256, 256, 1024], kernel_size=(3, 3)) x = Conv_Block(x, nb_filter=[512, 512, 2048], kernel_size=(3, 3), strides=(2, 2), with_conv_shortcut=True) x = Conv_Block(x, nb_filter=[512, 512, 2048], kernel_size=(3, 3)) x = Conv_Block(x, nb_filter=[512, 512, 2048], kernel_size=(3, 3)) x = AveragePooling2D(pool_size=(7, 7))(x) x = Flatten()(x) x = Dense(2, activation=&#39;softmax&#39;)(x) model = Model(inputs=inpt, outputs=x) return model 2.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2021-07-05T09:42:46+08:00">
+    <meta property="article:modified_time" content="2021-07-05T09:42:46+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">keras实现resnet50</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <p><strong>数据集结构如第一篇文章（keras实现LeNet5）。</strong></p> 
+<p></p> 
+<p>1.model.py   构造网络</p> 
+<pre><code class="language-python">
+
+# coding=utf-8
+from keras.models import Model
+from keras.layers import Input, Dense, BatchNormalization, Conv2D, MaxPooling2D, AveragePooling2D, ZeroPadding2D
+from keras.layers import add, Flatten, Activation
+from keras.optimizers import SGD
+from keras.preprocessing.image import ImageDataGenerator
+import numpy as np
+from keras.callbacks import TensorBoard
+from keras.utils import plot_model
+ 
+seed = 7
+np.random.seed(seed)
+ 
+ 
+def Conv2d_BN(x, nb_filter, kernel_size, strides=(1, 1), padding='same', name=None):
+    if name is not None:
+        bn_name = name + '_bn'
+        conv_name = name + '_conv'
+    else:
+        bn_name = None
+        conv_name = None
+ 
+    x = Conv2D(nb_filter, kernel_size, padding=padding, strides=strides, name=conv_name)(x)
+    x = BatchNormalization(axis=3, name=bn_name)(x)
+    x = Activation('relu')(x)
+    return x
+ 
+ 
+def Conv_Block(inpt, nb_filter, kernel_size, strides=(1, 1), with_conv_shortcut=False):
+    x = Conv2d_BN(inpt, nb_filter=nb_filter[0], kernel_size=(1, 1), strides=strides, padding='same')
+    x = Conv2d_BN(x, nb_filter=nb_filter[1], kernel_size=(3, 3), padding='same')
+    x = Conv2d_BN(x, nb_filter=nb_filter[2], kernel_size=(1, 1), padding='same')
+    if with_conv_shortcut:
+        shortcut = Conv2d_BN(inpt, nb_filter=nb_filter[2], strides=strides, kernel_size=kernel_size)
+        x = add([x, shortcut])
+        return x
+    else:
+        x = add([x, inpt])
+        return x
+ 
+ 
+def creatcnn():
+    inpt = Input(shape=(224, 224, 3))
+    x = ZeroPadding2D((3, 3))(inpt)
+    x = Conv2d_BN(x, nb_filter=64, kernel_size=(7, 7), strides=(2, 2), padding='valid')
+    x = MaxPooling2D(pool_size=(3, 3), strides=(2, 2), padding='same')(x)
+ 
+    x = Conv_Block(x, nb_filter=[64, 64, 256], kernel_size=(3, 3), strides=(1, 1), with_conv_shortcut=True)
+    x = Conv_Block(x, nb_filter=[64, 64, 256], kernel_size=(3, 3))
+    x = Conv_Block(x, nb_filter=[64, 64, 256], kernel_size=(3, 3))
+ 
+    x = Conv_Block(x, nb_filter=[128, 128, 512], kernel_size=(3, 3), strides=(2, 2), with_conv_shortcut=True)
+    x = Conv_Block(x, nb_filter=[128, 128, 512], kernel_size=(3, 3))
+    x = Conv_Block(x, nb_filter=[128, 128, 512], kernel_size=(3, 3))
+    x = Conv_Block(x, nb_filter=[128, 128, 512], kernel_size=(3, 3))
+ 
+    x = Conv_Block(x, nb_filter=[256, 256, 1024], kernel_size=(3, 3), strides=(2, 2), with_conv_shortcut=True)
+    x = Conv_Block(x, nb_filter=[256, 256, 1024], kernel_size=(3, 3))
+    x = Conv_Block(x, nb_filter=[256, 256, 1024], kernel_size=(3, 3))
+    x = Conv_Block(x, nb_filter=[256, 256, 1024], kernel_size=(3, 3))
+    x = Conv_Block(x, nb_filter=[256, 256, 1024], kernel_size=(3, 3))
+    x = Conv_Block(x, nb_filter=[256, 256, 1024], kernel_size=(3, 3))
+ 
+    x = Conv_Block(x, nb_filter=[512, 512, 2048], kernel_size=(3, 3), strides=(2, 2), with_conv_shortcut=True)
+    x = Conv_Block(x, nb_filter=[512, 512, 2048], kernel_size=(3, 3))
+    x = Conv_Block(x, nb_filter=[512, 512, 2048], kernel_size=(3, 3))
+    x = AveragePooling2D(pool_size=(7, 7))(x)
+    x = Flatten()(x)
+    x = Dense(2, activation='softmax')(x)
+ 
+    model = Model(inputs=inpt, outputs=x)
+    return model
+ </code></pre> 
+<p>2.train.py  训练自己数据集，自己搭建resnet50网络</p> 
+<pre><code class="language-python">import numpy as np
+import keras
+from keras.layers import Dense,Flatten,Dropout
+from keras.utils import np_utils
+from keras.models import Sequential
+from keras.layers import Dense, Activation, Conv2D, MaxPooling2D, Flatten
+from keras.optimizers import Adam
+import model
+import tensorflow as tf
+from tensorflow.examples.tutorials.mnist import input_data
+import numpy as np
+import random
+import cv2
+import os
+from keras.layers import Input, Dense
+
+def one_hot(data, num_classes):
+  return np.squeeze(np.eye(num_classes)[data.reshape(-1)])
+
+def load_dataset1(path,enhance_label):
+    dataset = []
+    labels = []
+    f1=open(path+'label-shuffle.txt','r')
+    for line in f1.readlines():
+        file_name=line.strip().split(' ')[0]
+        label=int(line.strip().split(' ')[-1])
+        # print(file_name,label)
+        if enhance_label==0:
+            # 1.原数据加载
+            pic=cv2.imread(path+file_name,1)
+            pic=cv2.resize(pic,(224,224), interpolation=cv2.INTER_CUBIC)
+            # pic= pic.reshape(28, 28, 1)
+            dataset.append(pic)
+            labels.append(label)
+        if enhance_label==1:
+            # 2.数据随机增强后加载
+            pic=random_enhance(path,file_name)
+            dataset.append(pic)
+            labels.append(label)
+
+    dataset=np.array(dataset)
+    labels=np.array(labels)
+    labels=one_hot(labels, 2)
+    return dataset, labels
+
+
+
+
+train_path='E:/eye_dataset/data2/train/'
+test_path='E:/eye_dataset/data2/test/'
+
+enhance_label=0
+train_data,train_label=load_dataset1(train_path,enhance_label)
+test_data,test_label=load_dataset1(test_path,enhance_label)
+
+train_data = train_data.reshape(-1, 224, 224, 3)  # normalize
+test_data = test_data.reshape(-1, 224, 224, 3)  # normalize
+print(train_data.shape,train_label.shape)
+
+
+model = model.creatcnn()
+model.compile(optimizer=tf.train.AdamOptimizer(0.001),
+              loss='categorical_crossentropy',
+              metrics=['accuracy'])
+# 训练方法二
+models = model.fit(
+        train_data,
+        train_label,
+        batch_size=64,
+        epochs=2,
+        verbose=1,
+        shuffle=True,
+        initial_epoch=0,   #从指定的epoch开始训练，在这之前的训练时仍有用。
+        validation_split=0.1   #0~1之间,用来指定训练集的一定比例数据作为验证集
+        # validation_data=(test_data, test_label)   #指定的验证集,此参数将覆盖validation_spilt。
+)
+
+log_dir="model/"
+model.save(log_dir+'m2.h5')   #保存最后一次迭代的模型
+model.save_weights(log_dir+'m1.h5')
+
+</code></pre> 
+<p>3.train2.py   训练自己数据集，调用keras内置的resnet50网络</p> 
+<pre><code class="language-python">import os,sys
+import numpy as np
+import scipy
+from scipy import ndimage
+import tensorflow as tf
+import matplotlib.pyplot as plt
+from tensorflow.keras.applications.resnet50 import ResNet50
+from tensorflow.keras.preprocessing import image
+from tensorflow.keras.applications.resnet50 import preprocess_input, decode_predictions
+from PIL import Image
+import random
+import cv2
+import os
+import keras
+
+def one_hot(data, num_classes):
+  return np.squeeze(np.eye(num_classes)[data.reshape(-1)])
+
+def load_dataset1(path,enhance_label):
+    dataset = []
+    labels = []
+    f1=open(path+'label-shuffle.txt','r')
+    for line in f1.readlines():
+        file_name=line.strip().split(' ')[0]
+        label=int(line.strip().split(' ')[-1])
+        # print(file_name,label)
+        if enhance_label==0:
+            # 1.原数据加载
+            pic=cv2.imread(path+file_name,1)
+            pic=cv2.resize(pic,(224,224), interpolation=cv2.INTER_CUBIC)
+            # pic= pic.reshape(28, 28, 1)
+            dataset.append(pic)
+            labels.append(label)
+        if enhance_label==1:
+            # 2.数据随机增强后加载
+            pic=random_enhance(path,file_name)
+            dataset.append(pic)
+            labels.append(label)
+
+    dataset=np.array(dataset)
+    labels=np.array(labels)
+    labels=one_hot(labels, 2)
+    return dataset, labels
+
+train_path='data2/train/'
+test_path='data2/test/'
+
+enhance_label=0
+train_data,train_label=load_dataset1(train_path,enhance_label)
+
+train_data = train_data.reshape(-1, 224, 224, 3)  # normalize
+print(train_data.shape,train_label.shape)
+
+
+model = ResNet50(weights=None,classes=2)
+model.compile(optimizer=tf.train.AdamOptimizer(0.001),
+              loss='categorical_crossentropy',
+              metrics=['accuracy'])
+
+# 训练方法二
+models = model.fit(
+        train_data,
+        train_label,
+        batch_size=64,
+        epochs=2,
+        verbose=1,
+        shuffle=True,
+        initial_epoch=0,   #从指定的epoch开始训练，在这之前的训练时仍有用。
+        validation_split=0.1   #0~1之间,用来指定训练集的一定比例数据作为验证集
+        # validation_data=(test_data, test_label)   #指定的验证集,此参数将覆盖validation_spilt。
+)
+
+log_dir="model/"
+model.save(log_dir+'m2.h5')   #保存最后一次迭代的模型
+model.save_weights(log_dir+'m1.h5')</code></pre> 
+<p>4.test.py</p> 
+<pre><code class="language-python">from keras.preprocessing.image import load_img
+from keras.models import Sequential
+from keras.preprocessing import image
+from keras.applications.imagenet_utils import preprocess_input
+from keras.models import load_model
+import tensorflow as tf
+import keras
+from keras.utils import np_utils
+from keras.models import Sequential
+from keras.layers import Dense, Activation, Conv2D, MaxPooling2D, Flatten
+from keras.optimizers import Adam
+from tensorflow.examples.tutorials.mnist import input_data
+import numpy as np
+import cv2
+import os,sys
+import numpy as np
+import scipy
+from scipy import ndimage
+import tensorflow as tf
+import matplotlib.pyplot as plt
+from tensorflow.keras.applications.resnet50 import ResNet50
+from tensorflow.keras.preprocessing import image
+from tensorflow.keras.applications.resnet50 import preprocess_input, decode_predictions
+from PIL import Image
+import random
+import cv2
+import os
+
+
+#预测结果返回0、1
+def get_result(pre):
+    if pre[0][0]&gt;pre[0][1]:
+        return 0
+    else:
+        return 1
+
+
+#按标签批量预测
+def get_acc(model, path):
+    n=0
+    total=0
+    f1 = open(path + 'label-shuffle.txt', 'r')
+    for line in f1.readlines():
+        total += 1
+        file_name=line.strip().split(' ')[0]
+        label=int(line.strip().split(' ')[-1])
+        # print(file_name,label)
+
+        # # keras加载图片
+        # img = load_img(path + file_name, target_size=(224, 224))
+        # # img = image.img_to_array(img) / 255.0
+        # img = np.expand_dims(img, axis=0)
+
+        # opencv加载图片
+        img=cv2.imread(path + file_name)
+        img=cv2.resize(img,(224,224), interpolation=cv2.INTER_CUBIC)
+        img = img.reshape(224, 224, 3)  # normalize
+        # img = image.img_to_array(img) / 255.0
+        img = np.expand_dims(img, axis=0)
+        img=np.array(img)
+        
+        predictions = model.predict(img)
+        result = get_result(predictions)
+        print("pre_value:", result,predictions,'---'+str(total))
+
+        if result==label:
+            n += 1
+    acc=n/total
+    print("acc:",acc)
+    return acc
+
+
+model = ResNet50(weights=None,classes=2)
+
+model.load_weights('model/m2.h5')
+
+# 批量预测
+path='E:/eye_dataset/test/eye/'
+path2='data2/test/'
+acc=get_acc(model,path2)
+print("pre_acc:",acc)
+
+</code></pre> 
+<p></p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/9a85d1188ce3eeafe250337c53cb6b3a/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">tensorflow实现resnet50（训练&#43;测试&#43;模型转换）</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/a56f81bea20e4bfaf02c87f7bdc53d1a/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">web前端期末大作业 ~我的家乡-绿城之都html&#43;css&#43;javascript旅游网页设计实例</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

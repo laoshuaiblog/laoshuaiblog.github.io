@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>深度学习CNN网络推理时Batchnorm层和卷积层的融合，以提升推理速度。 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/4cc604b76cbdcae60161cf73a269990a/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="深度学习CNN网络推理时Batchnorm层和卷积层的融合，以提升推理速度。">
+  <meta property="og:description" content="深度学习系列文章目录 文章目录 深度学习系列文章目录前言一、Batchnorm二、推理时BatchNorm和Conv融合总结 前言 看到一些好的东西就忍不住想记录下来，方便学习和记忆。本文讲一下BatchNorm 训练和推理过程中的一些解读。
+参考如下：
+Batchnorm原理：https://blog.csdn.net/qq_25737169/article/details/79048516
+上篇博客的归纳整理
+推理时BN和Conv融合：https://mp.weixin.qq.com/s/P94ACKuoA0YapBKlrgZl3A
+一、Batchnorm batchnorm顾名思义是对每batch个数据同时做一个norm，对一个神经元（或者一个卷积核）的输出减去一个batch统计得到的均值，除以标准差，然后乘以一个可学习的系数，再加上一个偏置，这个过程就完成了。
+第一步：先求出此次批量数据x的均值，μβ=1m∑mi=1xi
+第二步：求出此次批量数据的方差，σβ2=1m∑i=1m(xi−μβ)2
+第三步：接下来就是对x做归一化，得到xi−
+第四步：最重要的一步，引入缩放和平移变量γ和β ,计算归一化后的值，yi=γxi−&#43;β
+如果不加γ和β，直接归一化，是会打乱原有数据的分布，容易导致网络学不到任何东西，但是加入这两个参数后，事情就不一样了。先考虑特殊情况，假设γ是batch的方差，β是batch的均值，那么yi=γxi−&#43;β得到的yi就是还原到了归一化之前的x，也就是缩放平移到了归一化前的分布，相当于batchnorm没有改变任何分布没有起作用。所以，加入了γ和β这两个参数后的batchnorm，保证了每一次数据归一化后还保留有之前学习来的特征分布，同时又能完成归一化的操作，加速训练。
+在训练过程中，为保持稳定，一般使用滑动平均法更新均值和方差，滑动平均就是在更新当前值的时候，以一定比例保存之前的数值，以均值 为例,以一定比例 （例如这里0.99）保存之前的均值，当前只更新0.001倍的本Batch的均值，计算方法如下：
+训练代码如下（示例）：
+def Batchnorm_simple_for_train(x, gamma, beta, bn_param): &#34;&#34;&#34; param:x : 输入数据，设shape(B,L) param:gama : 缩放因子 γ param:beta : 平移因子 β param:bn_param : batchnorm所需要的一些参数 eps : 接近0的数，防止分母出现0 momentum : 动量参数，一般为0.9， 0.99， 0.999 running_mean ：滑动平均的方式计算新的均值，训练时计算，为测试数据做准备 running_var : 滑动平均的方式计算新的方差，训练时计算，为测试数据做准备 &#34;&#34;&#34; running_mean = bn_param[&#39;running_mean&#39;] #shape = [B] running_var = bn_param[&#39;running_var&#39;] #shape = [B] results = 0.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2020-10-27T19:37:56+08:00">
+    <meta property="article:modified_time" content="2020-10-27T19:37:56+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">深度学习CNN网络推理时Batchnorm层和卷积层的融合，以提升推理速度。</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-dark">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <h2><a id="_0"></a>深度学习系列文章目录</h2> 
+<p></p> 
+<div class="toc"> 
+ <h4>文章目录</h4> 
+ <ul><li><a href="#_0" rel="nofollow">深度学习系列文章目录</a></li><li><a href="#_7" rel="nofollow">前言</a></li><li><a href="#Batchnorm_15" rel="nofollow">一、Batchnorm</a></li><li><a href="#BatchNormConv_88" rel="nofollow">二、推理时BatchNorm和Conv融合</a></li><li><a href="#_153" rel="nofollow">总结</a></li></ul> 
+</div> 
+<p></p> 
+<hr color="#000000" size='1"'> 
+<h2><a id="_7"></a>前言</h2> 
+<p>看到一些好的东西就忍不住想记录下来，方便学习和记忆。本文讲一下BatchNorm 训练和推理过程中的一些解读。<br> 参考如下：<br> Batchnorm原理：<a href="https://blog.csdn.net/qq_25737169/article/details/79048516">https://blog.csdn.net/qq_25737169/article/details/79048516</a><br> <a href="https://blog.csdn.net/jiang_ming_/article/details/82314287?ops_request_misc=%257B%2522request%255Fid%2522%253A%2522160379490519724822514818%2522%252C%2522scm%2522%253A%252220140713.130102334..%2522%257D&amp;request_id=160379490519724822514818&amp;biz_id=0&amp;utm_medium=distribute.pc_search_result.none-task-blog-2~all~sobaiduend~default-2-82314287.first_rank_ecpm_v3_pc_rank_v2&amp;utm_term=batch%20norm&amp;spm=1018.2118.3001.4187">上篇博客的归纳整理</a><br> 推理时BN和Conv融合：<a href="https://mp.weixin.qq.com/s/P94ACKuoA0YapBKlrgZl3A" rel="nofollow">https://mp.weixin.qq.com/s/P94ACKuoA0YapBKlrgZl3A</a></p> 
+<h2><a id="Batchnorm_15"></a>一、Batchnorm</h2> 
+<p>batchnorm顾名思义是对每batch个数据同时做一个norm，对一个神经元（或者一个卷积核）的输出减去一个batch统计得到的均值，除以标准差，然后乘以一个可学习的系数，再加上一个偏置，这个过程就完成了。<br> <img src="https://images2.imgbox.com/89/4e/fZFPnaJf_o.png" alt="BN 公式"></p> 
+<p><img src="https://images2.imgbox.com/ae/90/rZsxhGku_o.png" alt="在这里插入图片描述"><br> 第一步：先求出此次批量数据x的均值，μβ=1m∑mi=1xi<br> 第二步：求出此次批量数据的方差，σβ2=1m∑i=1m(xi−μβ)2<br> 第三步：接下来就是对x做归一化，得到xi−<br> 第四步：最重要的一步，引入缩放和平移变量γ和β ,计算归一化后的值，yi=γxi−+β<br> 如果不加γ和β，直接归一化，是会打乱原有数据的分布，容易导致网络学不到任何东西，但是加入这两个参数后，事情就不一样了。先考虑特殊情况，假设γ是batch的方差，β是batch的均值，那么yi=γxi−+β得到的yi就是还原到了归一化之前的x，也就是缩放平移到了归一化前的分布，相当于batchnorm没有改变任何分布没有起作用。所以，加入了γ和β这两个参数后的batchnorm，保证了每一次数据归一化后还保留有之前学习来的特征分布，同时又能完成归一化的操作，加速训练。</p> 
+<p>在训练过程中，为保持稳定，一般使用滑动平均法更新均值和方差，滑动平均就是在更新当前值的时候，以一定比例保存之前的数值，以均值 为例,以一定比例 （例如这里0.99）保存之前的均值，当前只更新0.001倍的本Batch的均值，计算方法如下：<br> <img src="https://images2.imgbox.com/0e/4a/mbJaNbR7_o.png" alt="在这里插入图片描述"><br> <font color="#999AAA">训练代码如下（示例）：</font></p> 
+<pre><code class="prism language-c">def <span class="token function">Batchnorm_simple_for_train</span><span class="token punctuation">(</span>x<span class="token punctuation">,</span> gamma<span class="token punctuation">,</span> beta<span class="token punctuation">,</span> bn_param<span class="token punctuation">)</span><span class="token punctuation">:</span>
+	<span class="token string">""</span>"
+	param<span class="token punctuation">:</span>x    <span class="token punctuation">:</span> 输入数据，设<span class="token function">shape</span><span class="token punctuation">(</span>B<span class="token punctuation">,</span>L<span class="token punctuation">)</span>
+	param<span class="token punctuation">:</span>gama <span class="token punctuation">:</span> 缩放因子  γ
+	param<span class="token punctuation">:</span>beta <span class="token punctuation">:</span> 平移因子  β
+	param<span class="token punctuation">:</span>bn_param   <span class="token punctuation">:</span> batchnorm所需要的一些参数
+	    eps      <span class="token punctuation">:</span> 接近<span class="token number">0</span>的数，防止分母出现<span class="token number">0</span>
+	    momentum <span class="token punctuation">:</span> 动量参数，一般为<span class="token number">0.9</span>， <span class="token number">0.99</span>， <span class="token number">0.999</span>
+	    running_mean ：滑动平均的方式计算新的均值，训练时计算，为测试数据做准备
+	    running_var  <span class="token punctuation">:</span> 滑动平均的方式计算新的方差，训练时计算，为测试数据做准备
+	<span class="token string">""</span>"
+    running_mean <span class="token operator">=</span> bn_param<span class="token punctuation">[</span><span class="token string">'running_mean'</span><span class="token punctuation">]</span>  #shape <span class="token operator">=</span> <span class="token punctuation">[</span>B<span class="token punctuation">]</span>
+    running_var <span class="token operator">=</span> bn_param<span class="token punctuation">[</span><span class="token string">'running_var'</span><span class="token punctuation">]</span>    #shape <span class="token operator">=</span> <span class="token punctuation">[</span>B<span class="token punctuation">]</span>
+    results <span class="token operator">=</span> <span class="token number">0.</span> # 建立一个新的变量
+
+    x_mean<span class="token operator">=</span>x<span class="token punctuation">.</span><span class="token function">mean</span><span class="token punctuation">(</span>axis<span class="token operator">=</span><span class="token number">0</span><span class="token punctuation">)</span>  # 计算x的均值
+    x_var<span class="token operator">=</span>x<span class="token punctuation">.</span><span class="token function">var</span><span class="token punctuation">(</span>axis<span class="token operator">=</span><span class="token number">0</span><span class="token punctuation">)</span>    # 计算方差
+    x_normalized<span class="token operator">=</span><span class="token punctuation">(</span>x<span class="token operator">-</span>x_mean<span class="token punctuation">)</span><span class="token operator">/</span>np<span class="token punctuation">.</span><span class="token function">sqrt</span><span class="token punctuation">(</span>x_var<span class="token operator">+</span>eps<span class="token punctuation">)</span>       # 归一化
+    results <span class="token operator">=</span> gamma <span class="token operator">*</span> x_normalized <span class="token operator">+</span> beta            # 缩放平移
+
+    running_mean <span class="token operator">=</span> momentum <span class="token operator">*</span> running_mean <span class="token operator">+</span> <span class="token punctuation">(</span><span class="token number">1</span> <span class="token operator">-</span> momentum<span class="token punctuation">)</span> <span class="token operator">*</span> x_mean
+    running_var <span class="token operator">=</span> momentum <span class="token operator">*</span> running_var <span class="token operator">+</span> <span class="token punctuation">(</span><span class="token number">1</span> <span class="token operator">-</span> momentum<span class="token punctuation">)</span> <span class="token operator">*</span> x_var
+
+    #记录新的值
+    bn_param<span class="token punctuation">[</span><span class="token string">'running_mean'</span><span class="token punctuation">]</span> <span class="token operator">=</span> running_mean
+    bn_param<span class="token punctuation">[</span><span class="token string">'running_var'</span><span class="token punctuation">]</span> <span class="token operator">=</span> running_var 
+
+    <span class="token keyword">return</span> results <span class="token punctuation">,</span> bn_param
+</code></pre> 
+<p>在训练的时候事先计算好mean、var在测试的时候直接拿来用就行，不用计算均值和方差。</p> 
+<pre><code class="prism language-c">running_mean <span class="token operator">=</span> momentum <span class="token operator">*</span> running_mean <span class="token operator">+</span> <span class="token punctuation">(</span><span class="token number">1</span> <span class="token operator">-</span> momentum<span class="token punctuation">)</span> <span class="token operator">*</span> x_mean
+running_var <span class="token operator">=</span> momentum <span class="token operator">*</span> running_var <span class="token operator">+</span> <span class="token punctuation">(</span><span class="token number">1</span> <span class="token operator">-</span> momentum<span class="token punctuation">)</span> <span class="token operator">*</span> x_var
+</code></pre> 
+<p><font color="#999AAA">测试代码如下（示例）：</font></p> 
+<pre><code class="prism language-c">def <span class="token function">Batchnorm_simple_for_test</span><span class="token punctuation">(</span>x<span class="token punctuation">,</span> gamma<span class="token punctuation">,</span> beta<span class="token punctuation">,</span> bn_param<span class="token punctuation">)</span><span class="token punctuation">:</span>
+	<span class="token string">""</span>"
+	param<span class="token punctuation">:</span>x    <span class="token punctuation">:</span> 输入数据，设<span class="token function">shape</span><span class="token punctuation">(</span>B<span class="token punctuation">,</span>L<span class="token punctuation">)</span>
+	param<span class="token punctuation">:</span>gama <span class="token punctuation">:</span> 缩放因子  γ
+	param<span class="token punctuation">:</span>beta <span class="token punctuation">:</span> 平移因子  β
+	param<span class="token punctuation">:</span>bn_param   <span class="token punctuation">:</span> batchnorm所需要的一些参数
+	    eps      <span class="token punctuation">:</span> 接近<span class="token number">0</span>的数，防止分母出现<span class="token number">0</span>
+	    momentum <span class="token punctuation">:</span> 动量参数，一般为<span class="token number">0.9</span>， <span class="token number">0.99</span>， <span class="token number">0.999</span>
+	    running_mean ：滑动平均的方式计算新的均值，训练时计算，为测试数据做准备
+	    running_var  <span class="token punctuation">:</span> 滑动平均的方式计算新的方差，训练时计算，为测试数据做准备
+	<span class="token string">""</span>"
+    running_mean <span class="token operator">=</span> bn_param<span class="token punctuation">[</span><span class="token string">'running_mean'</span><span class="token punctuation">]</span>  #shape <span class="token operator">=</span> <span class="token punctuation">[</span>B<span class="token punctuation">]</span>
+    running_var <span class="token operator">=</span> bn_param<span class="token punctuation">[</span><span class="token string">'running_var'</span><span class="token punctuation">]</span>    #shape <span class="token operator">=</span> <span class="token punctuation">[</span>B<span class="token punctuation">]</span>
+    results <span class="token operator">=</span> <span class="token number">0.</span> # 建立一个新的变量
+
+    x_normalized<span class="token operator">=</span><span class="token punctuation">(</span>x<span class="token operator">-</span>running_mean <span class="token punctuation">)</span><span class="token operator">/</span>np<span class="token punctuation">.</span><span class="token function">sqrt</span><span class="token punctuation">(</span>running_var <span class="token operator">+</span>eps<span class="token punctuation">)</span>       # 归一化
+    results <span class="token operator">=</span> gamma <span class="token operator">*</span> x_normalized <span class="token operator">+</span> beta            # 缩放平移
+
+    <span class="token keyword">return</span> results <span class="token punctuation">,</span> bn_param
+</code></pre> 
+<h2><a id="BatchNormConv_88"></a>二、推理时BatchNorm和Conv融合</h2> 
+<p>训练的时候，均值mean、方差var、γ 、β是一直在更新的，但是，在推理的时候，以上四个值都是固定了的，也就是推理的时候，均值和方差来自训练样本的数据分布。因此，在推理的时候，上面BN的计算公式可以变形为:<br> <img src="https://images2.imgbox.com/40/15/iutbvP2D_o.png" alt="在这里插入图片描述"><br> 在均值mean、方差var、γ 、β都是固定值的时候，上面公式可以改写为：<br> <img src="https://images2.imgbox.com/10/50/p3QCsztl_o.png" alt="在这里插入图片描述"><br> 推理的时候，Batch Norm层的4个参数是固定的常数，我们以一个三个神经元输入的全连接网络为例，如下图：：<br> <img src="https://images2.imgbox.com/bd/c3/trArFFJw_o.png" alt="在这里插入图片描述"></p> 
+<p><img src="https://images2.imgbox.com/e7/8f/T81L08MU_o.png" alt="在这里插入图片描述"><br> 则全连接输出：<br> <img src="https://images2.imgbox.com/ec/27/iDgl7M92_o.png" alt="在这里插入图片描述"><br> 其中c 为偏置(这里为避免与上面的冲突，所以用 c 表示)，那么全连接 + BN 一起，则是：<br> <img src="https://images2.imgbox.com/f8/27/sjDu42Ks_o.png" alt="在这里插入图片描述"><br> 公式转换如下：<img src="https://images2.imgbox.com/ef/ad/94XuyVir_o.png" alt="在这里插入图片描述"><br> 到这里大家应该清楚了，因为推理时，BN是一个线性的操作，也就是一个缩放+一个偏移，我们完全可以把这个线性操作叠加到前面的全连接层或者卷积层，只需要把全连接或者卷积层的权重乘以一个系数a (alpha),偏置从 c 变为 ac+b 就可以了了。完整的过程如下图：<br> <img src="https://images2.imgbox.com/cd/f0/XfQROsYn_o.png" alt="在这里插入图片描述"><br> 在训练时候，在卷积层后面直接加BN层，训练完成后，我们只需要将网络中BN层去掉，读取原来的卷积层权重和偏置，以及BN层的四个参数（均值、方差、γ 、β），然后按照上面的计算方法替换卷积核的权重，更新偏置就可以了。<br> pytorch 官方实现<a href="https://github.com/pytorch/pytorch/blob/master/torch/nn/utils/fusion.py">https://github.com/pytorch/pytorch/blob/master/torch/nn/utils/fusion.py</a></p> 
+<p><font color="#999AAA">ResNet18中一个卷积+BN层融合后代码如下（示例）：</font></p> 
+<pre><code class="prism language-c">import torch
+import torchvision
+
+def <span class="token function">fuse</span><span class="token punctuation">(</span>conv<span class="token punctuation">,</span> bn<span class="token punctuation">)</span><span class="token punctuation">:</span>
+    fused <span class="token operator">=</span> torch<span class="token punctuation">.</span>nn<span class="token punctuation">.</span><span class="token function">Conv2d</span><span class="token punctuation">(</span>
+        conv<span class="token punctuation">.</span>in_channels<span class="token punctuation">,</span>
+        conv<span class="token punctuation">.</span>out_channels<span class="token punctuation">,</span>
+        kernel_size<span class="token operator">=</span>conv<span class="token punctuation">.</span>kernel_size<span class="token punctuation">,</span>
+        stride<span class="token operator">=</span>conv<span class="token punctuation">.</span>stride<span class="token punctuation">,</span>
+        padding<span class="token operator">=</span>conv<span class="token punctuation">.</span>padding<span class="token punctuation">,</span>
+        bias<span class="token operator">=</span>True
+    <span class="token punctuation">)</span>
+    <span class="token macro property"># setting weights</span>
+    w_conv <span class="token operator">=</span> conv<span class="token punctuation">.</span>weight<span class="token punctuation">.</span><span class="token function">clone</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">view</span><span class="token punctuation">(</span>conv<span class="token punctuation">.</span>out_channels<span class="token punctuation">,</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">)</span>
+    w_bn <span class="token operator">=</span> torch<span class="token punctuation">.</span><span class="token function">diag</span><span class="token punctuation">(</span>bn<span class="token punctuation">.</span>weight<span class="token punctuation">.</span><span class="token function">div</span><span class="token punctuation">(</span>torch<span class="token punctuation">.</span><span class="token function">sqrt</span><span class="token punctuation">(</span>bn<span class="token punctuation">.</span>eps<span class="token operator">+</span>bn<span class="token punctuation">.</span>running_var<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+    fused<span class="token punctuation">.</span>weight<span class="token punctuation">.</span><span class="token function">copy_</span><span class="token punctuation">(</span> torch<span class="token punctuation">.</span><span class="token function">mm</span><span class="token punctuation">(</span>w_bn<span class="token punctuation">,</span> w_conv<span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">view</span><span class="token punctuation">(</span>fused<span class="token punctuation">.</span>weight<span class="token punctuation">.</span><span class="token function">size</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">)</span>
+    <span class="token macro property"># setting bias</span>
+    <span class="token keyword">if</span> conv<span class="token punctuation">.</span>bias is not None<span class="token punctuation">:</span>
+        b_conv <span class="token operator">=</span> conv<span class="token punctuation">.</span>bias
+    <span class="token keyword">else</span><span class="token punctuation">:</span>
+        b_conv <span class="token operator">=</span> torch<span class="token punctuation">.</span><span class="token function">zeros</span><span class="token punctuation">(</span> conv<span class="token punctuation">.</span>weight<span class="token punctuation">.</span><span class="token function">size</span><span class="token punctuation">(</span><span class="token number">0</span><span class="token punctuation">)</span> <span class="token punctuation">)</span>
+    b_bn <span class="token operator">=</span> bn<span class="token punctuation">.</span>bias <span class="token operator">-</span> bn<span class="token punctuation">.</span>weight<span class="token punctuation">.</span><span class="token function">mul</span><span class="token punctuation">(</span>bn<span class="token punctuation">.</span>running_mean<span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">div</span><span class="token punctuation">(</span>
+                          torch<span class="token punctuation">.</span><span class="token function">sqrt</span><span class="token punctuation">(</span>bn<span class="token punctuation">.</span>running_var <span class="token operator">+</span> bn<span class="token punctuation">.</span>eps<span class="token punctuation">)</span>
+                        <span class="token punctuation">)</span>
+    fused<span class="token punctuation">.</span>bias<span class="token punctuation">.</span><span class="token function">copy_</span><span class="token punctuation">(</span> b_conv <span class="token operator">+</span> b_bn <span class="token punctuation">)</span>
+    <span class="token keyword">return</span> fused
+<span class="token macro property"># Testing</span>
+<span class="token macro property"># we need to turn off gradient calculation because we didn't write it</span>
+torch<span class="token punctuation">.</span><span class="token function">set_grad_enabled</span><span class="token punctuation">(</span>False<span class="token punctuation">)</span>
+x <span class="token operator">=</span> torch<span class="token punctuation">.</span><span class="token function">randn</span><span class="token punctuation">(</span><span class="token number">16</span><span class="token punctuation">,</span> <span class="token number">3</span><span class="token punctuation">,</span> <span class="token number">256</span><span class="token punctuation">,</span> <span class="token number">256</span><span class="token punctuation">)</span>
+resnet18 <span class="token operator">=</span> torchvision<span class="token punctuation">.</span>models<span class="token punctuation">.</span><span class="token function">resnet18</span><span class="token punctuation">(</span>pretrained<span class="token operator">=</span>True<span class="token punctuation">)</span>
+<span class="token macro property"># removing all learning variables, etc</span>
+resnet18<span class="token punctuation">.</span><span class="token function">eval</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+model <span class="token operator">=</span> torch<span class="token punctuation">.</span>nn<span class="token punctuation">.</span><span class="token function">Sequential</span><span class="token punctuation">(</span>
+    resnet18<span class="token punctuation">.</span>conv1<span class="token punctuation">,</span>
+    resnet18<span class="token punctuation">.</span>bn1
+<span class="token punctuation">)</span>
+f1 <span class="token operator">=</span> model<span class="token punctuation">.</span><span class="token function">forward</span><span class="token punctuation">(</span>x<span class="token punctuation">)</span>
+fused <span class="token operator">=</span> <span class="token function">fuse</span><span class="token punctuation">(</span>model<span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span><span class="token punctuation">,</span> model<span class="token punctuation">[</span><span class="token number">1</span><span class="token punctuation">]</span><span class="token punctuation">)</span>
+f2 <span class="token operator">=</span> fused<span class="token punctuation">.</span><span class="token function">forward</span><span class="token punctuation">(</span>x<span class="token punctuation">)</span>
+d <span class="token operator">=</span> <span class="token punctuation">(</span>f1 <span class="token operator">-</span> f2<span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">mean</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">item</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token function">print</span><span class="token punctuation">(</span><span class="token string">"error:"</span><span class="token punctuation">,</span>d<span class="token punctuation">)</span>
+</code></pre> 
+<p><strong>Note</strong>: 融合BN仅限于Conv+BN或者是BN+Conv结构，中间不能加非线性层，例如Conv+Relu+BN那就不行了。当然，一般结构都是Conv+BN+Relu结构。</p> 
+<h2><a id="_153"></a>总结</h2> 
+<p>至此，本人对Batch Norm有了一个更深的理解，后续在部署时推理效率提升可以使用这个方法。tips：一般需将模型转换成caffe模型来merge卷积和BN层能避免更多坑。</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/0677fb5d4cad81fba567aa24dc93b9cb/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">nginx不转发static下文件_文件存储老大难，随取随用不心烦！玩转最强私人云盘群晖NAS（下）...</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/9b5a373214d7c7931635c24237474eb9/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">CAT3.0的集群部署</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Clickhouse与Mybatis相结合 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/5eb30afa0918c20cea4aabbedf7effc0/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="Clickhouse与Mybatis相结合">
+  <meta property="og:description" content="前段时间由于工作需要，在项目上使用了clickhouse作为存储介质，用来存储原始数据，由于时间仓促又仅仅是存储原始数据，所以将功能简单的实现了一下。不过随着项目的进行，存入clickhouse的数据总类越来越多，导致代码十分混乱，每个功能都在创建自己的DataSource，冗余的代码很多，后期维护起来必然是个坑。所以周末花了点时间将Clickhouse和Mybatis进行整合，在此做个记录。
+该功能是基于Maven工程的，引入如下依赖包：
+&amp;lt;dependency&amp;gt; &amp;lt;groupId&amp;gt;org.mybatis&amp;lt;/groupId&amp;gt; &amp;lt;artifactId&amp;gt;mybatis&amp;lt;/artifactId&amp;gt; &amp;lt;version&amp;gt;3.5.5&amp;lt;/version&amp;gt; &amp;lt;/dependency&amp;gt; &amp;lt;dependency&amp;gt; &amp;lt;groupId&amp;gt;ru.yandex.clickhouse&amp;lt;/groupId&amp;gt; &amp;lt;artifactId&amp;gt;clickhouse-jdbc&amp;lt;/artifactId&amp;gt; &amp;lt;version&amp;gt;0.3.1&amp;lt;/version&amp;gt; &amp;lt;/dependency&amp;gt; &amp;lt;dependency&amp;gt; &amp;lt;groupId&amp;gt;com.zaxxer&amp;lt;/groupId&amp;gt; &amp;lt;artifactId&amp;gt;HikariCP&amp;lt;/artifactId&amp;gt; &amp;lt;version&amp;gt;3.4.5&amp;lt;/version&amp;gt; &amp;lt;/dependency&amp;gt; 初始化initSessionFactory()，由于我们的使用环境是内网，所以Clickhouse没有设置用户名和密码。
+private static SqlSessionFactory initSessionFactory() { String url = PropertiesUtil.getProperty(&#34;clickhouse.url&#34;); HikariDataSource ds= new HikariDataSource(); ds.setDriverClassName(&#34;ru.yandex.clickhouse.ClickHouseDriver&#34;); ds.setJdbcUrl(url); Environment environment = new Environment(&#34;clickhouse&#34;, new JdbcTransactionFactory(), ds); Configuration configuration = new Configuration(environment); configuration.setLocalCacheScope(LocalCacheScope.STATEMENT); configuration.addMapper(IDemoMapper.class); synchronized (CLASS_LOCK) { if (factory == null ) { factory = new SqlSessionFactoryBuilder().build(configuration); } } return factory; } 获取当前连接，getCurrentSqlSession()
+public static SqlSession getCurrentSession() { if (factory == null) { initSessionFactory(); } if (sqlSession == null) { sqlSession = factory.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2021-12-06T23:24:03+08:00">
+    <meta property="article:modified_time" content="2021-12-06T23:24:03+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">Clickhouse与Mybatis相结合</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <p>        前段时间由于工作需要，在项目上使用了clickhouse作为存储介质，用来存储原始数据，由于时间仓促又仅仅是存储原始数据，所以将功能简单的实现了一下。不过随着项目的进行，存入clickhouse的数据总类越来越多，导致代码十分混乱，每个功能都在创建自己的DataSource，冗余的代码很多，后期维护起来必然是个坑。所以周末花了点时间将Clickhouse和Mybatis进行整合，在此做个记录。</p> 
+<p></p> 
+<p>该功能是基于Maven工程的，引入如下依赖包：</p> 
+<pre><code class="language-XML">&lt;dependency&gt;
+   &lt;groupId&gt;org.mybatis&lt;/groupId&gt;
+   &lt;artifactId&gt;mybatis&lt;/artifactId&gt;
+   &lt;version&gt;3.5.5&lt;/version&gt;
+&lt;/dependency&gt;
+&lt;dependency&gt;
+   &lt;groupId&gt;ru.yandex.clickhouse&lt;/groupId&gt;
+   &lt;artifactId&gt;clickhouse-jdbc&lt;/artifactId&gt;
+   &lt;version&gt;0.3.1&lt;/version&gt;
+&lt;/dependency&gt;
+&lt;dependency&gt;
+   &lt;groupId&gt;com.zaxxer&lt;/groupId&gt;
+   &lt;artifactId&gt;HikariCP&lt;/artifactId&gt;
+   &lt;version&gt;3.4.5&lt;/version&gt;
+&lt;/dependency&gt;</code></pre> 
+<p> 初始化initSessionFactory()，由于我们的使用环境是内网，所以Clickhouse没有设置用户名和密码。</p> 
+<pre><code class="language-java">
+ private static SqlSessionFactory initSessionFactory() {
+  String url = PropertiesUtil.getProperty("clickhouse.url");
+  HikariDataSource ds= new HikariDataSource();
+  ds.setDriverClassName("ru.yandex.clickhouse.ClickHouseDriver");
+  ds.setJdbcUrl(url);
+  Environment environment = new Environment("clickhouse", new JdbcTransactionFactory(), ds);
+  Configuration configuration = new Configuration(environment);
+  configuration.setLocalCacheScope(LocalCacheScope.STATEMENT);
+  configuration.addMapper(IDemoMapper.class);
+
+  synchronized (CLASS_LOCK) {
+   if (factory == null ) {
+    factory = new SqlSessionFactoryBuilder().build(configuration);
+   }
+  }
+  return factory;
+ }
+
+</code></pre> 
+<p>获取当前连接，getCurrentSqlSession()</p> 
+<pre><code class="language-java">public static SqlSession getCurrentSession() {
+  if (factory == null) {
+   initSessionFactory();
+  }
+  
+  if (sqlSession == null) { 
+   sqlSession = factory.openSession(ExecutorType.BATCH, false); 
+
+  }
+  return sqlSession;
+ }</code></pre> 
+<p> 提交，commit()</p> 
+<pre><code class="language-java">public static void commit() {
+  if (sqlSession == null) {
+   sqlSession = getCurrentSqlSession();
+  }
+  sqlSession.commit();
+ }</code></pre> 
+<p> Mapper类，整合所有的SQL。IDemoMapper.java</p> 
+<pre><code class="language-java">public interface IMonitorMapper {
+
+ @Insert("Insert Sql")
+ int insertInfo(@Param(value = "item") InfoBean ib);
+
+ @Update("Updaye Sql")
+ void updateInfo(@Param("value1")String value1,@Param("value2")String value2);
+}</code></pre> 
+<p> 测试类，ChMybatisMain.java</p> 
+<pre><code class="language-java">public class ChMybatisMain{
+
+
+    public static void main(String[] args) {
+
+//ClickHouseMybatisUtil为创建sessionFactory的类     
+         ClickHouseMybatisUtil.getSession().getMapper(IDemoMapper.class).updateInfo("value1","value2");
+         ClickHouseMybatisUtil.commit;
+    }
+    
+}</code></pre> 
+<p> 工具类，PopLoadUtil.java</p> 
+<pre><code class="language-java">
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.util.Properties;
+
+
+public class PopLoadUtil {
+
+ private static Properties props;
+
+ static {
+  String fileName = "ch.properties";
+  props = new Properties();
+  try {
+   props.load(new InputStreamReader(PopLoadUtil.class.getClassLoader().getResourceAsStream(fileName),
+     "UTF-8"));
+  } catch (IOException e) {
+   logger.error(e.getMessage(), e);
+  }
+ }
+
+ public static String getProperty(String key) {
+  String value = props.getProperty(key.trim());
+  if (value==null||value.equalsIgnoreCase("")) {
+   return null;
+  }
+  return value.trim();
+ }
+
+}</code></pre> 
+<p>以上为整合方式和内容。目前功能平稳运行。</p> 
+<h2> 遗留问题</h2> 
+<p>目前项目一次提交万八条数据的没有问题，但是想十万或者百万级的提交，最好不要这样写。建议使用简单粗暴的JDBC方式，导数据的时候使用过，那是相当酸爽。</p> 
+<p> </p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/f0a1c26a2840904a51a158ae2b694796/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">1163：阿克曼(Ackmann)函数</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/928729c1024f8562a015178a4d837eb9/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">求出所有的水仙花数。所谓水仙花数是指一个三位数，其各位数字的立方和等于该数字本身。比如153是一个水仙花数，因为153=1^3&#43;5^3&#43;3^3。</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

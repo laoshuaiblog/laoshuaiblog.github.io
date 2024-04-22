@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>CNN中的小tips（2）---batch normalization - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/30461518367a7dca09714510d1cbb180/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="CNN中的小tips（2）---batch normalization">
+  <meta property="og:description" content=" 问题：
+Internal Covariate Shift： 1）描述： 普遍理解：Internal Covariate Shift（内部协方差偏移）：随着网络的进行，网络中的参数也随着梯度不停更新。一方面，当底层网络中的参数发生微弱变化时，由于每一层中的线性变换和非线性激活映射，这些微弱的变化随着网络层数的加深而被逐级放大（类似蝴蝶效应）；另一方面，参数的变化导致每一层的输入分布会发生改变， 进而上层的网络需要不停地去适应这些分布变化，使得我们的模型训练变得困难，这些导致了我们的训练变得困难。 论文定义：在深层网络训练的过程中，由于网络中参数变化引起内部节点数据分布发生变化的这一过程被称为Internal Covariate Shift。 2）产生原因：由于参数更新带来的网络中输入值分布的改变，并且随着网络层数的加深而变得更加严重，因此我们可以通过固定每一层网络的输入值的分布来减缓ICS问题。 3）带来的问题： ①网络的训练过程容易陷入梯度饱和区，减缓网络收敛速度； ②后层网络需要不断调整来适应数据分布的变化，导致网络的学习速率被大大降低！
+—（上文均引用：知乎Batch Normalization原理与实战）
+解决思路： 能不能让每个隐层节点的激活输入分布固定下来呢？（这样会导致什么问题呢？？？—影响了原始数据的信息表达） 1）白化（whitening） 数据规范化操作，指对数据分布进行转换，使得数据的各个特征具有独立同分布，即从而使得输入数据特征分布有相同的均值和方差，同时去除特征之间的相关性，保留独立的数据特征； 2）Batch Normalization 白化操作可以通过很好地固定数据分布而解决这个问题，但是由于其计算成本过高，而且改变了网络每一层的分布，改变了原始数据的表达能力，于是就出现了batch normalization，因为它在一方面，计算起来代价不是很高，没有实现独立，即特征不相关，另一方面，经过规范化处理之后尽可能地保留了原始数据的表达能力，保留更多的信息，因此我们选择了更方便的Batch Normalization进行处理！针对白化的两个不便之处，Batch normalization进行了对应的设计： ①白化先保留彼此不相关的特征（耗时），然后使其具有相同的均值和方差（同分布），batch normalization退而求其次，对每个特征进行标准化，使其具有均值为0，方差为1的分布； ②白化操作改变了原始数据的表达能力，现在我们在对其加上线性变换，使其恢复本身的数据表达能力不就可以了吗？所以就有了batch normalzation的步骤1）2），如下。
+位置： 线性运算和非线性激活层之前，即Z=WU&#43;b，A=A(Z)之间，参看其他博客中说这个b可以不要的，不怎么理解这个b是否要不要存在，有大佬了解的话还望不吝赐教！
+步骤 对于每个隐层神经元来说，我们将BN层添加在线性层和非线性层之间，即线性层之后，激活层之前，具体可以在参看论文或者其他博客查看具体公式。 这里具体包括两步： 1）标准化操作：对输入的刚经过线性层的数据进行标准化操作，这样我们就可以调整这些数据至服从均值为0，方差为1的正态（高斯）分布，这样有什么好处呢？我们先来看一下高斯分布的图： 通过这个标准正态分布图，我们可以清楚地看到数值落到（-1，1）区间的可能性为68%，数值落到（-2，2）之间的可能性更是达到了95%，（-3，3）之间可能性达到了99%，这样就可以我们的样本大体上都落在了激活函数的激活区间，没有落到梯度饱和区，即激活函数两端的非激活区域，可以有效地避免了梯度消失和梯度爆炸问题，激活函数如下： 总结一下：通过标准化操作，我们可以将隐层神经元激活输入从非标准化的正态分布拉回到均值为0，方差为1的标准的正态分布，这样可以保证输入值落在激活函数的激活区，避免梯度饱和问题的出现，可以用来加速收敛过程！ 2）恢复原有数据表达能力（上述操作显然有问题啊，如果都通过标准化操作来处理数据，这样大部分的激活输入值不就落在激活函数的激活区了，那样不就相当于将神经网络的非线性能力也给转化为了线性能力了吗？这样将导致网络非线性表达能力几乎可以忽略不计，到最后即使有多个层，每个隐藏才层有多个节点，仅仅相当于多个线性操作的组合，人就相当于一个线性，即这个网络的深层是失效的，为了避免这个问题，我们在对每一层节点的标准化操作之后，还加了一个操作，变换，用于调整网络地线性能力和非线性能力的平衡）y=γ*X’&#43;β，每个神经元添加了γ和β参数，通过对输入进行平移和放缩，在数据分布上就相当于对标准正态分布进行平移和拉升/放缩变换，这样导致在送入激活函数后，其对应的输出从激活函数的激活区间向非激活区间（梯度饱和区）移动了一些，用于设置网络的线性能力和非线性能力的平衡，使得网络既可以享受非线性的较强表达能力的好处，又避免太靠近非线性区域两头使得网络收敛速度太慢。
+测试阶段如何应用： 测试阶段可能只有少量样本或者一个样本，这样计算出来地μ和δ^2是有偏估计，这时如何计算呢？
+因为在训练阶段我们已经计算出来了每个mini-batch所对应的μ和δ^2，在测试阶段，我们此时就可以用整个训练样本进行无偏估计了，即利用(μ1,δ1),(μ2,δ2),…,(μ_mb,δ_mb)求出测试集上的μ_t,δ_t6^2,即 注意在后面还要进行线性变换呀！
+优点： 1）缓解了梯度消失问题，由于通过BN可以使得数据落在梯度的非饱和区（可观察上图中的正态分布（Z=WU&#43;b）和激活函数（A=A(Z)）的函数即可看到这个优点），（由于强制性的改变了数据分布，会影响原始数据信息表达能力，所以加了线性转换）通过自适应γ和β使得数据保留更多的原始信息。 2）在某些情况下怎增加了网络的噪声，起到了正则化效果，详细解释为：我们使用mini-batch的μ和δ^2作为整体样本的μ和δ^2，但不同mini-batch的μ和δ^2不尽相同，和样本原始的μ和δ^2也不尽相同，这样就给模型的训练过程中带来了随机噪音，与dropout随机噪音类似，可以从一定程度上解决过拟合问题； 3）使得网络中的每层数据的分布相对稳定，加速网络训练，网络的收敛速度更快；
+4）使得模型对网络中的参数没那么敏感，简化调参过程，使得网络学习更加稳定（引用：Batch Normalization原理与实战）； 5）可以采用更高的学习率，则梯度下降幅度更大，加快了训练的速度； 6）权重更容易初始化（batch normalization可以降低权重初始化的值分布的影响）； 7）可支持更多的激活函数（relu激活函数可能导致神经元的死亡，sigmoid函数随层次怎家的梯度衰减的很快，所以我们需要留意它的值的范围，而batch normalization可以规范化输入，这样这些激活函数也就可以使用了）；
+思考：batch normalization一方面改变了原始数据的分布（统一为正态分布），同时又为了恢复原始数据的信息表达能力，又为其增加了线性变换，会不会与原始数据的分布相同？
+不会，因为引入两个新的参数γ和β，但是γ和β不断在学习，不依赖于下层数据，去除了与下层计算的耦合！
+参考： 斯坦福cs231n学习笔记（9）——神经网络训练细节（Batch Normalization） 什么是批标准化 (Batch Normalization) 10分钟看懂Batch Normalization的好处
+Batch Normalization原理与实战 ">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2018-04-15T18:33:36+08:00">
+    <meta property="article:modified_time" content="2018-04-15T18:33:36+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">CNN中的小tips（2）---batch normalization</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-dark">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <p><strong>问题：</strong></p> 
+<p><strong><em>Internal Covariate Shift：</em></strong> <br> 1）描述： <br> 普遍理解：Internal Covariate Shift（内部协方差偏移）：随着网络的进行，网络中的参数也随着梯度不停更新。一方面，当底层网络中的参数发生微弱变化时，由于每一层中的线性变换和非线性激活映射，这些微弱的变化随着网络层数的加深而被逐级放大（类似蝴蝶效应）；另一方面，参数的变化导致每一层的输入分布会发生改变， 进而上层的网络需要不停地去适应这些分布变化，使得我们的模型训练变得困难，这些导致了我们的训练变得困难。 <br> 论文定义：在深层网络训练的过程中，由于网络中参数变化引起内部节点数据分布发生变化的这一过程被称为Internal Covariate Shift。 <br> 2）产生原因：由于参数更新带来的网络中输入值分布的改变，并且随着网络层数的加深而变得更加严重，<strong>因此我们可以通过固定每一层网络的输入值的分布来减缓ICS问题。</strong> <br> 3）带来的问题： <br> ①网络的训练过程容易陷入梯度饱和区，减缓网络收敛速度； <br> ②后层网络需要不断调整来适应数据分布的变化，导致网络的学习速率被大大降低！</p> 
+<p>—（上文均引用：知乎<a href="https://www.zhihu.com/search?type=content&amp;q=batch%20normalization" rel="nofollow">Batch Normalization原理与实战</a>）</p> 
+<p><strong>解决思路：</strong> <br> 能不能让每个隐层节点的激活输入分布固定下来呢？（这样会导致什么问题呢？？？—影响了原始数据的信息表达） <br> 1）白化（whitening） <br> 数据规范化操作，指对数据分布进行转换，使得数据的各个特征具有独立同分布，即从而使得输入数据特征分布有相同的均值和方差，同时去除特征之间的相关性，保留独立的数据特征； <br> 2）Batch Normalization <br> 白化操作可以通过很好地固定数据分布而解决这个问题，但是由于其计算成本过高，而且改变了网络每一层的分布，改变了原始数据的表达能力，于是就出现了batch normalization，因为它在一方面，计算起来代价不是很高，没有实现独立，即特征不相关，另一方面，经过规范化处理之后尽可能地保留了原始数据的表达能力，保留更多的信息，因此我们选择了更方便的Batch Normalization进行处理！针对白化的两个不便之处，Batch normalization进行了对应的设计： <br> ①白化先保留彼此不相关的特征（耗时），然后使其具有相同的均值和方差（同分布），batch normalization退而求其次，对每个特征进行标准化，使其具有均值为0，方差为1的分布； <br> ②白化操作改变了原始数据的表达能力，现在我们在对其加上线性变换，使其恢复本身的数据表达能力不就可以了吗？所以就有了batch normalzation的步骤1）2），如下。</p> 
+<p><strong>位置：</strong> <br> 线性运算和非线性激活层之前，即Z=WU+b，A=A(Z)之间，参看其他博客中说这个b可以不要的，不怎么理解这个b是否要不要存在，有大佬了解的话还望不吝赐教！</p> 
+<p><strong>步骤</strong> <br> 对于每个隐层神经元来说，我们将BN层添加在线性层和非线性层之间，即线性层之后，激活层之前，具体可以在参看论文或者其他博客查看具体公式。 <br> 这里具体包括两步： <br> <strong>1）标准化操作：</strong>对输入的刚经过线性层的数据进行标准化操作，这样我们就可以调整这些数据至服从均值为0，方差为1的正态（高斯）分布，这样有什么好处呢？我们先来看一下高斯分布的图： <br> <img src="https://images2.imgbox.com/40/45/gYTkn3YZ_o.png" alt="这里写图片描述" title=""> <br> 通过这个标准正态分布图，我们可以清楚地看到数值落到（-1，1）区间的可能性为68%，数值落到（-2，2）之间的可能性更是达到了95%，（-3，3）之间可能性达到了99%，这样就可以我们的样本大体上都落在了激活函数的激活区间，没有落到梯度饱和区，即激活函数两端的非激活区域，可以有效地避免了梯度消失和梯度爆炸问题，激活函数如下： <br> <img src="https://images2.imgbox.com/63/ce/370Vu32Q_o.png" alt="这里写图片描述" title=""> <br> 总结一下：通过标准化操作，我们可以将隐层神经元激活输入从非标准化的正态分布拉回到均值为0，方差为1的标准的正态分布，这样可以保证输入值落在激活函数的激活区，避免梯度饱和问题的出现，可以用来加速收敛过程！ <br> 2）<strong>恢复原有数据表达能力</strong>（上述操作显然有问题啊，如果都通过标准化操作来处理数据，这样大部分的激活输入值不就落在激活函数的激活区了，那样不就相当于将神经网络的非线性能力也给转化为了线性能力了吗？这样将导致网络非线性表达能力几乎可以忽略不计，到最后即使有多个层，每个隐藏才层有多个节点，仅仅相当于多个线性操作的组合，人就相当于一个线性，即这个网络的深层是失效的，为了避免这个问题，我们在对每一层节点的标准化操作之后，还加了一个操作，变换，用于调整网络地线性能力和非线性能力的平衡）y=γ*X’+β，每个神经元添加了γ和β参数，通过对输入进行平移和放缩，在数据分布上就相当于对标准正态分布进行平移和拉升/放缩变换，这样导致在送入激活函数后<strong>，其对应的输出从激活函数的激活区间向非激活区间（梯度饱和区）移动了一些，用于设置网络的线性能力和非线性能力的平衡，使得网络既可以享受非线性的较强表达能力的好处，又避免太靠近非线性区域两头使得网络收敛速度太慢。</strong></p> 
+<p><strong>测试阶段如何应用：</strong> <br> 测试阶段可能只有少量样本或者一个样本，这样计算出来地μ和δ^2是有偏估计，这时如何计算呢？</p> 
+<p>因为在训练阶段我们已经计算出来了每个mini-batch所对应的μ和δ^2，在测试阶段，我们此时就可以用整个训练样本进行无偏估计了，即利用(μ1,δ1),(μ2,δ2),…,(μ_mb,δ_mb)求出测试集上的μ_t,δ_t6^2,即 <br> <img src="https://images2.imgbox.com/8b/63/GfTZg8up_o.jpg" alt="这里写图片描述" title=""> <br> 注意在后面还要进行线性变换呀！</p> 
+<p><strong>优点：</strong> <br> 1）<strong>缓解了梯度消失问题</strong>，由于通过BN可以使得数据落在梯度的非饱和区（可观察上图中的正态分布（Z=WU+b）和激活函数（A=A(Z)）的函数即可看到这个优点），（由于强制性的改变了数据分布，会影响原始数据信息表达能力，所以加了线性转换）通过自适应γ和β使得数据保留更多的原始信息。 <br> <strong>2）</strong>在某些情况下怎增加了网络的噪声，起到了正则化效果，详细解释为：我们使用mini-batch的μ和δ^2作为整体样本的μ和δ^2，但不同mini-batch的μ和δ^2不尽相同，和样本原始的μ和δ^2也不尽相同，这样就给模型的训练过程中带来了随机噪音，与dropout随机噪音类似，<strong>可以从一定程度上解决过拟合问题</strong>； <br> <strong>3）使得网络中的每层数据的分布相对稳定，加速网络训练，网络的收敛速度更快；</strong></p> 
+<p>4）使得模型对网络中的参数没那么敏感，简化调参过程，使得网络学习更加稳定（引用：<a href="https://www.zhihu.com/search?type=content&amp;q=batch%20normalization" rel="nofollow">Batch Normalization原理与实战</a>）； <br> <img src="https://images2.imgbox.com/8a/32/4KkQp4Ob_o.png" alt="这里写图片描述" title=""> <br> <img src="https://images2.imgbox.com/28/f0/8XmyZeu5_o.png" alt="这里写图片描述" title=""> <br> 5）可以采用更高的学习率，则梯度下降幅度更大，加快了训练的速度； <br> 6）权重更容易初始化（batch normalization可以降低权重初始化的值分布的影响）； <br> 7）可支持更多的激活函数（relu激活函数可能导致神经元的死亡，sigmoid函数随层次怎家的梯度衰减的很快，所以我们需要留意它的值的范围，而batch normalization可以规范化输入，这样这些激活函数也就可以使用了）；</p> 
+<p><strong>思考</strong>：batch normalization一方面改变了原始数据的分布（统一为正态分布），同时又为了恢复原始数据的信息表达能力，又为其增加了线性变换，会不会与原始数据的分布相同？</p> 
+<hr> 
+<p><em>不会，因为引入两个新的参数γ和β，但是γ和β不断在学习，不依赖于下层数据，去除了与下层计算的耦合！</em></p> 
+<p><strong>参考：</strong> <br> <a href="https://www.jianshu.com/p/e854cd5ef090" rel="nofollow">斯坦福cs231n学习笔记（9）——神经网络训练细节（Batch Normalization）</a> <br> <a href="https://zhuanlan.zhihu.com/p/24810318" rel="nofollow">什么是批标准化 (Batch Normalization)</a> <br> <a href="https://www.jianshu.com/p/45af48acce40" rel="nofollow">10分钟看懂Batch Normalization的好处</a></p> 
+<h3 id="batch-normalization原理与实战"><a href="https://www.zhihu.com/search?type=content&amp;q=batch%20normalization" rel="nofollow">Batch Normalization原理与实战</a></h3>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/a6e8fbeb5b5d5d78af152ce7be6d1287/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">java框架之Spring boot二：SpringBoot配置获取</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/3172766d7a7de1271735716d5570a510/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">jq根据动态name获取值</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

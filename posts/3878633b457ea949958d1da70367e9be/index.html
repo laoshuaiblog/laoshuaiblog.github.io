@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Spring Cloud Gateway：使用ReadBodyPredicateFactory读取request的body，可能无法匹配404 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/3878633b457ea949958d1da70367e9be/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="Spring Cloud Gateway：使用ReadBodyPredicateFactory读取request的body，可能无法匹配404">
+  <meta property="og:description" content="需求 获取request中的body内容
+常规用法 SCG自带ReadBodyPredicateFactory断言，可以将body中的内容读取到exchange对象中，使用exchange.getAttribute(&#34;cachedRequestBodyObject&#34;)获取
+但是当body为空时，无法匹配该路由，导致返回404错误。
+SCG route配置如下 - id: r_fapi #测试 uri: lb://LIZZ-GATEWAY predicates: - Path=/fapi/** - name: ReadBodyPredicateFactory #读取body断言 args: inClass: &#34;#{T(String)}&#34; #body数据类型 predicate: &#34;#{@testRequestBody}&#34; #自定义断言处理器 自定义断言处理器 /** * @description: ReadBodyPredicateFactory 判断器 * @author: lizz * @date: 2020/6/6 17:03 */ @Component public class TestRequestBody implements Predicate { /** * 根据内容判断是否匹配该路由 * @param o body的内容 * @return ture-匹配成功，false-匹配失败 */ @Override public boolean test(Object o) { //可以对body内容进行判断处理 //这里不做处理直接返回成功 return true; } } 在filter中的exchange读取body /** * @description: 输出请求记录 * @author: lizz * @date: 2020/2/28 1:09 下午 */ @Component public class LogFilter implements GlobalFilter, Ordered { .">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2020-06-08T18:23:35+08:00">
+    <meta property="article:modified_time" content="2020-06-08T18:23:35+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">Spring Cloud Gateway：使用ReadBodyPredicateFactory读取request的body，可能无法匹配404</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <h2>需求</h2> 
+<p>获取request中的body内容</p> 
+<h2>常规用法</h2> 
+<p>SCG自带ReadBodyPredicateFactory断言，可以将body中的内容读取到exchange对象中，使用exchange.getAttribute("cachedRequestBodyObject")获取</p> 
+<p><span style="color:#f33b45;">但是当body为空时，无法匹配该路由，导致返回404错误。</span></p> 
+<ul><li>SCG route配置如下</li></ul> 
+<pre><code class="language-bash">        - id: r_fapi #测试
+          uri: lb://LIZZ-GATEWAY
+          predicates:
+            - Path=/fapi/**
+            - name: ReadBodyPredicateFactory #读取body断言
+              args:
+                inClass: "#{T(String)}" #body数据类型
+                predicate: "#{@testRequestBody}" #自定义断言处理器</code></pre> 
+<ul><li> 自定义断言处理器</li></ul> 
+<pre><code class="language-java">/**
+ * @description: ReadBodyPredicateFactory 判断器
+ * @author: lizz
+ * @date: 2020/6/6 17:03
+ */
+@Component
+public class TestRequestBody implements Predicate {
+
+    /**
+     * 根据内容判断是否匹配该路由
+     * @param o body的内容
+     * @return ture-匹配成功，false-匹配失败
+     */
+    @Override
+    public boolean test(Object o) {
+        //可以对body内容进行判断处理
+        //这里不做处理直接返回成功
+        return true;
+    }
+}</code></pre> 
+<ul><li> 在filter中的exchange读取body</li></ul> 
+<pre><code class="language-java">/**
+ * @description: 输出请求记录
+ * @author: lizz
+ * @date: 2020/2/28 1:09 下午
+ */
+@Component
+public class LogFilter implements GlobalFilter, Ordered {
+...
+
+@Override
+    public Mono&lt;Void&gt; filter(ServerWebExchange exchange, GatewayFilterChain chain) {
+        String requestBody = exchange.getAttribute("cachedRequestBodyObject");
+        logger.info("fgwRequest req={},body={}", JSON.toJSONString(exchange.getRequest()), requestBody);
+
+        //添加header
+        //ServerHttpRequest newReq = request.mutate()
+        //        .header(HEADER_REQUEST_ID, rid)
+        //        .build();
+        //生成新的exchange
+        //ServerWebExchange newExchange = exchange.mutate().request(newReq).build();
+        //return chain.filter(newExchange);
+        return chain.filter(exchange);
+    }
+...
+}</code></pre> 
+<h2>解决方案</h2> 
+<p>目的：body为空也可以匹配到该路由。</p> 
+<p>处理办法：自建一个ReadBodyPredicateFactory在处理过程中添加.thenReturn(true)，如下：</p> 
+<ul><li>根据ReadBodyPredicateFactory自建GwReadBodyPredicateFactory</li></ul> 
+<pre><code class="language-java">import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.reactivestreams.Publisher;
+import org.springframework.cloud.gateway.handler.AsyncPredicate;
+import org.springframework.cloud.gateway.handler.predicate.AbstractRoutePredicateFactory;
+import org.springframework.cloud.gateway.support.ServerWebExchangeUtils;
+import org.springframework.http.codec.HttpMessageReader;
+import org.springframework.stereotype.Component;
+import org.springframework.web.reactive.function.server.HandlerStrategies;
+import org.springframework.web.reactive.function.server.ServerRequest;
+import org.springframework.web.server.ServerWebExchange;
+import reactor.core.publisher.Mono;
+
+import java.util.List;
+import java.util.Map;
+import java.util.function.Predicate;
+
+/**
+ * @description: 自定义ReadBodyPredicateFactory，copy之ReadBodyPredicateFactory
+ *      实现request body为空时也可以匹配如有成功。
+ * @author: lizz
+ * @date: 2020/6/8 14:22
+ */
+@Component
+public class GwReadBodyPredicateFactory extends AbstractRoutePredicateFactory&lt;GwReadBodyPredicateFactory.Config&gt; {
+
+    protected static final Log log = LogFactory.getLog(GwReadBodyPredicateFactory.class);
+
+    private static final String TEST_ATTRIBUTE = "read_body_predicate_test_attribute";
+
+    private static final String CACHE_REQUEST_BODY_OBJECT_KEY = "cachedRequestBodyObject";
+
+    private static final List&lt;HttpMessageReader&lt;?&gt;&gt; messageReaders = HandlerStrategies
+            .withDefaults().messageReaders();
+
+    public GwReadBodyPredicateFactory() {
+        super(GwReadBodyPredicateFactory.Config.class);
+    }
+
+    public GwReadBodyPredicateFactory(Class&lt;GwReadBodyPredicateFactory.Config&gt; configClass) {
+        super(configClass);
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public AsyncPredicate&lt;ServerWebExchange&gt; applyAsync(GwReadBodyPredicateFactory.Config config) {
+        return new AsyncPredicate&lt;ServerWebExchange&gt;() {
+            @Override
+            public Publisher&lt;Boolean&gt; apply(ServerWebExchange exchange) {
+                Class inClass = config.getInClass();
+
+                Object cachedBody = exchange.getAttribute(CACHE_REQUEST_BODY_OBJECT_KEY);
+                Mono&lt;?&gt; modifiedBody;
+                // We can only read the body from the request once, once that happens if
+                // we try to read the body again an exception will be thrown. The below
+                // if/else caches the body object as a request attribute in the
+                // ServerWebExchange so if this filter is run more than once (due to more
+                // than one route using it) we do not try to read the request body
+                // multiple times
+                if (cachedBody != null) {
+                    try {
+                        boolean test = config.predicate.test(cachedBody);
+                        exchange.getAttributes().put(TEST_ATTRIBUTE, test);
+                        return Mono.just(test);
+                    } catch (ClassCastException e) {
+                        if (log.isDebugEnabled()) {
+                            log.debug("Predicate test failed because class in predicate "
+                                    + "does not match the cached body object", e);
+                        }
+                    }
+                    return Mono.just(false);
+                } else {
+                    return ServerWebExchangeUtils.cacheRequestBodyAndRequest(exchange,
+                            (serverHttpRequest) -&gt; ServerRequest
+                                    .create(exchange.mutate().request(serverHttpRequest)
+                                            .build(), messageReaders)
+                                    .bodyToMono(inClass)
+                                    .doOnNext(objectValue -&gt; exchange.getAttributes().put(
+                                            CACHE_REQUEST_BODY_OBJECT_KEY,
+                                            //去除多余符号
+                                            objectValue.toString().replaceAll("[\n\t\r'']", "")))
+                                    .map(objectValue -&gt; config.getPredicate()
+                                            .test(objectValue))
+                                    //总是返回true
+                                    .thenReturn(true));
+                }
+            }
+
+            @Override
+            public String toString() {
+                return String.format("ReadBody: %s", config.getInClass());
+            }
+        };
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public Predicate&lt;ServerWebExchange&gt; apply(GwReadBodyPredicateFactory.Config config) {
+        throw new UnsupportedOperationException(
+                "GwReadBodyPredicateFactory is only async.");
+    }
+
+    public static class Config {
+
+        private Class inClass;
+
+        private Predicate predicate;
+
+        private Map&lt;String, Object&gt; hints;
+
+        public Class getInClass() {
+            return inClass;
+        }
+
+        public GwReadBodyPredicateFactory.Config setInClass(Class inClass) {
+            this.inClass = inClass;
+            return this;
+        }
+
+        public Predicate getPredicate() {
+            return predicate;
+        }
+
+        public GwReadBodyPredicateFactory.Config setPredicate(Predicate predicate) {
+            this.predicate = predicate;
+            return this;
+        }
+
+        public &lt;T&gt; GwReadBodyPredicateFactory.Config setPredicate(Class&lt;T&gt; inClass, Predicate&lt;T&gt; predicate) {
+            setInClass(inClass);
+            this.predicate = predicate;
+            return this;
+        }
+
+        public Map&lt;String, Object&gt; getHints() {
+            return hints;
+        }
+
+        public GwReadBodyPredicateFactory.Config setHints(Map&lt;String, Object&gt; hints) {
+            this.hints = hints;
+            return this;
+        }
+
+    }
+}</code></pre> 
+<ul><li>route配置，predicates换成自建的GwReadBodyPrediscateFactory即可</li></ul> 
+<pre><code class="language-bash">        - id: r_fapi #测试
+          uri: lb://LIZZ-GATEWAY
+          predicates:
+            - Path=/fapi/**
+            - name: GwReadBodyPredicateFactory #读取body断言
+              args:
+                inClass: "#{T(String)}" #body数据类型
+                predicate: "#{@testRequestBody}" #自定义断言处理器</code></pre> 
+<p> </p> 
+<p>java code:</p> 
+<pre><code class="language-java">@Bean    
+    public RouteLocator customRouteLocator(RouteLocatorBuilder builder) {
+        return builder.routes().route("r_fapi", r -&gt; r.path("/fapi/**")
+                .and().asyncPredicate(new GwReadBodyPredicateFactory()
+                        .applyAsync(new GwReadBodyPredicateFactory.Config()
+                                        .setPredicate(String.class,new TestRequestBody())))
+                .uri("lb://LIZZ-GATEWAY")).build();
+    }</code></pre> 
+<p> </p> 
+<p> </p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/5204800324bec1b3acd498044835c111/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">LINUX入门知识</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/6d4469a3b73c13cb9fa817cb00827b84/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">华为手机使用百度地图SDK-无法定位/不显示图标的解决方案之一</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Linux内核中断系列之多处理器系统中的中断处理 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/aa100ea6eb561f7d36b9188bdd993870/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="Linux内核中断系列之多处理器系统中的中断处理">
+  <meta property="og:description" content="处理器间中断(IPI)
+原作者有个Linux中断专栏系列
+多重中断处理图示
+一、处理器间中断（核间中断） 1、在多处理器系统中，操作系统需要在多个处理器间协调操作，通常是通过处理期间中断(IPI)实现的。
+2、IPI是一种特殊的硬件中断，由处理器发出，被其他处理器接收，以便于处理器间通信或同步。
+3、通常并不明确区分IPI和设备中断，当一个处理器接收到一个中断时，如果发现另一个处理器处理该终端更加合理，则可以通过IPI机制将该终端传递到其他的处理器，实现处理器的负载平衡。
+4、当一个CPU相对另一个CPU发送中断信号时，就在自己的本地APIC的ICR(中断命令寄存器)中存放其中断向量，和目标CPU拥有的本地APIC的标识符，触发中断。IPI中断信号经由APIC总线传递到目标APIC，那个收到中断的APIC就像自己所属的CPU发送一个中断。
+5、Linux针对IA32的SMP系统定义了5中IPI，中断向量号为251~255:
+(1) CALL_FUNCTION_VECTOR:发往除自己以外的所有CPU，强制它们执行指定的函数；
+(2) RESCHEDDULE_VECTOR:是终端的CPU重新调度；
+(3) INVLIDATE_TLB_VECTOR:使被中断的CPU废弃自己的TLB缓存内容;
+(4) ERROR_APIC_VECTOR:错误的APIC向量，应该从不发生;
+(5) SPUROUS_APIC_VECTOR:假的APIC向量，应该从不发生;
+另外请参考：http://www.docin.com/p-70820238.html
+二、中断亲和力 1、中断亲和力是将一个或多个中断服务程序绑定到特定的CPU上运行。
+2、中断亲和力通过操作/proc/irq目录下的文件来控制。对于已注册的中断服务程序的硬件设备，在/proc/irq目录下存在一个该中断号命名的目录，该目录下有一个smp_affinity 文件(SMP体系结构下才有)。它是一个CPU的位掩码，其中的每一位对应一个CPU，可以用来设置该中断的亲和力，默认为0xFFFFFFFF，表示把中断送到所有的CPU上去 处理。如果中断控制器不支持IRQ affinity，则不能改变此默认值。
+注意不能设置为0x0，即关闭所有CPU对该中断的处理。
+3、利用亲和力，可以在多处理系统中均衡各个CPU的负载。
+三、中断负载均衡 是将重负载CPU上的中断迁移到较空闲的CPU上进行处理；
+实现代码位于arch\i386\kernel\io-apic.c,其中balanced_irq_init函数进行中断负载均衡模块儿的初始化，同时创建一个内核线程kirqd用于执行具体的均衡处理。
+而kirqd每隔5s调用一次do_irq_balanced函数，进行中断的迁徙。
+static int __init balanced_irq_init(void) { int i; struct cpuinfo_x86 *c; cpumask_t tmp; cpus_shift_right(tmp, cpu_online_map, 2); c = &amp;amp;boot_cpu_data; /* When not overwritten by the command line ask subarchitecture. */ if (irqbalance_disabled == IRQBALANCE_CHECK_ARCH) irqbalance_disabled = NO_BALANCE_IRQ; if (irqbalance_disabled) return 0; /* disable irqbalance completely if there is only one processor online */ if (num_online_cpus() &amp;lt; 2) { irqbalance_disabled = 1; return 0; } /* * Enable physical balance only if more than 1 physical processor * is present */ if (smp_num_siblings &amp;gt; 1 &amp;amp;&amp;amp; !">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2020-06-24T17:44:55+08:00">
+    <meta property="article:modified_time" content="2020-06-24T17:44:55+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">Linux内核中断系列之多处理器系统中的中断处理</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-light">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <p><a href="https://blog.csdn.net/zhao2272062978/article/details/70600344">处理器间中断(IPI)</a><br> <a href="https://blog.csdn.net/zhao2272062978/category_6867702.html">原作者有个Linux中断专栏系列</a><br> <a href="https://www.cnblogs.com/yangyuliufeng/p/9214336.html" rel="nofollow">多重中断处理图示</a></p> 
+<h3><a id="_5"></a>一、处理器间中断（核间中断）</h3> 
+<p>1、在多处理器系统中，操作系统需要在多个处理器间协调操作，通常是通过处理期间中断(IPI)实现的。<br> 2、IPI是一种特殊的硬件中断，由处理器发出，被其他处理器接收，以便于处理器间通信或同步。<br> 3、通常并不明确区分IPI和设备中断，当一个处理器接收到一个中断时，如果发现另一个处理器处理该终端更加合理，则可以通过IPI机制将该终端传递到其他的处理器，实现处理器的负载平衡。<br> 4、当一个CPU相对另一个CPU发送中断信号时，就在自己的本地APIC的ICR(中断命令寄存器)中存放其中断向量，和目标CPU拥有的本地APIC的标识符，触发中断。IPI中断信号经由APIC总线传递到目标APIC，那个收到中断的APIC就像自己所属的CPU发送一个中断。<br> 5、Linux针对IA32的SMP系统定义了5中IPI，中断向量号为251~255:<br> (1) CALL_FUNCTION_VECTOR:发往除自己以外的所有CPU，强制它们执行指定的函数；<br> (2) RESCHEDDULE_VECTOR:是终端的CPU重新调度；<br> (3) INVLIDATE_TLB_VECTOR:使被中断的CPU废弃自己的TLB缓存内容;<br> (4) ERROR_APIC_VECTOR:错误的APIC向量，应该从不发生;<br> (5) SPUROUS_APIC_VECTOR:假的APIC向量，应该从不发生;<br> 另外请参考：http://www.docin.com/p-70820238.html</p> 
+<h3><a id="_19"></a>二、中断亲和力</h3> 
+<p>1、中断亲和力是将一个或多个中断服务程序绑定到特定的CPU上运行。<br> 2、中断亲和力通过操作/proc/irq目录下的文件来控制。对于已注册的中断服务程序的硬件设备，在/proc/irq目录下存在一个该中断号命名的目录，该目录下有一个smp_affinity 文件(SMP体系结构下才有)。它是一个CPU的位掩码，其中的每一位对应一个CPU，可以用来设置该中断的亲和力，默认为0xFFFFFFFF，表示把中断送到所有的CPU上去 处理。如果中断控制器不支持IRQ affinity，则不能改变此默认值。<br> 注意不能设置为0x0，即关闭所有CPU对该中断的处理。<br> 3、利用亲和力，可以在多处理系统中均衡各个CPU的负载。</p> 
+<h3><a id="_26"></a>三、中断负载均衡</h3> 
+<p>是将重负载CPU上的中断迁移到较空闲的CPU上进行处理；<br> 实现代码位于arch\i386\kernel\io-apic.c,其中balanced_irq_init函数进行中断负载均衡模块儿的初始化，同时创建一个内核线程kirqd用于执行具体的均衡处理。<br> 而kirqd每隔5s调用一次do_irq_balanced函数，进行中断的迁徙。</p> 
+<pre><code>static int __init balanced_irq_init(void)
+{
+	int i;
+	struct cpuinfo_x86 *c;
+	cpumask_t tmp;
+ 
+ 
+	cpus_shift_right(tmp, cpu_online_map, 2);
+        c = &amp;boot_cpu_data;
+	/* When not overwritten by the command line ask subarchitecture. */
+	if (irqbalance_disabled == IRQBALANCE_CHECK_ARCH)
+		irqbalance_disabled = NO_BALANCE_IRQ;
+	if (irqbalance_disabled)
+		return 0;
+	
+	 /* disable irqbalance completely if there is only one processor online */
+	if (num_online_cpus() &lt; 2) {
+		irqbalance_disabled = 1;
+		return 0;
+	}
+	/*
+	 * Enable physical balance only if more than 1 physical processor
+	 * is present
+	 */
+	if (smp_num_siblings &gt; 1 &amp;&amp; !cpus_empty(tmp))
+		physical_balance = 1;
+ 
+ 
+	for (i = 0; i &lt; NR_CPUS; i++) {
+		if (!cpu_online(i))
+			continue;
+		irq_cpu_data[i].irq_delta = kmalloc(sizeof(unsigned long) * NR_IRQS, GFP_KERNEL);
+		irq_cpu_data[i].last_irq = kmalloc(sizeof(unsigned long) * NR_IRQS, GFP_KERNEL);
+		if (irq_cpu_data[i].irq_delta == NULL || irq_cpu_data[i].last_irq == NULL) {
+			printk(KERN_ERR "balanced_irq_init: out of memory");
+			goto failed;
+		}
+		memset(irq_cpu_data[i].irq_delta,0,sizeof(unsigned long) * NR_IRQS);
+		memset(irq_cpu_data[i].last_irq,0,sizeof(unsigned long) * NR_IRQS);
+	}
+	
+	printk(KERN_INFO "Starting balanced_irq\n");
+	if (kernel_thread(balanced_irq, NULL, CLONE_KERNEL) &gt;= 0) 
+		return 0;
+	else 
+		printk(KERN_ERR "balanced_irq_init: failed to spawn balanced_irq");
+failed:
+	for (i = 0; i &lt; NR_CPUS; i++) {
+		if(irq_cpu_data[i].irq_delta)
+			kfree(irq_cpu_data[i].irq_delta);
+		if(irq_cpu_data[i].last_irq)
+			kfree(irq_cpu_data[i].last_irq);
+	}
+	return 0;
+}
+</code></pre>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/df5fb589947948beaca4fd56a1bb190f/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">完美解决form表单中提交Ajax请求不进入回调方法无法接收返回的任何数据</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/b39dfa02644cebcf674a460a2cc0fb77/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">浅谈ES6模块化</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

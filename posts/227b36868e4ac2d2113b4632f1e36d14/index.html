@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>rxjava&#43;retrofit实例解析 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/227b36868e4ac2d2113b4632f1e36d14/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="rxjava&#43;retrofit实例解析">
+  <meta property="og:description" content="首先看下retrofit定义的接口：
+1.ZhuangbiApi .class
+public interface ZhuangbiApi { @GET(&#34;search&#34;) Observable&amp;lt;List&amp;lt;ZhuangbiImage&amp;gt;&amp;gt; search(@Query(&#34;q&#34;) String query); } 解释：get请求，baseurl后拼接search，后面跟上 ?q= 的形式(注：Query后自带?) 如：https://www.zhuangbi.info/search?q=110
+2.GankApi .class
+public interface GankApi { @GET(&#34;data/福利/{number}/{page}&#34;) Observable&amp;lt;GankBeautyResult&amp;gt; getBeauties(@Path(&#34;number&#34;) int number, @Path(&#34;page&#34;) int page); } 解释：get请求，拼接data/福利/{number}/{page}，其中，@GET中的{number}会由下面getBeauties参数的number替代，page同理，（注：Path的用法和Query区分） 如：https://www.zhuangbi.info/data/福利/110/1
+3.FakeApi .class
+// (c)2016 Flipboard Inc, All Rights Reserved. package com.rengwuxian.rxjavasamples.network.api; import android.support.annotation.NonNull; import com.rengwuxian.rxjavasamples.model.FakeThing; import com.rengwuxian.rxjavasamples.model.FakeToken; import java.util.Random; import io.reactivex.Observable; import io.reactivex.functions.Function; public class FakeApi { Random random = new Random(); public Observable&amp;lt;FakeToken&amp;gt; getFakeToken(@NonNull String fakeAuth) { return Observable.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2018-05-14T16:52:02+08:00">
+    <meta property="article:modified_time" content="2018-05-14T16:52:02+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">rxjava&#43;retrofit实例解析</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-dark">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <p>首先看下retrofit定义的接口：</p> 
+<p>1.ZhuangbiApi .class</p> 
+<pre class="prettyprint"><code class=" hljs java"><span class="hljs-keyword">public</span> <span class="hljs-class"><span class="hljs-keyword">interface</span> <span class="hljs-title">ZhuangbiApi</span> {<!-- --></span>
+    <span class="hljs-annotation">@GET</span>(<span class="hljs-string">"search"</span>)
+    Observable&lt;List&lt;ZhuangbiImage&gt;&gt; search(<span class="hljs-annotation">@Query</span>(<span class="hljs-string">"q"</span>) String query);
+}</code></pre> 
+<p>解释：get请求，baseurl后拼接search，后面跟上 ?q= 的形式(注：Query后自带?) <br> 如：<a href="https://www.zhuangbi.info/search?q=110" rel="nofollow">https://www.zhuangbi.info/search?q=110</a></p> 
+<p>2.GankApi .class</p> 
+<pre class="prettyprint"><code class=" hljs java"><span class="hljs-keyword">public</span> <span class="hljs-class"><span class="hljs-keyword">interface</span> <span class="hljs-title">GankApi</span> {<!-- --></span>
+    <span class="hljs-annotation">@GET</span>(<span class="hljs-string">"data/福利/{number}/{page}"</span>)
+    Observable&lt;GankBeautyResult&gt; getBeauties(<span class="hljs-annotation">@Path</span>(<span class="hljs-string">"number"</span>) <span class="hljs-keyword">int</span> number, <span class="hljs-annotation">@Path</span>(<span class="hljs-string">"page"</span>) <span class="hljs-keyword">int</span> page);
+}</code></pre> 
+<p>解释：get请求，拼接data/福利/{number}/{page}，其中，@GET中的{number}会由下面getBeauties参数的number替代，page同理，（注：Path的用法和Query区分） <br> 如：<a href="https://www.zhuangbi.info/data/" rel="nofollow">https://www.zhuangbi.info/data/</a>福利/110/1</p> 
+<p>3.FakeApi .class</p> 
+<pre class="prettyprint"><code class=" hljs java"><span class="hljs-comment">// (c)2016 Flipboard Inc, All Rights Reserved.</span>
+
+<span class="hljs-keyword">package</span> com.rengwuxian.rxjavasamples.network.api;
+
+<span class="hljs-keyword">import</span> android.support.annotation.NonNull;
+
+<span class="hljs-keyword">import</span> com.rengwuxian.rxjavasamples.model.FakeThing;
+<span class="hljs-keyword">import</span> com.rengwuxian.rxjavasamples.model.FakeToken;
+
+<span class="hljs-keyword">import</span> java.util.Random;
+
+<span class="hljs-keyword">import</span> io.reactivex.Observable;
+<span class="hljs-keyword">import</span> io.reactivex.functions.Function;
+
+<span class="hljs-keyword">public</span> <span class="hljs-class"><span class="hljs-keyword">class</span> <span class="hljs-title">FakeApi</span> {<!-- --></span>
+    Random random = <span class="hljs-keyword">new</span> Random();
+
+    <span class="hljs-keyword">public</span> Observable&lt;FakeToken&gt; <span class="hljs-title">getFakeToken</span>(@NonNull String fakeAuth) {
+        <span class="hljs-keyword">return</span> Observable.just(fakeAuth)
+                .map(<span class="hljs-keyword">new</span> Function&lt;String, FakeToken&gt;() {
+                    <span class="hljs-annotation">@Override</span>
+                    <span class="hljs-keyword">public</span> FakeToken <span class="hljs-title">apply</span>(String fakeAuth) {
+                        <span class="hljs-comment">// Add some random delay to mock the network delay</span>
+                        <span class="hljs-keyword">int</span> fakeNetworkTimeCost = random.nextInt(<span class="hljs-number">500</span>) + <span class="hljs-number">500</span>;
+                        <span class="hljs-keyword">try</span> {
+                            Thread.sleep(fakeNetworkTimeCost);
+                        } <span class="hljs-keyword">catch</span> (InterruptedException e) {
+                            e.printStackTrace();
+                        }
+
+                        FakeToken fakeToken = <span class="hljs-keyword">new</span> FakeToken();
+                        fakeToken.token = createToken();
+                        <span class="hljs-keyword">return</span> fakeToken;
+                    }
+                });
+    }
+
+    <span class="hljs-keyword">private</span> <span class="hljs-keyword">static</span> String <span class="hljs-title">createToken</span>() {
+        <span class="hljs-keyword">return</span> <span class="hljs-string">"fake_token_"</span> + System.currentTimeMillis() % <span class="hljs-number">10000</span>;
+    }
+
+    <span class="hljs-keyword">public</span> Observable&lt;FakeThing&gt; <span class="hljs-title">getFakeData</span>(FakeToken fakeToken) {
+        <span class="hljs-keyword">return</span> Observable.just(fakeToken)
+                .map(<span class="hljs-keyword">new</span> Function&lt;FakeToken, FakeThing&gt;() {
+                    <span class="hljs-annotation">@Override</span>
+                    <span class="hljs-keyword">public</span> FakeThing <span class="hljs-title">apply</span>(FakeToken fakeToken) {
+                        <span class="hljs-comment">// Add some random delay to mock the network delay</span>
+                        <span class="hljs-keyword">int</span> fakeNetworkTimeCost = random.nextInt(<span class="hljs-number">500</span>) + <span class="hljs-number">500</span>;
+                        <span class="hljs-keyword">try</span> {
+                            Thread.sleep(fakeNetworkTimeCost);
+                        } <span class="hljs-keyword">catch</span> (InterruptedException e) {
+                            e.printStackTrace();
+                        }
+
+                        <span class="hljs-keyword">if</span> (fakeToken.expired) {
+                            <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> IllegalArgumentException(<span class="hljs-string">"Token expired!"</span>);
+                        }
+
+                        FakeThing fakeData = <span class="hljs-keyword">new</span> FakeThing();
+                        fakeData.id = (<span class="hljs-keyword">int</span>) (System.currentTimeMillis() % <span class="hljs-number">1000</span>);
+                        fakeData.name = <span class="hljs-string">"FAKE_USER_"</span> + fakeData.id;
+                        <span class="hljs-keyword">return</span> fakeData;
+                    }
+                });
+    }
+}
+</code></pre> 
+<p>FakeToken .class</p> 
+<pre class="prettyprint"><code class=" hljs java"><span class="hljs-keyword">public</span> <span class="hljs-class"><span class="hljs-keyword">class</span> <span class="hljs-title">FakeToken</span> {<!-- --></span>
+    <span class="hljs-keyword">public</span> String token;
+    <span class="hljs-keyword">public</span> <span class="hljs-keyword">boolean</span> expired;
+
+    <span class="hljs-keyword">public</span> <span class="hljs-title">FakeToken</span>() {
+    }
+
+    <span class="hljs-keyword">public</span> <span class="hljs-title">FakeToken</span>(<span class="hljs-keyword">boolean</span> expired) {
+        <span class="hljs-keyword">this</span>.expired = expired;
+    }
+}
+</code></pre> 
+<p>FakeThing .class</p> 
+<pre class="prettyprint"><code class=" hljs cs"><span class="hljs-comment">// (c)2016 Flipboard Inc, All Rights Reserved.</span>
+
+package com.rengwuxian.rxjavasamples.model;
+
+<span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> FakeThing {
+    <span class="hljs-keyword">public</span> <span class="hljs-keyword">int</span> id;
+    <span class="hljs-keyword">public</span> String name;
+}
+</code></pre> 
+<p>解释：getFakeToken方法利用map将string转换成FakeToken，最后返回的是携带了fakeToken.token的FakeToken对象；getFakeData也是类似</p> 
+<p>4.再看NetWork的封装：</p> 
+<pre class="prettyprint"><code class=" hljs java"><span class="hljs-comment">// (c)2016 Flipboard Inc, All Rights Reserved.</span>
+
+<span class="hljs-keyword">package</span> com.rengwuxian.rxjavasamples.network;
+
+<span class="hljs-keyword">import</span> com.rengwuxian.rxjavasamples.network.api.FakeApi;
+<span class="hljs-keyword">import</span> com.rengwuxian.rxjavasamples.network.api.GankApi;
+<span class="hljs-keyword">import</span> com.rengwuxian.rxjavasamples.network.api.ZhuangbiApi;
+
+<span class="hljs-keyword">import</span> okhttp3.OkHttpClient;
+<span class="hljs-keyword">import</span> retrofit2.CallAdapter;
+<span class="hljs-keyword">import</span> retrofit2.Converter;
+<span class="hljs-keyword">import</span> retrofit2.Retrofit;
+<span class="hljs-keyword">import</span> retrofit2.adapter.rxjava2.RxJava2CallAdapterFactory;
+<span class="hljs-keyword">import</span> retrofit2.converter.gson.GsonConverterFactory;
+
+<span class="hljs-keyword">public</span> <span class="hljs-class"><span class="hljs-keyword">class</span> <span class="hljs-title">Network</span> {<!-- --></span>
+    <span class="hljs-keyword">private</span> <span class="hljs-keyword">static</span> ZhuangbiApi zhuangbiApi;
+    <span class="hljs-keyword">private</span> <span class="hljs-keyword">static</span> GankApi gankApi;
+    <span class="hljs-keyword">private</span> <span class="hljs-keyword">static</span> FakeApi fakeApi;
+    <span class="hljs-keyword">private</span> <span class="hljs-keyword">static</span> OkHttpClient okHttpClient = <span class="hljs-keyword">new</span> OkHttpClient();
+    <span class="hljs-keyword">private</span> <span class="hljs-keyword">static</span> Converter.Factory gsonConverterFactory = GsonConverterFactory.create();
+    <span class="hljs-keyword">private</span> <span class="hljs-keyword">static</span> CallAdapter.Factory rxJavaCallAdapterFactory = RxJava2CallAdapterFactory.create();
+
+    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> ZhuangbiApi <span class="hljs-title">getZhuangbiApi</span>() {
+        <span class="hljs-keyword">if</span> (zhuangbiApi == <span class="hljs-keyword">null</span>) {
+            Retrofit retrofit = <span class="hljs-keyword">new</span> Retrofit.Builder()
+                    .client(okHttpClient)
+                    .baseUrl(<span class="hljs-string">"http://www.zhuangbi.info/"</span>)
+                    .addConverterFactory(gsonConverterFactory)
+                    .addCallAdapterFactory(rxJavaCallAdapterFactory)
+                    .build();
+            zhuangbiApi = retrofit.create(ZhuangbiApi.class);
+        }
+        <span class="hljs-keyword">return</span> zhuangbiApi;
+    }
+
+    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> GankApi <span class="hljs-title">getGankApi</span>() {
+        <span class="hljs-keyword">if</span> (gankApi == <span class="hljs-keyword">null</span>) {
+            Retrofit retrofit = <span class="hljs-keyword">new</span> Retrofit.Builder()
+                    .client(okHttpClient)
+                    .baseUrl(<span class="hljs-string">"http://gank.io/api/"</span>)
+                    .addConverterFactory(gsonConverterFactory)
+                    .addCallAdapterFactory(rxJavaCallAdapterFactory)
+                    .build();
+            gankApi = retrofit.create(GankApi.class);
+        }
+        <span class="hljs-keyword">return</span> gankApi;
+    }
+
+    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> FakeApi <span class="hljs-title">getFakeApi</span>() {
+        <span class="hljs-keyword">if</span> (fakeApi == <span class="hljs-keyword">null</span>) {
+            fakeApi = <span class="hljs-keyword">new</span> FakeApi();
+        }
+        <span class="hljs-keyword">return</span> fakeApi;
+    }
+}
+</code></pre> 
+<p>解释：最开始那三个接口的获取 <br> 5.ZhuangbiApi 的使用</p> 
+<pre class="prettyprint"><code class=" hljs java">    <span class="hljs-keyword">private</span> <span class="hljs-keyword">void</span> <span class="hljs-title">search</span>(String key) {
+        Log.d(<span class="hljs-string">"liwenpeng"</span>,<span class="hljs-string">"key:"</span>+key);
+        disposable = Network.getZhuangbiApi()
+                .search(key)
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(<span class="hljs-keyword">new</span> Consumer&lt;List&lt;ZhuangbiImage&gt;&gt;() {
+                    <span class="hljs-annotation">@Override</span>
+                    <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title">accept</span>(@NonNull List&lt;ZhuangbiImage&gt; images) <span class="hljs-keyword">throws</span> Exception {
+                        swipeRefreshLayout.setRefreshing(<span class="hljs-keyword">false</span>);
+                        adapter.setImages(images);
+                    }
+                }, <span class="hljs-keyword">new</span> Consumer&lt;Throwable&gt;() {
+                    <span class="hljs-annotation">@Override</span>
+                    <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title">accept</span>(@NonNull Throwable throwable) <span class="hljs-keyword">throws</span> Exception {
+                        swipeRefreshLayout.setRefreshing(<span class="hljs-keyword">false</span>);
+                        Toast.makeText(getActivity(), R.string.loading_failed, Toast.LENGTH_SHORT).show();
+                    }
+                });
+    }</code></pre> 
+<p>解释：IO线程进行search，结果到主线程处理</p> 
+<p>6.GankApi的使用：</p> 
+<pre class="prettyprint"><code class=" hljs java">    <span class="hljs-keyword">private</span> <span class="hljs-keyword">void</span> <span class="hljs-title">loadPage</span>(<span class="hljs-keyword">int</span> page) {
+        swipeRefreshLayout.setRefreshing(<span class="hljs-keyword">true</span>);
+        unsubscribe();
+        disposable = Network.getGankApi()
+                .getBeauties(<span class="hljs-number">10</span>, page)
+                .map(GankBeautyResultToItemsMapper.getInstance())
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(<span class="hljs-keyword">new</span> Consumer&lt;List&lt;Item&gt;&gt;() {
+                    <span class="hljs-annotation">@Override</span>
+                    <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title">accept</span>(@NonNull List&lt;Item&gt; items) <span class="hljs-keyword">throws</span> Exception {
+                        swipeRefreshLayout.setRefreshing(<span class="hljs-keyword">false</span>);
+                        pageTv.setText(getString(R.string.page_with_number, MapFragment.<span class="hljs-keyword">this</span>.page));
+                        adapter.setItems(items);
+                    }
+                }, <span class="hljs-keyword">new</span> Consumer&lt;Throwable&gt;() {
+                    <span class="hljs-annotation">@Override</span>
+                    <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title">accept</span>(@NonNull Throwable throwable) <span class="hljs-keyword">throws</span> Exception {
+                        swipeRefreshLayout.setRefreshing(<span class="hljs-keyword">false</span>);
+                        Toast.makeText(getActivity(), R.string.loading_failed, Toast.LENGTH_SHORT).show();
+                    }
+                });
+    }</code></pre> 
+<p>看下map转换的function类：</p> 
+<pre class="prettyprint"><code class=" hljs avrasm">// (c)<span class="hljs-number">2016</span> Flipboard <span class="hljs-keyword">Inc</span>, All Rights Reserved.
+
+package <span class="hljs-keyword">com</span><span class="hljs-preprocessor">.rengwuxian</span><span class="hljs-preprocessor">.rxjavasamples</span><span class="hljs-preprocessor">.util</span><span class="hljs-comment">;</span>
+
+import <span class="hljs-keyword">com</span><span class="hljs-preprocessor">.rengwuxian</span><span class="hljs-preprocessor">.rxjavasamples</span><span class="hljs-preprocessor">.model</span><span class="hljs-preprocessor">.GankBeauty</span><span class="hljs-comment">;</span>
+import <span class="hljs-keyword">com</span><span class="hljs-preprocessor">.rengwuxian</span><span class="hljs-preprocessor">.rxjavasamples</span><span class="hljs-preprocessor">.model</span><span class="hljs-preprocessor">.GankBeautyResult</span><span class="hljs-comment">;</span>
+import <span class="hljs-keyword">com</span><span class="hljs-preprocessor">.rengwuxian</span><span class="hljs-preprocessor">.rxjavasamples</span><span class="hljs-preprocessor">.model</span><span class="hljs-preprocessor">.Item</span><span class="hljs-comment">;</span>
+
+import java<span class="hljs-preprocessor">.text</span><span class="hljs-preprocessor">.ParseException</span><span class="hljs-comment">;</span>
+import java<span class="hljs-preprocessor">.text</span><span class="hljs-preprocessor">.SimpleDateFormat</span><span class="hljs-comment">;</span>
+import java<span class="hljs-preprocessor">.util</span><span class="hljs-preprocessor">.ArrayList</span><span class="hljs-comment">;</span>
+import java<span class="hljs-preprocessor">.util</span><span class="hljs-preprocessor">.Date</span><span class="hljs-comment">;</span>
+import java<span class="hljs-preprocessor">.util</span><span class="hljs-preprocessor">.List</span><span class="hljs-comment">;</span>
+
+import io<span class="hljs-preprocessor">.reactivex</span><span class="hljs-preprocessor">.functions</span><span class="hljs-preprocessor">.Function</span><span class="hljs-comment">;</span>
+
+public class GankBeautyResultToItemsMapper implements Function&lt;GankBeautyResult, List&lt;Item&gt;&gt; {
+    private static GankBeautyResultToItemsMapper INSTANCE = new GankBeautyResultToItemsMapper()<span class="hljs-comment">;</span>
+
+    private GankBeautyResultToItemsMapper() {
+    }
+
+    public static GankBeautyResultToItemsMapper getInstance() {
+        return INSTANCE<span class="hljs-comment">;</span>
+    }
+
+    @Override
+    public List&lt;Item&gt; apply(GankBeautyResult gankBeautyResult) {
+        List&lt;GankBeauty&gt; gankBeauties = gankBeautyResult<span class="hljs-preprocessor">.beauties</span><span class="hljs-comment">;</span>
+        List&lt;Item&gt; items = new ArrayList&lt;&gt;(gankBeauties<span class="hljs-preprocessor">.size</span>())<span class="hljs-comment">;</span>
+        SimpleDateFormat inputFormat = new SimpleDateFormat(<span class="hljs-string">"yyyy-MM-dd'T'HH:mm:ss.SS'Z'"</span>)<span class="hljs-comment">;</span>
+        SimpleDateFormat outputFormat = new SimpleDateFormat(<span class="hljs-string">"yy/MM/dd HH:mm:ss"</span>)<span class="hljs-comment">;</span>
+        for (GankBeauty gankBeauty : gankBeauties) {
+            Item item = new Item()<span class="hljs-comment">;</span>
+            try {
+                Date date = inputFormat<span class="hljs-preprocessor">.parse</span>(gankBeauty<span class="hljs-preprocessor">.createdAt</span>)<span class="hljs-comment">;</span>
+                item<span class="hljs-preprocessor">.description</span> = outputFormat<span class="hljs-preprocessor">.format</span>(date)<span class="hljs-comment">;</span>
+            } catch (ParseException e) {
+                e<span class="hljs-preprocessor">.printStackTrace</span>()<span class="hljs-comment">;</span>
+                item<span class="hljs-preprocessor">.description</span> = <span class="hljs-string">"unknown date"</span><span class="hljs-comment">;</span>
+            }
+            item<span class="hljs-preprocessor">.imageUrl</span> = gankBeauty<span class="hljs-preprocessor">.url</span><span class="hljs-comment">;</span>
+            items<span class="hljs-preprocessor">.add</span>(item)<span class="hljs-comment">;</span>
+        }
+        return items<span class="hljs-comment">;</span>
+    }
+}
+</code></pre> 
+<p>解释：此处使用了map将GankBeautyResult转换成List集合,这样在.subscribe的accept里得到的就是List了，再进行处理</p> 
+<p>7.ZhuangbiApi使用zip操作符</p> 
+<pre class="prettyprint"><code class=" hljs avrasm">// (c)<span class="hljs-number">2016</span> Flipboard <span class="hljs-keyword">Inc</span>, All Rights Reserved.
+
+package <span class="hljs-keyword">com</span><span class="hljs-preprocessor">.rengwuxian</span><span class="hljs-preprocessor">.rxjavasamples</span><span class="hljs-preprocessor">.module</span><span class="hljs-preprocessor">.zip</span>_3<span class="hljs-comment">;</span>
+
+import android<span class="hljs-preprocessor">.graphics</span><span class="hljs-preprocessor">.Color</span><span class="hljs-comment">;</span>
+import android<span class="hljs-preprocessor">.os</span><span class="hljs-preprocessor">.Bundle</span><span class="hljs-comment">;</span>
+import android<span class="hljs-preprocessor">.support</span><span class="hljs-preprocessor">.annotation</span><span class="hljs-preprocessor">.Nullable</span><span class="hljs-comment">;</span>
+import android<span class="hljs-preprocessor">.support</span><span class="hljs-preprocessor">.v</span>4<span class="hljs-preprocessor">.widget</span><span class="hljs-preprocessor">.SwipeRefreshLayout</span><span class="hljs-comment">;</span>
+import android<span class="hljs-preprocessor">.support</span><span class="hljs-preprocessor">.v</span>7<span class="hljs-preprocessor">.widget</span><span class="hljs-preprocessor">.GridLayoutManager</span><span class="hljs-comment">;</span>
+import android<span class="hljs-preprocessor">.support</span><span class="hljs-preprocessor">.v</span>7<span class="hljs-preprocessor">.widget</span><span class="hljs-preprocessor">.RecyclerView</span><span class="hljs-comment">;</span>
+import android<span class="hljs-preprocessor">.view</span><span class="hljs-preprocessor">.LayoutInflater</span><span class="hljs-comment">;</span>
+import android<span class="hljs-preprocessor">.view</span><span class="hljs-preprocessor">.View</span><span class="hljs-comment">;</span>
+import android<span class="hljs-preprocessor">.view</span><span class="hljs-preprocessor">.ViewGroup</span><span class="hljs-comment">;</span>
+import android<span class="hljs-preprocessor">.widget</span><span class="hljs-preprocessor">.Toast</span><span class="hljs-comment">;</span>
+
+import <span class="hljs-keyword">com</span><span class="hljs-preprocessor">.rengwuxian</span><span class="hljs-preprocessor">.rxjavasamples</span><span class="hljs-preprocessor">.BaseFragment</span><span class="hljs-comment">;</span>
+import <span class="hljs-keyword">com</span><span class="hljs-preprocessor">.rengwuxian</span><span class="hljs-preprocessor">.rxjavasamples</span><span class="hljs-preprocessor">.network</span><span class="hljs-preprocessor">.Network</span><span class="hljs-comment">;</span>
+import <span class="hljs-keyword">com</span><span class="hljs-preprocessor">.rengwuxian</span><span class="hljs-preprocessor">.rxjavasamples</span><span class="hljs-preprocessor">.R</span><span class="hljs-comment">;</span>
+import <span class="hljs-keyword">com</span><span class="hljs-preprocessor">.rengwuxian</span><span class="hljs-preprocessor">.rxjavasamples</span><span class="hljs-preprocessor">.adapter</span><span class="hljs-preprocessor">.ItemListAdapter</span><span class="hljs-comment">;</span>
+import <span class="hljs-keyword">com</span><span class="hljs-preprocessor">.rengwuxian</span><span class="hljs-preprocessor">.rxjavasamples</span><span class="hljs-preprocessor">.model</span><span class="hljs-preprocessor">.Item</span><span class="hljs-comment">;</span>
+import <span class="hljs-keyword">com</span><span class="hljs-preprocessor">.rengwuxian</span><span class="hljs-preprocessor">.rxjavasamples</span><span class="hljs-preprocessor">.model</span><span class="hljs-preprocessor">.ZhuangbiImage</span><span class="hljs-comment">;</span>
+import <span class="hljs-keyword">com</span><span class="hljs-preprocessor">.rengwuxian</span><span class="hljs-preprocessor">.rxjavasamples</span><span class="hljs-preprocessor">.util</span><span class="hljs-preprocessor">.GankBeautyResultToItemsMapper</span><span class="hljs-comment">;</span>
+
+import java<span class="hljs-preprocessor">.util</span><span class="hljs-preprocessor">.ArrayList</span><span class="hljs-comment">;</span>
+import java<span class="hljs-preprocessor">.util</span><span class="hljs-preprocessor">.List</span><span class="hljs-comment">;</span>
+
+import butterknife<span class="hljs-preprocessor">.BindView</span><span class="hljs-comment">;</span>
+import butterknife<span class="hljs-preprocessor">.ButterKnife</span><span class="hljs-comment">;</span>
+import butterknife<span class="hljs-preprocessor">.OnClick</span><span class="hljs-comment">;</span>
+import io<span class="hljs-preprocessor">.reactivex</span><span class="hljs-preprocessor">.Observable</span><span class="hljs-comment">;</span>
+import io<span class="hljs-preprocessor">.reactivex</span><span class="hljs-preprocessor">.Observer</span><span class="hljs-comment">;</span>
+import io<span class="hljs-preprocessor">.reactivex</span><span class="hljs-preprocessor">.android</span><span class="hljs-preprocessor">.schedulers</span><span class="hljs-preprocessor">.AndroidSchedulers</span><span class="hljs-comment">;</span>
+import io<span class="hljs-preprocessor">.reactivex</span><span class="hljs-preprocessor">.annotations</span><span class="hljs-preprocessor">.NonNull</span><span class="hljs-comment">;</span>
+import io<span class="hljs-preprocessor">.reactivex</span><span class="hljs-preprocessor">.functions</span><span class="hljs-preprocessor">.BiFunction</span><span class="hljs-comment">;</span>
+import io<span class="hljs-preprocessor">.reactivex</span><span class="hljs-preprocessor">.functions</span><span class="hljs-preprocessor">.Consumer</span><span class="hljs-comment">;</span>
+import io<span class="hljs-preprocessor">.reactivex</span><span class="hljs-preprocessor">.schedulers</span><span class="hljs-preprocessor">.Schedulers</span><span class="hljs-comment">;</span>
+
+public class ZipFragment extends BaseFragment {
+    @BindView(R<span class="hljs-preprocessor">.id</span><span class="hljs-preprocessor">.gridRv</span>) RecyclerView gridRv<span class="hljs-comment">;</span>
+    @BindView(R<span class="hljs-preprocessor">.id</span><span class="hljs-preprocessor">.swipeRefreshLayout</span>) SwipeRefreshLayout swipeRefreshLayout<span class="hljs-comment">;</span>
+    ItemListAdapter adapter = new ItemListAdapter()<span class="hljs-comment">;</span>
+
+    @OnClick(R<span class="hljs-preprocessor">.id</span><span class="hljs-preprocessor">.zipLoadBt</span>)
+    void load() {
+        swipeRefreshLayout<span class="hljs-preprocessor">.setRefreshing</span>(true)<span class="hljs-comment">;</span>
+        unsubscribe()<span class="hljs-comment">;</span>
+        disposable = Observable<span class="hljs-preprocessor">.zip</span>(Network<span class="hljs-preprocessor">.getGankApi</span>()<span class="hljs-preprocessor">.getBeauties</span>(<span class="hljs-number">200</span>, <span class="hljs-number">1</span>)<span class="hljs-preprocessor">.map</span>(GankBeautyResultToItemsMapper<span class="hljs-preprocessor">.getInstance</span>()),
+                Network<span class="hljs-preprocessor">.getZhuangbiApi</span>()<span class="hljs-preprocessor">.search</span>(<span class="hljs-string">"装逼"</span>),
+                new BiFunction&lt;List&lt;Item&gt;, List&lt;ZhuangbiImage&gt;, List&lt;Item&gt;&gt;() {
+                    @Override
+                    public List&lt;Item&gt; apply(List&lt;Item&gt; gankItems, List&lt;ZhuangbiImage&gt; zhuangbiImages) {
+                        List&lt;Item&gt; items = new ArrayList&lt;Item&gt;()<span class="hljs-comment">;</span>
+                        for (int i = <span class="hljs-number">0</span><span class="hljs-comment">; i &lt; gankItems.size() / 2 &amp;&amp; i &lt; zhuangbiImages.size(); i++) {<!-- --></span>
+                            items<span class="hljs-preprocessor">.add</span>(gankItems<span class="hljs-preprocessor">.get</span>(i * <span class="hljs-number">2</span>))<span class="hljs-comment">;</span>
+                            items<span class="hljs-preprocessor">.add</span>(gankItems<span class="hljs-preprocessor">.get</span>(i * <span class="hljs-number">2</span> + <span class="hljs-number">1</span>))<span class="hljs-comment">;</span>
+                            Item zhuangbiItem = new Item()<span class="hljs-comment">;</span>
+                            ZhuangbiImage zhuangbiImage = zhuangbiImages<span class="hljs-preprocessor">.get</span>(i)<span class="hljs-comment">;</span>
+                            zhuangbiItem<span class="hljs-preprocessor">.description</span> = zhuangbiImage<span class="hljs-preprocessor">.description</span><span class="hljs-comment">;</span>
+                            zhuangbiItem<span class="hljs-preprocessor">.imageUrl</span> = zhuangbiImage<span class="hljs-preprocessor">.image</span>_url<span class="hljs-comment">;</span>
+                            items<span class="hljs-preprocessor">.add</span>(zhuangbiItem)<span class="hljs-comment">;</span>
+                        }
+                        return items<span class="hljs-comment">;</span>
+                    }
+                })
+                <span class="hljs-preprocessor">.subscribeOn</span>(Schedulers<span class="hljs-preprocessor">.io</span>())
+                <span class="hljs-preprocessor">.observeOn</span>(AndroidSchedulers<span class="hljs-preprocessor">.mainThread</span>())
+                <span class="hljs-preprocessor">.subscribe</span>(new Consumer&lt;List&lt;Item&gt;&gt;() {
+                    @Override
+                    public void accept(@NonNull List&lt;Item&gt; items) throws Exception {
+                        swipeRefreshLayout<span class="hljs-preprocessor">.setRefreshing</span>(false)<span class="hljs-comment">;</span>
+                        adapter<span class="hljs-preprocessor">.setItems</span>(items)<span class="hljs-comment">;</span>
+                    }
+                }, new Consumer&lt;Throwable&gt;() {
+                    @Override
+                    public void accept(@NonNull Throwable throwable) throws Exception {
+                        swipeRefreshLayout<span class="hljs-preprocessor">.setRefreshing</span>(false)<span class="hljs-comment">;</span>
+                        Toast<span class="hljs-preprocessor">.makeText</span>(getActivity(), R<span class="hljs-preprocessor">.string</span><span class="hljs-preprocessor">.loading</span>_failed, Toast<span class="hljs-preprocessor">.LENGTH</span>_SHORT)<span class="hljs-preprocessor">.show</span>()<span class="hljs-comment">;</span>
+                    }
+                })<span class="hljs-comment">;</span>
+    }
+
+    @Nullable
+    @Override
+    public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
+        View view = inflater<span class="hljs-preprocessor">.inflate</span>(R<span class="hljs-preprocessor">.layout</span><span class="hljs-preprocessor">.fragment</span>_zip, container, false)<span class="hljs-comment">;</span>
+        ButterKnife<span class="hljs-preprocessor">.bind</span>(this, view)<span class="hljs-comment">;</span>
+
+        gridRv<span class="hljs-preprocessor">.setLayoutManager</span>(new GridLayoutManager(getActivity(), <span class="hljs-number">2</span>))<span class="hljs-comment">;</span>
+        gridRv<span class="hljs-preprocessor">.setAdapter</span>(adapter)<span class="hljs-comment">;</span>
+        swipeRefreshLayout<span class="hljs-preprocessor">.setColorSchemeColors</span>(Color<span class="hljs-preprocessor">.BLUE</span>, Color<span class="hljs-preprocessor">.GREEN</span>, Color<span class="hljs-preprocessor">.RED</span>, Color<span class="hljs-preprocessor">.YELLOW</span>)<span class="hljs-comment">;</span>
+        swipeRefreshLayout<span class="hljs-preprocessor">.setEnabled</span>(false)<span class="hljs-comment">;</span>
+        return view<span class="hljs-comment">;</span>
+    }
+
+
+    @Override
+    protected int getDialogRes() {
+        return R<span class="hljs-preprocessor">.layout</span><span class="hljs-preprocessor">.dialog</span>_zip<span class="hljs-comment">;</span>
+    }
+
+    @Override
+    protected int getTitleRes() {
+        return R<span class="hljs-preprocessor">.string</span><span class="hljs-preprocessor">.title</span>_zip<span class="hljs-comment">;</span>
+    }
+}
+</code></pre> 
+<p>解释：”Zip通过一个函数将多个Observable发送的事件结合到一起，然后发送这些组合到一起的事件. 它按照严格的顺序应用这个函数。它只发射与发射数据项最少的那个Observable一样多的数据。”，因此我们只需看 new BiFunction里的apply是如何处理的即可。这里是把List gankItems, List zhuangbiImages这两个list的数据用List保存返回。</p> 
+<p>8.FakeToken的处理flatMap</p> 
+<pre class="prettyprint"><code class=" hljs avrasm">// (c)<span class="hljs-number">2016</span> Flipboard <span class="hljs-keyword">Inc</span>, All Rights Reserved.
+
+package <span class="hljs-keyword">com</span><span class="hljs-preprocessor">.rengwuxian</span><span class="hljs-preprocessor">.rxjavasamples</span><span class="hljs-preprocessor">.module</span><span class="hljs-preprocessor">.token</span>_4<span class="hljs-comment">;</span>
+
+import android<span class="hljs-preprocessor">.graphics</span><span class="hljs-preprocessor">.Color</span><span class="hljs-comment">;</span>
+import android<span class="hljs-preprocessor">.os</span><span class="hljs-preprocessor">.Bundle</span><span class="hljs-comment">;</span>
+import android<span class="hljs-preprocessor">.support</span><span class="hljs-preprocessor">.annotation</span><span class="hljs-preprocessor">.Nullable</span><span class="hljs-comment">;</span>
+import android<span class="hljs-preprocessor">.support</span><span class="hljs-preprocessor">.v</span>4<span class="hljs-preprocessor">.widget</span><span class="hljs-preprocessor">.SwipeRefreshLayout</span><span class="hljs-comment">;</span>
+import android<span class="hljs-preprocessor">.view</span><span class="hljs-preprocessor">.LayoutInflater</span><span class="hljs-comment">;</span>
+import android<span class="hljs-preprocessor">.view</span><span class="hljs-preprocessor">.View</span><span class="hljs-comment">;</span>
+import android<span class="hljs-preprocessor">.view</span><span class="hljs-preprocessor">.ViewGroup</span><span class="hljs-comment">;</span>
+import android<span class="hljs-preprocessor">.widget</span><span class="hljs-preprocessor">.TextView</span><span class="hljs-comment">;</span>
+import android<span class="hljs-preprocessor">.widget</span><span class="hljs-preprocessor">.Toast</span><span class="hljs-comment">;</span>
+
+import <span class="hljs-keyword">com</span><span class="hljs-preprocessor">.rengwuxian</span><span class="hljs-preprocessor">.rxjavasamples</span><span class="hljs-preprocessor">.BaseFragment</span><span class="hljs-comment">;</span>
+import <span class="hljs-keyword">com</span><span class="hljs-preprocessor">.rengwuxian</span><span class="hljs-preprocessor">.rxjavasamples</span><span class="hljs-preprocessor">.network</span><span class="hljs-preprocessor">.Network</span><span class="hljs-comment">;</span>
+import <span class="hljs-keyword">com</span><span class="hljs-preprocessor">.rengwuxian</span><span class="hljs-preprocessor">.rxjavasamples</span><span class="hljs-preprocessor">.R</span><span class="hljs-comment">;</span>
+import <span class="hljs-keyword">com</span><span class="hljs-preprocessor">.rengwuxian</span><span class="hljs-preprocessor">.rxjavasamples</span><span class="hljs-preprocessor">.network</span><span class="hljs-preprocessor">.api</span><span class="hljs-preprocessor">.FakeApi</span><span class="hljs-comment">;</span>
+import <span class="hljs-keyword">com</span><span class="hljs-preprocessor">.rengwuxian</span><span class="hljs-preprocessor">.rxjavasamples</span><span class="hljs-preprocessor">.model</span><span class="hljs-preprocessor">.FakeThing</span><span class="hljs-comment">;</span>
+import <span class="hljs-keyword">com</span><span class="hljs-preprocessor">.rengwuxian</span><span class="hljs-preprocessor">.rxjavasamples</span><span class="hljs-preprocessor">.model</span><span class="hljs-preprocessor">.FakeToken</span><span class="hljs-comment">;</span>
+
+import butterknife<span class="hljs-preprocessor">.BindView</span><span class="hljs-comment">;</span>
+import butterknife<span class="hljs-preprocessor">.ButterKnife</span><span class="hljs-comment">;</span>
+import butterknife<span class="hljs-preprocessor">.OnClick</span><span class="hljs-comment">;</span>
+import io<span class="hljs-preprocessor">.reactivex</span><span class="hljs-preprocessor">.Observable</span><span class="hljs-comment">;</span>
+import io<span class="hljs-preprocessor">.reactivex</span><span class="hljs-preprocessor">.android</span><span class="hljs-preprocessor">.schedulers</span><span class="hljs-preprocessor">.AndroidSchedulers</span><span class="hljs-comment">;</span>
+import io<span class="hljs-preprocessor">.reactivex</span><span class="hljs-preprocessor">.functions</span><span class="hljs-preprocessor">.Consumer</span><span class="hljs-comment">;</span>
+import io<span class="hljs-preprocessor">.reactivex</span><span class="hljs-preprocessor">.functions</span><span class="hljs-preprocessor">.Function</span><span class="hljs-comment">;</span>
+import io<span class="hljs-preprocessor">.reactivex</span><span class="hljs-preprocessor">.schedulers</span><span class="hljs-preprocessor">.Schedulers</span><span class="hljs-comment">;</span>
+
+public class TokenFragment extends BaseFragment {
+
+    @BindView(R<span class="hljs-preprocessor">.id</span><span class="hljs-preprocessor">.tokenTv</span>) TextView tokenTv<span class="hljs-comment">;</span>
+    @BindView(R<span class="hljs-preprocessor">.id</span><span class="hljs-preprocessor">.swipeRefreshLayout</span>) SwipeRefreshLayout swipeRefreshLayout<span class="hljs-comment">;</span>
+
+    @OnClick(R<span class="hljs-preprocessor">.id</span><span class="hljs-preprocessor">.requestBt</span>)
+    void upload() {
+        swipeRefreshLayout<span class="hljs-preprocessor">.setRefreshing</span>(true)<span class="hljs-comment">;</span>
+        unsubscribe()<span class="hljs-comment">;</span>
+        final FakeApi fakeApi = Network<span class="hljs-preprocessor">.getFakeApi</span>()<span class="hljs-comment">;</span>
+        disposable = fakeApi<span class="hljs-preprocessor">.getFakeToken</span>(<span class="hljs-string">"fake_auth_code"</span>)
+                <span class="hljs-preprocessor">.flatMap</span>(new Function&lt;FakeToken, Observable&lt;FakeThing&gt;&gt;() {
+                    @Override
+                    public Observable&lt;FakeThing&gt; apply(FakeToken fakeToken) {
+                        return fakeApi<span class="hljs-preprocessor">.getFakeData</span>(fakeToken)<span class="hljs-comment">;</span>
+                    }
+                })
+                <span class="hljs-preprocessor">.subscribeOn</span>(Schedulers<span class="hljs-preprocessor">.io</span>())
+                <span class="hljs-preprocessor">.observeOn</span>(AndroidSchedulers<span class="hljs-preprocessor">.mainThread</span>())
+                <span class="hljs-preprocessor">.subscribe</span>(new Consumer&lt;FakeThing&gt;() {
+                    @Override
+                    public void accept(FakeThing fakeData) {
+                        swipeRefreshLayout<span class="hljs-preprocessor">.setRefreshing</span>(false)<span class="hljs-comment">;</span>
+                        tokenTv<span class="hljs-preprocessor">.setText</span>(getString(R<span class="hljs-preprocessor">.string</span><span class="hljs-preprocessor">.got</span>_data, fakeData<span class="hljs-preprocessor">.id</span>, fakeData<span class="hljs-preprocessor">.name</span>))<span class="hljs-comment">;</span>
+                    }
+                }, new Consumer&lt;Throwable&gt;() {
+                    @Override
+                    public void accept(Throwable throwable) {
+                        swipeRefreshLayout<span class="hljs-preprocessor">.setRefreshing</span>(false)<span class="hljs-comment">;</span>
+                        Toast<span class="hljs-preprocessor">.makeText</span>(getActivity(), R<span class="hljs-preprocessor">.string</span><span class="hljs-preprocessor">.loading</span>_failed, Toast<span class="hljs-preprocessor">.LENGTH</span>_SHORT)<span class="hljs-preprocessor">.show</span>()<span class="hljs-comment">;</span>
+                    }
+                })<span class="hljs-comment">;</span>
+    }
+
+    @Nullable
+    @Override
+    public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
+        View view = inflater<span class="hljs-preprocessor">.inflate</span>(R<span class="hljs-preprocessor">.layout</span><span class="hljs-preprocessor">.fragment</span>_token, container, false)<span class="hljs-comment">;</span>
+        ButterKnife<span class="hljs-preprocessor">.bind</span>(this, view)<span class="hljs-comment">;</span>
+        swipeRefreshLayout<span class="hljs-preprocessor">.setColorSchemeColors</span>(Color<span class="hljs-preprocessor">.BLUE</span>, Color<span class="hljs-preprocessor">.GREEN</span>, Color<span class="hljs-preprocessor">.RED</span>, Color<span class="hljs-preprocessor">.YELLOW</span>)<span class="hljs-comment">;</span>
+        swipeRefreshLayout<span class="hljs-preprocessor">.setEnabled</span>(false)<span class="hljs-comment">;</span>
+        return view<span class="hljs-comment">;</span>
+    }
+
+    @Override
+    protected int getDialogRes() {
+        return R<span class="hljs-preprocessor">.layout</span><span class="hljs-preprocessor">.dialog</span>_token<span class="hljs-comment">;</span>
+    }
+
+    @Override
+    protected int getTitleRes() {
+        return R<span class="hljs-preprocessor">.string</span><span class="hljs-preprocessor">.title</span>_token<span class="hljs-comment">;</span>
+    }
+}
+</code></pre> 
+<p>解释：”FlatMap将一个发送事件的上游Observable变换为多个发送事件的Observables，然后将它们发射的事件合并后放进一个单独的Observable里.”</p> 
+<p>8.retrywhen</p> 
+<pre class="prettyprint"><code class=" hljs avrasm">// (c)<span class="hljs-number">2016</span> Flipboard <span class="hljs-keyword">Inc</span>, All Rights Reserved.
+
+package <span class="hljs-keyword">com</span><span class="hljs-preprocessor">.rengwuxian</span><span class="hljs-preprocessor">.rxjavasamples</span><span class="hljs-preprocessor">.module</span><span class="hljs-preprocessor">.token</span>_advanced_5<span class="hljs-comment">;</span>
+
+import android<span class="hljs-preprocessor">.graphics</span><span class="hljs-preprocessor">.Color</span><span class="hljs-comment">;</span>
+import android<span class="hljs-preprocessor">.os</span><span class="hljs-preprocessor">.Bundle</span><span class="hljs-comment">;</span>
+import android<span class="hljs-preprocessor">.support</span><span class="hljs-preprocessor">.annotation</span><span class="hljs-preprocessor">.Nullable</span><span class="hljs-comment">;</span>
+import android<span class="hljs-preprocessor">.support</span><span class="hljs-preprocessor">.v</span>4<span class="hljs-preprocessor">.widget</span><span class="hljs-preprocessor">.SwipeRefreshLayout</span><span class="hljs-comment">;</span>
+import android<span class="hljs-preprocessor">.view</span><span class="hljs-preprocessor">.LayoutInflater</span><span class="hljs-comment">;</span>
+import android<span class="hljs-preprocessor">.view</span><span class="hljs-preprocessor">.View</span><span class="hljs-comment">;</span>
+import android<span class="hljs-preprocessor">.view</span><span class="hljs-preprocessor">.ViewGroup</span><span class="hljs-comment">;</span>
+import android<span class="hljs-preprocessor">.widget</span><span class="hljs-preprocessor">.TextView</span><span class="hljs-comment">;</span>
+import android<span class="hljs-preprocessor">.widget</span><span class="hljs-preprocessor">.Toast</span><span class="hljs-comment">;</span>
+
+import <span class="hljs-keyword">com</span><span class="hljs-preprocessor">.rengwuxian</span><span class="hljs-preprocessor">.rxjavasamples</span><span class="hljs-preprocessor">.BaseFragment</span><span class="hljs-comment">;</span>
+import <span class="hljs-keyword">com</span><span class="hljs-preprocessor">.rengwuxian</span><span class="hljs-preprocessor">.rxjavasamples</span><span class="hljs-preprocessor">.network</span><span class="hljs-preprocessor">.Network</span><span class="hljs-comment">;</span>
+import <span class="hljs-keyword">com</span><span class="hljs-preprocessor">.rengwuxian</span><span class="hljs-preprocessor">.rxjavasamples</span><span class="hljs-preprocessor">.R</span><span class="hljs-comment">;</span>
+import <span class="hljs-keyword">com</span><span class="hljs-preprocessor">.rengwuxian</span><span class="hljs-preprocessor">.rxjavasamples</span><span class="hljs-preprocessor">.network</span><span class="hljs-preprocessor">.api</span><span class="hljs-preprocessor">.FakeApi</span><span class="hljs-comment">;</span>
+import <span class="hljs-keyword">com</span><span class="hljs-preprocessor">.rengwuxian</span><span class="hljs-preprocessor">.rxjavasamples</span><span class="hljs-preprocessor">.model</span><span class="hljs-preprocessor">.FakeThing</span><span class="hljs-comment">;</span>
+import <span class="hljs-keyword">com</span><span class="hljs-preprocessor">.rengwuxian</span><span class="hljs-preprocessor">.rxjavasamples</span><span class="hljs-preprocessor">.model</span><span class="hljs-preprocessor">.FakeToken</span><span class="hljs-comment">;</span>
+
+import butterknife<span class="hljs-preprocessor">.BindView</span><span class="hljs-comment">;</span>
+import butterknife<span class="hljs-preprocessor">.ButterKnife</span><span class="hljs-comment">;</span>
+import butterknife<span class="hljs-preprocessor">.OnClick</span><span class="hljs-comment">;</span>
+import io<span class="hljs-preprocessor">.reactivex</span><span class="hljs-preprocessor">.Observable</span><span class="hljs-comment">;</span>
+import io<span class="hljs-preprocessor">.reactivex</span><span class="hljs-preprocessor">.android</span><span class="hljs-preprocessor">.schedulers</span><span class="hljs-preprocessor">.AndroidSchedulers</span><span class="hljs-comment">;</span>
+import io<span class="hljs-preprocessor">.reactivex</span><span class="hljs-preprocessor">.functions</span><span class="hljs-preprocessor">.Consumer</span><span class="hljs-comment">;</span>
+import io<span class="hljs-preprocessor">.reactivex</span><span class="hljs-preprocessor">.functions</span><span class="hljs-preprocessor">.Function</span><span class="hljs-comment">;</span>
+import io<span class="hljs-preprocessor">.reactivex</span><span class="hljs-preprocessor">.schedulers</span><span class="hljs-preprocessor">.Schedulers</span><span class="hljs-comment">;</span>
+
+public class TokenAdvancedFragment extends BaseFragment {
+
+    @BindView(R<span class="hljs-preprocessor">.id</span><span class="hljs-preprocessor">.tokenTv</span>) TextView tokenTv<span class="hljs-comment">;</span>
+    @BindView(R<span class="hljs-preprocessor">.id</span><span class="hljs-preprocessor">.swipeRefreshLayout</span>) SwipeRefreshLayout swipeRefreshLayout<span class="hljs-comment">;</span>
+    final FakeToken cachedFakeToken = new FakeToken(true)<span class="hljs-comment">;</span>
+    boolean tokenUpdated<span class="hljs-comment">;</span>
+
+    @OnClick(R<span class="hljs-preprocessor">.id</span><span class="hljs-preprocessor">.invalidateTokenBt</span>)
+    void invalidateToken() {
+        cachedFakeToken<span class="hljs-preprocessor">.expired</span> = true<span class="hljs-comment">;</span>
+        Toast<span class="hljs-preprocessor">.makeText</span>(getActivity(), R<span class="hljs-preprocessor">.string</span><span class="hljs-preprocessor">.token</span>_destroyed, Toast<span class="hljs-preprocessor">.LENGTH</span>_SHORT)<span class="hljs-preprocessor">.show</span>()<span class="hljs-comment">;</span>
+    }
+
+    @OnClick(R<span class="hljs-preprocessor">.id</span><span class="hljs-preprocessor">.requestBt</span>)
+    void upload() {
+        tokenUpdated = false<span class="hljs-comment">;</span>
+        swipeRefreshLayout<span class="hljs-preprocessor">.setRefreshing</span>(true)<span class="hljs-comment">;</span>
+        unsubscribe()<span class="hljs-comment">;</span>
+        final FakeApi fakeApi = Network<span class="hljs-preprocessor">.getFakeApi</span>()<span class="hljs-comment">;</span>
+        disposable = Observable<span class="hljs-preprocessor">.just</span>(<span class="hljs-number">1</span>)
+                <span class="hljs-preprocessor">.flatMap</span>(new Function&lt;Object, Observable&lt;FakeThing&gt;&gt;() {
+                    @Override
+                    public Observable&lt;FakeThing&gt; apply(Object o) {
+                        return cachedFakeToken<span class="hljs-preprocessor">.token</span> == null
+                                ? Observable.&lt;FakeThing&gt;error(new NullPointerException(<span class="hljs-string">"Token is null!"</span>))
+                                : fakeApi<span class="hljs-preprocessor">.getFakeData</span>(cachedFakeToken)<span class="hljs-comment">;</span>
+                    }
+                })
+                <span class="hljs-preprocessor">.retryWhen</span>(new Function&lt;Observable&lt;? extends Throwable&gt;, Observable&lt;?&gt;&gt;() {
+                    @Override
+                    public Observable&lt;?&gt; apply(Observable&lt;? extends Throwable&gt; observable) {
+                        return observable<span class="hljs-preprocessor">.flatMap</span>(new Function&lt;Throwable, Observable&lt;?&gt;&gt;() {
+                            @Override
+                            public Observable&lt;?&gt; apply(Throwable throwable) {
+                                if (throwable instanceof IllegalArgumentException || throwable instanceof NullPointerException) {
+                                    return fakeApi<span class="hljs-preprocessor">.getFakeToken</span>(<span class="hljs-string">"fake_auth_code"</span>)
+                                            <span class="hljs-preprocessor">.doOnNext</span>(new Consumer&lt;FakeToken&gt;() {
+                                                @Override
+                                                public void accept(FakeToken fakeToken) {
+                                                    tokenUpdated = true<span class="hljs-comment">;</span>
+                                                    cachedFakeToken<span class="hljs-preprocessor">.token</span> = fakeToken<span class="hljs-preprocessor">.token</span><span class="hljs-comment">;</span>
+                                                    cachedFakeToken<span class="hljs-preprocessor">.expired</span> = fakeToken<span class="hljs-preprocessor">.expired</span><span class="hljs-comment">;</span>
+                                                }
+                                            })<span class="hljs-comment">;</span>
+                                }
+                                return Observable<span class="hljs-preprocessor">.error</span>(throwable)<span class="hljs-comment">;</span>
+                            }
+                        })<span class="hljs-comment">;</span>
+                    }
+                })
+                <span class="hljs-preprocessor">.subscribeOn</span>(Schedulers<span class="hljs-preprocessor">.io</span>())
+                <span class="hljs-preprocessor">.observeOn</span>(AndroidSchedulers<span class="hljs-preprocessor">.mainThread</span>())
+                <span class="hljs-preprocessor">.subscribe</span>(new Consumer&lt;FakeThing&gt;() {
+                    @Override
+                    public void accept(FakeThing fakeData) {
+                        swipeRefreshLayout<span class="hljs-preprocessor">.setRefreshing</span>(false)<span class="hljs-comment">;</span>
+                        String token = cachedFakeToken<span class="hljs-preprocessor">.token</span><span class="hljs-comment">;</span>
+                        if (tokenUpdated) {
+                            token += <span class="hljs-string">"("</span> + getString(R<span class="hljs-preprocessor">.string</span><span class="hljs-preprocessor">.updated</span>) + <span class="hljs-string">")"</span><span class="hljs-comment">;</span>
+                        }
+                        tokenTv<span class="hljs-preprocessor">.setText</span>(getString(R<span class="hljs-preprocessor">.string</span><span class="hljs-preprocessor">.got</span>_token_and_data, token, fakeData<span class="hljs-preprocessor">.id</span>, fakeData<span class="hljs-preprocessor">.name</span>))<span class="hljs-comment">;</span>
+                    }
+                }, new Consumer&lt;Throwable&gt;() {
+                    @Override
+                    public void accept(Throwable throwable) {
+                        swipeRefreshLayout<span class="hljs-preprocessor">.setRefreshing</span>(false)<span class="hljs-comment">;</span>
+                        Toast<span class="hljs-preprocessor">.makeText</span>(getActivity(), R<span class="hljs-preprocessor">.string</span><span class="hljs-preprocessor">.loading</span>_failed, Toast<span class="hljs-preprocessor">.LENGTH</span>_SHORT)<span class="hljs-preprocessor">.show</span>()<span class="hljs-comment">;</span>
+                    }
+                })<span class="hljs-comment">;</span>
+    }
+
+    @Nullable
+    @Override
+    public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
+        View view = inflater<span class="hljs-preprocessor">.inflate</span>(R<span class="hljs-preprocessor">.layout</span><span class="hljs-preprocessor">.fragment</span>_token_advanced, container, false)<span class="hljs-comment">;</span>
+        ButterKnife<span class="hljs-preprocessor">.bind</span>(this, view)<span class="hljs-comment">;</span>
+        swipeRefreshLayout<span class="hljs-preprocessor">.setColorSchemeColors</span>(Color<span class="hljs-preprocessor">.BLUE</span>, Color<span class="hljs-preprocessor">.GREEN</span>, Color<span class="hljs-preprocessor">.RED</span>, Color<span class="hljs-preprocessor">.YELLOW</span>)<span class="hljs-comment">;</span>
+        swipeRefreshLayout<span class="hljs-preprocessor">.setEnabled</span>(false)<span class="hljs-comment">;</span>
+        return view<span class="hljs-comment">;</span>
+    }
+
+    @Override
+    protected int getDialogRes() {
+        return R<span class="hljs-preprocessor">.layout</span><span class="hljs-preprocessor">.dialog</span>_token_advanced<span class="hljs-comment">;</span>
+    }
+
+    @Override
+    protected int getTitleRes() {
+        return R<span class="hljs-preprocessor">.string</span><span class="hljs-preprocessor">.title</span>_token_advanced<span class="hljs-comment">;</span>
+    }
+}</code></pre> 
+<p>解释：注意retryWhen的用法</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/3172766d7a7de1271735716d5570a510/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">jq根据动态name获取值</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/9b0bd9c6f0d05c6befe10ff2226e1939/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">前端面试题集锦</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

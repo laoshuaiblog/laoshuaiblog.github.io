@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>pytorch的padding的理解和操作 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/38b55b516b1cd79afca44d328dc284da/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="pytorch的padding的理解和操作">
+  <meta property="og:description" content="1 padding 的操作就是在图像块的周围加上格子, 从而使得图像经过卷积过后大小不会变化,这种操作是使得图像的边缘数据也能被利用到,这样才能更好地扩张整张图像的边缘特征.
+公式表示如下:
+2 卷积核中size的选择可能会导致input中的某几行(或者最后 几行)没有关联起来,这个可能是因为我们使用的模式是valid,而不是full(tensorflow中也叫做same模式,不过这个还没研究,下一步好好看一看.........)
+如果想要充分的利用input信息,那么就要非常依赖于用户对于padding和stride等的参数设置,对于pytorch用户来说需要知道 卷积核的选取与设置是怎么样影响结果的.(我可能还不怎么清楚)
+输入信号的格式:(N, C, H, W),其中N表示Batch size,C表示channel个数,H,W分别表示特征图的高和宽
+在nn.Conv2d中padding实在卷积操作之前的, 可以进行补0操作,也可补其他的.
+其中padding补0 的策略是四周都补,如果padding=1,那么就会在原来输入层的基础上,上下左右各补一行,如果padding=(1,1)中第一个参数表示在高度上面的padding,第二个参数表示在宽度上面的padding.如下图:
+但是填充完值不是0 ,而是0.9862,是因为其加上了偏置值0.9862
+3 pytorch中默认的padding类型是vaild,
+拓展:卷积的三种模式 卷积的三种模式: full, same , valid
+1 full mode
+橙色部分为image,蓝色部分为绿薄核,full就是从滤波核和image刚开始相交就进行卷积,白色的部分填充为0
+2 same mode
+当filter的中心和image的边角重合时,开始做卷积运算,此时的filter范围比full模式小了一圈.
+另外一层含义是,卷积过后输出的feature map尺寸与原图像的大小一致. (不过,大小的问题与卷积步长也有关系.)
+same模式是比较常见的模式,因为在这种模式中,在图像前向传播的过程中可以让特征图的大小保持不变
+3 valid mode
+当filter全部在image中间的时候,进行卷积运算,可见,filter的移动范围更加小了
+注意:卷积层和池化层中都会加入padding操作, (1) 池化层的作用体现在降采样,保留图像的显著特征,降低图像维度,使得特征图变小,简化网络.,增大kernel的感受野, 同时,也会提供一些旋转不变性. 但是特征图变小,有可能会影响到网络的准确度(措施:可以通过增加特征的深度来弥补,如深度变成原来的2倍)
+(2) 卷积会带来的两个问题(1,卷积运算后,输出图像的尺寸会缩小; 2 越是边缘的像素点,对输出的影响就越小,卷积的时候移到边缘就结束了,但是中间的像素点有可能会参与多次计算,但是边缘的像素点可能只参与一次计算....因此可能会丢失边缘信息.)
+padding的用途: 保持边界信息;可以对有差异的图片进行补齐,使得图像的输入大小一致;在卷积层中加入padding ,会使卷基层的输入维度与输出维度一致; 同时,可以保持边界信息 ..">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2019-01-13T22:35:47+08:00">
+    <meta property="article:modified_time" content="2019-01-13T22:35:47+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">pytorch的padding的理解和操作</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <p>1  padding 的操作就是在图像块的周围加上格子, 从而使得图像经过卷积过后大小不会变化,这种操作是使得图像的边缘数据也能被利用到,这样才能更好地扩张整张图像的边缘特征.</p> 
+<p>公式表示如下:</p> 
+<p><img alt="" class="has" height="65" src="https://images2.imgbox.com/3b/82/yM4uowDd_o.png" width="563"></p> 
+<p>2   卷积核中size的选择可能会导致input中的某几行(或者最后 几行)没有关联起来,这个可能是因为我们使用的模式是valid,而不是full(tensorflow中也叫做same模式,不过这个还没研究,下一步好好看一看.........)</p> 
+<p>如果想要充分的利用input信息,那么就要非常依赖于用户对于padding和stride等的参数设置,对于pytorch用户来说需要知道 卷积核的选取与设置是怎么样影响结果的.(我可能还不怎么清楚)</p> 
+<p>输入信号的格式:(N, C, H, W),其中N表示Batch size,C表示channel个数,H,W分别表示特征图的高和宽</p> 
+<p>在nn.Conv2d中padding实在卷积操作之前的, 可以进行补0操作,也可补其他的.</p> 
+<p>其中padding补0 的策略是四周都补,如果padding=1,那么就会在原来输入层的基础上,上下左右各补一行,如果padding=(1,1)中第一个参数表示在高度上面的padding,第二个参数表示在宽度上面的padding.如下图:</p> 
+<p><img alt="" class="has" height="254" src="https://images2.imgbox.com/79/bd/xR2skwZY_o.png" width="645"></p> 
+<p>但是填充完值不是0 ,而是0.9862,是因为其加上了偏置值0.9862</p> 
+<p>3  pytorch中默认的padding类型是vaild,</p> 
+<p> </p> 
+<p> </p> 
+<h4><span style="color:#f33b45;">拓展:卷积的三种模式</span></h4> 
+<p>卷积的三种模式: full, same , valid</p> 
+<p>1  full mode</p> 
+<p><img alt="" class="has" height="251" src="https://images2.imgbox.com/34/2d/IaXXb5Co_o.png" width="273"></p> 
+<p>橙色部分为image,蓝色部分为绿薄核,full就是从滤波核和image刚开始相交就进行卷积,白色的部分填充为0</p> 
+<p>2  same mode</p> 
+<p>当filter的中心和image的边角重合时,开始做卷积运算,此时的filter范围比full模式小了一圈.</p> 
+<p>另外一层含义是,卷积过后输出的feature map尺寸与原图像的大小一致. (不过,大小的问题与卷积步长也有关系.)</p> 
+<p>same模式是比较常见的模式,因为在这种模式中,在图像前向传播的过程中可以让特征图的大小保持不变</p> 
+<p><img alt="" class="has" height="228" src="https://images2.imgbox.com/fc/3b/MOio6Eqw_o.png" width="247"></p> 
+<p>3 valid mode</p> 
+<p>当filter全部在image中间的时候,进行卷积运算,可见,filter的移动范围更加小了</p> 
+<p><img alt="" class="has" height="252" src="https://images2.imgbox.com/7c/36/nbqOTYaY_o.png" width="272"></p> 
+<h3><span style="color:#f33b45;">注意:卷积层和池化层中都会加入padding操作,</span></h3> 
+<p>(1) 池化层的作用体现在降采样,保留图像的显著特征,降低图像维度,使得特征图变小,简化网络.,增大kernel的感受野,  同时,也会提供一些旋转不变性.  但是特征图变小,有可能会影响到网络的准确度(措施:可以通过增加特征的深度来弥补,如深度变成原来的2倍)</p> 
+<p>(2) 卷积会带来的两个问题(1,卷积运算后,输出图像的尺寸会缩小; 2 越是边缘的像素点,对输出的影响就越小,卷积的时候移到边缘就结束了,但是中间的像素点有可能会参与多次计算,但是边缘的像素点可能只参与一次计算....因此可能会丢失边缘信息.)</p> 
+<p>padding的用途: 保持边界信息;可以对有差异的图片进行补齐,使得图像的输入大小一致;在卷积层中加入padding ,会使卷基层的输入维度与输出维度一致; 同时,可以保持边界信息  ..</p> 
+<p> </p> 
+<p> </p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/635052427ab03447e39bd7967097f726/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">shell之列表的定义与循环</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/5fb47704da43a82dd1780e7ce87cf771/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">获得距离1900年若干天的日期</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

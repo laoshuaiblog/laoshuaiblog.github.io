@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>对齐填充@Contended - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/3df7298e0db012b1ec902b376f290923/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="对齐填充@Contended">
+  <meta property="og:description" content="对齐填充Padding（不够64字节用0填充）是用来解决伪共享问题，保证一个缓存行只读取一个数据，避免多个线程竞争同一个缓存行带来性能问题。
+伪共享 CPU缓存是由多个缓存行组成的，缓存行是CPU和内存之间交互的最小单元，每个缓存行大小是64个字节，每次CPU读取数据以块为单位64个字节，一次读取一块数据（猜想上下位的数据也是需要的），避免多次交互，一个缓存行可以缓存多个数据（比如：X， Y， Z三个数据），当多个线程情况下，如果线程A修改数据X，线程B需要修改数据Y，但是都处于同一个缓存行，这时候会存在缓存行竞争，如果线程A获取到缓存行，那么线程B缓存行失效，修改数据会失败，如果线程B竞争到缓存行，线程A修改数据会失败，这样会多次请求失败，影响性能，这就是伪共享问题。
+对齐填充代码演示 将下面类中数据对象由ValueNoPadding改成ValuePadding，我们会发现执行效率会高很过
+public class ShareExample implements Runnable{ public final static long ITERATIONS = 500L * 1000L * 100L; private int arrayIndex = 0; private static ValueNoPadding[] longs; //没有填充的对象数组 public ShareExample(final int arrayIndex) { this.arrayIndex = arrayIndex; } public static void main(final String[] args) throws Exception { for(int i = 1; i &amp;lt; 10; i&#43;&#43;){ System.gc(); final long start = System.currentTimeMillis(); runTest(i); System.out.println(i &#43; &#34; Threads, duration = &#34;">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2022-06-12T23:45:34+08:00">
+    <meta property="article:modified_time" content="2022-06-12T23:45:34+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">对齐填充@Contended</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <p><strong>对齐填充Padding</strong>（不够64字节用0填充）是用来解决伪共享问题，保证一个缓存行只读取一个数据，避免多个线程竞争同一个缓存行带来性能问题。</p> 
+<h4><strong>伪共享</strong></h4> 
+<p>CPU缓存是由多个缓存行组成的，缓存行是CPU和内存之间交互的最小单元，每个缓存行大小是64个字节，每次CPU读取数据以块为单位64个字节，一次读取一块数据（猜想上下位的数据也是需要的），避免多次交互，一个缓存行可以缓存多个数据（比如：X， Y， Z三个数据），当多个线程情况下，如果线程A修改数据X，线程B需要修改数据Y，但是都处于同一个缓存行，这时候会存在缓存行竞争，如果线程A获取到缓存行，那么线程B缓存行失效，修改数据会失败，如果线程B竞争到缓存行，线程A修改数据会失败，这样会多次请求失败，影响性能，这就是伪共享问题。</p> 
+<h4>对齐填充代码演示</h4> 
+<p>将下面类中数据对象由ValueNoPadding改成ValuePadding，我们会发现执行效率会高很过</p> 
+<pre><code class="language-java">public class ShareExample implements Runnable{
+    public final static long ITERATIONS = 500L * 1000L * 100L;
+    private int arrayIndex = 0;
+
+    private static ValueNoPadding[] longs; //没有填充的对象数组
+    public ShareExample(final int arrayIndex) {
+        this.arrayIndex = arrayIndex;
+    }
+
+    public static void main(final String[] args) throws Exception {
+        for(int i = 1; i &lt; 10; i++){
+            System.gc();
+            final long start = System.currentTimeMillis();
+            runTest(i);
+            System.out.println(i + " Threads, duration = " + (System.currentTimeMillis() - start));
+        }
+
+    }
+
+    private static void runTest(int NUM_THREADS) throws InterruptedException {
+        Thread[] threads = new Thread[NUM_THREADS];
+        longs = new ValueNoPadding[NUM_THREADS];
+        for (int i = 0; i &lt; longs.length; i++) {
+            longs[i] = new ValueNoPadding();
+        }
+        for (int i = 0; i &lt; threads.length; i++) {
+            threads[i] = new Thread(new ShareExample(i));
+        }
+
+        for (Thread t : threads) {
+            t.start();
+        }
+
+        for (Thread t : threads) {
+            t.join();
+        }
+    }
+
+    @Override
+    public void run() {
+        long i = ITERATIONS + 1;
+        while (0 != --i) {
+            longs[arrayIndex].value = 0L;
+        }
+    }
+
+    public final static class ValuePadding {
+        protected long p1, p2, p3, p4, p5, p6, p7;
+        protected volatile long value = 0L;  //64字节
+        //64个字节
+        protected long p9, p10, p11, p12, p13, p14;
+        protected long p15;
+    }
+
+    //@Contended //java8
+    public final static class ValueNoPadding {
+        // protected long p1, p2, p3, p4, p5, p6, p7;
+        protected volatile long value = 0L;  //8个字节.  MESI协议，保证缓存一致性.
+        // protected long p9, p10, p11, p12, p13, p14, p15;
+    }
+}</code></pre> 
+<h4>Java8 @Contended</h4> 
+<p>除了对字段进行填充之外，还有一个比较清爽的方法，那就是对需要避免陷入伪共享的字段进行注解。Java8中JEP142引入了@Contended注解，被这个注解修饰的字段必须和其他字段放在不同的位置，避免出现伪共享，其实原理也是实现了对齐填充，不过前提是需要通过JVM参数-XX:-RestrictContended开启此功能。</p> 
+<p>Idea中配置开启@Contented：</p> 
+<p>1) idea工具栏中 Help --&gt; Edit Custom Vm Options<br> 2) -XX参数中 boolean类型, -XX:+RestrictContended为该属性设置为true，-XX:-RestrictContended为属性设置为false；<br> 3) 上述参数为JVM虚拟机启动时使用；<br>  </p> 
+<pre><code class="language-java">package com.lucifer.thread.padding;
+
+import sun.misc.Contended;
+
+public final class FalseSharing implements Runnable {
+    public static int NUM_THREADS = 4; // change
+    public final static long ITERATIONS = 500L * 1000L * 1000L;
+    private final int arrayIndex;
+    private static VolatileLong[] longs;
+
+    public FalseSharing(final int arrayIndex) {
+        this.arrayIndex = arrayIndex;
+    }
+
+    public static void main(final String[] args) throws Exception {
+        Thread.sleep(10000);
+        System.out.println("starting....");
+        if (args.length == 1) {
+            NUM_THREADS = Integer.parseInt(args[0]);
+        }
+
+        longs = new VolatileLong[NUM_THREADS];
+        for (int i = 0; i &lt; longs.length; i++) {
+            longs[i] = new VolatileLong();
+        }
+        final long start = System.nanoTime();
+        runTest();
+        System.out.println("duration = " + (System.nanoTime() - start));
+    }
+
+    private static void runTest() throws InterruptedException {
+        Thread[] threads = new Thread[NUM_THREADS];
+        for (int i = 0; i &lt; threads.length; i++) {
+            threads[i] = new Thread(new FalseSharing(i));
+        }
+        for (Thread t : threads) {
+            t.start();
+        }
+        for (Thread t : threads) {
+            t.join();
+        }
+    }
+
+    public void run() {
+        long i = ITERATIONS + 1;
+        while (0 != --i) {
+            longs[arrayIndex].value = i;
+        }
+    }
+
+    public static class VolatileLong {
+        @Contended
+        public volatile long value = 0L;
+    }
+}
+</code></pre> 
+<p></p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/d3e3fe92402bec21f0e6deb97d319275/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">Android Studio教程从JDK环境配置到AS安装及常用设置（图文详解）</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/5c2f00e934e29e8bf6f5f72433181b2c/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">java利用切面（aspect）记录日志实现性能跟踪以及用户行为分析</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

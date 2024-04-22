@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>安装Hadoop集群（超详细！） - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/f814c08517b43fbe38a998205ad7ae2b/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="安装Hadoop集群（超详细！）">
+  <meta property="og:description" content="提示：安装前请准备好三台装有jdk的虚拟机 我这里名为hd01、hd02、hd03
+hd01最好有hadoop和zookeeper的压缩包
+文章目录 前言一、准备环境二、安装Hadoop总结 前言： 前面我写了一篇单机版的Hadoop安装，这里终于要装集群版，装集群版的步骤比较繁琐，需要同学们多加练习，因为我们不可能只装一次，经常出了问题就要重装，所以必须要练熟练。
+一、准备环境 先准备好三台虚拟机 都设置了各自的固态ip和hostname 并且下载了相应的工具包（wget、vim等）有需要一键安装脚本的可以先点个关注然后联系作者 然后就可以正式开始我们搭集群了！
+先把hadoop解压，然后把它移动到opt下的soft文件夹下 并重命名为hadoop260
+1. mv hadoop-2.6.0-cdh5.14.2 soft/hadoop260
+2.用xshell设置为一起输入（这样就可以同步输入三台虚拟机的命令并执行）
+具体在xshell上方 工具-&amp;gt;发送输入到-&amp;gt;所有会话 3.很重要的一步！需要将每一个的hosts设置成这样！！！ vim /etc/hosts
+4.然后三个一起设置无密登录： ssh-keygen -t rsa -P &#39;&#39; &amp;lt;-- 这是两个单引号（不是双引号）
+出现如下三个这样子的矩形即可 5.然后每台都执行
+ssh-copy-id root@hd01
+然后都执行ssh-copy-id root@hd02
+然后都执行ssh-copy-id root@hd03
+途中我报错了 因为比如我的hd02一直找不到我的hd01？！就很奇怪，试了n多办法也没用
+就把etc/hosts中的内容调了个顺序 就可以互相通过主机名ping通了 真的amazing吧...希望读者没有
+可以互相ssh hd01 ssh hd02这样试试 exit退出
+6.每一个都执行： yum -y install chrony 下载这个让集群时间同步
+7.修改配置 vi /etc/chrony.conf
+把上面的注释掉 并用这个代替：
+server ntp1.aliyun.com
+server ntp2.aliyun.com
+server ntp3.aliyun.com
+然后 systemctl start chronyd">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2023-01-06T09:58:33+08:00">
+    <meta property="article:modified_time" content="2023-01-06T09:58:33+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">安装Hadoop集群（超详细！）</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <blockquote> 
+ <p>提示：安装前请准备好三台装有jdk的虚拟机 我这里名为hd01、hd02、hd03</p> 
+ <p>hd01最好有hadoop和zookeeper的压缩包</p> 
+</blockquote> 
+<p></p> 
+<div> 
+ <h4 id="%E6%96%87%E7%AB%A0%E7%9B%AE%E5%BD%95">文章目录</h4> 
+ <ul><li><a href="#_7" rel="nofollow">前言</a></li><li><a href="#pandas_16" rel="nofollow">一、</a>准备环境</li><li><a href="#_19" rel="nofollow">二</a>、安装Hadoop</li><li><a href="#_45" rel="nofollow">总结</a></li></ul> 
+</div> 
+<p></p> 
+<hr> 
+<h2 id="%E5%89%8D%E8%A8%80%EF%BC%9A"><a id="_7"></a>前言<code>：</code></h2> 
+<p>前面我写了一篇单机版的Hadoop安装，这里终于要装集群版，装集群版的步骤比较繁琐，需要同学们多加练习，因为我们不可能只装一次，经常出了问题就要重装，所以必须要练熟练。</p> 
+<p></p> 
+<h2 id="%E4%B8%80%E3%80%81%E5%87%86%E5%A4%87%E7%8E%AF%E5%A2%83"><a id="pandas_16"></a>一、准备环境</h2> 
+<p>先准备好三台虚拟机 都设置了各自的固态ip和hostname 并且下载了相应的工具包（wget、vim等）有需要一键安装脚本的可以先点个关注然后联系作者 然后就可以正式开始我们搭集群了！</p> 
+<p>先把hadoop解压，然后把它移动到opt下的soft文件夹下 并重命名为hadoop260</p> 
+<p>1. mv hadoop-2.6.0-cdh5.14.2 soft/hadoop260</p> 
+<p>2.用xshell设置为一起输入（这样就可以同步输入三台虚拟机的命令并执行）</p> 
+<p>具体在xshell上方 工具-&gt;发送输入到-&gt;所有会话 <img alt="" height="876" src="https://images2.imgbox.com/cf/46/Iaq1UdEK_o.png" width="1200"></p> 
+<p>3.很重要的一步！需要将<span style="color:#fe2c24;"><strong>每一个</strong></span>的hosts设置成这样！！！    vim /etc/hosts</p> 
+<p><img alt="" height="135" src="https://images2.imgbox.com/ba/09/wMS1ML7J_o.png" width="762"></p> 
+<p>4.然后三个一起设置无密登录：   ssh-keygen -t rsa -P ''           &lt;-- 这是两个单引号（不是双引号）</p> 
+<p>出现如下三个这样子的矩形即可 </p> 
+<p><img alt="" height="692" src="https://images2.imgbox.com/e9/44/HnKROz4q_o.png" width="1175"></p> 
+<p>5.然后每台都执行</p> 
+<p>ssh-copy-id root@hd01</p> 
+<p>然后都执行ssh-copy-id root@hd02</p> 
+<p>然后都执行ssh-copy-id root@hd03</p> 
+<p>途中我报错了 因为比如我的hd02一直找不到我的hd01？！就很奇怪，试了n多办法也没用</p> 
+<p>就把etc/hosts中的内容调了个顺序 就可以互相通过主机名ping通了 真的amazing吧...希望读者没有</p> 
+<p>可以互相ssh hd01    ssh hd02这样试试  exit退出</p> 
+<p>6.每一个都执行：  yum -y install chrony   下载这个让集群时间同步</p> 
+<p>7.修改配置   vi /etc/chrony.conf</p> 
+<p>把上面的注释掉 并用这个代替：</p> 
+<p><img alt="" height="236" src="https://images2.imgbox.com/0e/fb/51jU6YcX_o.png" width="677"></p> 
+<p>server ntp1.aliyun.com</p> 
+<p>server ntp2.aliyun.com</p> 
+<p>server ntp3.aliyun.com</p> 
+<p>然后 systemctl start chronyd</p> 
+<p>8.安装各种工具包</p> 
+<p>yum install -y wget</p> 
+<p>yum install -y psmisc  </p> 
+<h2 id="%E4%BA%8C%E3%80%81%E5%AE%89%E8%A3%85Hadoop"><a id="_19"></a>二、安装Hadoop</h2> 
+<p>1.（下面是操作hd01）</p> 
+<p>解压zookeeper并移动到文件夹</p> 
+<p>tar -zxvf zookeeper-3.4.5-cdh5.14.2.tar.gz</p> 
+<p>mv zookeeper-3.4.5-cdh5.14.2 soft/zk345</p> 
+<p>2.进入到目录 复制zoo_sampe.cfg重命名为一个zoo.cfg  </p> 
+<p><img alt="" height="327" src="https://images2.imgbox.com/cc/ef/PCOEgDiU_o.png" width="689"></p> 
+<p>3.编辑zoo.cfg：（看到没，我下面就是都写hd01了 找错找了半天！！！引以为戒）</p> 
+<p>把dataDir改一下：</p> 
+<p>dataDir=/opt/soft/zk345/data</p> 
+<p>然后复制这个到最后一段：</p> 
+<p>server.1=hd01:2888:3888</p> 
+<p>server.2=hd02:2888:3888</p> 
+<p>server.3=hd03:2888:3888</p> 
+<p><img alt="" height="610" src="https://images2.imgbox.com/d3/60/oeMLVDCW_o.png" width="719"></p> 
+<p>4.然后回到zk345目录下</p> 
+<p>mkdir data</p> 
+<p>cd data/</p> 
+<p>echo "1"&gt; myid</p> 
+<p>5.回到soft目录下：复制发送给另外两台 然后修改对应的id</p> 
+<p>scp -r /opt/soft/zk345 root@hd02:/opt/soft/</p> 
+<p>scp -r /opt/soft/zk345 root@hd03:/opt/soft/</p> 
+<p>然后两台机器都各自：vim /opt/soft/zk345/data/myid     改成2和3</p> 
+<p>6.三台机器都进入/etc/profile 在最后加环境变量</p> 
+<p>export ZOOKEEPER_HOME=/opt/soft/zk345<br> export PATH=$PATH:$ZOOKEEPER_HOME/bin</p> 
+<p>7.（然后只操作hd01）解压hadoop 然后改名移动到文件夹</p> 
+<p>tar -zxf hadoop-2.6.0-cdh5.14.2.tar.gz</p> 
+<p>mv hadoop-2.6.0-cdh5.14.2 soft/hadoop260</p> 
+<p>8.创建文件夹：</p> 
+<p>mkdir -p /opt/soft/hadoop260/tmp</p> 
+<p>mkdir -p /opt/soft/hadoop260/dfs/journalnode_data</p> 
+<p>mkdir -p /opt/soft/hadoop260/dfs/edits</p> 
+<p>mkdir -p /opt/soft/hadoop260/dfs/datanode_data</p> 
+<p>mkdir -p /opt/soft/hadoop260/dfs/namenode_data</p> 
+<p>9.进入hadoop260配置env.sh:</p> 
+<p>vim etc/hadoop/hadoop-env.sh</p> 
+<p><img alt="" height="234" src="https://images2.imgbox.com/21/36/ZWXKaFyc_o.png" width="613"></p> 
+<p> 10.还是etc的hadoop目录下 配置core-site.xml</p> 
+<pre><code>&lt;configuration&gt;
+ &lt;property&gt;
+   &lt;name&gt;fs.defaultFS&lt;/name&gt;
+   &lt;value&gt;hdfs://hacluster&lt;/value&gt;
+ &lt;/property&gt;
+ &lt;property&gt;
+   &lt;name&gt;hadoop.tmp.dir&lt;/name&gt;
+   &lt;value&gt;file:///opt/soft/hadoop260/tmp&lt;/value&gt;
+ &lt;/property&gt;
+ &lt;property&gt;
+   &lt;name&gt;io.file.buffer.size&lt;/name&gt;
+   &lt;value&gt;4096&lt;/value&gt;
+ &lt;/property&gt;
+ &lt;property&gt;
+   &lt;name&gt;ha.zookeeper.quorum&lt;/name&gt;
+   &lt;value&gt;hd01:2181,hd02:2181,hd03:2181&lt;/value&gt;
+ &lt;/property&gt;
+ &lt;property&gt;
+   &lt;name&gt;hadoop.proxyuser.root.hosts&lt;/name&gt;
+   &lt;value&gt;*&lt;/value&gt;
+ &lt;/property&gt;
+ &lt;property&gt;
+   &lt;name&gt;hadoop.proxyuser.root.groups&lt;/name&gt;
+   &lt;value&gt;*&lt;/value&gt;
+ &lt;/property&gt;
+&lt;/configuration&gt;</code></pre> 
+<p>11.配置hdfs-site.xml</p> 
+<pre><code>&lt;configuration&gt;
+ &lt;property&gt;
+        &lt;name&gt;dfs.block.size&lt;/name&gt;
+        &lt;value&gt;134217728&lt;/value&gt;
+    &lt;/property&gt;
+    &lt;property&gt;
+        &lt;name&gt;dfs.replication&lt;/name&gt;
+        &lt;value&gt;3&lt;/value&gt;
+    &lt;/property&gt;
+    &lt;property&gt;
+        &lt;name&gt;dfs.name.dir&lt;/name&gt;
+        &lt;value&gt;file:///opt/soft/hadoop260/dfs/namenode_data&lt;/value&gt;
+    &lt;/property&gt;
+    &lt;property&gt;
+        &lt;name&gt;dfs.data.dir&lt;/name&gt;
+        &lt;value&gt;file:///opt/soft/hadoop260/dfs/datanode_data&lt;/value&gt;
+    &lt;/property&gt;
+    &lt;property&gt;
+        &lt;name&gt;dfs.webhdfs.enabled&lt;/name&gt;
+        &lt;value&gt;true&lt;/value&gt;
+    &lt;/property&gt;
+    &lt;property&gt;
+        &lt;name&gt;dfs.datanode.max.transfer.threads&lt;/name&gt;
+        &lt;value&gt;4096&lt;/value&gt;
+    &lt;/property&gt;
+    &lt;property&gt;
+        &lt;name&gt;dfs.nameservices&lt;/name&gt;
+        &lt;value&gt;hacluster&lt;/value&gt;
+    &lt;/property&gt;
+    &lt;property&gt;
+        &lt;name&gt;dfs.ha.namenodes.hacluster&lt;/name&gt;
+        &lt;value&gt;nn1,nn2&lt;/value&gt;
+    &lt;/property&gt;
+    &lt;property&gt; 
+        &lt;name&gt;dfs.namenode.rpc-address.hacluster.nn1&lt;/name&gt;
+        &lt;value&gt;hd01:9000&lt;/value&gt;
+    &lt;/property&gt;
+    &lt;property&gt;
+        &lt;name&gt;dfs.namenode.servicepc-address.hacluster.nn1&lt;/name&gt;
+        &lt;value&gt;hd01:53310&lt;/value&gt;
+    &lt;/property&gt;
+    &lt;property&gt;
+        &lt;name&gt;dfs.namenode.http-address.hacluster.nn1&lt;/name&gt;
+        &lt;value&gt;hd01:50070&lt;/value&gt;
+    &lt;/property&gt;
+    &lt;!--nn2的rpc、servicepc和http通讯地址 --&gt;
+    &lt;property&gt; 
+        &lt;name&gt;dfs.namenode.rpc-address.hacluster.nn2&lt;/name&gt;
+        &lt;value&gt;hd02:9000&lt;/value&gt;
+    &lt;/property&gt;
+    &lt;property&gt;
+        &lt;name&gt;dfs.namenode.servicepc-address.hacluster.nn2&lt;/name&gt;
+        &lt;value&gt;hd02:53310&lt;/value&gt;
+    &lt;/property&gt;
+    &lt;property&gt;
+        &lt;name&gt;dfs.namenode.http-address.hacluster.nn2&lt;/name&gt;
+        &lt;value&gt;hd02:50070&lt;/value&gt;
+    &lt;/property&gt;
+    &lt;property&gt;
+        &lt;name&gt;dfs.namenode.shared.edits.dir&lt;/name&gt;
+        &lt;value&gt;qjournal://hd01:8485;hd02:8485;hd03:8485/hacluster&lt;/value&gt;
+    &lt;/property&gt;
+    &lt;property&gt;
+        &lt;name&gt;dfs.journalnode.edits.dir&lt;/name&gt;
+        &lt;value&gt;/opt/soft/hadoop260/dfs/journalnode_data&lt;/value&gt;
+    &lt;/property&gt;
+    &lt;property&gt;
+        &lt;name&gt;dfs.namenode.edits.dir&lt;/name&gt;
+        &lt;value&gt;/opt/soft/hadoop260/dfs/edits&lt;/value&gt;
+    &lt;/property&gt;
+    &lt;property&gt;
+        &lt;name&gt;dfs.ha.automatic-failover.enabled&lt;/name&gt;
+        &lt;value&gt;true&lt;/value&gt;
+    &lt;/property&gt;
+    &lt;property&gt;
+        &lt;name&gt;dfs.client.failover.proxy.provider.hacluster&lt;/name&gt;
+        &lt;value&gt;org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider&lt;/value&gt;
+    &lt;/property&gt;
+    &lt;property&gt;
+        &lt;name&gt;dfs.ha.fencing.methods&lt;/name&gt;
+        &lt;value&gt;sshfence&lt;/value&gt;
+    &lt;/property&gt;
+    &lt;property&gt;
+        &lt;name&gt;dfs.ha.fencing.ssh.private-key-files&lt;/name&gt;
+        &lt;value&gt;/root/.ssh/id_rsa&lt;/value&gt;
+    &lt;/property&gt;
+    &lt;property&gt;
+        &lt;name&gt;dfs.premissions&lt;/name&gt;
+        &lt;value&gt;false&lt;/value&gt;
+    &lt;/property&gt;
+&lt;/configuration&gt;</code></pre> 
+<p>12.编辑 mapred-site.xml.template </p> 
+<pre><code>&lt;configuration&gt;
+ &lt;property&gt;
+   &lt;name&gt;mapreduce.framework.name&lt;/name&gt;
+        &lt;value&gt;yarn&lt;/value&gt;
+  &lt;/property&gt;
+  &lt;property&gt;
+   &lt;name&gt;mapreduce.jobhistory.address&lt;/name&gt;
+        &lt;value&gt;hd01:10020&lt;/value&gt;
+  &lt;/property&gt;
+  &lt;property&gt;
+   &lt;name&gt;mapreduce.jobhistory.webapp.address&lt;/name&gt;
+        &lt;value&gt;hd01:19888&lt;/value&gt;
+  &lt;/property&gt;
+  &lt;property&gt;
+   &lt;name&gt;mapreduce.job.ubertask.enable&lt;/name&gt;
+        &lt;value&gt;true&lt;/value&gt;
+  &lt;/property&gt;
+&lt;/configuration&gt;
+</code></pre> 
+<p>13.配置yarn-site.xml</p> 
+<pre><code>&lt;configuration&gt;
+ &lt;property&gt;
+        &lt;name&gt;yarn.resourcemanager.ha.enabled&lt;/name&gt;
+        &lt;value&gt;true&lt;/value&gt;
+    &lt;/property&gt;
+    &lt;property&gt;
+        &lt;name&gt;yarn.resourcemanager.cluster-id&lt;/name&gt;
+        &lt;value&gt;hayarn&lt;/value&gt;
+    &lt;/property&gt;
+    &lt;property&gt;
+        &lt;name&gt;yarn.resourcemanager.ha.rm-ids&lt;/name&gt;
+        &lt;value&gt;rm1,rm2&lt;/value&gt;
+    &lt;/property&gt;
+    &lt;property&gt;
+        &lt;name&gt;yarn.resourcemanager.hostname.rm1&lt;/name&gt;
+        &lt;value&gt;hd02&lt;/value&gt;
+    &lt;/property&gt;
+    &lt;property&gt;
+        &lt;name&gt;yarn.resourcemanager.hostname.rm2&lt;/name&gt;
+        &lt;value&gt;hd03&lt;/value&gt;
+    &lt;/property&gt;
+    &lt;property&gt;
+        &lt;name&gt;yarn.resourcemanager.zk-address&lt;/name&gt;
+        &lt;value&gt;hd01:2181,hd02:2181,hd03:2181&lt;/value&gt;
+    &lt;/property&gt;
+    &lt;property&gt;
+        &lt;name&gt;yarn.resourcemanager.recovery.enabled&lt;/name&gt;
+        &lt;value&gt;true&lt;/value&gt;
+    &lt;/property&gt;
+    &lt;property&gt;
+        &lt;name&gt;yarn.resourcemanager.store.class&lt;/name&gt;
+ &lt;value&gt;org.apache.hadoop.yarn.server.resourcemanager.recovery.ZKRMStateStore&lt;/value&gt;
+    &lt;/property&gt;
+    &lt;property&gt;
+        &lt;name&gt;yarn.resourcemanager.hostname&lt;/name&gt;
+        &lt;value&gt;hd03&lt;/value&gt;
+    &lt;/property&gt;
+    &lt;property&gt;
+        &lt;name&gt;yarn.nodemanager.aux-services&lt;/name&gt;
+        &lt;value&gt;mapreduce_shuffle&lt;/value&gt;
+    &lt;/property&gt;
+    &lt;property&gt;
+        &lt;name&gt;yarn.log-aggregation-enable&lt;/name&gt;
+        &lt;value&gt;true&lt;/value&gt;
+    &lt;/property&gt;
+    &lt;property&gt;
+        &lt;name&gt;yarn.log-aggregation.retain-seconds&lt;/name&gt;
+        &lt;value&gt;604800&lt;/value&gt;
+    &lt;/property&gt;
+&lt;/configuration&gt;
+</code></pre> 
+<p>14.hadoop下继续   vim etc/hadoop/slaves</p> 
+<p>把localhost删掉 改成</p> 
+<p>hd01</p> 
+<p>hd02</p> 
+<p>hd03</p> 
+<p>15.然后开始复制hadoop到另外两台机器：</p> 
+<p>scp -r /opt/soft/hadoop260 root@hd02:/opt/soft/</p> 
+<p>scp -r /opt/soft/hadoop260 root@hd03:/opt/soft/</p> 
+<p>16.然后把</p> 
+<p>#hadoop<br> export HADOOP_HOME=/opt/soft/hadoop260<br> export HADOOP_MAPRED_HOME=$HADOOP_HOME<br> export HADOOP_COMMON_HOME=$HADOOP_HOME<br> export HADOOP_HDFS_HOME=$HADOOP_HOME<br> export YARN_HOME=$HADOOP_HOME<br> export HADOOP_COMMON_LIB_NATIVE_DIR=$HADOOP_HOME/lib/native<br> export PATH=$PATH:$HADOOP_HOME/sbin:$HADOOP_HOME/bin<br> export HADOOP_INSTALL=$HADOOP_HOME</p> 
+<p>粘贴到每台机器的etc的profile内 别忘了source /etc/profile 哦！！！</p> 
+<h2 id="3.%E5%90%AF%E5%8A%A8%E9%9B%86%E7%BE%A4">3.启动集群</h2> 
+<p>1.<strong>每台机器</strong>上启动zookeeper</p> 
+<p>zkServer.sh start</p> 
+<p>2.<strong>每台机器</strong>都启动：</p> 
+<p>hadoop-daemon.sh start journalnode</p> 
+<p>3.<span style="color:#fe2c24;">只在hd01上</span>格式化：</p> 
+<p>hdfs namenode -format</p> 
+<p>4.将hd01上的Namenode的元数据复制到hd02相同位置</p> 
+<p>下面是一行！</p> 
+<p>scp -r /opt/soft/hadoop260/dfs/namenode_data/current/ root@hd02:/opt/soft/hadoop260/dfs/namenode_data</p> 
+<p>5.hd01或者hd02上：</p> 
+<p>hdfs zkfc -formatZK</p> 
+<p>6.hd01上：   start-dfs.sh</p> 
+<p>7.hd03上：   start-yarn.sh</p> 
+<p>8.hd01上：   mr-jobhistory-daemon.sh start historyserver</p> 
+<p>9.hd02上：   yarn-daemon.sh start resourcemanager</p> 
+<p><img alt="" height="790" src="https://images2.imgbox.com/2e/64/oOMzlUGt_o.png" width="878"></p> 
+<p>  没问题就大功告成啦！！！</p> 
+<p></p> 
+<p><strong>总结</strong></p> 
+<p>我本人第一次装的时候也装了很久，找小错误找了一天，算是比较深刻的印象。以后还是有很多机会重装的，所以就当巩固了！</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/66b1d6d0a6d75027a95fd81e5297e783/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">Vue中的key</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/6a9bcb8bba80b169838c56c89cc7d9f6/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">shell脚本查看文件是否存在</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

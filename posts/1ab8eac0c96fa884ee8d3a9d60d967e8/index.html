@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>ShardingSphere简介与分表使用 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/1ab8eac0c96fa884ee8d3a9d60d967e8/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="ShardingSphere简介与分表使用">
+  <meta property="og:description" content="一、ShardingSphere简介 1、简介 ShardingSphere 已于 2020 年 4 月 16 日成为 Apache 软件基金会的顶级项目。
+ShardingSphere 是一套开源的分布式数据库中间件解决方案。
+ShardingSphere 产品定位为 Database Plus，旨在构建异构数据库上层的标准和生态圈。
+它关注如何充分合理地利用数据库的计算和存储能力，而并非实现一个全新的数据库。
+ShardingSphere 站在数据库的上层视角，关注他们之间的协作多于数据库自身。
+它由ShardingSphere-JDBC、ShardingSphere-Proxy 和 ShardingSphere-Sidecar这3款相互独立的产品组成。
+ShardingSphere-JDBC：定位为轻量级 Java 框架，在 Java 的 JDBC 层提供的额外服务。ShardingSphere-Proxy：定位为透明化的数据库代理端，提供封装了数据库二进制协议的服务端版本，用于完成对异构语言的支持。ShardingSphere-Sidecar：定位为 Kubernetes 的云原生数据库代理，以 Sidecar 的形式代理所有对数据库的访问。 2、核心概念 2.1 表概念 1）真实表
+在数据库中真实存在的物理表。例如：t_order_0、t_order_1
+2）逻辑表
+在分片之后，同一类表结构的名称（总成）。例如b_order。
+水平拆分的数据库（表）的相同逻辑和数据结构表的总称。例如：订单表根据主键尾数拆分为10张真实表（t_order_0到t_order_9），他们的逻辑表名为t_order。
+3）数据节点
+在分片之后，由数据源和数据表组成。例如ds0.b_order1
+数据分片的最小单元。由数据源名称和数据表组成，例如：ds_0.t_order_0。
+4）绑定表
+指的是分片规则一致的关系表（主表、子表）。
+例如：t_order表和t_order_item表，均按照order_id分片，则此两张表互为绑定表关系。绑定表之间的多表关联查询不会出现笛卡尔积关联，关联查询效率将大大提升。
+举例说明，如果SQL为：
+SELECT i.* FROM t_order o JOIN t_order_item i ON o.order_id=i.order_id WHERE o.order_id in (10, 11); 在不配置绑定表关系时，假设分片键order_id将数值10路由至第0片，将数值11路由至第1片，那么路由后的SQL应该为4条，它们呈现为笛卡尔积：
+SELECT i.* FROM t_order_0 o JOIN t_order_item_0 i ON o.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2022-04-17T08:42:52+08:00">
+    <meta property="article:modified_time" content="2022-04-17T08:42:52+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">ShardingSphere简介与分表使用</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-light">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <h2><a id="ShardingSphere_0"></a>一、ShardingSphere简介</h2> 
+<h3><a id="1_1"></a>1、简介</h3> 
+<p><strong>ShardingSphere 已于 2020 年 4 月 16 日成为 Apache 软件基金会的顶级项目。</strong></p> 
+<p>ShardingSphere 是一套开源的分布式数据库中间件解决方案。</p> 
+<p>ShardingSphere 产品定位为 Database Plus，旨在构建异构数据库上层的标准和生态圈。</p> 
+<p>它关注如何充分合理地利用数据库的计算和存储能力，而并非实现一个全新的数据库。</p> 
+<p>ShardingSphere 站在数据库的上层视角，关注他们之间的协作多于数据库自身。</p> 
+<p>它由ShardingSphere-JDBC、ShardingSphere-Proxy 和 ShardingSphere-Sidecar这3款相互独立的产品组成。</p> 
+<ul><li>ShardingSphere-JDBC：定位为轻量级 Java 框架，在 Java 的 JDBC 层提供的额外服务。</li><li>ShardingSphere-Proxy：定位为透明化的数据库代理端，提供封装了数据库二进制协议的服务端版本，用于完成对异构语言的支持。</li><li>ShardingSphere-Sidecar：定位为 Kubernetes 的云原生数据库代理，以 Sidecar 的形式代理所有对数据库的访问。</li></ul> 
+<h3><a id="2_17"></a>2、核心概念</h3> 
+<h4><a id="21__18"></a>2.1 表概念</h4> 
+<p><strong>1）真实表</strong></p> 
+<p>在数据库中真实存在的物理表。例如：t_order_0、t_order_1</p> 
+<p><strong>2）逻辑表</strong></p> 
+<p>在分片之后，同一类表结构的名称（总成）。例如b_order。</p> 
+<p>水平拆分的数据库（表）的相同逻辑和数据结构表的总称。例如：订单表根据主键尾数拆分为10张真实表（t_order_0到t_order_9），他们的逻辑表名为t_order。</p> 
+<p><strong>3）数据节点</strong></p> 
+<p>在分片之后，由数据源和数据表组成。例如ds0.b_order1</p> 
+<p>数据分片的最小单元。由数据源名称和数据表组成，例如：ds_0.t_order_0。</p> 
+<p><strong>4）绑定表</strong><br> 指的是分片规则一致的关系表（主表、子表）。</p> 
+<p>例如：t_order表和t_order_item表，均按照order_id分片，则此两张表互为绑定表关系。绑定表之间的多表关联查询不会出现笛卡尔积关联，关联查询效率将大大提升。</p> 
+<p>举例说明，如果SQL为：</p> 
+<pre><code class="prism language-sql"><span class="token keyword">SELECT</span> i<span class="token punctuation">.</span><span class="token operator">*</span> <span class="token keyword">FROM</span> t_order o <span class="token keyword">JOIN</span> t_order_item i <span class="token keyword">ON</span> o<span class="token punctuation">.</span>order_id<span class="token operator">=</span>i<span class="token punctuation">.</span>order_id <span class="token keyword">WHERE</span> o<span class="token punctuation">.</span>order_id <span class="token operator">in</span> <span class="token punctuation">(</span><span class="token number">10</span><span class="token punctuation">,</span> <span class="token number">11</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre> 
+<p>在不配置绑定表关系时，假设分片键order_id将数值10路由至第0片，将数值11路由至第1片，那么路由后的SQL应该为4条，它们呈现为笛卡尔积：</p> 
+<pre><code class="prism language-sql"><span class="token keyword">SELECT</span> i<span class="token punctuation">.</span><span class="token operator">*</span> <span class="token keyword">FROM</span> t_order_0 o <span class="token keyword">JOIN</span> t_order_item_0 i <span class="token keyword">ON</span> o<span class="token punctuation">.</span>order_id<span class="token operator">=</span>i<span class="token punctuation">.</span>order_id <span class="token keyword">WHERE</span> o<span class="token punctuation">.</span>order_id <span class="token operator">in</span> <span class="token punctuation">(</span><span class="token number">10</span><span class="token punctuation">,</span> <span class="token number">11</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+<span class="token keyword">SELECT</span> i<span class="token punctuation">.</span><span class="token operator">*</span> <span class="token keyword">FROM</span> t_order_0 o <span class="token keyword">JOIN</span> t_order_item_1 i <span class="token keyword">ON</span> o<span class="token punctuation">.</span>order_id<span class="token operator">=</span>i<span class="token punctuation">.</span>order_id <span class="token keyword">WHERE</span> o<span class="token punctuation">.</span>order_id <span class="token operator">in</span> <span class="token punctuation">(</span><span class="token number">10</span><span class="token punctuation">,</span> <span class="token number">11</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+<span class="token keyword">SELECT</span> i<span class="token punctuation">.</span><span class="token operator">*</span> <span class="token keyword">FROM</span> t_order_1 o <span class="token keyword">JOIN</span> t_order_item_0 i <span class="token keyword">ON</span> o<span class="token punctuation">.</span>order_id<span class="token operator">=</span>i<span class="token punctuation">.</span>order_id <span class="token keyword">WHERE</span> o<span class="token punctuation">.</span>order_id <span class="token operator">in</span> <span class="token punctuation">(</span><span class="token number">10</span><span class="token punctuation">,</span> <span class="token number">11</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+<span class="token keyword">SELECT</span> i<span class="token punctuation">.</span><span class="token operator">*</span> <span class="token keyword">FROM</span> t_order_1 o <span class="token keyword">JOIN</span> t_order_item_1 i <span class="token keyword">ON</span> o<span class="token punctuation">.</span>order_id<span class="token operator">=</span>i<span class="token punctuation">.</span>order_id <span class="token keyword">WHERE</span> o<span class="token punctuation">.</span>order_id <span class="token operator">in</span> <span class="token punctuation">(</span><span class="token number">10</span><span class="token punctuation">,</span> <span class="token number">11</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre> 
+<p>在配置绑定表关系后，路由的SQL应该为2条：</p> 
+<pre><code class="prism language-sql"><span class="token keyword">SELECT</span> i<span class="token punctuation">.</span><span class="token operator">*</span> <span class="token keyword">FROM</span> t_order_0 o <span class="token keyword">JOIN</span> t_order_item_0 i <span class="token keyword">ON</span> o<span class="token punctuation">.</span>order_id<span class="token operator">=</span>i<span class="token punctuation">.</span>order_id <span class="token keyword">WHERE</span> o<span class="token punctuation">.</span>order_id <span class="token operator">in</span> <span class="token punctuation">(</span><span class="token number">10</span><span class="token punctuation">,</span> <span class="token number">11</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+<span class="token keyword">SELECT</span> i<span class="token punctuation">.</span><span class="token operator">*</span> <span class="token keyword">FROM</span> t_order_1 o <span class="token keyword">JOIN</span> t_order_item_1 i <span class="token keyword">ON</span> o<span class="token punctuation">.</span>order_id<span class="token operator">=</span>i<span class="token punctuation">.</span>order_id <span class="token keyword">WHERE</span> o<span class="token punctuation">.</span>order_id <span class="token operator">in</span> <span class="token punctuation">(</span><span class="token number">10</span><span class="token punctuation">,</span> <span class="token number">11</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre> 
+<p>其中t_order在FROM的最左侧，ShardingSphere将会以它作为整个绑定表的主表。 所有路由计算将会只使用主表的策略，那么t_order_item表的分片计算将会使用t_order的条件。故绑定表之间的分区键要完全相同。</p> 
+<p><strong>5）广播表</strong></p> 
+<p>广播表是指所有的分片数据源中都存在的表，表结构和表中的数据在每个数据库中均完全一致。</p> 
+<p>适用于数据量不大且需要与海量数据的表进行关联查询的场景，这些表没必要做分片。</p> 
+<p>例如：例如字典表、省份信息等，因为他们数据量不大，而且这种表可能需要与海量数据的表进行关联查询。</p> 
+<h4><a id="22__75"></a>2.2 分片概念</h4> 
+<p><strong>1）分片键</strong><br> 用于分片的数据库字段，是将数据库（表）水平拆分的关键字段。</p> 
+<p>例如：将订单表中的订单主键的尾数取模分片，则订单主键为分片字段。 SQL中如果无分片字段，将执行全路由，性能较差。 除了对单分片字段的支持，ShardingSphere也支持根据多个字段进行分片。</p> 
+<p><strong>2）分片算法</strong><br> 通过分片算法（ShardingAlgorithm）将数据分片，支持通过=、&gt;=、&lt;=、&gt;、&lt;、BETWEEN和IN分片。<br> 分片算法需要应用方开发者自行实现，可实现的灵活度非常高。</p> 
+<p>目前提供4种分片算法。由于分片算法和业务实现紧密相关，因此并未提供内置分片算法，而是通过分片策略将各种场景提炼出来，提供更高层级的抽象，并提供接口让应用开发者自行实现分片算法。</p> 
+<ol><li>精确分片算法，<br> 对应PreciseShardingAlgorithm，用于处理使用单一键作为分片键的=与IN进行分片的场景。需要配合StandardShardingStrategy使用。</li><li>范围分片算法<br> 对应RangeShardingAlgorithm，用于处理使用单一键作为分片键的BETWEEN AND、&gt;、&lt;、&gt;=、&lt;=进行分片的场景。需要配合StandardShardingStrategy使用。</li><li>复合分片算法<br> 对应ComplexKeysShardingAlgorithm，用于处理使用多键作为分片键进行分片的场景，包含多个分片键的逻辑较复杂，需要应用开发者自行处理其中的复杂度。需要配合ComplexShardingStrategy使用。</li><li>Hint分片算法<br> 对应HintShardingAlgorithm，用于处理使用Hint行分片的场景。需要配合HintShardingStrategy使用。</li></ol> 
+<p><strong>3）分片策略</strong><br> 包含分片键和分片算法，由于分片算法的独立性，将其独立抽离。真正可用于分片操作的是分片键 + 分片算法，也就是分片策略。</p> 
+<p>目前提供5种分片策略：</p> 
+<ol><li>标准分片策略，对应StandardShardingStrategy。</li><li>复合分片策略，对应ComplexShardingStrategy。</li><li>行表达式分片策略，对应InlineShardingStrategy。</li><li>Hint分片策略，对应HintShardingStrategy。</li><li>不分片策略，对应NoneShardingStrategy。</li></ol> 
+<p><strong>4）分片策略配置</strong><br> 对于分片策略存有数据源分片策略和表分片策略两种维度，两种策略的API完全相同。</p> 
+<ul><li>数据源分片策略</li></ul> 
+<p>用于配置数据被分配的目标数据源。</p> 
+<ul><li>表分片策略</li></ul> 
+<p>用于配置数据被分配的目标表，由于表存在与数据源内，所以表分片策略是依赖数据源分片策略结果的。</p> 
+<h2><a id="_114"></a>二、简单入门</h2> 
+<p>ShardingJDBC是整个ShardingSphere最早也是最为核心的一个功能模块，它的主要功能就是数据分片和读写分离等。</p> 
+<p>下面通过一个单数据源分表的实例来了解 ShardingSphere的使用。</p> 
+<ul><li>创建数据库 sharding_db1</li><li>在数据库创建两张表 course_1 和 course_2</li><li><code>约定分片规则</code>：如果添加课程 id 是偶数，则把数据添加 course_1表，如果是奇数添加到 course_2表。</li></ul> 
+<pre><code class="prism language-sql"><span class="token keyword">CREATE</span> <span class="token keyword">TABLE</span> course_1 <span class="token punctuation">(</span>
+	id <span class="token keyword">BIGINT</span><span class="token punctuation">(</span><span class="token number">20</span><span class="token punctuation">)</span> <span class="token keyword">PRIMARY</span> <span class="token keyword">KEY</span><span class="token punctuation">,</span>
+	gmt_create <span class="token keyword">timestamp</span> <span class="token boolean">NULL</span> <span class="token keyword">DEFAULT</span> <span class="token boolean">NULL</span><span class="token punctuation">,</span>
+	name <span class="token keyword">VARCHAR</span><span class="token punctuation">(</span><span class="token number">50</span><span class="token punctuation">)</span> <span class="token operator">NOT</span> <span class="token boolean">NULL</span><span class="token punctuation">,</span>
+	user_id <span class="token keyword">BIGINT</span><span class="token punctuation">(</span><span class="token number">20</span><span class="token punctuation">)</span> <span class="token operator">NOT</span> <span class="token boolean">NULL</span><span class="token punctuation">,</span>
+	<span class="token keyword">status</span> <span class="token keyword">varchar</span><span class="token punctuation">(</span><span class="token number">10</span><span class="token punctuation">)</span> <span class="token operator">NOT</span> <span class="token boolean">NULL</span>
+<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+<span class="token keyword">CREATE</span> <span class="token keyword">TABLE</span> course_2 <span class="token punctuation">(</span>
+	id <span class="token keyword">BIGINT</span><span class="token punctuation">(</span><span class="token number">20</span><span class="token punctuation">)</span> <span class="token keyword">PRIMARY</span> <span class="token keyword">KEY</span><span class="token punctuation">,</span>
+	gmt_create <span class="token keyword">timestamp</span> <span class="token boolean">NULL</span> <span class="token keyword">DEFAULT</span> <span class="token boolean">NULL</span><span class="token punctuation">,</span>
+	name <span class="token keyword">VARCHAR</span><span class="token punctuation">(</span><span class="token number">50</span><span class="token punctuation">)</span> <span class="token operator">NOT</span> <span class="token boolean">NULL</span><span class="token punctuation">,</span>	
+	user_id <span class="token keyword">BIGINT</span><span class="token punctuation">(</span><span class="token number">20</span><span class="token punctuation">)</span> <span class="token operator">NOT</span> <span class="token boolean">NULL</span><span class="token punctuation">,</span>
+	<span class="token keyword">status</span> <span class="token keyword">varchar</span><span class="token punctuation">(</span><span class="token number">10</span><span class="token punctuation">)</span> <span class="token operator">NOT</span> <span class="token boolean">NULL</span>
+<span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre> 
+<h3><a id="1_140"></a>1、引入依赖</h3> 
+<p>创建一个springboot项目。</p> 
+<pre><code class="prism language-xml">        <span class="token comment">&lt;!-- shardingJDBC核心依赖 --&gt;</span>
+        <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>dependency</span><span class="token punctuation">&gt;</span></span>
+            <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>groupId</span><span class="token punctuation">&gt;</span></span>org.apache.shardingsphere<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>groupId</span><span class="token punctuation">&gt;</span></span>
+            <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>artifactId</span><span class="token punctuation">&gt;</span></span>sharding-jdbc-spring-boot-starter<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>artifactId</span><span class="token punctuation">&gt;</span></span>
+            <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>version</span><span class="token punctuation">&gt;</span></span>4.1.1<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>version</span><span class="token punctuation">&gt;</span></span>
+        <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>dependency</span><span class="token punctuation">&gt;</span></span>
+        <span class="token comment">&lt;!--druid连接池--&gt;</span>
+        <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>dependency</span><span class="token punctuation">&gt;</span></span>
+            <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>groupId</span><span class="token punctuation">&gt;</span></span>com.alibaba<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>groupId</span><span class="token punctuation">&gt;</span></span>
+            <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>artifactId</span><span class="token punctuation">&gt;</span></span>druid<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>artifactId</span><span class="token punctuation">&gt;</span></span>
+            <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>version</span><span class="token punctuation">&gt;</span></span>1.2.8<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>version</span><span class="token punctuation">&gt;</span></span>
+        <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>dependency</span><span class="token punctuation">&gt;</span></span>
+
+        <span class="token comment">&lt;!-- mysql连接驱动 --&gt;</span>
+        <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>dependency</span><span class="token punctuation">&gt;</span></span>
+            <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>groupId</span><span class="token punctuation">&gt;</span></span>mysql<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>groupId</span><span class="token punctuation">&gt;</span></span>
+            <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>artifactId</span><span class="token punctuation">&gt;</span></span>mysql-connector-java<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>artifactId</span><span class="token punctuation">&gt;</span></span>
+            <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>version</span><span class="token punctuation">&gt;</span></span>8.0.23<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>version</span><span class="token punctuation">&gt;</span></span>
+        <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>dependency</span><span class="token punctuation">&gt;</span></span>
+        <span class="token comment">&lt;!--mybatis-plus依赖--&gt;</span>
+        <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>dependency</span><span class="token punctuation">&gt;</span></span>
+            <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>groupId</span><span class="token punctuation">&gt;</span></span>com.baomidou<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>groupId</span><span class="token punctuation">&gt;</span></span>
+            <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>artifactId</span><span class="token punctuation">&gt;</span></span>mybatis-plus-boot-starter<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>artifactId</span><span class="token punctuation">&gt;</span></span>
+            <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>version</span><span class="token punctuation">&gt;</span></span>3.4.1<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>version</span><span class="token punctuation">&gt;</span></span>
+        <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>dependency</span><span class="token punctuation">&gt;</span></span>
+</code></pre> 
+<h3><a id="2_171"></a>2、编写代码</h3> 
+<p>创建实体类，mapper。这里使用 MybatisPlus 比较简单，CRUD基本满足我们的示例。<br> 我们重点关注分库分表的数据落库。</p> 
+<h3><a id="3applicationproperties__175"></a>3、application.properties 配置文件</h3> 
+<p>在项目 application.properties 配置文件中进行 ShardingSphere配置。</p> 
+<pre><code class="prism language-sql"><span class="token comment"># 配置真实数据源</span>
+spring<span class="token punctuation">.</span>shardingsphere<span class="token punctuation">.</span>datasource<span class="token punctuation">.</span>names<span class="token operator">=</span>db1
+<span class="token comment"># 配置第1个数据源</span>
+spring<span class="token punctuation">.</span>shardingsphere<span class="token punctuation">.</span>datasource<span class="token punctuation">.</span>db1<span class="token punctuation">.</span><span class="token keyword">type</span><span class="token operator">=</span>com<span class="token punctuation">.</span>alibaba<span class="token punctuation">.</span>druid<span class="token punctuation">.</span>pool<span class="token punctuation">.</span>DruidDataSource
+spring<span class="token punctuation">.</span>shardingsphere<span class="token punctuation">.</span>datasource<span class="token punctuation">.</span>db1<span class="token punctuation">.</span>driver<span class="token operator">-</span>class<span class="token operator">-</span>name<span class="token operator">=</span>com<span class="token punctuation">.</span>mysql<span class="token punctuation">.</span>cj<span class="token punctuation">.</span>jdbc<span class="token punctuation">.</span>Driver
+spring<span class="token punctuation">.</span>shardingsphere<span class="token punctuation">.</span>datasource<span class="token punctuation">.</span>db1<span class="token punctuation">.</span>url<span class="token operator">=</span>jdbc:mysql:<span class="token comment">//localhost:3306/sharding_db1?useUnicode=true&amp;characterEncoding=utf8&amp;useSSL=true&amp;serverTimezone=GMT</span>
+spring<span class="token punctuation">.</span>shardingsphere<span class="token punctuation">.</span>datasource<span class="token punctuation">.</span>db1<span class="token punctuation">.</span>username<span class="token operator">=</span>root
+spring<span class="token punctuation">.</span>shardingsphere<span class="token punctuation">.</span>datasource<span class="token punctuation">.</span>db1<span class="token punctuation">.</span>password<span class="token operator">=</span><span class="token number">123456</span>
+
+<span class="token comment"># 指定表的分布情况</span>
+spring<span class="token punctuation">.</span>shardingsphere<span class="token punctuation">.</span>sharding<span class="token punctuation">.</span><span class="token keyword">tables</span><span class="token punctuation">.</span>course<span class="token punctuation">.</span>actual<span class="token operator">-</span><span class="token keyword">data</span><span class="token operator">-</span>nodes<span class="token operator">=</span>db1<span class="token punctuation">.</span>course_$<span class="token operator">-</span><span class="token operator">&gt;</span>{<!-- --><span class="token number">1.</span><span class="token number">.2</span>}
+<span class="token comment"># 指定表的主键生成策略，雪花算法</span>
+spring<span class="token punctuation">.</span>shardingsphere<span class="token punctuation">.</span>sharding<span class="token punctuation">.</span><span class="token keyword">tables</span><span class="token punctuation">.</span>course<span class="token punctuation">.</span><span class="token keyword">key</span><span class="token operator">-</span>generator<span class="token punctuation">.</span><span class="token keyword">column</span><span class="token operator">=</span>id
+spring<span class="token punctuation">.</span>shardingsphere<span class="token punctuation">.</span>sharding<span class="token punctuation">.</span><span class="token keyword">tables</span><span class="token punctuation">.</span>course<span class="token punctuation">.</span><span class="token keyword">key</span><span class="token operator">-</span>generator<span class="token punctuation">.</span><span class="token keyword">type</span><span class="token operator">=</span>SNOWFLAKE
+spring<span class="token punctuation">.</span>shardingsphere<span class="token punctuation">.</span>sharding<span class="token punctuation">.</span><span class="token keyword">tables</span><span class="token punctuation">.</span>course<span class="token punctuation">.</span><span class="token keyword">key</span><span class="token operator">-</span>generator<span class="token punctuation">.</span>props<span class="token punctuation">.</span>worker<span class="token punctuation">.</span>id<span class="token operator">=</span><span class="token number">1</span>
+
+<span class="token comment">##指定分片策略，约定id值为偶数添加到 course_1表，奇数添加到 course_2表。</span>
+<span class="token comment">#表策略</span>
+spring<span class="token punctuation">.</span>shardingsphere<span class="token punctuation">.</span>sharding<span class="token punctuation">.</span><span class="token keyword">tables</span><span class="token punctuation">.</span>course<span class="token punctuation">.</span><span class="token keyword">table</span><span class="token operator">-</span>strategy<span class="token punctuation">.</span>inline<span class="token punctuation">.</span>sharding<span class="token operator">-</span><span class="token keyword">column</span><span class="token operator">=</span>id
+spring<span class="token punctuation">.</span>shardingsphere<span class="token punctuation">.</span>sharding<span class="token punctuation">.</span><span class="token keyword">tables</span><span class="token punctuation">.</span>course<span class="token punctuation">.</span><span class="token keyword">table</span><span class="token operator">-</span>strategy<span class="token punctuation">.</span>inline<span class="token punctuation">.</span><span class="token keyword">algorithm</span><span class="token operator">-</span>expression<span class="token operator">=</span>course_$<span class="token operator">-</span><span class="token operator">&gt;</span>{id<span class="token operator">%</span><span class="token number">2</span><span class="token operator">+</span><span class="token number">1</span>}
+
+<span class="token comment"># 打开shardingsphere的sql日志输出。</span>
+spring<span class="token punctuation">.</span>shardingsphere<span class="token punctuation">.</span>props<span class="token punctuation">.</span><span class="token keyword">sql</span><span class="token punctuation">.</span><span class="token keyword">show</span><span class="token operator">=</span><span class="token boolean">true</span>
+
+spring<span class="token punctuation">.</span>main<span class="token punctuation">.</span>allow<span class="token operator">-</span>bean<span class="token operator">-</span>definition<span class="token operator">-</span>overriding<span class="token operator">=</span><span class="token boolean">true</span>
+</code></pre> 
+<h3><a id="4_207"></a>4、测试代码</h3> 
+<p><strong>1） 保存</strong></p> 
+<pre><code class="prism language-java">    <span class="token annotation punctuation">@Test</span>
+    <span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">testSave</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token keyword">throws</span> <span class="token class-name">InterruptedException</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token keyword">int</span> i <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span> i <span class="token operator">&lt;</span> <span class="token number">20</span><span class="token punctuation">;</span> i<span class="token operator">++</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token class-name">Course</span> course <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">Course</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            course<span class="token punctuation">.</span><span class="token function">setGmtCreate</span><span class="token punctuation">(</span><span class="token keyword">new</span> <span class="token class-name">Date</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            course<span class="token punctuation">.</span><span class="token function">setName</span><span class="token punctuation">(</span><span class="token string">"java"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            course<span class="token punctuation">.</span><span class="token function">setUserId</span><span class="token punctuation">(</span><span class="token number">1001L</span> <span class="token operator">+</span> i<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            course<span class="token punctuation">.</span><span class="token function">setStatus</span><span class="token punctuation">(</span><span class="token string">"1"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+            <span class="token class-name">TimeUnit</span><span class="token punctuation">.</span>MILLISECONDS<span class="token punctuation">.</span><span class="token function">sleep</span><span class="token punctuation">(</span><span class="token number">50</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token keyword">int</span> count <span class="token operator">=</span> courseMapper<span class="token punctuation">.</span><span class="token function">insert</span><span class="token punctuation">(</span>course<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token class-name">System</span><span class="token punctuation">.</span>out<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"id -&gt;"</span> <span class="token operator">+</span> course<span class="token punctuation">.</span><span class="token function">getId</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+
+    <span class="token punctuation">}</span>
+</code></pre> 
+<p>数据按照我们的分表规则落库ok，</p> 
+<p><strong>2）查询</strong></p> 
+<pre><code class="prism language-java">    <span class="token annotation punctuation">@Test</span>
+    <span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">testGetById</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token class-name">QueryWrapper</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Course</span><span class="token punctuation">&gt;</span></span> wrapper <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">QueryWrapper</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Course</span><span class="token punctuation">&gt;</span></span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token comment">//        wrapper.eq("id",1513890338544734210L);</span>
+        wrapper<span class="token punctuation">.</span><span class="token function">in</span><span class="token punctuation">(</span><span class="token string">"id"</span><span class="token punctuation">,</span><span class="token number">1513890338544734210L</span><span class="token punctuation">,</span> <span class="token number">1513890342613209090L</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token class-name">List</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Course</span><span class="token punctuation">&gt;</span></span> courses <span class="token operator">=</span> courseMapper<span class="token punctuation">.</span><span class="token function">selectList</span><span class="token punctuation">(</span>wrapper<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token class-name">System</span><span class="token punctuation">.</span>out<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span>courses<span class="token punctuation">.</span><span class="token function">size</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        courses<span class="token punctuation">.</span><span class="token function">forEach</span><span class="token punctuation">(</span>course <span class="token operator">-&gt;</span> <span class="token class-name">System</span><span class="token punctuation">.</span>out<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span>course<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+</code></pre> 
+<p><img src="https://images2.imgbox.com/23/ac/RXbbkqkU_o.png" alt="在这里插入图片描述"></p> 
+<p>因为使用的是 行表达式分片策略（inline），只支持分片键的=与IN进行分片的场景</p> 
+<blockquote> 
+ <p>wrapper.between(“id”, 1513890338544734210L, 1513890342613209090L);</p> 
+</blockquote> 
+<p><img src="https://images2.imgbox.com/e0/be/7mLPoxgM_o.png" alt="在这里插入图片描述"></p> 
+<p>到此，ShardingSphere简单使用就算入门了。</p> 
+<p><strong>参考文章：</strong></p> 
+<ul><li>ShardingSphere官方网址：<a href="https://shardingsphere.apache.org/document/current/cn/overview/" rel="nofollow">https://shardingsphere.apache.org/document/current/cn/overview/</a></li><li>ShardingSphere基本介绍及核心概念：<a href="https://blog.csdn.net/Kiven_ch/article/details/119087048">https://blog.csdn.net/Kiven_ch/article/details/119087048</a></li></ul> 
+<blockquote> 
+ <p>– 求知若饥，虚心若愚。</p> 
+</blockquote>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/5d48c5e19c53ec2efdde640d19f873ba/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">前端Vue使用封装Mock.js和api请求模拟数据</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/4a9cdafb1a54dfa32b38e44ae6d467e4/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">【Spring Boot】数据校验</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

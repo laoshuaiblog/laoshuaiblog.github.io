@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>vue 组件通信的几种方式 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/6fc3d30b9c7f28d9a1235155d7747a7f/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="vue 组件通信的几种方式">
+  <meta property="og:description" content="文章目录 简介$refs$parent / \$children$provide / \$inject父传子父传孙子冲突问题 $attrs / \$listener$attrs$listener继承父传孙 总结 简介 这篇文章主要来聊聊，vue 中进行组件之间通信的几种方式。以及一些细节问题和优劣
+$refs 通过在组件中绑定 ref=name 属性，我们可以在 this.$refs.name 获取到当前的组件实例。如果 ref 绑定的不是一个组件而是一个 html 元素，那获取到的是 dom 对象。
+通过 ref 我们可以获取到子组件的实例，通过获取实例上的属性和方法来进行组件通信
+&amp;lt;!-- 父组件 --&amp;gt; &amp;lt;template&amp;gt; &amp;lt;div&amp;gt; &amp;lt;!-- 若 ref 绑定的是普通 html 元素，那获取的对象就是 dom --&amp;gt; &amp;lt;div&amp;gt; &amp;lt;input type=&#34;text&#34; ref=&#34;input&#34;&amp;gt; &amp;lt;button @click=&#34;getDom&#34;&amp;gt;get&amp;lt;/button&amp;gt; &amp;lt;/div&amp;gt; &amp;lt;!-- 若 ref 绑定的是组件，那获取的就是当前的组件实例 --&amp;gt; &amp;lt;div&amp;gt; &amp;lt;child ref=&#34;child&#34; /&amp;gt; &amp;lt;button @click=&#34;getChild&#34;&amp;gt;get&amp;lt;/button&amp;gt; &amp;lt;button @click=&#34;setInfo&#34;&amp;gt;set&amp;lt;/button&amp;gt; &amp;lt;/div&amp;gt; &amp;lt;/div&amp;gt; &amp;lt;/template&amp;gt; &amp;lt;script&amp;gt; import child from &#39;./child.vue&#39; export default { components: { child }, methods: { getDom() { // 获取 dom 元素，并调用 dom 元素上的成员方法 console.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2021-06-30T17:25:53+08:00">
+    <meta property="article:modified_time" content="2021-06-30T17:25:53+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">vue 组件通信的几种方式</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-light">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <p></p> 
+<div class="toc"> 
+ <h4>文章目录</h4> 
+ <ul><li><a href="#_1" rel="nofollow">简介</a></li><li><a href="#refs_4" rel="nofollow">$refs</a></li><li><a href="#parent__children_79" rel="nofollow">$parent / \$children</a></li><li><a href="#provide__inject_168" rel="nofollow">$provide / \$inject</a></li><li><ul><li><a href="#_171" rel="nofollow">父传子</a></li><li><a href="#_268" rel="nofollow">父传孙子</a></li><li><a href="#_301" rel="nofollow">冲突问题</a></li></ul> 
+  </li><li><a href="#attrs__listener_350" rel="nofollow">$attrs / \$listener</a></li><li><ul><li><a href="#attrs_351" rel="nofollow">$attrs</a></li><li><a href="#listener_393" rel="nofollow">$listener</a></li><li><a href="#_416" rel="nofollow">继承</a></li><li><a href="#_430" rel="nofollow">父传孙</a></li></ul> 
+  </li><li><a href="#_444" rel="nofollow">总结</a></li></ul> 
+</div> 
+<p></p> 
+<h2><a id="_1"></a>简介</h2> 
+<p>这篇文章主要来聊聊，vue 中进行组件之间通信的几种方式。以及一些细节问题和优劣</p> 
+<h2><a id="refs_4"></a>$refs</h2> 
+<p>通过在组件中绑定 <code>ref=name</code> 属性，我们可以在 <code>this.$refs.name</code> 获取到当前的组件实例。如果 <code>ref</code> 绑定的不是一个组件而是一个 html 元素，那获取到的是 dom 对象。</p> 
+<p>通过 ref 我们可以获取到子组件的实例，通过获取实例上的属性和方法来进行组件通信</p> 
+<pre><code class="prism language-html"><span class="token comment">&lt;!-- 父组件 --&gt;</span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>template</span><span class="token punctuation">&gt;</span></span>
+  <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>div</span><span class="token punctuation">&gt;</span></span>
+    <span class="token comment">&lt;!-- 若 ref 绑定的是普通 html 元素，那获取的对象就是 dom --&gt;</span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>div</span><span class="token punctuation">&gt;</span></span>
+      <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>input</span> <span class="token attr-name">type</span><span class="token attr-value"><span class="token punctuation">=</span><span class="token punctuation">"</span>text<span class="token punctuation">"</span></span>
+             <span class="token attr-name">ref</span><span class="token attr-value"><span class="token punctuation">=</span><span class="token punctuation">"</span>input<span class="token punctuation">"</span></span><span class="token punctuation">&gt;</span></span>
+      <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>button</span> <span class="token attr-name">@click</span><span class="token attr-value"><span class="token punctuation">=</span><span class="token punctuation">"</span>getDom<span class="token punctuation">"</span></span><span class="token punctuation">&gt;</span></span>get<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>button</span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>div</span><span class="token punctuation">&gt;</span></span>
+
+    <span class="token comment">&lt;!-- 若 ref 绑定的是组件，那获取的就是当前的组件实例 --&gt;</span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>div</span><span class="token punctuation">&gt;</span></span>
+      <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>child</span> <span class="token attr-name">ref</span><span class="token attr-value"><span class="token punctuation">=</span><span class="token punctuation">"</span>child<span class="token punctuation">"</span></span> <span class="token punctuation">/&gt;</span></span>
+      <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>button</span> <span class="token attr-name">@click</span><span class="token attr-value"><span class="token punctuation">=</span><span class="token punctuation">"</span>getChild<span class="token punctuation">"</span></span><span class="token punctuation">&gt;</span></span>get<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>button</span><span class="token punctuation">&gt;</span></span>
+      <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>button</span> <span class="token attr-name">@click</span><span class="token attr-value"><span class="token punctuation">=</span><span class="token punctuation">"</span>setInfo<span class="token punctuation">"</span></span><span class="token punctuation">&gt;</span></span>set<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>button</span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>div</span><span class="token punctuation">&gt;</span></span>
+
+  <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>div</span><span class="token punctuation">&gt;</span></span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>template</span><span class="token punctuation">&gt;</span></span>
+
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>script</span><span class="token punctuation">&gt;</span></span><span class="token script language-javascript">
+<span class="token keyword">import</span> child <span class="token keyword">from</span> <span class="token string">'./child.vue'</span>
+
+<span class="token keyword">export</span> <span class="token keyword">default</span> <span class="token punctuation">{<!-- --></span>
+  components<span class="token punctuation">:</span> <span class="token punctuation">{<!-- --></span>
+    child
+  <span class="token punctuation">}</span><span class="token punctuation">,</span>
+  methods<span class="token punctuation">:</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token function">getDom</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+      <span class="token comment">// 获取 dom 元素，并调用 dom 元素上的成员方法</span>
+      console<span class="token punctuation">.</span><span class="token function">log</span><span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">.</span>$refs<span class="token punctuation">.</span>input<span class="token punctuation">.</span>value<span class="token punctuation">)</span>
+    <span class="token punctuation">}</span><span class="token punctuation">,</span>
+    <span class="token function">getChild</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+      <span class="token comment">// 获取实例上的响应式属性</span>
+      console<span class="token punctuation">.</span><span class="token function">log</span><span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">.</span>$refs<span class="token punctuation">.</span>child<span class="token punctuation">.</span>info<span class="token punctuation">)</span>
+    <span class="token punctuation">}</span><span class="token punctuation">,</span>
+    <span class="token function">setInfo</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+      <span class="token comment">// 调用实例上的方法</span>
+      <span class="token keyword">this</span><span class="token punctuation">.</span>$refs<span class="token punctuation">.</span>child<span class="token punctuation">.</span><span class="token function">change</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+    <span class="token punctuation">}</span>
+  <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</span><span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>script</span><span class="token punctuation">&gt;</span></span>
+
+
+<span class="token comment">&lt;!-- 子组件 --&gt;</span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>template</span><span class="token punctuation">&gt;</span></span>
+  <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>input</span> <span class="token attr-name">type</span><span class="token attr-value"><span class="token punctuation">=</span><span class="token punctuation">"</span>text<span class="token punctuation">"</span></span>
+         <span class="token attr-name">v-model</span><span class="token attr-value"><span class="token punctuation">=</span><span class="token punctuation">"</span>info<span class="token punctuation">"</span></span><span class="token punctuation">&gt;</span></span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>template</span><span class="token punctuation">&gt;</span></span>
+
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>script</span><span class="token punctuation">&gt;</span></span><span class="token script language-javascript">
+<span class="token keyword">export</span> <span class="token keyword">default</span> <span class="token punctuation">{<!-- --></span>
+  <span class="token function">data</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">return</span> <span class="token punctuation">{<!-- --></span>
+      info<span class="token punctuation">:</span> <span class="token string">'child'</span>
+    <span class="token punctuation">}</span>
+  <span class="token punctuation">}</span><span class="token punctuation">,</span>
+  methods<span class="token punctuation">:</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token function">change</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+      <span class="token keyword">this</span><span class="token punctuation">.</span>info <span class="token operator">=</span> <span class="token string">'change'</span>
+    <span class="token punctuation">}</span>
+  <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</span><span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>script</span><span class="token punctuation">&gt;</span></span>
+
+</code></pre> 
+<p>ref 主要还是通过获取组件实例，通过直接获取和改变实例上的成员变量来实现组件通信，虽然这种做法可以很便捷的进行通信，但不利于问题的溯源，而且相对繁琐，每次都需要进行调用的编写。适用于一些比较单一组件的通信。</p> 
+<h2><a id="parent__children_79"></a>$parent / $children</h2> 
+<p>通过 <code>vm.$parent</code> 我们可以获取父组件的实例对象，并可以调用父组件实例上的成员变量。<br> 通过 <code>vm.$children</code> 我们可以获取所有的子组件对象，他是一个数组，数组中包含所有的子组件成员实例，我们同样可以调用所有子组件实例上的成员变量</p> 
+<pre><code class="prism language-html"><span class="token comment">&lt;!-- 父组件 --&gt;</span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>template</span><span class="token punctuation">&gt;</span></span>
+  <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>div</span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>p</span><span class="token punctuation">&gt;</span></span>parent: {<!-- -->{ title }}<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>p</span><span class="token punctuation">&gt;</span></span>
+    <span class="token comment">&lt;!-- 通过 $children 获取所有的子组件实例，并调用实例上的方法 --&gt;</span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>button</span> <span class="token attr-name">@click</span><span class="token attr-value"><span class="token punctuation">=</span><span class="token punctuation">"</span>$children[0].setParent()<span class="token punctuation">"</span></span><span class="token punctuation">&gt;</span></span>child1<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>button</span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>button</span> <span class="token attr-name">@click</span><span class="token attr-value"><span class="token punctuation">=</span><span class="token punctuation">"</span>$children[1].setParent()<span class="token punctuation">"</span></span><span class="token punctuation">&gt;</span></span>child2<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>button</span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>child1</span> <span class="token punctuation">/&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>child2</span> <span class="token punctuation">/&gt;</span></span>
+  <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>div</span><span class="token punctuation">&gt;</span></span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>template</span><span class="token punctuation">&gt;</span></span>
+
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>script</span><span class="token punctuation">&gt;</span></span><span class="token script language-javascript">
+<span class="token keyword">import</span> child1 <span class="token keyword">from</span> <span class="token string">'./child1.vue'</span>
+<span class="token keyword">import</span> child2 <span class="token keyword">from</span> <span class="token string">'./child2.vue'</span>
+<span class="token keyword">export</span> <span class="token keyword">default</span> <span class="token punctuation">{<!-- --></span>
+  components<span class="token punctuation">:</span> <span class="token punctuation">{<!-- --></span>
+    child1<span class="token punctuation">,</span>
+    child2
+  <span class="token punctuation">}</span><span class="token punctuation">,</span>
+  <span class="token function">data</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">return</span> <span class="token punctuation">{<!-- --></span>
+      title<span class="token punctuation">:</span> <span class="token string">'ssss'</span>
+    <span class="token punctuation">}</span>
+  <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</span><span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>script</span><span class="token punctuation">&gt;</span></span>
+
+<span class="token comment">&lt;!-- child1 --&gt;</span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>template</span><span class="token punctuation">&gt;</span></span>
+  <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>div</span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>p</span><span class="token punctuation">&gt;</span></span>
+      <span class="token comment">&lt;!-- 通过 $parent 获取父组件实例，并调用实例上的成员 --&gt;</span>
+      child1: {<!-- -->{ $parent.title }}
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>p</span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>button</span> <span class="token attr-name">@click</span><span class="token attr-value"><span class="token punctuation">=</span><span class="token punctuation">"</span>setParent<span class="token punctuation">"</span></span><span class="token punctuation">&gt;</span></span>setparent<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>button</span><span class="token punctuation">&gt;</span></span>
+  <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>div</span><span class="token punctuation">&gt;</span></span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>template</span><span class="token punctuation">&gt;</span></span>
+
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>script</span><span class="token punctuation">&gt;</span></span><span class="token script language-javascript">
+<span class="token keyword">export</span> <span class="token keyword">default</span> <span class="token punctuation">{<!-- --></span>
+  methods<span class="token punctuation">:</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token function">setParent</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+      <span class="token keyword">this</span><span class="token punctuation">.</span>$parent<span class="token punctuation">.</span>title <span class="token operator">=</span> <span class="token string">'child1 set'</span>
+    <span class="token punctuation">}</span>
+  <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</span><span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>script</span><span class="token punctuation">&gt;</span></span>
+
+
+<span class="token comment">&lt;!-- child2 --&gt;</span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>template</span><span class="token punctuation">&gt;</span></span>
+  <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>div</span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>p</span><span class="token punctuation">&gt;</span></span>
+      child2: {<!-- -->{ $parent.title }}
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>p</span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>button</span> <span class="token attr-name">@click</span><span class="token attr-value"><span class="token punctuation">=</span><span class="token punctuation">"</span>setParent<span class="token punctuation">"</span></span><span class="token punctuation">&gt;</span></span>setparent<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>button</span><span class="token punctuation">&gt;</span></span>
+  <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>div</span><span class="token punctuation">&gt;</span></span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>template</span><span class="token punctuation">&gt;</span></span>
+
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>script</span><span class="token punctuation">&gt;</span></span><span class="token script language-javascript">
+<span class="token keyword">export</span> <span class="token keyword">default</span> <span class="token punctuation">{<!-- --></span>
+  methods<span class="token punctuation">:</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token function">setParent</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+      <span class="token keyword">this</span><span class="token punctuation">.</span>$parent<span class="token punctuation">.</span>title <span class="token operator">=</span> <span class="token string">'child2 set'</span>
+    <span class="token punctuation">}</span>
+  <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</span><span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>script</span><span class="token punctuation">&gt;</span></span>
+</code></pre> 
+<p>通过获取或修改实例上的成员的确可以实现数据的通信，但从模块化的思想来说，这种操作会增加父子组件的耦合度，导致无法比较有效的进行分离管理。容易导致意外的错误，并增加了维护难度。所以使用这类</p> 
+<p><code>$ref</code>，<code>$parent/$children</code> 的思想其实都是先获取组件的实例，然后获取实例上的成员或者调用实例上的方法来实现数据通信的</p> 
+<p>如果我们想进行 父组件-孙子组件的通信，使用上面的方法就会显得特别鸡肋、繁琐。</p> 
+<pre><code class="prism language-javascript"><span class="token comment">// 获取曾父组件</span>
+<span class="token keyword">this</span><span class="token punctuation">.</span>$parent<span class="token punctuation">.</span>$parent<span class="token punctuation">.</span>title
+
+<span class="token comment">// 获取孙子组件</span>
+<span class="token keyword">this</span><span class="token punctuation">.</span>$children<span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span><span class="token punctuation">.</span>$children<span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span><span class="token punctuation">.</span>title
+</code></pre> 
+<p>那应该怎么办呢？别着急，接着看</p> 
+<h2><a id="provide__inject_168"></a>$provide / $inject</h2> 
+<p><code>$provide / $inject</code> 是一种依赖注入的方式，来优化多个层级的组件嵌套的通信的方式。</p> 
+<h3><a id="_171"></a>父传子</h3> 
+<p>首先我们来看看父子之间如何进行数据通信</p> 
+<pre><code class="prism language-html"><span class="token comment">&lt;!-- parent --&gt;</span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>template</span><span class="token punctuation">&gt;</span></span>
+  <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>div</span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>p</span><span class="token punctuation">&gt;</span></span>
+      parent: {<!-- -->{title}}
+      <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>child</span> <span class="token punctuation">/&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>p</span><span class="token punctuation">&gt;</span></span>
+  <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>div</span><span class="token punctuation">&gt;</span></span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>template</span><span class="token punctuation">&gt;</span></span>
+
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>script</span><span class="token punctuation">&gt;</span></span><span class="token script language-javascript">
+<span class="token keyword">import</span> child <span class="token keyword">from</span> <span class="token string">'./child.vue'</span>
+<span class="token keyword">export</span> <span class="token keyword">default</span> <span class="token punctuation">{<!-- --></span>
+  <span class="token function">data</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">return</span> <span class="token punctuation">{<!-- --></span>
+      title<span class="token punctuation">:</span> <span class="token string">'mmmm'</span>
+    <span class="token punctuation">}</span>
+  <span class="token punctuation">}</span><span class="token punctuation">,</span>
+  <span class="token comment">// 通过 provide 将需要传递的数据进行返回</span>
+  <span class="token function">provide</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">return</span> <span class="token punctuation">{<!-- --></span>
+      title<span class="token punctuation">:</span> <span class="token keyword">this</span><span class="token punctuation">.</span>title<span class="token punctuation">,</span>
+      setParentData<span class="token punctuation">:</span> <span class="token keyword">this</span><span class="token punctuation">.</span>setParentData
+    <span class="token punctuation">}</span>
+  <span class="token punctuation">}</span><span class="token punctuation">,</span>
+  methods<span class="token punctuation">:</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token function">setParentData</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+      <span class="token keyword">this</span><span class="token punctuation">.</span>title <span class="token operator">=</span> <span class="token string">'change'</span>
+    <span class="token punctuation">}</span>
+  <span class="token punctuation">}</span><span class="token punctuation">,</span>
+  components<span class="token punctuation">:</span> <span class="token punctuation">{<!-- --></span>
+    child
+  <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</span><span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>script</span><span class="token punctuation">&gt;</span></span>
+
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>style</span><span class="token punctuation">&gt;</span></span><span class="token style language-css">
+</span><span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>style</span><span class="token punctuation">&gt;</span></span>
+
+<span class="token comment">&lt;!-- child --&gt;</span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>template</span><span class="token punctuation">&gt;</span></span>
+  <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>div</span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>p</span><span class="token punctuation">&gt;</span></span>
+      child: {<!-- -->{title}}
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>p</span><span class="token punctuation">&gt;</span></span>
+    <span class="token comment">&lt;!-- 尝试改变title 看看会不会影响父组件中 title 的值 --&gt;</span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>button</span> <span class="token attr-name">@click</span><span class="token attr-value"><span class="token punctuation">=</span><span class="token punctuation">"</span>setData<span class="token punctuation">"</span></span><span class="token punctuation">&gt;</span></span>setData<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>button</span><span class="token punctuation">&gt;</span></span>
+  <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>div</span><span class="token punctuation">&gt;</span></span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>template</span><span class="token punctuation">&gt;</span></span>
+
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>script</span><span class="token punctuation">&gt;</span></span><span class="token script language-javascript">
+<span class="token keyword">export</span> <span class="token keyword">default</span> <span class="token punctuation">{<!-- --></span>
+  <span class="token function">data</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">return</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token punctuation">}</span>
+  <span class="token punctuation">}</span><span class="token punctuation">,</span>
+  <span class="token comment">// 子组件通过 inject 来接收父组件传递的 provide 数据，这里你可以规定接收哪些不接收哪些。比如我这里只接收 title 属性</span>
+  inject<span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">'title'</span><span class="token punctuation">]</span><span class="token punctuation">,</span>
+  methods<span class="token punctuation">:</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token function">setData</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+      <span class="token keyword">this</span><span class="token punctuation">.</span>title <span class="token operator">=</span> <span class="token string">'222'</span>
+    <span class="token punctuation">}</span>
+  <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</span><span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>script</span><span class="token punctuation">&gt;</span></span>
+
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>style</span><span class="token punctuation">&gt;</span></span><span class="token style language-css">
+</span><span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>style</span><span class="token punctuation">&gt;</span></span>
+</code></pre> 
+<p><img src="https://images2.imgbox.com/81/ab/nRRp7wPg_o.png" alt="在这里插入图片描述"></p> 
+<p>父组件通过 <code>provide</code> 将属性传递给子组件，子组件则通过 <code>inject</code> 来接收父组件传递的值。但是当我们在子组件中改变 <code>title</code> 属性的时候，实际是会报一个错误的。从上面的图我们也可以看见，当改变 <code>title</code>属性的时候，子组件的 <code>title</code> 的确被修改了，但父组件的依然是原来的值。<br> <img src="https://images2.imgbox.com/46/08/WNo5me1i_o.png" alt="在这里插入图片描述"><br> 实际上 <code>provide</code> 的数据并不是响应式的，更像是父组件在初始化的时候给子组件拷贝了一份数据供他使用。即便我们修改父组件中的 <code>title</code> 属性，子组件中的 <code>title</code> 也不会修改</p> 
+<p>比如我们在父组件增加一个按钮来修改 <code>title属性</code></p> 
+<pre><code class="prism language-html"><span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>template</span><span class="token punctuation">&gt;</span></span>
+  <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>div</span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>p</span><span class="token punctuation">&gt;</span></span>
+      parent: {<!-- -->{title}}
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>p</span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>button</span> <span class="token attr-name">@click</span><span class="token attr-value"><span class="token punctuation">=</span><span class="token punctuation">"</span>setParentData<span class="token punctuation">"</span></span><span class="token punctuation">&gt;</span></span>change<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>button</span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>child</span> <span class="token punctuation">/&gt;</span></span>
+  <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>div</span><span class="token punctuation">&gt;</span></span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>template</span><span class="token punctuation">&gt;</span></span>
+</code></pre> 
+<p><img src="https://images2.imgbox.com/64/76/mZNrkqE1_o.png" alt="在这里插入图片描述"><br> 所以即便我们通过 <code>provide/inject</code> 传递了一个可以设置父组件 <code>title</code> 属性值的方法。实际上也只能改变父组件中的 <code>title</code>，不能实现响应式。</p> 
+<p>虽然你可能可以通过一些变通来间接的实现父子组件的数据同时更新，但这会使整个项目难以维护。并且一旦涉及多个层级的数据传递，这种数据更新会很难实现，并且可能出现更多的意外情况。</p> 
+<p>从这个层面来看，我认为 <code>$provide/$inject</code> 更适合多层级组件之间的数据单向传递，但如果涉及子传父的话可能就显得比较困难。</p> 
+<h3><a id="_268"></a>父传孙子</h3> 
+<p>在子组件不定义 <code>provide</code> 属性的适合，子组件会将父组件的 <code>provide</code> 向下传递。</p> 
+<pre><code class="prism language-html"><span class="token comment">&lt;!-- grandson--&gt;</span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>template</span><span class="token punctuation">&gt;</span></span>
+  <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>div</span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>p</span><span class="token punctuation">&gt;</span></span>
+      grandson: {<!-- -->{title}}
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>p</span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>button</span> <span class="token attr-name">@click</span><span class="token attr-value"><span class="token punctuation">=</span><span class="token punctuation">"</span>setData<span class="token punctuation">"</span></span><span class="token punctuation">&gt;</span></span>setData<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>button</span><span class="token punctuation">&gt;</span></span>
+  <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>div</span><span class="token punctuation">&gt;</span></span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>template</span><span class="token punctuation">&gt;</span></span>
+
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>script</span><span class="token punctuation">&gt;</span></span><span class="token script language-javascript">
+<span class="token keyword">export</span> <span class="token keyword">default</span> <span class="token punctuation">{<!-- --></span>
+  <span class="token function">data</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">return</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token punctuation">}</span>
+  <span class="token punctuation">}</span><span class="token punctuation">,</span>
+  inject<span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">'title'</span><span class="token punctuation">,</span> <span class="token string">'setParentData'</span><span class="token punctuation">]</span><span class="token punctuation">,</span>
+  methods<span class="token punctuation">:</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token function">setData</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+      <span class="token keyword">this</span><span class="token punctuation">.</span><span class="token function">setParentData</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+    <span class="token punctuation">}</span>
+  <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</span><span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>script</span><span class="token punctuation">&gt;</span></span>
+
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>style</span><span class="token punctuation">&gt;</span></span><span class="token style language-css">
+</span><span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>style</span><span class="token punctuation">&gt;</span></span>
+</code></pre> 
+<p>但同样的，传递的数据并不是响应式的。</p> 
+<h3><a id="_301"></a>冲突问题</h3> 
+<p>在使用 <code>provide/inject</code> 的时候，你还需要注意一些命名冲突问题。</p> 
+<p>使用 <code>provide</code> 进行数据通信，需要避免与 <code>props</code> 传递的数据产生冲突。一旦 <code>provide</code> 与 <code>props</code> 产生冲突，<code>props</code> 传递的数据会被 <code>provide/inject</code> 的数据覆盖</p> 
+<pre><code class="prism language-html"><span class="token comment">&lt;!--parent--&gt;</span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>child</span> <span class="token attr-name">title</span><span class="token attr-value"><span class="token punctuation">=</span><span class="token punctuation">"</span>0000<span class="token punctuation">"</span></span> <span class="token punctuation">/&gt;</span></span>
+
+<span class="token comment">&lt;!--child--&gt;</span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>template</span><span class="token punctuation">&gt;</span></span>
+  <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>div</span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>p</span><span class="token punctuation">&gt;</span></span>
+      child: {<!-- -->{title}}
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>p</span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>button</span> <span class="token attr-name">@click</span><span class="token attr-value"><span class="token punctuation">=</span><span class="token punctuation">"</span>setData<span class="token punctuation">"</span></span><span class="token punctuation">&gt;</span></span>setData<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>button</span><span class="token punctuation">&gt;</span></span>
+  <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>div</span><span class="token punctuation">&gt;</span></span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>template</span><span class="token punctuation">&gt;</span></span>
+
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>script</span><span class="token punctuation">&gt;</span></span><span class="token script language-javascript">
+<span class="token keyword">export</span> <span class="token keyword">default</span> <span class="token punctuation">{<!-- --></span>
+  props<span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">'title'</span><span class="token punctuation">]</span><span class="token punctuation">,</span>
+  <span class="token function">data</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">return</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token punctuation">}</span>
+  <span class="token punctuation">}</span><span class="token punctuation">,</span>
+  inject<span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">'title'</span><span class="token punctuation">,</span> <span class="token string">'setParentData'</span><span class="token punctuation">]</span><span class="token punctuation">,</span>
+  methods<span class="token punctuation">:</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token function">setData</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+      <span class="token keyword">this</span><span class="token punctuation">.</span>title <span class="token operator">=</span> <span class="token string">'chang'</span>
+      <span class="token keyword">this</span><span class="token punctuation">.</span><span class="token function">setParentData</span><span class="token punctuation">(</span><span class="token string">'change'</span><span class="token punctuation">)</span>
+    <span class="token punctuation">}</span>
+  <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</span><span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>script</span><span class="token punctuation">&gt;</span></span>
+</code></pre> 
+<p><img src="https://images2.imgbox.com/a9/f5/0lzbZ8VP_o.png" alt="在这里插入图片描述"><br> 同样的，如果 <code>provide/inject</code> 中的属性名与组件本身 <code>data</code> 冲突，会优先使用 <code>data</code> 的属性。注意，这里是优先使用，而不是覆盖</p> 
+<pre><code class="prism language-javascript"><span class="token function">data</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+  <span class="token keyword">return</span> <span class="token punctuation">{<!-- --></span>
+    title<span class="token punctuation">:</span> <span class="token string">'9999'</span>
+  <span class="token punctuation">}</span>
+<span class="token punctuation">}</span><span class="token punctuation">,</span>
+inject<span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">'title'</span><span class="token punctuation">,</span> <span class="token string">'setParentData'</span><span class="token punctuation">]</span><span class="token punctuation">,</span>
+</code></pre> 
+<p><img src="https://images2.imgbox.com/d9/f3/1rz6gbfh_o.png" alt="在这里插入图片描述"><br> <img src="https://images2.imgbox.com/5d/34/aALjbUW3_o.png" alt="在这里插入图片描述"></p> 
+<h2><a id="attrs__listener_350"></a>$attrs / $listener</h2> 
+<h3><a id="attrs_351"></a>$attrs</h3> 
+<p>当我们在组件中加入属性时，若子组件中没有使用props接收对应的属性的时候，这些加入的属性将会存储在 $attrs 属性。但我们需要注意 <code>class</code> 和 <code>style</code> 属性是由默认的作用，是没办法被接收的</p> 
+<pre><code class="prism language-html"><span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>template</span><span class="token punctuation">&gt;</span></span>
+  <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>div</span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>p</span><span class="token punctuation">&gt;</span></span>
+      parent: {<!-- -->{ title }}
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>p</span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>child</span> <span class="token attr-name">:title</span><span class="token attr-value"><span class="token punctuation">=</span><span class="token punctuation">"</span>title<span class="token punctuation">"</span></span>
+           <span class="token attr-name">name</span><span class="token attr-value"><span class="token punctuation">=</span><span class="token punctuation">"</span>attr<span class="token punctuation">"</span></span>
+           <span class="token attr-name">class</span><span class="token attr-value"><span class="token punctuation">=</span><span class="token punctuation">"</span>parent-class<span class="token punctuation">"</span></span><span class="token style-attr language-css"><span class="token attr-name">
+           <span class="token attr-name">style</span></span><span class="token punctuation">="</span><span class="token attr-value"><span class="token property">color</span><span class="token punctuation">:</span>red</span><span class="token punctuation">"</span></span> <span class="token punctuation">/&gt;</span></span>
+  <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>div</span><span class="token punctuation">&gt;</span></span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>template</span><span class="token punctuation">&gt;</span></span>
+</code></pre> 
+<p><img src="https://images2.imgbox.com/62/5e/uRU3C3bT_o.png" alt="在这里插入图片描述"><br> 如果其中的某些属性定义在props中，那么会优先存储在 props 内。<br> <img src="https://images2.imgbox.com/ec/45/TWkhXz6F_o.png" alt="在这里插入图片描述"><br> 如果你想访问这些数据，你可以在 <code>vm.$attrs</code> 中访问数据。但如果你试图修改 <code>vm.$attrs</code> 的数据是没办法实现响应式渲染的。</p> 
+<pre><code class="prism language-html"><span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>template</span><span class="token punctuation">&gt;</span></span>
+  <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>div</span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>p</span><span class="token punctuation">&gt;</span></span>child: {<!-- -->{$attrs.title}}<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>p</span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>button</span> <span class="token attr-name">@click</span><span class="token attr-value"><span class="token punctuation">=</span><span class="token punctuation">"</span>changeData<span class="token punctuation">"</span></span><span class="token punctuation">&gt;</span></span>chang<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>button</span><span class="token punctuation">&gt;</span></span>
+  <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>div</span><span class="token punctuation">&gt;</span></span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>template</span><span class="token punctuation">&gt;</span></span>
+
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>script</span><span class="token punctuation">&gt;</span></span><span class="token script language-javascript">
+<span class="token keyword">export</span> <span class="token keyword">default</span> <span class="token punctuation">{<!-- --></span>
+  props<span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">'name'</span><span class="token punctuation">]</span><span class="token punctuation">,</span>
+  <span class="token comment">// 实际上 inheritAttrs 是控制是否将属性继承到组件的最外层元素上，而 attrs 是一直存在的</span>
+  <span class="token comment">// inheritAttrs: false,</span>
+  methods<span class="token punctuation">:</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token function">changeData</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+      <span class="token keyword">this</span><span class="token punctuation">.</span>$attrs<span class="token punctuation">.</span>title <span class="token operator">=</span> <span class="token string">'change---'</span>
+    <span class="token punctuation">}</span>
+  <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</span><span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>script</span><span class="token punctuation">&gt;</span></span>
+</code></pre> 
+<h3><a id="listener_393"></a>$listener</h3> 
+<p>$listener 包含了绑定在子组件上的所有事件，我们可以通过访问 <code>vm.$listener</code> 来获取事件操作。这样我们就可以通过传递的事件来修改父组件的数据，并且这种改动是响应式的。不仅会改变父组件的状态，同时也会改变子组件的状态</p> 
+<pre><code class="prism language-html"><span class="token comment">&lt;!-- 父组件 --&gt;</span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>child</span> <span class="token attr-name">:title</span><span class="token attr-value"><span class="token punctuation">=</span><span class="token punctuation">"</span>title<span class="token punctuation">"</span></span>
+           <span class="token attr-name">name</span><span class="token attr-value"><span class="token punctuation">=</span><span class="token punctuation">"</span>attr<span class="token punctuation">"</span></span>
+           <span class="token attr-name">class</span><span class="token attr-value"><span class="token punctuation">=</span><span class="token punctuation">"</span>parent-class<span class="token punctuation">"</span></span><span class="token style-attr language-css"><span class="token attr-name">
+           <span class="token attr-name">style</span></span><span class="token punctuation">="</span><span class="token attr-value"><span class="token property">color</span><span class="token punctuation">:</span>red</span><span class="token punctuation">"</span></span>
+           <span class="token attr-name">@change</span><span class="token attr-value"><span class="token punctuation">=</span><span class="token punctuation">"</span>change<span class="token punctuation">"</span></span> <span class="token punctuation">/&gt;</span></span>
+
+<span class="token comment">&lt;!-- 子组件 --&gt;</span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>script</span><span class="token punctuation">&gt;</span></span><span class="token script language-javascript">
+<span class="token keyword">export</span> <span class="token keyword">default</span> <span class="token punctuation">{<!-- --></span>
+  props<span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">'name'</span><span class="token punctuation">]</span><span class="token punctuation">,</span>
+  methods<span class="token punctuation">:</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token function">changeData</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+      <span class="token keyword">this</span><span class="token punctuation">.</span>$listeners<span class="token punctuation">.</span><span class="token function">change</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+    <span class="token punctuation">}</span>
+  <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</span><span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>script</span><span class="token punctuation">&gt;</span></span>
+</code></pre> 
+<p><img src="https://images2.imgbox.com/2e/25/nY7mTKLX_o.png" alt="在这里插入图片描述"></p> 
+<h3><a id="_416"></a>继承</h3> 
+<p>你需要注意的是，默认情况下，父组件绑定到子组件上的属性会继承到组件的最外层元素上。<br> <img src="https://images2.imgbox.com/86/cc/TPUgbuX4_o.png" alt="在这里插入图片描述"><br> 如果你不希望最外层元素继承，你可以定义 <code>inheritAttrs: false</code>。但 class 和 style 属性是默认继承的，不管 <code>inheritAttrs</code> 是什么</p> 
+<pre><code class="prism language-html"><span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>script</span><span class="token punctuation">&gt;</span></span><span class="token script language-javascript">
+<span class="token keyword">export</span> <span class="token keyword">default</span> <span class="token punctuation">{<!-- --></span>
+  props<span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">'name'</span><span class="token punctuation">]</span><span class="token punctuation">,</span>
+  <span class="token comment">// 实际上 inheritAttrs 是控制是否将属性继承到组件的最外层元素上，而 $attrs 是一直存在的</span>
+  inheritAttrs<span class="token punctuation">:</span> <span class="token boolean">false</span><span class="token punctuation">,</span>
+<span class="token punctuation">}</span>
+</span><span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>script</span><span class="token punctuation">&gt;</span></span>
+</code></pre> 
+<p><img src="https://images2.imgbox.com/d9/60/SRJvmTI6_o.png" alt="在这里插入图片描述"></p> 
+<h3><a id="_430"></a>父传孙</h3> 
+<p>如果你希望这种属性可以传递给你元素，你可以使用 <code>v-bind="$attrs"</code> <code>v-on="$listener"</code> 这两个指令的意思就是将 <code>$attrs</code> <code>$listeners</code> 上的属性展开到某个组件上，这样就可以将父组件数据通过子组件间接传递给孙子</p> 
+<pre><code class="prism language-html"><span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>template</span><span class="token punctuation">&gt;</span></span>
+  <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>div</span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>p</span><span class="token punctuation">&gt;</span></span>child: {<!-- -->{$attrs.title}}<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>p</span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>button</span> <span class="token attr-name">@click</span><span class="token attr-value"><span class="token punctuation">=</span><span class="token punctuation">"</span>changeData<span class="token punctuation">"</span></span><span class="token punctuation">&gt;</span></span>chang<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>button</span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>grandson</span> <span class="token attr-name">v-bind</span><span class="token attr-value"><span class="token punctuation">=</span><span class="token punctuation">"</span>$attrs<span class="token punctuation">"</span></span>
+              <span class="token attr-name">v-on</span><span class="token attr-value"><span class="token punctuation">=</span><span class="token punctuation">"</span>$listeners<span class="token punctuation">"</span></span> <span class="token punctuation">/&gt;</span></span>
+  <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>div</span><span class="token punctuation">&gt;</span></span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>template</span><span class="token punctuation">&gt;</span></span>
+</code></pre> 
+<p><img src="https://images2.imgbox.com/54/b9/Uq0WDLWb_o.png" alt="在这里插入图片描述"></p> 
+<h2><a id="_444"></a>总结</h2> 
+<p>vue 组件通信的方式还有很多，比如事件总线，vuex 等也可以。每种方式都有它的好处和缺点，没有绝对的最优选择，这主要取决于你希望如何进行数据传递。</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/bf19ad79b909f3b53ab7052cc1be02b6/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">常用方法（图片逆光度、傅里叶变换、寻找波峰波谷、计算俯仰/侧脸）</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/0cb64550ee1b804f514ee21908fb2090/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">web课程设计网页规划与设计~时尚服装购物商城模板html源码(HTML&#43;CSS&#43;JS)</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

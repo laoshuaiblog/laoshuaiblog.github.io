@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>一文深入理解搞懂Java中的魔法类-Unsafe - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/38154a775c7036267a190227ea7a709d/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="一文深入理解搞懂Java中的魔法类-Unsafe">
+  <meta property="og:description" content="一、Unsafe介绍 Unsafe类，全限定名是sun.misc.Unsafe，从名字中我们可以看出来这个类对普通程序员来说是“危险”的，一般应用开发者不会用到这个类。
+Unsafe类位于JDK的rt.jar包中，它提供了硬件级别的原子性操作，Unsafe类中的方法都是native方法，它们使用JNI的方式访问本地C&#43;&#43;实现库。因此Unsafe类主要提供一些用于执行低级别、不安全操作的方法，如直接访问系统内存资源、自主管理内存资源等，这些方法在提升Java运行效率、增强Java语言底层资源操作能力方面起到了很大的作用。但由于Unsafe类使Java语言拥有了类似C语言指针一样操作内存空间的能力，这无疑也增加了程序发生相关指针问题的风险。
+Unsafe做操作的是直接内存区，所以该类没有办法通过HotSpot的GC进行回收，需要进行手动回收，因此在使用此类时需要注意内存泄漏（Memory Leak）和内存溢出（Out Of Memory）。
+在程序中过度、不正确使用Unsafe类会使得程序出错的概率变大，使得Java这种安全的语言变得不再“安全”，因此对Unsafe的使用一定要慎重。
+通过源码我们可以发现Unsafe类是&#34;final&#34;的，不允许继承。且构造函数是private的。
+private Unsafe() { } @CallerSensitive public static Unsafe getUnsafe() { Class var0 = Reflection.getCallerClass(); if (!VM.isSystemDomainLoader(var0.getClassLoader())) { throw new SecurityException(&#34;Unsafe&#34;); } else { return theUnsafe; } } 因为该类在sun.misc包下，默认是被BootstrapClassLoader加载的。如果我们在程序中去调用这个类的话，我们使用的类加载器肯定是AppClassLoader。同时我们可以发现在代码里面Unsafe限制了它的 ClassLoader，如果这个方法的调用实例不是由BootClassLoader加载的，则会报SecurityException错误。
+那如若想使用这个类，该如何获取其实例？有如下两个可行方案。
+从getUnsafe方法的使用限制条件出发，通过Java命令行命令-Xbootclasspath/a把调用Unsafe相关方法的类A所在jar包路径追加到默认的bootstrap路径中，使得A被引导类加载器加载，从而通过Unsafe.getUnsafe方法安全的获取Unsafe实例。
+java -Xbootclasspath/a: ${path} // 其中path为调用Unsafe相关方法的类所在jar包路径 通过反射获取单例对象theUnsafe。
+Field theUnsafeField = Unsafe.class.getDeclaredField(&#34;theUnsafe&#34;); theUnsafeField.setAccessible(true); Unsafe unsafe = (Unsafe) theUnsafeField.get(null); System.out.println(unsafe); 二、Unsafe类重要方法 Unsafe类功能介绍：
+1、内存操作 下面是堆外内存的分配、拷贝、释放、给定地址值操作等方法
+//分配内存, 相当于C&#43;&#43;的malloc函数 public native long allocateMemory(long bytes); //扩充内存 public native long reallocateMemory(long address, long bytes); //释放内存 public native void freeMemory(long address); //在给定的内存块中设置值 public native void setMemory(Object o, long offset, long bytes, byte value); //内存拷贝 public native void copyMemory(Object srcBase, long srcOffset, Object destBase, long destOffset, long bytes); //获取给定地址值，忽略修饰限定符的访问限制。与此类似操作还有: getInt，getDouble，getLong，getChar等 public native Object getObject(Object o, long offset); //为给定地址设置值，忽略修饰限定符的访问限制，与此类似操作还有: putInt,putDouble，putLong，putChar等 public native void putObject(Object o, long offset, Object x); //获取给定地址的byte类型的值（当且仅当该内存地址为allocateMemory分配时，此方法结果为确定的） public native byte getByte(long address); //为给定地址设置byte类型的值（当且仅当该内存地址为allocateMemory分配时，此方法结果才是确定的） public native void putByte(long address, byte x); 通常，我们在Java中创建的对象都处于堆内内存（heap）中，堆内内存是由JVM所管控的Java进程内存，并且它们遵循JVM的内存管理机制，JVM会采用垃圾回收机制统一管理堆内存。与之相对的是堆外内存，存在于JVM管控之外的内存区域，Java中对堆外内存的操作，依赖于Unsafe提供的操作堆外内存的native方法。">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2020-07-05T18:28:56+08:00">
+    <meta property="article:modified_time" content="2020-07-05T18:28:56+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">一文深入理解搞懂Java中的魔法类-Unsafe</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-dark">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <h4><a id="Unsafe_1"></a>一、Unsafe介绍</h4> 
+<p>Unsafe类，全限定名是sun.misc.Unsafe，从名字中我们可以看出来这个类对普通程序员来说是“危险”的，一般应用开发者不会用到这个类。</p> 
+<p>Unsafe类位于JDK的rt.jar包中，它提供了硬件级别的原子性操作，Unsafe类中的方法都是native方法，它们使用JNI的方式访问本地C++实现库。因此Unsafe类主要提供一些用于执行低级别、不安全操作的方法，如直接访问系统内存资源、自主管理内存资源等，这些方法在提升Java运行效率、增强Java语言底层资源操作能力方面起到了很大的作用。但由于Unsafe类使Java语言拥有了类似C语言指针一样操作内存空间的能力，这无疑也增加了程序发生相关指针问题的风险。</p> 
+<p>Unsafe做操作的是直接内存区，所以该类没有办法通过HotSpot的GC进行回收，需要进行手动回收，因此在使用此类时需要注意内存泄漏（Memory Leak）和内存溢出（Out Of Memory）。</p> 
+<p>在程序中过度、不正确使用Unsafe类会使得程序出错的概率变大，使得Java这种安全的语言变得不再“安全”，因此对Unsafe的使用一定要慎重。</p> 
+<p>通过源码我们可以发现Unsafe类是"final"的，不允许继承。且构造函数是private的。</p> 
+<pre><code class="prism language-java">    <span class="token keyword">private</span> <span class="token function">Unsafe</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token punctuation">}</span>
+
+    <span class="token annotation punctuation">@CallerSensitive</span>
+    <span class="token keyword">public</span> <span class="token keyword">static</span> Unsafe <span class="token function">getUnsafe</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        Class <span class="token class-name">var0</span> <span class="token operator">=</span> Reflection<span class="token punctuation">.</span><span class="token function">getCallerClass</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>VM<span class="token punctuation">.</span><span class="token function">isSystemDomainLoader</span><span class="token punctuation">(</span>var0<span class="token punctuation">.</span><span class="token function">getClassLoader</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token keyword">throw</span> <span class="token keyword">new</span> <span class="token class-name">SecurityException</span><span class="token punctuation">(</span><span class="token string">"Unsafe"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token keyword">return</span> theUnsafe<span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+</code></pre> 
+<p>因为该类在<code>sun.misc</code>包下，默认是被<strong>BootstrapClassLoader</strong>加载的。如果我们在程序中去调用这个类的话，我们使用的类加载器肯定是<strong>AppClassLoader</strong>。同时我们可以发现在代码里面Unsafe限制了它的 ClassLoader，如果这个方法的调用实例不是由<strong>BootClassLoader</strong>加载的，则会报SecurityException错误。</p> 
+<p>那如若想使用这个类，该如何获取其实例？有如下两个可行方案。</p> 
+<ol><li> <p>从<code>getUnsafe</code>方法的使用限制条件出发，通过Java命令行命令<code>-Xbootclasspath/a</code>把调用Unsafe相关方法的类A所在jar包路径追加到默认的bootstrap路径中，使得A被引导类加载器加载，从而通过<code>Unsafe.getUnsafe</code>方法安全的获取Unsafe实例。</p> <pre><code class="prism language-bash">java -Xbootclasspath/a: <span class="token variable">${path}</span>   // 其中path为调用Unsafe相关方法的类所在jar包路径 
+</code></pre> </li><li> <p>通过反射获取单例对象theUnsafe。</p> <pre><code class="prism language-java">Field theUnsafeField <span class="token operator">=</span> Unsafe<span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">.</span><span class="token function">getDeclaredField</span><span class="token punctuation">(</span><span class="token string">"theUnsafe"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+theUnsafeField<span class="token punctuation">.</span><span class="token function">setAccessible</span><span class="token punctuation">(</span><span class="token boolean">true</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+Unsafe unsafe <span class="token operator">=</span> <span class="token punctuation">(</span>Unsafe<span class="token punctuation">)</span> theUnsafeField<span class="token punctuation">.</span><span class="token function">get</span><span class="token punctuation">(</span>null<span class="token punctuation">)</span><span class="token punctuation">;</span>
+System<span class="token punctuation">.</span>out<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span>unsafe<span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre> </li></ol> 
+<h4><a id="Unsafe_47"></a>二、Unsafe类重要方法</h4> 
+<p>Unsafe类功能介绍：</p> 
+<p><img src="https://images2.imgbox.com/98/59/wOM0RueB_o.png" alt="unsafe功能"></p> 
+<h5><a id="1_54"></a>1、内存操作</h5> 
+<p>下面是堆外内存的分配、拷贝、释放、给定地址值操作等方法</p> 
+<pre><code class="prism language-java"><span class="token comment">//分配内存, 相当于C++的malloc函数</span>
+<span class="token keyword">public</span> <span class="token keyword">native</span> <span class="token keyword">long</span> <span class="token function">allocateMemory</span><span class="token punctuation">(</span><span class="token keyword">long</span> bytes<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token comment">//扩充内存</span>
+<span class="token keyword">public</span> <span class="token keyword">native</span> <span class="token keyword">long</span> <span class="token function">reallocateMemory</span><span class="token punctuation">(</span><span class="token keyword">long</span> address<span class="token punctuation">,</span> <span class="token keyword">long</span> bytes<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token comment">//释放内存</span>
+<span class="token keyword">public</span> <span class="token keyword">native</span> <span class="token keyword">void</span> <span class="token function">freeMemory</span><span class="token punctuation">(</span><span class="token keyword">long</span> address<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token comment">//在给定的内存块中设置值</span>
+<span class="token keyword">public</span> <span class="token keyword">native</span> <span class="token keyword">void</span> <span class="token function">setMemory</span><span class="token punctuation">(</span>Object o<span class="token punctuation">,</span> <span class="token keyword">long</span> offset<span class="token punctuation">,</span> <span class="token keyword">long</span> bytes<span class="token punctuation">,</span> <span class="token keyword">byte</span> value<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token comment">//内存拷贝</span>
+<span class="token keyword">public</span> <span class="token keyword">native</span> <span class="token keyword">void</span> <span class="token function">copyMemory</span><span class="token punctuation">(</span>Object srcBase<span class="token punctuation">,</span> <span class="token keyword">long</span> srcOffset<span class="token punctuation">,</span> Object destBase<span class="token punctuation">,</span> <span class="token keyword">long</span> destOffset<span class="token punctuation">,</span> <span class="token keyword">long</span> bytes<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token comment">//获取给定地址值，忽略修饰限定符的访问限制。与此类似操作还有: getInt，getDouble，getLong，getChar等</span>
+<span class="token keyword">public</span> <span class="token keyword">native</span> Object <span class="token function">getObject</span><span class="token punctuation">(</span>Object o<span class="token punctuation">,</span> <span class="token keyword">long</span> offset<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token comment">//为给定地址设置值，忽略修饰限定符的访问限制，与此类似操作还有: putInt,putDouble，putLong，putChar等</span>
+<span class="token keyword">public</span> <span class="token keyword">native</span> <span class="token keyword">void</span> <span class="token function">putObject</span><span class="token punctuation">(</span>Object o<span class="token punctuation">,</span> <span class="token keyword">long</span> offset<span class="token punctuation">,</span> Object x<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token comment">//获取给定地址的byte类型的值（当且仅当该内存地址为allocateMemory分配时，此方法结果为确定的）</span>
+<span class="token keyword">public</span> <span class="token keyword">native</span> <span class="token keyword">byte</span> <span class="token function">getByte</span><span class="token punctuation">(</span><span class="token keyword">long</span> address<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token comment">//为给定地址设置byte类型的值（当且仅当该内存地址为allocateMemory分配时，此方法结果才是确定的）</span>
+<span class="token keyword">public</span> <span class="token keyword">native</span> <span class="token keyword">void</span> <span class="token function">putByte</span><span class="token punctuation">(</span><span class="token keyword">long</span> address<span class="token punctuation">,</span> <span class="token keyword">byte</span> x<span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre> 
+<p>通常，我们在Java中创建的对象都处于堆内内存（heap）中，堆内内存是由JVM所管控的Java进程内存，并且它们遵循JVM的内存管理机制，JVM会采用垃圾回收机制统一管理堆内存。与之相对的是堆外内存，存在于JVM管控之外的内存区域，Java中对堆外内存的操作，依赖于Unsafe提供的操作堆外内存的native方法。</p> 
+<h6><a id="_80"></a>使用堆外内存的原因</h6> 
+<ul><li>对垃圾回收停顿的改善。由于堆外内存是直接受操作系统管理而不是JVM，所以当我们使用堆外内存时，即可保持较小的堆内内存规模。从而在GC时减少回收停顿对于应用的影响。</li><li>提升程序I/O操作的性能。通常在I/O通信过程中，会存在堆内内存到堆外内存的数据拷贝操作，对于需要频繁进行内存间数据拷贝且生命周期较短的暂存数据，都建议存储到堆外内存。</li></ul> 
+<p>比如，这里我们通过Unsafe类设置基本数据类型变量的值。</p> 
+<pre><code class="prism language-java"><span class="token keyword">import</span> sun<span class="token punctuation">.</span>misc<span class="token punctuation">.</span>Unsafe<span class="token punctuation">;</span>
+
+<span class="token keyword">import</span> java<span class="token punctuation">.</span>lang<span class="token punctuation">.</span>reflect<span class="token punctuation">.</span>Field<span class="token punctuation">;</span>
+
+
+<span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">UnsafeDemo</span> <span class="token punctuation">{<!-- --></span>
+
+    <span class="token keyword">private</span> <span class="token keyword">int</span> t <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">public</span> <span class="token keyword">static</span> <span class="token keyword">void</span> <span class="token function">main</span><span class="token punctuation">(</span>String<span class="token punctuation">[</span><span class="token punctuation">]</span> args<span class="token punctuation">)</span> <span class="token keyword">throws</span> NoSuchFieldException<span class="token punctuation">,</span> IllegalAccessException <span class="token punctuation">{<!-- --></span>
+        <span class="token comment">//获取Unsafe实例</span>
+        Field f <span class="token operator">=</span> Unsafe<span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">.</span><span class="token function">getDeclaredField</span><span class="token punctuation">(</span><span class="token string">"theUnsafe"</span><span class="token punctuation">)</span><span class="token punctuation">;</span> <span class="token comment">// Internal reference</span>
+        f<span class="token punctuation">.</span><span class="token function">setAccessible</span><span class="token punctuation">(</span><span class="token boolean">true</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        Unsafe unsafe <span class="token operator">=</span> <span class="token punctuation">(</span>Unsafe<span class="token punctuation">)</span> f<span class="token punctuation">.</span><span class="token function">get</span><span class="token punctuation">(</span>null<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        <span class="token comment">//获取字段t在内存中偏移量</span>
+        <span class="token keyword">long</span> offset <span class="token operator">=</span> unsafe<span class="token punctuation">.</span><span class="token function">objectFieldOffset</span><span class="token punctuation">(</span>UnsafeDemo<span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">.</span><span class="token function">getDeclaredField</span><span class="token punctuation">(</span><span class="token string">"t"</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        <span class="token comment">//创建对象实例，设置字段的值</span>
+        UnsafeDemo unsafeDemo <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">UnsafeDemo</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        unsafe<span class="token punctuation">.</span><span class="token function">putInt</span><span class="token punctuation">(</span>unsafeDemo<span class="token punctuation">,</span> offset<span class="token punctuation">,</span> <span class="token number">20</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        <span class="token comment">//打印结果</span>
+        System<span class="token punctuation">.</span>out<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span>unsafeDemo<span class="token punctuation">.</span>t<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>我们不是直接赋值给变量t，而是通过Unsafe类通过内存给t赋值。可知最终运行结果为20。</p> 
+<p>在这个案例中，我们不是直接给int型变量i赋值，而是通过调用以下方法进行赋值：</p> 
+<pre><code class="prism language-java">unsafe<span class="token punctuation">.</span><span class="token function">putInt</span><span class="token punctuation">(</span>unsafeDemo<span class="token punctuation">,</span> offset<span class="token punctuation">,</span> <span class="token number">20</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre> 
+<p>其中offset是表示的是t在内存中的偏移量。那什么是偏移量？</p> 
+<p>JVM的实现可以自由选择如何实现Java对象的“布局”，也就是在内存里Java对象的各个部分放在哪里，包括对象的实例字段和一些元数据之类。sun.misc.Unsafe里关于对象字段访问的方法把对象布局抽象出来，它提供了objectFieldOffset()方法用于获取某个字段相对Java对象的“起始地址”的偏移量，也提供了getInt、getLong、getObject之类的方法可以使用前面获取的偏移量来访问某个Java对象的某个字段。</p> 
+<p>在上例中，我们通过putInt方法给一个int变量i赋值，类似的，Unsafe也提供了putLong、putFloat、putDouble、putChar、putByte、putShort、putBoolean、以及putObject等方法给对应类型的变量赋值。并提供了相应的get方法。</p> 
+<h5><a id="2CAS_130"></a>2、CAS操作</h5> 
+<p>下面为CAS相关操作的方法。</p> 
+<pre><code class="prism language-java"><span class="token comment">/**
+	*  CAS
+  * @param o         包含要修改field的对象
+  * @param offset    对象中某field的偏移量
+  * @param expected  期望值
+  * @param update    更新值
+  * @return          true | false
+  */</span>
+<span class="token keyword">public</span> <span class="token keyword">final</span> <span class="token keyword">native</span> <span class="token keyword">boolean</span> <span class="token function">compareAndSwapObject</span><span class="token punctuation">(</span>Object o<span class="token punctuation">,</span> <span class="token keyword">long</span> offset<span class="token punctuation">,</span>  Object expected<span class="token punctuation">,</span> Object update<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+<span class="token keyword">public</span> <span class="token keyword">final</span> <span class="token keyword">native</span> <span class="token keyword">boolean</span> <span class="token function">compareAndSwapInt</span><span class="token punctuation">(</span>Object o<span class="token punctuation">,</span> <span class="token keyword">long</span> offset<span class="token punctuation">,</span> <span class="token keyword">int</span> expected<span class="token punctuation">,</span><span class="token keyword">int</span> update<span class="token punctuation">)</span><span class="token punctuation">;</span>
+  
+<span class="token keyword">public</span> <span class="token keyword">final</span> <span class="token keyword">native</span> <span class="token keyword">boolean</span> <span class="token function">compareAndSwapLong</span><span class="token punctuation">(</span>Object o<span class="token punctuation">,</span> <span class="token keyword">long</span> offset<span class="token punctuation">,</span> <span class="token keyword">long</span> expected<span class="token punctuation">,</span> <span class="token keyword">long</span> update<span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre> 
+<p>compareAndSwapObject方法：比较对象obj中偏移量为offset的变量的值是否与expected相等，相等则使用update值更新，然后返回true，否则返回false。</p> 
+<p>CAS的全称是Compare And Swap 即比较交换，其算法核心思想如下</p> 
+<blockquote> 
+ <p>执行函数：CAS(V,E,N)</p> 
+</blockquote> 
+<p>包含3个参数</p> 
+<ul><li>V表示要更新的变量</li><li>E表示预期值</li><li>N表示新值<br> 如果V值等于E值，则将V的值设为N。若V值和E值不同，则说明已经有其他线程做了更新，则当前线程什么都不做。</li></ul> 
+<p>CAS在java.util.concurrent.atomic相关类、Java AQS、CurrentHashMap等实现上有非常广泛的应用。后面我会讲解一下JUC相关源码，可以关注一波。</p> 
+<h5><a id="3_164"></a>3、线程调度</h5> 
+<p>线程调度中提供的方法包括：线程的挂起，恢复和对象锁机制等，其中获取对象的监视器锁方法已经被标记为弃用。主要方法如下：</p> 
+<pre><code class="prism language-java"><span class="token comment">//取消阻塞线程</span>
+<span class="token keyword">public</span> <span class="token keyword">native</span> <span class="token keyword">void</span> <span class="token function">unpark</span><span class="token punctuation">(</span>Object thread<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token comment">//阻塞线程</span>
+<span class="token keyword">public</span> <span class="token keyword">native</span> <span class="token keyword">void</span> <span class="token function">park</span><span class="token punctuation">(</span><span class="token keyword">boolean</span> isAbsolute<span class="token punctuation">,</span> <span class="token keyword">long</span> time<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token comment">//获得对象锁（可重入锁）</span>
+<span class="token annotation punctuation">@Deprecated</span>
+<span class="token keyword">public</span> <span class="token keyword">native</span> <span class="token keyword">void</span> <span class="token function">monitorEnter</span><span class="token punctuation">(</span>Object o<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token comment">//释放对象锁</span>
+<span class="token annotation punctuation">@Deprecated</span>
+<span class="token keyword">public</span> <span class="token keyword">native</span> <span class="token keyword">void</span> <span class="token function">monitorExit</span><span class="token punctuation">(</span>Object o<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token comment">//尝试获取对象锁</span>
+<span class="token annotation punctuation">@Deprecated</span>
+<span class="token keyword">public</span> <span class="token keyword">native</span> <span class="token keyword">boolean</span> <span class="token function">tryMonitorEnter</span><span class="token punctuation">(</span>Object o<span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre> 
+<p>如上源码说明中，方法park、unpark即可实现线程的挂起与恢复，将一个线程进行挂起是通过park方法实现的，调用park方法后，线程将一直阻塞直到超时或者中断等条件出现；unpark可以终止一个挂起的线程，使其恢复正常。</p> 
+<p>JDK中rt,jar下面的LockSupport工具类就是使用Unsafe类实现的。而整个并发框架中对线程的挂起操作被封装在LockSupport类中，LockSupport 类中有各种版本 pack 方法，但最终都调用了Unsafe.park()方法。</p> 
+<h5><a id="4Class_188"></a>4、Class相关</h5> 
+<p>此部分主要提供Class和它的静态字段的操作相关方法，包含静态字段内存定位、定义类、定义匿名类、检验并确保初始化等。</p> 
+<pre><code class="prism language-java"><span class="token comment">//获取给定静态字段的内存地址偏移量，这个值对于给定的字段是唯一且固定不变的</span>
+<span class="token keyword">public</span> <span class="token keyword">native</span> <span class="token keyword">long</span> <span class="token function">staticFieldOffset</span><span class="token punctuation">(</span>Field f<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token comment">//获取一个静态类中给定字段的对象指针</span>
+<span class="token keyword">public</span> <span class="token keyword">native</span> Object <span class="token function">staticFieldBase</span><span class="token punctuation">(</span>Field f<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token comment">//判断是否需要初始化一个类，通常在获取一个类的静态属性的时候（因为一个类如果没初始化，它的静态属性也不会初始化）使用。 当且仅当ensureClassInitialized方法不生效时返回false。</span>
+<span class="token keyword">public</span> <span class="token keyword">native</span> <span class="token keyword">boolean</span> <span class="token function">shouldBeInitialized</span><span class="token punctuation">(</span>Class<span class="token operator">&lt;</span><span class="token operator">?</span><span class="token operator">&gt;</span> c<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token comment">//检测给定的类是否已经初始化。通常在获取一个类的静态属性的时候（因为一个类如果没初始化，它的静态属性也不会初始化）使用。</span>
+<span class="token keyword">public</span> <span class="token keyword">native</span> <span class="token keyword">void</span> <span class="token function">ensureClassInitialized</span><span class="token punctuation">(</span>Class<span class="token operator">&lt;</span><span class="token operator">?</span><span class="token operator">&gt;</span> c<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token comment">//定义一个类，此方法会跳过JVM的所有安全检查，默认情况下，ClassLoader（类加载器）和ProtectionDomain（保护域）实例来源于调用者</span>
+<span class="token keyword">public</span> <span class="token keyword">native</span> Class<span class="token operator">&lt;</span><span class="token operator">?</span><span class="token operator">&gt;</span> <span class="token function">defineClass</span><span class="token punctuation">(</span>String name<span class="token punctuation">,</span> <span class="token keyword">byte</span><span class="token punctuation">[</span><span class="token punctuation">]</span> b<span class="token punctuation">,</span> <span class="token keyword">int</span> off<span class="token punctuation">,</span> <span class="token keyword">int</span> len<span class="token punctuation">,</span> ClassLoader loader<span class="token punctuation">,</span> ProtectionDomain protectionDomain<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token comment">//定义一个匿名类</span>
+<span class="token keyword">public</span> <span class="token keyword">native</span> Class<span class="token operator">&lt;</span><span class="token operator">?</span><span class="token operator">&gt;</span> <span class="token function">defineAnonymousClass</span><span class="token punctuation">(</span>Class<span class="token operator">&lt;</span><span class="token operator">?</span><span class="token operator">&gt;</span> hostClass<span class="token punctuation">,</span> <span class="token keyword">byte</span><span class="token punctuation">[</span><span class="token punctuation">]</span> data<span class="token punctuation">,</span> Object<span class="token punctuation">[</span><span class="token punctuation">]</span> cpPatches<span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre> 
+<h5><a id="5_208"></a>5、对象操作</h5> 
+<p>Unsafe类中提供了多个方法来进行对象实例化和获取对象的偏移地址的操作：</p> 
+<pre><code class="prism language-java"><span class="token comment">//返回对象成员属性在内存地址相对于此对象的内存地址的偏移量</span>
+<span class="token keyword">public</span> <span class="token keyword">native</span> <span class="token keyword">long</span> <span class="token function">objectFieldOffset</span><span class="token punctuation">(</span>Field f<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token comment">//获得给定对象的指定地址偏移量的值，与此类似操作还有：getInt，getDouble，getLong，getChar等</span>
+<span class="token keyword">public</span> <span class="token keyword">native</span> Object <span class="token function">getObject</span><span class="token punctuation">(</span>Object o<span class="token punctuation">,</span> <span class="token keyword">long</span> offset<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token comment">//给定对象的指定地址偏移量设值，与此类似操作还有：putInt，putDouble，putLong，putChar等</span>
+<span class="token keyword">public</span> <span class="token keyword">native</span> <span class="token keyword">void</span> <span class="token function">putObject</span><span class="token punctuation">(</span>Object o<span class="token punctuation">,</span> <span class="token keyword">long</span> offset<span class="token punctuation">,</span> Object x<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token comment">//从对象的指定偏移量处获取变量的引用，使用volatile的加载语义</span>
+<span class="token keyword">public</span> <span class="token keyword">native</span> Object <span class="token function">getObjectVolatile</span><span class="token punctuation">(</span>Object o<span class="token punctuation">,</span> <span class="token keyword">long</span> offset<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token comment">//存储变量的引用到对象的指定的偏移量处，使用volatile的存储语义</span>
+<span class="token keyword">public</span> <span class="token keyword">native</span> <span class="token keyword">void</span> <span class="token function">putObjectVolatile</span><span class="token punctuation">(</span>Object o<span class="token punctuation">,</span> <span class="token keyword">long</span> offset<span class="token punctuation">,</span> Object x<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token comment">//有序、延迟版本的putObjectVolatile方法，不保证值的改变被其他线程立即看到。只有在field被volatile修饰符修饰时有效</span>
+<span class="token keyword">public</span> <span class="token keyword">native</span> <span class="token keyword">void</span> <span class="token function">putOrderedObject</span><span class="token punctuation">(</span>Object o<span class="token punctuation">,</span> <span class="token keyword">long</span> offset<span class="token punctuation">,</span> Object x<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token comment">//绕过构造方法、初始化代码来创建对象</span>
+<span class="token keyword">public</span> <span class="token keyword">native</span> Object <span class="token function">allocateInstance</span><span class="token punctuation">(</span>Class<span class="token operator">&lt;</span><span class="token operator">?</span><span class="token operator">&gt;</span> cls<span class="token punctuation">)</span> <span class="token keyword">throws</span> InstantiationException<span class="token punctuation">;</span>
+</code></pre> 
+<ul><li> <p>常规对象实例化方式：我们通常所用到的创建对象的方式，从本质上来讲，都是通过new机制来实现对象的创建。但是，new机制有个特点就是当类只提供有参的构造函数且无显示声明无参构造函数时，则必须使用有参构造函数进行对象构造，而使用有参构造函数时，必须传递相应个数的参数才能完成对象实例化。</p> </li><li> <p>非常规的实例化方式：而Unsafe中提供allocateInstance方法，仅通过Class对象就可以创建此类的实例对象，而且不需要调用其构造函数、初始化代码、JVM安全检查等。它抑制修饰符检测，也就是即使构造器是private修饰的也能通过此方法实例化，只需提类对象即可创建相应的对象。由于这种特性，allocateInstance在java.lang.invoke、Objenesis（提供绕过类构造器的对象生成方式）、Gson（反序列化时用到）中都有相应的应用。</p> </li></ul> 
+<p><strong>注意：</strong> allocateInstance只是给对象分配了内存，它并不会初始化对象中的属性。</p> 
+<p>比如，下面的示例：</p> 
+<pre><code class="prism language-java"><span class="token keyword">import</span> sun<span class="token punctuation">.</span>misc<span class="token punctuation">.</span>Unsafe<span class="token punctuation">;</span>
+
+<span class="token keyword">import</span> java<span class="token punctuation">.</span>lang<span class="token punctuation">.</span>reflect<span class="token punctuation">.</span>Field<span class="token punctuation">;</span>
+
+<span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">UnsafeDemo</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">public</span> <span class="token keyword">static</span> <span class="token keyword">void</span> <span class="token function">main</span><span class="token punctuation">(</span>String<span class="token punctuation">[</span><span class="token punctuation">]</span> args<span class="token punctuation">)</span> <span class="token keyword">throws</span> Exception <span class="token punctuation">{<!-- --></span>
+        <span class="token comment">//获取Unsafe实例</span>
+        Field f <span class="token operator">=</span> Unsafe<span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">.</span><span class="token function">getDeclaredField</span><span class="token punctuation">(</span><span class="token string">"theUnsafe"</span><span class="token punctuation">)</span><span class="token punctuation">;</span> <span class="token comment">// Internal reference</span>
+        f<span class="token punctuation">.</span><span class="token function">setAccessible</span><span class="token punctuation">(</span><span class="token boolean">true</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        Unsafe unsafe <span class="token operator">=</span> <span class="token punctuation">(</span>Unsafe<span class="token punctuation">)</span> f<span class="token punctuation">.</span><span class="token function">get</span><span class="token punctuation">(</span>null<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        <span class="token comment">// 通过allocateInstance实例化对话，变量属性没有初始化，所有age打印为0</span>
+        Player p <span class="token operator">=</span> <span class="token punctuation">(</span>Player<span class="token punctuation">)</span> unsafe<span class="token punctuation">.</span><span class="token function">allocateInstance</span><span class="token punctuation">(</span>Player<span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        System<span class="token punctuation">.</span>out<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span>p<span class="token punctuation">.</span><span class="token function">getAge</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span> <span class="token comment">// Print 0</span>
+
+        p<span class="token punctuation">.</span><span class="token function">setAge</span><span class="token punctuation">(</span><span class="token number">70</span><span class="token punctuation">)</span><span class="token punctuation">;</span> <span class="token comment">// 重新赋值设置age</span>
+        System<span class="token punctuation">.</span>out<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span>p<span class="token punctuation">.</span><span class="token function">getAge</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span> <span class="token comment">// Print 70</span>
+
+
+        Class<span class="token operator">&lt;</span><span class="token operator">?</span> <span class="token keyword">extends</span> <span class="token class-name">Player</span><span class="token operator">&gt;</span> pClass <span class="token operator">=</span> p<span class="token punctuation">.</span><span class="token function">getClass</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        Field age <span class="token operator">=</span> pClass<span class="token punctuation">.</span><span class="token function">getDeclaredField</span><span class="token punctuation">(</span><span class="token string">"age"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        Field location <span class="token operator">=</span> pClass<span class="token punctuation">.</span><span class="token function">getDeclaredField</span><span class="token punctuation">(</span><span class="token string">"address"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+
+        System<span class="token punctuation">.</span>out<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span>unsafe<span class="token punctuation">.</span><span class="token function">objectFieldOffset</span><span class="token punctuation">(</span>age<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        unsafe<span class="token punctuation">.</span><span class="token function">putInt</span><span class="token punctuation">(</span>p<span class="token punctuation">,</span> unsafe<span class="token punctuation">.</span><span class="token function">objectFieldOffset</span><span class="token punctuation">(</span>age<span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token number">18</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        System<span class="token punctuation">.</span>out<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span>p<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        <span class="token comment">// 获取定义location字段的类</span>
+        Object staticFieldBase <span class="token operator">=</span> unsafe<span class="token punctuation">.</span><span class="token function">staticFieldBase</span><span class="token punctuation">(</span>location<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        System<span class="token punctuation">.</span>out<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span>staticFieldBase<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        <span class="token comment">// 获取static变量address的偏移量</span>
+        <span class="token keyword">long</span> staticFieldOffset <span class="token operator">=</span> unsafe<span class="token punctuation">.</span><span class="token function">staticFieldOffset</span><span class="token punctuation">(</span>location<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token comment">// 获取static变量address的值</span>
+        System<span class="token punctuation">.</span>out<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span>unsafe<span class="token punctuation">.</span><span class="token function">getObject</span><span class="token punctuation">(</span>staticFieldBase<span class="token punctuation">,</span> staticFieldOffset<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token comment">// 设置static变量address的值</span>
+        unsafe<span class="token punctuation">.</span><span class="token function">putObject</span><span class="token punctuation">(</span>staticFieldBase<span class="token punctuation">,</span> staticFieldOffset<span class="token punctuation">,</span> <span class="token string">"tianjin"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        System<span class="token punctuation">.</span>out<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span>p <span class="token operator">+</span> <span class="token string">" "</span> <span class="token operator">+</span> p<span class="token punctuation">.</span><span class="token function">getAddress</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">class</span> <span class="token class-name">Player</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">private</span> <span class="token keyword">int</span> age <span class="token operator">=</span> <span class="token number">20</span><span class="token punctuation">;</span>
+    <span class="token keyword">private</span> <span class="token keyword">static</span> String address <span class="token operator">=</span> <span class="token string">"Guangzhou"</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">private</span> <span class="token function">Player</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">this</span><span class="token punctuation">.</span>age <span class="token operator">=</span> <span class="token number">60</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token keyword">public</span> <span class="token keyword">int</span> <span class="token function">getAge</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">return</span> <span class="token keyword">this</span><span class="token punctuation">.</span>age<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">setAge</span><span class="token punctuation">(</span><span class="token keyword">int</span> age<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">this</span><span class="token punctuation">.</span>age <span class="token operator">=</span> age<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token keyword">public</span> <span class="token keyword">static</span> String <span class="token function">getAddress</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">return</span> address<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token keyword">public</span> <span class="token keyword">static</span> <span class="token keyword">void</span> <span class="token function">setAddress</span><span class="token punctuation">(</span>String address<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        Player<span class="token punctuation">.</span>address <span class="token operator">=</span> address<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token annotation punctuation">@Override</span>
+    <span class="token keyword">public</span> String <span class="token function">toString</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">return</span> <span class="token string">"Player{"</span> <span class="token operator">+</span>
+                <span class="token string">"age="</span> <span class="token operator">+</span> age <span class="token operator">+</span>
+                <span class="token string">"address="</span> <span class="token operator">+</span> address <span class="token operator">+</span>
+                <span class="token string">'}'</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<h5><a id="6_314"></a>6、数组相关</h5> 
+<p>数组操作主要有两个方法：</p> 
+<pre><code class="prism language-java"><span class="token comment">//返回数组中第一个元素的偏移地址</span>
+<span class="token keyword">public</span> <span class="token keyword">native</span> <span class="token keyword">int</span> <span class="token function">arrayBaseOffset</span><span class="token punctuation">(</span>Class<span class="token operator">&lt;</span><span class="token operator">?</span><span class="token operator">&gt;</span> arrayClass<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token comment">//返回数组中一个元素占用的大小</span>
+<span class="token keyword">public</span> <span class="token keyword">native</span> <span class="token keyword">int</span> <span class="token function">arrayIndexScale</span><span class="token punctuation">(</span>Class<span class="token operator">&lt;</span><span class="token operator">?</span><span class="token operator">&gt;</span> arrayClass<span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre> 
+<p>这两个与数据操作相关的方法，在java.util.concurrent.atomic 包下的AtomicIntegerArray（可以实现对Integer数组中每个元素的原子性操作）中有典型的应用。</p> 
+<p>比如获取数组array的起始位置baseOffset，获取每个数组元素大小indexScale，计算索引为 i 的元素即为<br> <code>baseOffset + i*indexScale</code>。</p> 
+<pre><code class="prism language-java">nt baseOffset <span class="token operator">=</span> unsafe<span class="token punctuation">.</span><span class="token function">arrayBaseOffset</span><span class="token punctuation">(</span>array<span class="token punctuation">.</span><span class="token function">getClass</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token keyword">int</span> indexScale <span class="token operator">=</span> unsafe<span class="token punctuation">.</span><span class="token function">arrayIndexScale</span><span class="token punctuation">(</span>array<span class="token punctuation">.</span><span class="token function">getClass</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+baseOffset <span class="token operator">+</span> i<span class="token operator">*</span>indexScale
+</code></pre> 
+<h5><a id="7_335"></a>7、内存屏障</h5> 
+<p>硬件层的内存屏障分为两种：Load Barrier 和 Store Barrier即读屏障和写屏障。内存屏障有两个作用：阻止屏障两侧的指令重排序；强制把写缓冲区/高速缓存中的脏数据等写回主内存，让缓存中相应的数据失效。在Unsafe中提供了三个方法来操作内存屏障：</p> 
+<pre><code class="prism language-java"><span class="token comment">//内存屏障，禁止load操作重排序。屏障前的load操作不能被重排序到屏障后，屏障后的load操作不能被重排序到屏障前</span>
+<span class="token keyword">public</span> <span class="token keyword">native</span> <span class="token keyword">void</span> <span class="token function">loadFence</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token comment">//内存屏障，禁止store操作重排序。屏障前的store操作不能被重排序到屏障后，屏障后的store操作不能被重排序到屏障前</span>
+<span class="token keyword">public</span> <span class="token keyword">native</span> <span class="token keyword">void</span> <span class="token function">storeFence</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token comment">//内存屏障，禁止load、store操作重排序</span>
+<span class="token keyword">public</span> <span class="token keyword">native</span> <span class="token keyword">void</span> <span class="token function">fullFence</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre> 
+<p>先了解两个指令：</p> 
+<ul><li>Store：将处理器缓存的数据刷新到内存中。</li><li>Load：将内存存储的数据拷贝到处理器的缓存中。</li></ul> 
+<p>JVM平台提供了一下几种内存屏障：</p> 
+<table><thead><tr><th>屏障类型</th><th>指令示例</th><th>说明</th></tr></thead><tbody><tr><td>LoadLoad Barriers</td><td>Load1;LoadLoad;Load2</td><td>该屏障确保Load1数据的装载先于Load2及其后所有装载指令的的操作</td></tr><tr><td>StoreStore Barriers</td><td>Store1;StoreStore;Store2</td><td>该屏障确保Store1立刻刷新数据到内存(使其对其他处理器可见)该操作先于Store2及其后所有存储指令的操作</td></tr><tr><td>LoadStore Barriers</td><td>Load1;LoadStore;Store2</td><td>确保Load1的数据装载先于Store2及其后所有的存储指令刷新数据到内存的操作</td></tr><tr><td>StoreLoad Barriers</td><td>Store1;StoreLoad;Load2</td><td>该屏障确保Store1立刻刷新数据到内存的操作先于Load2及其后所有装载装载指令的操作。它会使该屏障之前的所有内存访问指令(存储指令和访问指令)完成之后,才执行该屏障之后的内存访问指令</td></tr></tbody></table> 
+<p>StoreLoad Barriers同时具备其他三个屏障的效果，因此也称之为<code>全能屏障（mfence）</code>，是目前大多数处理器所支持的；但是相对其他屏障，该屏障的开销相对昂贵。</p> 
+<ul><li> <p><strong>loadFence</strong></p> <p>实现了LoadLoad Barriers，该操作禁止了指令的重排序。</p> </li><li> <p><strong>storeFence</strong></p> <p>实现了 StoreStore Barriers，确保屏障前的写操作能够立刻刷入到主内存，并且确保屏障前的写操作一定先于屏障后的写操作。即保证了内存可见性和禁止指令重排序。</p> </li><li> <p><strong>fullFence</strong></p> <p>实现了 StoreLoad Barriers，强制所有在mfence指令之前的store/load指令，都在该mfence指令执行之前被执行；所有在mfence指令之后的store/load指令，都在该mfence指令执行之后被执行。</p> </li></ul> 
+<p>在 JDK 中调用了内存屏障这几个方法的实现类有 StampedLock。在StampedLock.validate中锁状态校验运算发生重排序导致锁状态校验不准确的问题。关于StampedLock，后期会有相关文章介绍。</p> 
+<h5><a id="8_379"></a>8、系统相关</h5> 
+<p>获取系统相关信息的方法如下：</p> 
+<pre><code class="prism language-java"><span class="token comment">//返回系统指针的大小。返回值为4（32位系统）或 8（64位系统）。</span>
+<span class="token keyword">public</span> <span class="token keyword">native</span> <span class="token keyword">int</span> <span class="token function">addressSize</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>  
+<span class="token comment">//内存页的大小，此值为2的幂次方。</span>
+<span class="token keyword">public</span> <span class="token keyword">native</span> <span class="token keyword">int</span> <span class="token function">pageSize</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre> 
+<p>在 java.nio下的Bits类中调用了pagesize()方法计算系统中页大小：</p> 
+<pre><code class="prism language-java"><span class="token keyword">private</span> <span class="token keyword">static</span> <span class="token keyword">int</span> pageSize <span class="token operator">=</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">;</span>
+
+<span class="token keyword">static</span> <span class="token keyword">int</span> <span class="token function">pageSize</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>pageSize <span class="token operator">==</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">)</span>
+        pageSize <span class="token operator">=</span> <span class="token function">unsafe</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">pageSize</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">return</span> pageSize<span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<h3><a id="_403"></a>参考</h3> 
+<ul><li><a href="http://hg.openjdk.java.net/jdk8/jdk8/jdk/file/9b8c96f96a0f/src/share/classes/sun/misc/Unsafe.java" rel="nofollow">OpenJDK Unsafe source</a></li><li><a href="https://www.cnblogs.com/throwable/p/9139947.html" rel="nofollow">JAVA中神奇的双刃剑–Unsafe</a></li><li><a href="https://tech.meituan.com/2019/02/14/talk-about-java-magic-class-unsafe.html" rel="nofollow">Java魔法类：Unsafe应用解析</a></li><li><a href="http://blog.rickiyang.cn/posts/83c72f86.html" rel="nofollow">Java中的魔法类-Unsafe</a></li></ul>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/f5c9fc75cbdcb077aea874ac87efe894/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">某银行 科技岗位 数据工程师 面试题总结</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/72dc658524ef430c5f677c0a49127ba4/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">kafka从部署到Java springboot整合</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

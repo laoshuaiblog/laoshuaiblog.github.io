@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>qnx log写入文件 简单实现 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/3c7a5fcb64892deeca0a5bc686d2f90f/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="qnx log写入文件 简单实现">
+  <meta property="og:description" content="qnx log写入文件 简单实现
+#ifndef __COMMON_LOG__ #define __COMMON_LOG__ #include &#34;fcntl.h&#34; #include &#34;pthread.h&#34; #include &#34;stdarg.h&#34; #include &#34;unistd.h&#34; #include &amp;lt;stdio.h&amp;gt; #include &amp;lt;string.h&amp;gt; //#define _LOG_FILE_NAME &#34;/tmp/easy.log&#34; #define _LOG_FILE_NAME &#34;easy.log&#34; #if defined _LOG_FILE_NAME void __file_log_com(char *log_str, ...); #define __file__ \ ({ \ char *_rs = strrchr((char*)__FILE__, &#39;/&#39;); \ _rs ? (_rs &#43; 1) : __FILE__; \ }) #define _COM_FILE_PARSE(lgType, prefix, fmt, args...) \ do { \ __file_log_com(&#34;[%s][%s:%s:%d][%s]&#34; fmt, lgType, __file__, __func__, __LINE__, prefix, ##args); \ } while (0) #define ts_log_info(dev, fmt, args.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2024-02-07T17:40:33+08:00">
+    <meta property="article:modified_time" content="2024-02-07T17:40:33+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">qnx log写入文件 简单实现</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-dark">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <p>qnx log写入文件 简单实现</p> 
+<pre><code class="prism language-c"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">ifndef</span> <span class="token expression">__COMMON_LOG__</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token macro-name">__COMMON_LOG__</span></span>
+
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">"fcntl.h"</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">"pthread.h"</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">"stdarg.h"</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">"unistd.h"</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdio.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;string.h&gt;</span></span>
+
+<span class="token comment">//#define _LOG_FILE_NAME "/tmp/easy.log"</span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token macro-name">_LOG_FILE_NAME</span> <span class="token string">"easy.log"</span></span>
+
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">if</span> <span class="token expression">defined _LOG_FILE_NAME</span></span>
+
+<span class="token keyword">void</span> <span class="token function">__file_log_com</span><span class="token punctuation">(</span><span class="token keyword">char</span> <span class="token operator">*</span>log_str<span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token macro-name">__file__</span>                                                                                                       <span class="token punctuation">\</span>
+    <span class="token expression"><span class="token punctuation">(</span><span class="token punctuation">{<!-- --></span>                                                                                                                 </span><span class="token punctuation">\</span>
+        <span class="token expression"><span class="token keyword">char</span> <span class="token operator">*</span>_rs <span class="token operator">=</span> <span class="token function">strrchr</span><span class="token punctuation">(</span><span class="token punctuation">(</span><span class="token keyword">char</span><span class="token operator">*</span><span class="token punctuation">)</span><span class="token constant">__FILE__</span><span class="token punctuation">,</span> </span><span class="token char">'/'</span><span class="token expression"><span class="token punctuation">)</span><span class="token punctuation">;</span>                                                                            </span><span class="token punctuation">\</span>
+        <span class="token expression">_rs <span class="token operator">?</span> <span class="token punctuation">(</span>_rs <span class="token operator">+</span> <span class="token number">1</span><span class="token punctuation">)</span> <span class="token operator">:</span> <span class="token constant">__FILE__</span><span class="token punctuation">;</span>                                                                                    </span><span class="token punctuation">\</span>
+    <span class="token expression"><span class="token punctuation">}</span><span class="token punctuation">)</span></span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token macro-name function">_COM_FILE_PARSE</span><span class="token expression"><span class="token punctuation">(</span>lgType<span class="token punctuation">,</span> prefix<span class="token punctuation">,</span> fmt<span class="token punctuation">,</span> args<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">)</span>                                                                  </span><span class="token punctuation">\</span>
+    <span class="token expression"><span class="token keyword">do</span> <span class="token punctuation">{<!-- --></span>                                                                                                               </span><span class="token punctuation">\</span>
+        <span class="token expression"><span class="token function">__file_log_com</span><span class="token punctuation">(</span></span><span class="token string">"[%s][%s:%s:%d][%s]"</span> <span class="token expression">fmt<span class="token punctuation">,</span> lgType<span class="token punctuation">,</span> __file__<span class="token punctuation">,</span> <span class="token constant">__func__</span><span class="token punctuation">,</span> <span class="token constant">__LINE__</span><span class="token punctuation">,</span> prefix<span class="token punctuation">,</span> </span><span class="token punctuation">##</span><span class="token expression">args<span class="token punctuation">)</span><span class="token punctuation">;</span>                </span><span class="token punctuation">\</span>
+    <span class="token expression"><span class="token punctuation">}</span> <span class="token keyword">while</span> <span class="token punctuation">(</span><span class="token number">0</span><span class="token punctuation">)</span></span></span>
+
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token macro-name function">ts_log_info</span><span class="token expression"><span class="token punctuation">(</span>dev<span class="token punctuation">,</span> fmt<span class="token punctuation">,</span> args<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">)</span> <span class="token function">_COM_FILE_PARSE</span><span class="token punctuation">(</span></span><span class="token string">"info"</span><span class="token expression"><span class="token punctuation">,</span> dev<span class="token punctuation">,</span> fmt<span class="token punctuation">,</span> </span><span class="token punctuation">##</span><span class="token expression">args<span class="token punctuation">)</span></span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token macro-name function">ts_log_err</span><span class="token expression"><span class="token punctuation">(</span>dev<span class="token punctuation">,</span> fmt<span class="token punctuation">,</span> args<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">)</span> <span class="token function">_COM_FILE_PARSE</span><span class="token punctuation">(</span></span><span class="token string">"error"</span><span class="token expression"><span class="token punctuation">,</span> dev<span class="token punctuation">,</span> fmt<span class="token punctuation">,</span> </span><span class="token punctuation">##</span><span class="token expression">args<span class="token punctuation">)</span></span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token macro-name function">ts_log_warn</span><span class="token expression"><span class="token punctuation">(</span>dev<span class="token punctuation">,</span> fmt<span class="token punctuation">,</span> args<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">)</span> <span class="token function">_COM_FILE_PARSE</span><span class="token punctuation">(</span></span><span class="token string">"warning"</span><span class="token expression"><span class="token punctuation">,</span> dev<span class="token punctuation">,</span> fmt<span class="token punctuation">,</span> </span><span class="token punctuation">##</span><span class="token expression">args<span class="token punctuation">)</span></span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token macro-name function">ts_log_dbg</span><span class="token expression"><span class="token punctuation">(</span>dev<span class="token punctuation">,</span> fmt<span class="token punctuation">,</span> args<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">)</span> <span class="token function">_COM_FILE_PARSE</span><span class="token punctuation">(</span></span><span class="token string">"debug"</span><span class="token expression"><span class="token punctuation">,</span> dev<span class="token punctuation">,</span> fmt<span class="token punctuation">,</span> </span><span class="token punctuation">##</span><span class="token expression">args<span class="token punctuation">)</span></span></span>
+
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">else</span></span>
+
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token macro-name function">ts_log_info</span><span class="token expression"><span class="token punctuation">(</span>dev<span class="token punctuation">,</span> fmt<span class="token punctuation">,</span> args<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">)</span> </span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token macro-name function">ts_log_err</span><span class="token expression"><span class="token punctuation">(</span>dev<span class="token punctuation">,</span> fmt<span class="token punctuation">,</span> args<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">)</span>  </span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token macro-name function">ts_log_warn</span><span class="token expression"><span class="token punctuation">(</span>dev<span class="token punctuation">,</span> fmt<span class="token punctuation">,</span> args<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">)</span> </span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token macro-name function">ts_log_dbg</span><span class="token expression"><span class="token punctuation">(</span>dev<span class="token punctuation">,</span> fmt<span class="token punctuation">,</span> args<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">)</span>  </span></span>
+
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">endif</span></span>
+
+<span class="token keyword">static</span> <span class="token class-name">pthread_mutex_t</span> _log_mutex<span class="token punctuation">;</span>
+<span class="token keyword">static</span> FILE <span class="token operator">*</span>_log_fp <span class="token operator">=</span> <span class="token constant">NULL</span><span class="token punctuation">;</span>
+
+
+<span class="token comment">// qnx 简单log写入文件 实现</span>
+<span class="token keyword">void</span> <span class="token function">__file_log_com</span><span class="token punctuation">(</span><span class="token keyword">char</span> <span class="token operator">*</span>log_str<span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    va_list arg<span class="token punctuation">;</span>
+
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token constant">NULL</span> <span class="token operator">!=</span> _log_fp<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token function">pthread_mutex_lock</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>_log_mutex<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">va_start</span><span class="token punctuation">(</span>arg<span class="token punctuation">,</span> log_str<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">(</span><span class="token keyword">void</span><span class="token punctuation">)</span><span class="token function">vfprintf</span><span class="token punctuation">(</span>_log_fp<span class="token punctuation">,</span> log_str<span class="token punctuation">,</span> arg<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">va_end</span><span class="token punctuation">(</span>arg<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token comment">//(void)fprintf(___fp, " \n");</span>
+        <span class="token comment">//(void)fclose(fp);</span>
+        <span class="token function">fflush</span><span class="token punctuation">(</span>_log_fp<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">pthread_mutex_unlock</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>_log_mutex<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">void</span> <span class="token function">com_file_log_init</span><span class="token punctuation">(</span><span class="token keyword">char</span> <span class="token operator">*</span>filename<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    _log_fp <span class="token operator">=</span> <span class="token function">fopen</span><span class="token punctuation">(</span>filename<span class="token punctuation">,</span> <span class="token string">"w"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>_log_fp<span class="token punctuation">)</span>
+        <span class="token keyword">return</span> <span class="token function">perror</span><span class="token punctuation">(</span><span class="token constant">__func__</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token function">pthread_mutex_init</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>_log_mutex<span class="token punctuation">,</span> <span class="token constant">NULL</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">int</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token function">printf</span><span class="token punctuation">(</span> <span class="token string">"hello\n"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">com_file_log_init</span><span class="token punctuation">(</span>_LOG_FILE_NAME<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">char</span><span class="token operator">*</span> dev_name <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token keyword">char</span><span class="token operator">*</span><span class="token punctuation">)</span><span class="token string">"E800"</span><span class="token punctuation">;</span>
+    <span class="token function">ts_log_info</span><span class="token punctuation">(</span>dev_name<span class="token punctuation">,</span> <span class="token string">"hello world"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token comment">// __file_log_com("%s,%s", dev_name, "e800");</span>
+    <span class="token function">printf</span><span class="token punctuation">(</span> <span class="token string">"finish\n"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">endif</span></span>
+
+
+</code></pre> 
+<p>运行结果：</p> 
+<blockquote> 
+ <p>hello<br> finish</p> 
+</blockquote> 
+<p>写入文件样子：<br> <img src="https://images2.imgbox.com/64/aa/13HCE73R_o.png" alt="在这里插入图片描述"></p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/87750c8db3171f95e4d182cae8383e9d/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">C&#43;&#43;57个入门知识点_34_虚函数的模拟实现-理解（利用函数指针替代virtual的虚函数功能；虚函数的本质即为函数的覆盖，子类一旦对父类同名成员函数重载，对象在调用时使用的是子类的函数）</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/8724617ab6e28a692e680b0762840c89/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">一篇文章入门Shell编程</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

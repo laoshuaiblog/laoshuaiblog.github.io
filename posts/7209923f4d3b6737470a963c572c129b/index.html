@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>SECP256K1签名 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/7209923f4d3b6737470a963c572c129b/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="SECP256K1签名">
+  <meta property="og:description" content="#include &amp;lt;iostream&amp;gt; #include &amp;lt;secp256k1.h&amp;gt; #include &amp;lt;string&amp;gt; #include &amp;lt;sstream&amp;gt; #include &amp;lt;iomanip&amp;gt; #include &amp;lt;assert.h&amp;gt; #include &amp;lt;openssl/sha.h&amp;gt; //十六进制字符串转字符串, 如 &#34;313233&#34; -&amp;gt; &#34;123&#34; std::string hex2string(const std::string &amp;amp;strHex); //字符串转二进制字符串, 如 &#34;123&#34; -&amp;gt; &#34;313233&#34; std::string string2hex(const std::uint8_t *data, int len); int main() { secp256k1_context *ctx = nullptr; secp256k1_pubkey pubkey; //随机一个256位的私钥 std::uint8_t private_key[] = &#34;18E14A7B6A307F426A94F8114701E7C8E774E7F9A47E2C2035DB29A206321725&#34;; int pk_size = std::extent&amp;lt;decltype(private_key)&amp;gt;::value; std::cout &amp;lt;&amp;lt; &#34;private key : &#34; &amp;lt;&amp;lt; private_key &amp;lt;&amp;lt; &#34;|&#34; &amp;lt;&amp;lt; pk_size &amp;lt;&amp;lt; std::endl; //创建一个上下文 assert(ctx == nullptr); ctx = secp256k1_context_create(SECP256K1_CONTEXT_VERIFY|SECP256K1_CONTEXT_SIGN); assert(ctx !">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2020-03-16T09:05:20+08:00">
+    <meta property="article:modified_time" content="2020-03-16T09:05:20+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">SECP256K1签名</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <pre><code>#include &lt;iostream&gt;
+#include &lt;secp256k1.h&gt;
+#include &lt;string&gt;
+#include &lt;sstream&gt;
+#include &lt;iomanip&gt;
+#include &lt;assert.h&gt;
+#include &lt;openssl/sha.h&gt;
+//十六进制字符串转字符串, 如 "313233" -&gt; "123"
+std::string hex2string(const std::string &amp;strHex);
+//字符串转二进制字符串, 如 "123" -&gt; "313233"
+std::string string2hex(const std::uint8_t *data, int len);
+int main()
+{
+    secp256k1_context *ctx = nullptr;
+    secp256k1_pubkey pubkey;
+    
+    //随机一个256位的私钥
+    std::uint8_t private_key[] = "18E14A7B6A307F426A94F8114701E7C8E774E7F9A47E2C2035DB29A206321725";
+    int pk_size = std::extent&lt;decltype(private_key)&gt;::value;
+    std::cout &lt;&lt; "private key : " &lt;&lt; private_key &lt;&lt; "|" &lt;&lt; pk_size &lt;&lt; std::endl;
+    //创建一个上下文
+    assert(ctx == nullptr);
+    ctx = secp256k1_context_create(SECP256K1_CONTEXT_VERIFY|SECP256K1_CONTEXT_SIGN);
+    assert(ctx != nullptr);
+    //二进制私钥
+    std::string prikey = hex2string((const char *)private_key);
+    //根据私钥生成公钥
+    secp256k1_ec_pubkey_create(ctx, &amp;pubkey, (unsigned char *)prikey.c_str());
+    unsigned char pub[65];
+    size_t publen = 65;
+    //将公钥转为64字节的公钥, 不是可读字符串, 需要string2hex()转换
+    secp256k1_ec_pubkey_serialize(ctx, pub, &amp;publen, &amp;pubkey, SECP256K1_EC_UNCOMPRESSED);
+    std::cout &lt;&lt; "pub: " &lt;&lt; string2hex((unsigned char *)pub, 65) &lt;&lt; std::endl;
+    //签名
+    unsigned char hash[33] = { 0 };
+    //对一个字符串进行hash, 签名就是对32字节的hash进行签名的
+    SHA256((const unsigned char *)"123", 3, hash);
+    std::cout &lt;&lt; string2hex(hash, 32) &lt;&lt; std::endl;
+    secp256k1_ecdsa_signature sig;
+    int ret = secp256k1_ecdsa_sign(ctx, &amp;sig, hash, (const unsigned char *)prikey.c_str(), NULL, NULL);
+    assert(ret == 1);
+    //转为der格式, 这里用不到, len要足够大能放下der结果
+    //unsigned char der[200];
+    //size_t derlen = 200;
+    //ret = secp256k1_ecdsa_signature_serialize_der(ctx,
+    //    der, &amp;derlen, &amp;sig);
+    //assert(ret == 1);
+    //将签名转为64字节的签名格式
+    unsigned char sig64[65] = { 0 };
+    secp256k1_ecdsa_signature_serialize_compact(ctx,
+        sig64, &amp;sig);
+    std::cout &lt;&lt; "sig64 : " &lt;&lt; string2hex(sig64, 64) &lt;&lt; std::endl;
+    //std::cout &lt;&lt; "der : " &lt;&lt; string2hex(der, derlen) &lt;&lt; std::endl;
+    
+    //验证签名, 返回值为1, 则验证通过
+    ret = secp256k1_ecdsa_verify(ctx, &amp;sig, hash, &amp;pubkey);
+    assert(ret == 1);
+    return 0;
+}
+std::string hex2string(const std::string &amp;strHex)
+{
+    if (strHex.size() % 2 != 0)
+    {
+        return "";
+    }
+    std::string strBin;
+    strBin.resize(strHex.size() / 2);
+    for (size_t i = 0; i &lt; strBin.size(); i++)
+    {
+        uint8_t cTemp = 0;
+        for (size_t j = 0; j &lt; 2; j++)
+        {
+            char cCur = strHex[2 * i + j];
+            if (cCur &gt;= '0' &amp;&amp; cCur &lt;= '9')
+            {
+                cTemp = (cTemp &lt;&lt; 4) + (cCur - '0');
+            }
+            else if (cCur &gt;= 'a' &amp;&amp; cCur &lt;= 'f')
+            {
+                cTemp = (cTemp &lt;&lt; 4) + (cCur - 'a' + 10);
+            }
+            else if (cCur &gt;= 'A' &amp;&amp; cCur &lt;= 'F')
+            {
+                cTemp = (cTemp &lt;&lt; 4) + (cCur - 'A' + 10);
+            }
+            else
+            {
+                return "";
+            }
+        }
+        strBin[i] = cTemp;
+    }
+    return strBin;
+}
+std::string string2hex(const std::uint8_t *data, int len)
+{
+    std::string result;
+    std::string tmp;
+    std::stringstream ss;
+    for (int i = 0; i &lt; len; i++)
+    {
+        int r = int(data[i]);
+        ss &lt;&lt; std::hex &lt;&lt; std::setw(2)
+            &lt;&lt; std::setfill('0') &lt;&lt; r &lt;&lt; std::endl;
+        ss &gt;&gt; tmp;
+        result += tmp;
+    }
+    return result;
+}</code></pre> 
+<p> </p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/a4bf5849b17a61b51ee20b7a4698552e/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">C语言之 用函数做一个计算器</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/3dcb608776367368fc7e772501e50d28/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">Tensorflow2.0入门教程15：CNN网络添加BN层</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

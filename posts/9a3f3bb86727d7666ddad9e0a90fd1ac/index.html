@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>业务层和持久层单元测试的实践 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/9a3f3bb86727d7666ddad9e0a90fd1ac/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="业务层和持久层单元测试的实践">
+  <meta property="og:description" content="单元测试大多数时候遇到的问题难点，其实就在于怎么样很好的解决各种依赖（我这里分为外部依赖和持久层依赖吧）。根据笔者的实践，总结了如下一些实践经验，希望能够和大家共同提高。如无特殊说明：以下例子采用junit4 &#43; jmock1.0。 [b]1. 如何解决外部系统的依赖？[/b] 对于业务层的单元测试，比较复杂的情况就是会有很多外部services（接口或者服务等）的依赖，其实对于我们来说最重我们需要得到或者传递出去的都是各种数据对象，那么这种情况下可以采用mock来模拟这些数据对象。这样让测试方便的通过。 场景：测试DefaultGetNumAO类的getNum方法,在真正的应用里面，调用此方法的前提是从session中取得用户信息,也就是登陆信息，但是单元测试的时候是拿不到的，如果我们直接用代码测试，那么还没有执行到getNum，单元测试就会报错，提示没有登录，其实是说这个用户信息没有取到。在线上环境我们是不会存在这个问题的。我们可以用以下代码模拟登录的用户数据(SysUser，实现的是IUser接口),这个时候我们可以用mock的方式来模拟这个外部依赖接口（或者服务）。 采用jmock的话，有两种，一种是采用接口模拟（org.jmock.Mock)的方式，一种没有实现接口的类的MOCK，是基于cglib(字节码)的方式。在这里我用的是接口模拟，我先模拟出IUser接口对象： // 构造Mock控制器
+Mock m = new Mock(IUser.class);
+// 这是要测试MockObject
+IUser mock = (IUser) m.proxy();
+// 期待的返回值
+SampleReturn sr = new SampleReturnImpl();
+// 期待的参数
+Parameter p = new ParameterImpl();
+// 控制器，期待一次，方法sampleMethod，参数等于p(equals)，将返回sr
+m.expects(once()).method(&#34;getUserId&#34;).with(eq(p)).will(returnValue(sr)); 其实从上面可以看出来，JMOCK或者其他Mock也好，其思想就是模拟对象，建立孤立的测试环境，上述DefaultGetNumAO类调用过多的外部系统，我们将外部系统的调用入口统一MOCK掉，MOCK出我们自己想要的数据; 我们采用下面的代码： DefaultGetNumAO dftAo = new DefaultGetNumAO();
+//这里手工输入你的mock出来的对象（外部依赖）
+dftAo.setDftAo(dftAo);
+//执行真正的要测试函数
+Result result = dftAo. getNum ();//过程中会调用你注入的对象替代真正运行的对象或者服务
+Assert.assertTrue(result.isSuccess()); 采用上述的方式，可以将DefaultGetNumAO里面所有依赖的外部调用全部mock掉。 [b]2. 如何解决对数据库的依赖？[/b] 对于DAO层来说，直接修改数据库中的物理数据，可能会带来众多冗余数据或者引起数据紊乱等情况。 场景：比如你需要测试一个insert语句，用传统的junit测试的方式，当你插入成功之后，这些你插入的测试数据实际上就成了冗余数据；更可能存在的情况，你插入这条数据之后，有些有唯一性约束的字段存在的时候，就不能再次执行插入了，这就意味着你的单元测试代码只能执行一次。 一般这种情况下采用如下方式解决： 第一， 在测试代码开始前插入临时数据，然后执行你的测试代码，待正真要测试的代码执行结束之后，在你的单元测试代码之后清理掉插入的临时数据。 如下例子： //设置全局变量，保存数据用
+private long iTestAllId = 0L;">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2011-01-19T15:28:40+08:00">
+    <meta property="article:modified_time" content="2011-01-19T15:28:40+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">业务层和持久层单元测试的实践</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    单元测试大多数时候遇到的问题难点，其实就在于怎么样很好的解决各种依赖（我这里分为外部依赖和持久层依赖吧）。根据笔者的实践，总结了如下一些实践经验，希望能够和大家共同提高。如无特殊说明：以下例子采用junit4 + jmock1.0。 
+<br>[b]1. 如何解决外部系统的依赖？[/b] 
+<br>对于业务层的单元测试，比较复杂的情况就是会有很多外部services（接口或者服务等）的依赖，其实对于我们来说最重我们需要得到或者传递出去的都是各种数据对象，那么这种情况下可以采用mock来模拟这些数据对象。这样让测试方便的通过。 
+<br> 
+<br>场景：测试DefaultGetNumAO类的getNum方法,在真正的应用里面，调用此方法的前提是从session中取得用户信息,也就是登陆信息，但是单元测试的时候是拿不到的，如果我们直接用代码测试，那么还没有执行到getNum，单元测试就会报错，提示没有登录，其实是说这个用户信息没有取到。在线上环境我们是不会存在这个问题的。我们可以用以下代码模拟登录的用户数据(SysUser，实现的是IUser接口),这个时候我们可以用mock的方式来模拟这个外部依赖接口（或者服务）。 
+<br> 采用jmock的话，有两种，一种是采用接口模拟（org.jmock.Mock)的方式，一种没有实现接口的类的MOCK，是基于cglib(字节码)的方式。在这里我用的是接口模拟，我先模拟出IUser接口对象： 
+<br> 
+<pre><code class="language-java">// 构造Mock控制器<br>        Mock m = new Mock(IUser.class);<br>        // 这是要测试MockObject<br>        IUser mock = (IUser) m.proxy();<br>        // 期待的返回值<br>        SampleReturn sr = new SampleReturnImpl();<br>        // 期待的参数<br>        Parameter p = new ParameterImpl();<br>        // 控制器，期待一次，方法sampleMethod，参数等于p(equals)，将返回sr<br>        m.expects(once()).method("getUserId").with(eq(p)).will(returnValue(sr));</code></pre> 
+<br> 
+<br>其实从上面可以看出来，JMOCK或者其他Mock也好，其思想就是模拟对象，建立孤立的测试环境，上述DefaultGetNumAO类调用过多的外部系统，我们将外部系统的调用入口统一MOCK掉，MOCK出我们自己想要的数据; 
+<br>我们采用下面的代码： 
+<br> 
+<pre><code class="language-java">DefaultGetNumAO dftAo = new DefaultGetNumAO();<br>//这里手工输入你的mock出来的对象（外部依赖）<br>dftAo.setDftAo(dftAo);<br>//执行真正的要测试函数<br>Result result = dftAo. getNum ();//过程中会调用你注入的对象替代真正运行的对象或者服务<br>		Assert.assertTrue(result.isSuccess());</code></pre> 
+<br> 
+<br>采用上述的方式，可以将DefaultGetNumAO里面所有依赖的外部调用全部mock掉。 
+<br> 
+<br>[b]2. 如何解决对数据库的依赖？[/b] 
+<br>对于DAO层来说，直接修改数据库中的物理数据，可能会带来众多冗余数据或者引起数据紊乱等情况。 
+<br>场景：比如你需要测试一个insert语句，用传统的junit测试的方式，当你插入成功之后，这些你插入的测试数据实际上就成了冗余数据；更可能存在的情况，你插入这条数据之后，有些有唯一性约束的字段存在的时候，就不能再次执行插入了，这就意味着你的单元测试代码只能执行一次。 
+<br>一般这种情况下采用如下方式解决： 
+<br>第一， 在测试代码开始前插入临时数据，然后执行你的测试代码，待正真要测试的代码执行结束之后，在你的单元测试代码之后清理掉插入的临时数据。 
+<br>如下例子： 
+<br> 
+<pre><code class="language-java"><br>	//设置全局变量，保存数据用<br>	private long iTestAllId = 0L;<br><br>	/**<br>	 * <br>	 * setUpBeforeClass<br>	 * 初始化操作<br>	 * @throws DAOException<br>	 * @since 1.0.0<br>	 */<br>	@BeforeClass<br>	public void setUpBeforeClass() throws Exception {<!-- --><br>		//先执行插入操作,得到临时数据iTestAllId<br>		testInsertCheckList();<br>		//进行赋值<br>		if(iTestAllId &gt; 0) {<!-- --><br>			checkListDO.setId(iTestAllId);<br>		}<br>	}<br>         //执行结束之后，将数据清理：<br>	/**<br>	 * 数据清理操作<br>	 */<br>	@AfterClass<br>	public  void tearDownAfterClass() throws Exception {<!-- --><br>		//删除数据<br>		testDeleteCheckList();<br>}</code></pre> 
+<br> 
+<br>第二， 在上面的基础上，手工控制事物，在测试代码执行完成之后，事物回滚，数据库恢复到刚开始执行的地方； 
+<br> 
+<br>第三， 采用DBUnit(DBUnit的设计理念就是在测试之前，备份数据库，然后给对象数据库植入我们需要的准备数据，最后，在测试完毕后，读入备份数据库，回溯到测试前的状态,这个工具大家可以详细的在网上去查看)来模式整个数据库表，所有的操作（增删改查）都不会影响我们真实的数据库数据。 
+<br> 
+<br>[b]3.单元测试进阶[/b] 
+<br>写代码有个原则：一般不建议在代码中写hard code.单元测试也是这样。 
+<br>如果我们在代码里面写大量的hard code,既不美观，修改起来也很不方面。 
+<br>那么测试数据怎么引入呢？ 
+<br> 
+<br>场景： 
+<br>我们要测试CheckListDAO.java这个DAO，里面有insertCheckList方法，其参数是CheckListDO这样一个普通的对象bean. 
+<br>传统的写法： 
+<br> 
+<pre><code class="language-java"><br>先NEW出对象<br>CheckListDO checkDo=new CheckListDO ();<br>然后赋值<br>//<br>checkDo.setId(2L);<br>checkDo.setType(13L);<br>checkDo.setName("liqf");<br>checkDo.setDesc("test");<br></code></pre> 
+<br> 
+<br>然后在单元测试代码里面传入insertCheckList方法 
+<br>类似这样： 
+<br> 
+<pre><code class="language-java"><br>int iRtn = CheckListDAO. insertCheckList (checkDo);<br>		    Assert.assertNotNull(iRtn &gt; 0);</code></pre> 
+<br> 
+<br> 
+<br>我们如何做？ 
+<br>利用spring的IOC，我们将CheckListDO交给spring去管理，所有的测试数据写在XML配置文件里面，比如可以建立一个data目录，下面建立test-dao-data.xml配置文件。 
+<br>如下： 
+<br> 
+<pre><code class="language-java">&lt;bean id="checkListDO" class="com.liqf.CheckListDO" singleton="true"&gt;<br>          &lt;property name="id" value="100462" /&gt;<br>          &lt;property name="type" value="2" /&gt;<br>          &lt;property name="name" value="11" /&gt;<br>          &lt;property name="desc" value="11111111" /&gt;<br>      &lt;/bean&gt;</code></pre> 
+<br> 
+<br>在测试的基类里面： 
+<br> 
+<pre><code class="language-java">public void setUp() throws Exception {<!-- --><br>		try {<!-- --><br>        appContext = new ClassPathXmlApplicationContext(new String[] {<!-- --><br>                "data/test-dao-data.xml"<br>                });<br>		}</code></pre>这样即使我们想修改单元测试案例，只需要修改test-dao-data.xml文件中配置的数据就可以了，是不是方便很多？ 
+<br> 
+<br>[b][color=red]采用上述的方式，我们可以将单元测试的代码和数据相分离，这样会减少很多测试代码； 
+<br>同时修改测试数据也会很方便；[/color][/b] 
+<br> 
+<br>[b]4. Spring-mock简介[/b] 
+<br>Spring mock直接提供了事物的自动回滚，这点是非常方便的，所以我们拿它来做DAO层的测试的时候，一点也不用关心持久层的事物处理。避免了脏数据。简化了代码 
+<br>SPRING-MCOK方式，你只需要采用如下三个步骤就可以很容易实现了： 
+<br> 4.1首先继承AbstractTransactionalSpringContextTests(需要spring-mock.jar) 
+<br> 4.2重载getConfigLocations() {}方法 –这个方法里面你需要手工载入所有的配置文件，包括bean的，sql的配置 
+<br> 4.3写测试函数 
+<br> 个人以为：采用spring mock的方式将会更加容易简单的测试DAO层的数据。
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/bcecab598ca500eca89137f4d4db4b91/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">用户控件 UserControl类</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/be957ed7345918808e104109cabb5d86/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">C#开源资源大汇总</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

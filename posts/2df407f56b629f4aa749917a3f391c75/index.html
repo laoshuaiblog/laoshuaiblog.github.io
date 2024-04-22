@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Verilog实现常见电路（三） - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/2df407f56b629f4aa749917a3f391c75/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="Verilog实现常见电路（三）">
+  <meta property="og:description" content="目录：
+一、边沿检测
+二、串并转换
+三、分频器
+四、异步复位同步释放
+五、序列信号产生器
+六、序列检测器
+七、双端口RAM
+八、同步FIFO
+九、异步FIFO
+常见电路系列连接:
+CSDNhttps://mp.csdn.net/mp_blog/creation/editor/122940873CSDNhttps://mp.csdn.net/mp_blog/creation/editor/122991113七、双端口RAM
+module dualram#( parameter ADDR_WIDTH = 4, DATA_WIDTH = 8, DATA_DEPTH = 8 )( input rd_clk, input wr_clk, input rst_n, //port a input wr_en, input [3:0] wr_addr, input [7:0] wr_data, //port b input rd_en, input [3:0] rd_addr, output reg [7:0] rd_data ); reg [DATA_WIDTH-1:0] register [DATA_DEPTH-1:0]; integer i; always@(posedge wr_clk or negedge rst_n) if(~rst_n)begin for(i=0;i&amp;lt;DATA_DEPTH;i=i&#43;1)begin register[i]&amp;lt;=&#39;h0; end end else if(wr_en) register[wr_addr]&amp;lt;=wr_data; always@(posedge rd_clk or negedge rst_n) if(~rst_n) rd_data&amp;lt;=&#39;h0; else if(rd_en) rd_data&amp;lt;=register[rd_addr]; endmodule 仿真代码">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2022-03-01T12:03:07+08:00">
+    <meta property="article:modified_time" content="2022-03-01T12:03:07+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">Verilog实现常见电路（三）</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <p>目录：</p> 
+<p>一、边沿检测</p> 
+<p>二、串并转换</p> 
+<p>三、分频器</p> 
+<p>四、异步复位同步释放</p> 
+<p>五、序列信号产生器</p> 
+<p>六、序列检测器</p> 
+<p>七、双端口RAM</p> 
+<p>八、同步FIFO</p> 
+<p>九、异步FIFO</p> 
+<p>常见电路系列连接:</p> 
+<p><a class="has-card" href="https://mp.csdn.net/mp_blog/creation/editor/122940873" title="CSDN"><span class="link-card-box"><span class="link-title">CSDN</span><span class="link-link"><img class="link-link-icon" src="https://images2.imgbox.com/cf/2e/RmZ1mz3P_o.png" alt="icon-default.png?t=M1L8">https://mp.csdn.net/mp_blog/creation/editor/122940873</span></span></a><a class="has-card" href="https://mp.csdn.net/mp_blog/creation/editor/122991113" title="CSDN"><span class="link-card-box"><span class="link-title">CSDN</span><span class="link-link"><img class="link-link-icon" src="https://images2.imgbox.com/52/a0/oHcyMC43_o.png" alt="icon-default.png?t=M1L8">https://mp.csdn.net/mp_blog/creation/editor/122991113</span></span></a>七、双端口RAM</p> 
+<pre><code>module dualram#(
+    parameter ADDR_WIDTH = 4,
+              DATA_WIDTH = 8,
+              DATA_DEPTH = 8
+)(
+    input rd_clk,
+    input wr_clk,
+    input rst_n,
+//port a
+    input wr_en,
+    input [3:0] wr_addr,
+    input [7:0] wr_data,
+//port b
+    input rd_en,
+    input [3:0] rd_addr,
+    output reg [7:0] rd_data
+
+);
+reg [DATA_WIDTH-1:0] register [DATA_DEPTH-1:0];
+integer i;
+
+always@(posedge wr_clk or negedge rst_n)
+    if(~rst_n)begin
+        for(i=0;i&lt;DATA_DEPTH;i=i+1)begin
+            register[i]&lt;='h0;
+        end
+    end
+    else if(wr_en)
+        register[wr_addr]&lt;=wr_data;
+
+always@(posedge rd_clk or negedge rst_n)
+    if(~rst_n)
+        rd_data&lt;='h0;
+    else if(rd_en)
+        rd_data&lt;=register[rd_addr];
+endmodule
+</code></pre> 
+<p>仿真代码</p> 
+<pre><code>`timescale  1ns / 1ps
+module tb_dualram;   
+// dualram Parameters
+parameter PERIOD_WR      = 10;
+parameter PERIOD_RD      = 20;
+parameter ADDR_WIDTH  = 4;
+// dualram Inputs
+bit   rd_clk        ;
+bit   wr_clk        ;
+reg   rst_n         ;
+reg   wr_en         ;
+reg   [3:0]  wr_addr;
+reg   [7:0]  wr_data;
+reg   rd_en         ;
+reg   [3:0]  rd_addr;
+// dualram Outputs
+wire  [7:0]  rd_data                       ;
+reg [7:0] data;
+
+initial
+begin
+    forever #(PERIOD_WR/2)  wr_clk=~wr_clk;
+end
+
+initial
+begin
+    forever #(PERIOD_RD/2)  rd_clk=~rd_clk;
+end
+
+initial
+begin
+    rst_n = 0;
+    #(PERIOD_WR*2) rst_n  =  1;
+    write_data(1,1);
+    write_data(3,2);
+    write_data(5,3);
+    read_data(1,data);
+    read_data(3,data);
+    read_data(5,data);
+
+end
+
+task write_data(input int addr,input reg [7:0] data);
+begin
+    @(posedge wr_clk);
+    wr_en &lt;= 1;
+    wr_addr &lt;= addr;
+    wr_data &lt;= data;
+    @(posedge wr_clk);
+    wr_en &lt;= 0;
+end
+endtask
+
+task read_data(input int addr,output reg [7:0] data);
+begin
+    @(posedge rd_clk);
+    rd_en &lt;= 1;
+    rd_addr &lt;= addr;
+    data &lt;= rd_data;
+    @(posedge rd_clk);
+    rd_en &lt;= 0;
+end
+endtask
+
+dualram #(
+    .ADDR_WIDTH ( ADDR_WIDTH ))
+ u_dualram (
+    .rd_clk                  ( rd_clk         ),
+    .wr_clk                  ( wr_clk         ),
+    .rst_n                   ( rst_n          ),
+    .wr_en                   ( wr_en          ),
+    .wr_addr                 ( wr_addr  [3:0] ),
+    .wr_data                 ( wr_data  [7:0] ),
+    .rd_en                   ( rd_en          ),
+    .rd_addr                 ( rd_addr  [3:0] ),
+
+    .rd_data                 ( rd_data  [7:0] )
+);
+endmodule
+</code></pre> 
+<p>波形图</p> 
+<p style="text-align:center;"><img alt="" src="https://images2.imgbox.com/84/73/Y4W5X3jS_o.png"></p> 
+<p>八、同步FIFO</p> 
+<p>FIFO是由读写控制逻辑加RAM构成的，实现FIFO的关键因素就是读写指针、空满标志。</p> 
+<p>读写指针通过wr_ptr、rd_ptr两个计数器来实现，空满标志通过count计数器来判断,写入一个计数器加一，读出一个计数器减一，当count==0时表示FIFO空，当count==depth时表示fifo满</p> 
+<pre><code>module fifo_out#(
+    parameter C_FIFO_DEPTH=128,
+    parameter C_FIFO_WIDTH=8
+)(
+    input clk,
+    input rst_n,
+
+    input wr_vld,
+    output wr_rdy,
+    input [C_FIFO_WIDTH-1:0] data_i,
+
+    output rd_vld,
+    input rd_rdy,
+    output reg [C_FIFO_WIDTH-1:0] data_o
+);
+
+function integer clogb2(input integer depth);
+begin
+    for(clogb2=0;depth&gt;0;clogb2=clogb2+1)begin
+        depth=depth &gt;&gt; 1;
+    end 
+end
+endfunction
+
+reg [C_FIFO_WIDTH-1:0] fifo_data [C_FIFO_DEPTH-1:0];
+reg [clogb2(C_FIFO_DEPTH-1)-1:0] wr_ptr,rd_ptr;
+reg [clogb2(C_FIFO_DEPTH-1)-1:0] count;
+wire full,empty;
+wire wr_en,rd_en;
+
+assign wr_en=wr_vld &amp;&amp; wr_rdy;
+assign rd_en=rd_vld &amp;&amp; rd_rdy;
+
+always@(posedge clk or negedge rst_n)
+    if(~rst_n)
+        wr_ptr&lt;='h0;
+    else if(wr_ptr==C_FIFO_DEPTH-1)
+        wr_ptr&lt;='h0;
+    else if(wr_en &amp;&amp; ~full)begin
+        fifo_data[wr_ptr]&lt;=data_i;
+        wr_ptr&lt;= wr_ptr + 1'b1;
+    end
+
+always@(posedge clk or negedge rst_n)
+    if(~rst_n)begin
+        rd_ptr&lt;='h0;
+        data_o&lt;='h0;    
+    end
+    else if(rd_ptr==C_FIFO_DEPTH-1)
+        rd_ptr&lt;='h0;
+    else if(rd_en &amp;&amp; ~empty)begin
+        rd_ptr&lt;=rd_ptr + 1'b1;
+        data_o&lt;=fifo_data[rd_ptr];
+    end
+
+always@(posedge clk or negedge rst_n)
+    if(~rst_n)
+        count&lt;='h0;
+    else begin
+        case({wr_en,rd_en})
+            2'b00:count&lt;=count;
+            2'b01:if(count!='h0)
+                count&lt;=count-1'b1;
+            2'b10:if(count!=C_FIFO_DEPTH-1)
+                count&lt;=count+1'b1;
+            2'b11:count&lt;=count;
+        endcase
+    end
+
+assign wr_rdy=wr_vld &amp;&amp; ~full;
+assign rd_vld=~empty;
+assign empty = (count=='h0)? 1'b1:1'b0;
+assign full = (count==C_FIFO_DEPTH-1)? 1'b1:1'b0;
+
+endmodule
+</code></pre> 
+<p>仿真代码</p> 
+<pre><code>`timescale  1ns / 1ps 
+module tb_fifo_out;   
+// fifo_out Parameters
+parameter PERIOD        = 10;
+parameter C_FIFO_DEPTH  = 128;
+
+// fifo_out Inputs
+bit   clk          ;
+reg   rst_n        ;
+reg   wr_vld       ;
+reg   [7:0]  data_i;
+reg   rd_rdy       ;
+
+// fifo_out Outputs
+wire  wr_rdy       ;
+wire  rd_vld       ;
+wire  [7:0]  data_o;
+
+initial
+begin
+    forever #(PERIOD/2)  clk=~clk;
+end
+
+initial
+begin
+    rst_n=0;
+    rd_rdy=0;
+    #(PERIOD*2) rst_n  =  1;
+    write_data(128);
+    #100;
+    rd_rdy=1;
+end
+
+integer i;
+task write_data(input int unsigned number);
+begin
+    for(i=0;i&lt;number;i++)begin
+        @(posedge clk);
+        wr_vld&lt;=1'b1;
+        data_i&lt;=($random)%20;
+    end
+    wr_vld&lt;=0;
+    data_i&lt;=0;
+end
+endtask
+
+fifo_out #(
+    .C_FIFO_DEPTH ( C_FIFO_DEPTH ))
+ u_fifo_out (
+    .clk                     ( clk           ),
+    .rst_n                   ( rst_n         ),
+    .wr_vld                  ( wr_vld        ),
+    .data_i                  ( data_i  [7:0] ),
+    .rd_rdy                  ( rd_rdy        ),
+
+    .wr_rdy                  ( wr_rdy        ),
+    .rd_vld                  ( rd_vld        ),
+    .data_o                  ( data_o  [7:0] )
+);
+
+endmodule
+</code></pre> 
+<p>波形图</p> 
+<p style="text-align:center;"><img alt="" src="https://images2.imgbox.com/78/65/RKiLDlyT_o.png"></p> 
+<p>九、异步FIFO</p> 
+<p>异步FIFO因为读写不在一个时钟域，因此fifo的空满信号不能通过读写指针直接进行判断，空信号需要先将写指针转换为格雷码（因格雷码相邻数之间每次只有1bit发生变化）其次进行打两拍，最后将同步到读时钟域的写指针和读指针进行判断得到fifo的空状态；满状态同理将读指针同步到写时钟域进行判断。</p> 
+<p>写指针经过打拍后在同一时刻滞后于读指针，因此空是非空的，同理满是非满的，但不影响系统的正常工作</p> 
+<p style="text-align:center;"><img alt="" src="https://images2.imgbox.com/3e/f7/IDfUq9UX_o.png"></p> 
+<pre><code>module fifo_async #(
+    parameter C_FIFO_WIDTH=8,
+              C_FIFO_DEPTH=32
+)(
+    input rst_n,
+    input wr_clk,
+    input wr_valid,
+    output wr_ready,
+    input [C_FIFO_WIDTH-1:0] data_in,
+    
+    input rd_clk,
+    output rd_valid,
+    input rd_ready,
+    output reg [C_FIFO_WIDTH-1:0] data_out,
+
+    output full,
+    output empty
+
+);
+
+integer i;
+function integer clogb2(input integer depth);
+begin
+    for(clogb2=0;depth&gt;0;clogb2=clogb2+1'b1)begin
+        depth=depth&gt;&gt;1;
+    end 
+end
+endfunction
+
+reg [C_FIFO_WIDTH-1:0] fifo_data [C_FIFO_DEPTH-1:0];
+reg [clogb2(C_FIFO_DEPTH-1):0] wr_ptr,rd_ptr;
+wire [clogb2(C_FIFO_DEPTH-1)-1:0] wr_ptr_ture,rd_ptr_ture;
+wire [clogb2(C_FIFO_DEPTH-1):0] wr_ptr_gray;
+wire [clogb2(C_FIFO_DEPTH-1):0] rd_ptr_gray;
+reg  [clogb2(C_FIFO_DEPTH-1):0] wr_ptr_gray1,wr_ptr_gray2;
+reg  [clogb2(C_FIFO_DEPTH-1):0] rd_ptr_gray1,rd_ptr_gray2;
+wire wr_en,rd_en;
+
+assign wr_en = wr_valid &amp;&amp; wr_ready;
+assign rd_en = rd_valid &amp;&amp; rd_ready;
+
+assign wr_ptr_ture = wr_ptr[clogb2(C_FIFO_DEPTH-1)-1:0];
+assign rd_ptr_ture = rd_ptr[clogb2(C_FIFO_DEPTH-1)-1:0];
+
+assign wr_ready=wr_valid &amp;&amp; ~full;
+assign rd_valid=~empty;
+
+
+always@(posedge wr_clk or negedge rst_n)
+    if(~rst_n)
+        wr_ptr&lt;='h0;
+    else if(wr_en &amp;&amp; ~full)begin
+        fifo_data[wr_ptr_ture]&lt;=data_in;
+        wr_ptr&lt;=wr_ptr+1'b1;
+    end
+
+always@(posedge rd_clk or negedge rst_n)
+    if(~rst_n)begin
+        rd_ptr&lt;='h0;
+        data_out&lt;='h0;
+    end
+    else if(rd_en &amp;&amp; ~empty)begin
+        data_out&lt;=fifo_data[rd_ptr_ture];
+        rd_ptr&lt;=rd_ptr+1'b1;
+    end
+
+//binary2gray
+assign wr_ptr_gray = (wr_ptr&gt;&gt;1) ^ wr_ptr;
+assign rd_ptr_gray = (rd_ptr&gt;&gt;1) ^ rd_ptr;
+
+always@(posedge rd_clk or negedge rst_n)
+    if(~rst_n)begin
+        wr_ptr_gray1&lt;='h0;
+        wr_ptr_gray2&lt;='h0;
+    end
+    else begin
+        wr_ptr_gray1&lt;=wr_ptr_gray;
+        wr_ptr_gray2&lt;=wr_ptr_gray1;
+    end
+
+always@(posedge wr_clk or negedge rst_n)
+    if(~rst_n)begin
+        rd_ptr_gray1&lt;='h0;
+        rd_ptr_gray2&lt;='h0;
+    end
+    else begin
+        rd_ptr_gray1&lt;=rd_ptr_gray;
+        rd_ptr_gray2&lt;=rd_ptr_gray1;
+    end
+
+assign empty = (wr_ptr_gray2==rd_ptr_gray)? 1'b1: 1'b0;
+assign full  = (wr_ptr_gray[7:0]=={~(rd_ptr_gray2[clogb2(C_FIFO_DEPTH-1)-:2]),rd_ptr_gray2[clogb2(C_FIFO_DEPTH-1)-2:0]})? 1'b1: 1'b0;
+
+endmodule
+</code></pre> 
+<p>仿真代码</p> 
+<pre><code>`timescale  1ns / 1ps   
+module tb_fifo_async;   
+// fifo_async Parameters
+parameter WR_PERIOD        = 10;
+parameter RD_PERIOD        = 20;
+parameter C_FIFO_WIDTH  = 8;
+parameter C_FIFO_DEPTH  = 128;
+// fifo_async Inputs
+reg   rst_n                      ;
+bit   wr_clk                     ;
+bit   rd_clk                     ;
+reg   wr_valid                   ;
+reg   [C_FIFO_WIDTH-1:0]  data_in;
+reg   rd_ready                   ;
+// fifo_async Outputs
+wire  wr_ready                             ;
+wire  rd_valid                             ;
+wire  [C_FIFO_WIDTH-1:0]  data_out         ;
+wire  full                                 ;
+wire  empty                                ;
+
+always #(WR_PERIOD/2)  wr_clk=~wr_clk;
+always #(RD_PERIOD/2)  rd_clk=~rd_clk;
+
+initial
+begin
+    rst_n = 0;
+    wr_valid=1'b0;
+    rd_ready=1'b0;
+    #(WR_PERIOD*2) rst_n  =  1;
+    #(WR_PERIOD*2);
+    generate_data(130);
+    #100;
+    rd_ready = 1'b1;
+end
+
+integer i;
+task generate_data(input int unsigned number);
+begin
+    for(i=0;i&lt;number;i=i+1)begin
+        @(posedge wr_clk);
+        wr_valid&lt;=1'b1;
+        data_in&lt;=($random)%20;
+    end
+    wr_valid&lt;=1'b0;
+    data_in&lt;='h0;
+end
+endtask
+
+fifo_async #(
+   .C_FIFO_WIDTH ( C_FIFO_WIDTH ),
+   .C_FIFO_DEPTH (C_FIFO_DEPTH  )
+
+)u_fifo_async (
+    .rst_n                   ( rst_n                        ),
+    .wr_clk                  ( wr_clk                       ),
+    .wr_valid                ( wr_valid                     ),
+    .data_in                 ( data_in   [C_FIFO_WIDTH-1:0] ),
+    .rd_clk                  ( rd_clk                       ),
+    .rd_ready                ( rd_ready                     ),
+
+    .wr_ready                ( wr_ready                     ),
+    .rd_valid                ( rd_valid                     ),
+    .data_out                ( data_out  [C_FIFO_WIDTH-1:0] ),
+    .full                    ( full                         ),
+    .empty                   ( empty                        )
+);
+endmodule
+</code></pre> 
+<p>波形图</p> 
+<p style="text-align:center;"><img alt="" src="https://images2.imgbox.com/21/28/nB2ZbQlf_o.png"></p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/de1330aaaf9cc535ce30058017c85f2c/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">VS2022 .netcore启用本地代码调试</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/ecd6dd37cf2f429039f506f7831177a6/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">什么是虚拟机，虚拟机有什么妙用？</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

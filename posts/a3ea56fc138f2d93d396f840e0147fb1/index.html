@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>ClickHouse节点扩容及数据迁移 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/a3ea56fc138f2d93d396f840e0147fb1/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="ClickHouse节点扩容及数据迁移">
+  <meta property="og:description" content="背景 之前公司面临磁盘不足的问题，虽然通过增加磁盘来缓解了。但是clickhouse集群节点扩充是发展迟早要面临的问题，所以尝试思考解决方案。
+ck不同于hadoop体系，hdfs当集群增减节点时可以通过balance命令去自动调节。但ck集群不能自动感知集群拓扑变化，也不能自动 balance 数据。当集群数据量较大，复制表和分布式表过多时、想做到表维度、或者集群之间的数据平衡会导致运维成本很高。
+方案 这里提供三个解决思路
+方式一、复制 当我们追求分布式表在新集群的平衡，数据量不大的情况，可以在新集群建立临时表B、然后将原始表A写入B中，再删除A表重新创建，之后将B表写入A中。
+这种方式并不是数据量大、表数量过多的情形。
+方式二、配置权重 当我们先用磁盘不够用的情况、通过配置权重指定大部分数据写入新的节点，随着时间流逝，原节点具有TTL的部分数据自动删除，数据会趋于均衡，最后调回原始权重。是一种比较可行的方案。只需要配置/etc/metrika.xml 中各个shard的权重即可。
+&amp;lt;clickhouse_remote_servers&amp;gt; &amp;lt;ck_cluster&amp;gt; &amp;lt;shard&amp;gt; &amp;lt;weight&amp;gt;99&amp;lt;/weight&amp;gt; &amp;lt;replica&amp;gt; &amp;lt;host&amp;gt;dc-sit-225&amp;lt;/host&amp;gt; &amp;lt;port&amp;gt;9000&amp;lt;/port&amp;gt; &amp;lt;user&amp;gt;default&amp;lt;/user&amp;gt; &amp;lt;password&amp;gt;&amp;lt;/password&amp;gt; &amp;lt;/replica&amp;gt; &amp;lt;/shard&amp;gt; &amp;lt;shard&amp;gt; &amp;lt;weight&amp;gt;1&amp;lt;/weight&amp;gt; &amp;lt;replica&amp;gt; &amp;lt;host&amp;gt;dc-sit-226&amp;lt;/host&amp;gt; &amp;lt;port&amp;gt;9000&amp;lt;/port&amp;gt; &amp;lt;user&amp;gt;default&amp;lt;/user&amp;gt; &amp;lt;password&amp;gt;&amp;lt;/password&amp;gt; &amp;lt;/replica&amp;gt; &amp;lt;/shard&amp;gt; &amp;lt;/ck_cluster&amp;gt; &amp;lt;/clickhouse_remote_servers&amp;gt; 列如我这里设置dc-sit-225节点权重为99，dc-sit-226节点权重为1。需要注意的是权重必须大于0（经过测试，小于0时节点会启动失败，等于0时配置不会生效）。
+方式三、直接扩容不迁移数据 我们可以给每个节点中的表设置TTL保留时间，随着时间的进行，已经保留时间长的数据会逐渐的被清除掉。到最后，节点的数据会均很分布
+优点：横向扩容，配置简单不需要额外操作，只需将每个节点的配置文件更新即可缺点：要想达到数据均衡所需的时间较长，期间查询历史数据还是由原来节点合并完成，没有完全发挥分布式的优势 步骤 1、将配置文件进行拷贝到待安装节点 2、更改配置文件中的 metrika.xml 中关于 副本、分片的配置。例如： （1）添加分片、副本
+&amp;lt;clickhouse_remote_servers&amp;gt; &amp;lt;report_shards_replicas&amp;gt; &amp;lt;shard&amp;gt; &amp;lt;weight&amp;gt;1&amp;lt;/weight&amp;gt; &amp;lt;!-- false代表一次性写入所有副本，true表示写入其中一个副本，配合zk来进行数据复制 --&amp;gt; &amp;lt;internal_replication&amp;gt;true&amp;lt;/internal_replication&amp;gt; &amp;lt;replica&amp;gt; &amp;lt;host&amp;gt;172.17.0.3&amp;lt;/host&amp;gt; &amp;lt;port&amp;gt;9000&amp;lt;/port&amp;gt; &amp;lt;user&amp;gt;default&amp;lt;/user&amp;gt; &amp;lt;password&amp;gt;default&amp;lt;/password&amp;gt; &amp;lt;/replica&amp;gt; &amp;lt;/shard&amp;gt; &amp;lt;shard&amp;gt; &amp;lt;weight&amp;gt;1&amp;lt;/weight&amp;gt; &amp;lt;!-- false代表一次性写入所有副本，true表示写入其中一个副本，配合zk来进行数据复制 --&amp;gt; &amp;lt;internal_replication&amp;gt;true&amp;lt;/internal_replication&amp;gt; &amp;lt;replica&amp;gt; &amp;lt;host&amp;gt;172.17.0.4&amp;lt;/host&amp;gt; &amp;lt;port&amp;gt;9000&amp;lt;/port&amp;gt; &amp;lt;user&amp;gt;default&amp;lt;/user&amp;gt; &amp;lt;password&amp;gt;default&amp;lt;/password&amp;gt; &amp;lt;/replica&amp;gt; &amp;lt;/shard&amp;gt; &amp;lt;shard&amp;gt; &amp;lt;weight&amp;gt;1&amp;lt;/weight&amp;gt; &amp;lt;!">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2020-09-03T19:32:13+08:00">
+    <meta property="article:modified_time" content="2020-09-03T19:32:13+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">ClickHouse节点扩容及数据迁移</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-dark">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <h4><a id="_0"></a>背景</h4> 
+<p>之前公司面临磁盘不足的问题，虽然通过增加磁盘来缓解了。但是clickhouse集群节点扩充是发展迟早要面临的问题，所以尝试思考解决方案。<br> ck不同于hadoop体系，hdfs当集群增减节点时可以通过balance命令去自动调节。但ck集群不能自动感知集群拓扑变化，也不能自动 balance 数据。当集群数据量较大，复制表和分布式表过多时、想做到表维度、或者集群之间的数据平衡会导致运维成本很高。</p> 
+<h4><a id="_4"></a>方案</h4> 
+<p>这里提供三个解决思路</p> 
+<h4><a id="_7"></a>方式一、复制</h4> 
+<p>当我们追求分布式表在新集群的平衡，数据量不大的情况，可以在新集群建立临时表B、然后将原始表A写入B中，再删除A表重新创建，之后将B表写入A中。<br> 这种方式并不是数据量大、表数量过多的情形。</p> 
+<h4><a id="_11"></a>方式二、配置权重</h4> 
+<p>当我们先用磁盘不够用的情况、通过配置权重指定大部分数据写入新的节点，随着时间流逝，原节点具有TTL的部分数据自动删除，数据会趋于均衡，最后调回原始权重。是一种比较可行的方案。只需要配置/etc/metrika.xml 中各个shard的权重即可。</p> 
+<pre><code class="prism language-shell"><span class="token operator">&lt;</span>clickhouse_remote_servers<span class="token operator">&gt;</span>
+        <span class="token operator">&lt;</span>ck_cluster<span class="token operator">&gt;</span>
+            <span class="token operator">&lt;</span>shard<span class="token operator">&gt;</span>
+                <span class="token operator">&lt;</span>weight<span class="token operator">&gt;</span>99<span class="token operator">&lt;</span>/weight<span class="token operator">&gt;</span>
+                <span class="token operator">&lt;</span>replica<span class="token operator">&gt;</span>
+                    <span class="token operator">&lt;</span>host<span class="token operator">&gt;</span>dc-sit-225<span class="token operator">&lt;</span>/host<span class="token operator">&gt;</span>
+                    <span class="token operator">&lt;</span>port<span class="token operator">&gt;</span>9000<span class="token operator">&lt;</span>/port<span class="token operator">&gt;</span>
+                    <span class="token operator">&lt;</span>user<span class="token operator">&gt;</span>default<span class="token operator">&lt;</span>/user<span class="token operator">&gt;</span>
+                    <span class="token operator">&lt;</span>password<span class="token operator">&gt;</span><span class="token operator">&lt;</span>/password<span class="token operator">&gt;</span>
+                <span class="token operator">&lt;</span>/replica<span class="token operator">&gt;</span>
+             <span class="token operator">&lt;</span>/shard<span class="token operator">&gt;</span>
+             <span class="token operator">&lt;</span>shard<span class="token operator">&gt;</span>
+				<span class="token operator">&lt;</span>weight<span class="token operator">&gt;</span>1<span class="token operator">&lt;</span>/weight<span class="token operator">&gt;</span>
+                <span class="token operator">&lt;</span>replica<span class="token operator">&gt;</span>
+                    <span class="token operator">&lt;</span>host<span class="token operator">&gt;</span>dc-sit-226<span class="token operator">&lt;</span>/host<span class="token operator">&gt;</span>
+                    <span class="token operator">&lt;</span>port<span class="token operator">&gt;</span>9000<span class="token operator">&lt;</span>/port<span class="token operator">&gt;</span>
+                    <span class="token operator">&lt;</span>user<span class="token operator">&gt;</span>default<span class="token operator">&lt;</span>/user<span class="token operator">&gt;</span>
+                    <span class="token operator">&lt;</span>password<span class="token operator">&gt;</span><span class="token operator">&lt;</span>/password<span class="token operator">&gt;</span>
+                <span class="token operator">&lt;</span>/replica<span class="token operator">&gt;</span>
+            <span class="token operator">&lt;</span>/shard<span class="token operator">&gt;</span>
+        <span class="token operator">&lt;</span>/ck_cluster<span class="token operator">&gt;</span>
+    <span class="token operator">&lt;</span>/clickhouse_remote_servers<span class="token operator">&gt;</span>
+</code></pre> 
+<p>列如我这里设置dc-sit-225节点权重为99，dc-sit-226节点权重为1。需要注意的是权重必须大于0（经过测试，小于0时节点会启动失败，等于0时配置不会生效）。</p> 
+<h4><a id="_39"></a>方式三、直接扩容不迁移数据</h4> 
+<p>我们可以给每个节点中的表设置TTL保留时间，随着时间的进行，已经保留时间长的数据会逐渐的被清除掉。到最后，节点的数据会均很分布</p> 
+<ul><li>优点：横向扩容，配置简单不需要额外操作，只需将每个节点的配置文件更新即可</li><li>缺点：要想达到数据均衡所需的时间较长，期间查询历史数据还是由原来节点合并完成，没有完全发挥分布式的优势</li></ul> 
+<h5><a id="_45"></a>步骤</h5> 
+<h6><a id="1_46"></a>1、将配置文件进行拷贝到待安装节点</h6> 
+<h6><a id="2_metrikaxml___47"></a>2、更改配置文件中的 metrika.xml 中关于 副本、分片的配置。例如：</h6> 
+<p>（1）添加分片、副本</p> 
+<pre><code class="prism language-shell"><span class="token operator">&lt;</span>clickhouse_remote_servers<span class="token operator">&gt;</span>
+	    <span class="token operator">&lt;</span>report_shards_replicas<span class="token operator">&gt;</span>
+	        <span class="token operator">&lt;</span>shard<span class="token operator">&gt;</span>
+	            <span class="token operator">&lt;</span>weight<span class="token operator">&gt;</span>1<span class="token operator">&lt;</span>/weight<span class="token operator">&gt;</span>
+                    <span class="token operator">&lt;</span><span class="token operator">!</span>-- false代表一次性写入所有副本，true表示写入其中一个副本，配合zk来进行数据复制 --<span class="token operator">&gt;</span>
+	            <span class="token operator">&lt;</span>internal_replication<span class="token operator">&gt;</span>true<span class="token operator">&lt;</span>/internal_replication<span class="token operator">&gt;</span>
+	            <span class="token operator">&lt;</span>replica<span class="token operator">&gt;</span>
+	                <span class="token operator">&lt;</span>host<span class="token operator">&gt;</span>172.17.0.3<span class="token operator">&lt;</span>/host<span class="token operator">&gt;</span>
+	                <span class="token operator">&lt;</span>port<span class="token operator">&gt;</span>9000<span class="token operator">&lt;</span>/port<span class="token operator">&gt;</span>
+	                <span class="token operator">&lt;</span>user<span class="token operator">&gt;</span>default<span class="token operator">&lt;</span>/user<span class="token operator">&gt;</span>
+	                <span class="token operator">&lt;</span>password<span class="token operator">&gt;</span>default<span class="token operator">&lt;</span>/password<span class="token operator">&gt;</span>
+	            <span class="token operator">&lt;</span>/replica<span class="token operator">&gt;</span>
+	        <span class="token operator">&lt;</span>/shard<span class="token operator">&gt;</span>
+		<span class="token operator">&lt;</span>shard<span class="token operator">&gt;</span>
+	            <span class="token operator">&lt;</span>weight<span class="token operator">&gt;</span>1<span class="token operator">&lt;</span>/weight<span class="token operator">&gt;</span>
+                    <span class="token operator">&lt;</span><span class="token operator">!</span>-- false代表一次性写入所有副本，true表示写入其中一个副本，配合zk来进行数据复制 --<span class="token operator">&gt;</span>
+	            <span class="token operator">&lt;</span>internal_replication<span class="token operator">&gt;</span>true<span class="token operator">&lt;</span>/internal_replication<span class="token operator">&gt;</span>
+	            <span class="token operator">&lt;</span>replica<span class="token operator">&gt;</span>
+	                <span class="token operator">&lt;</span>host<span class="token operator">&gt;</span>172.17.0.4<span class="token operator">&lt;</span>/host<span class="token operator">&gt;</span>
+	                <span class="token operator">&lt;</span>port<span class="token operator">&gt;</span>9000<span class="token operator">&lt;</span>/port<span class="token operator">&gt;</span>
+	                <span class="token operator">&lt;</span>user<span class="token operator">&gt;</span>default<span class="token operator">&lt;</span>/user<span class="token operator">&gt;</span>
+	                <span class="token operator">&lt;</span>password<span class="token operator">&gt;</span>default<span class="token operator">&lt;</span>/password<span class="token operator">&gt;</span>
+	            <span class="token operator">&lt;</span>/replica<span class="token operator">&gt;</span>
+	        <span class="token operator">&lt;</span>/shard<span class="token operator">&gt;</span>
+                <span class="token operator">&lt;</span>shard<span class="token operator">&gt;</span>
+                    <span class="token operator">&lt;</span>weight<span class="token operator">&gt;</span>1<span class="token operator">&lt;</span>/weight<span class="token operator">&gt;</span>
+                    <span class="token operator">&lt;</span><span class="token operator">!</span>-- false代表一次性写入所有副本，true表示写入其中一个副本，配合zk来进行数据复制 --<span class="token operator">&gt;</span>
+                    <span class="token operator">&lt;</span>internal_replication<span class="token operator">&gt;</span>true<span class="token operator">&lt;</span>/internal_replication<span class="token operator">&gt;</span>
+                    <span class="token operator">&lt;</span>replica<span class="token operator">&gt;</span>
+                        <span class="token operator">&lt;</span>host<span class="token operator">&gt;</span>172.17.0.6<span class="token operator">&lt;</span>/host<span class="token operator">&gt;</span>
+                        <span class="token operator">&lt;</span>port<span class="token operator">&gt;</span>9000<span class="token operator">&lt;</span>/port<span class="token operator">&gt;</span>
+                        <span class="token operator">&lt;</span>user<span class="token operator">&gt;</span>default<span class="token operator">&lt;</span>/user<span class="token operator">&gt;</span>
+                        <span class="token operator">&lt;</span>password<span class="token operator">&gt;</span>default<span class="token operator">&lt;</span>/password<span class="token operator">&gt;</span>
+                    <span class="token operator">&lt;</span>/replica<span class="token operator">&gt;</span>
+                <span class="token operator">&lt;</span>/shard<span class="token operator">&gt;</span>
+	    <span class="token operator">&lt;</span>/report_shards_replicas<span class="token operator">&gt;</span>
+	<span class="token operator">&lt;</span>/clickhouse_remote_servers<span class="token operator">&gt;</span>
+</code></pre> 
+<p>（2）更改macros的参数</p> 
+<pre><code class="prism language-shell"> <span class="token operator">&lt;</span><span class="token operator">!</span>-- 配置参数：集群名，分片名，副本名 --<span class="token operator">&gt;</span>
+         <span class="token operator">&lt;</span>macros<span class="token operator">&gt;</span>
+            <span class="token operator">&lt;</span>layer<span class="token operator">&gt;</span>report_shards_replicas<span class="token operator">&lt;</span>/layer<span class="token operator">&gt;</span>
+            <span class="token operator">&lt;</span>shard<span class="token operator">&gt;</span>01<span class="token operator">&lt;</span>/shard<span class="token operator">&gt;</span>
+            <span class="token operator">&lt;</span>replica<span class="token operator">&gt;</span>cluster-01-1<span class="token operator">&lt;</span>/replica<span class="token operator">&gt;</span>
+        <span class="token operator">&lt;</span>/macros<span class="token operator">&gt;</span>
+</code></pre> 
+<h6><a id="3_metadata_97"></a>3、将以前表的结构拷贝到新增节点： （只需拷贝metadata目录下的文件即可）</h6> 
+<p><img src="https://images2.imgbox.com/c4/75/ITUjdmIz_o.png" alt="clickHouse"></p> 
+<pre><code>mv   metadata/    到当前节点clickHouse的data目录下的
+</code></pre> 
+<h6><a id="metadataBUGclickHouseZKZK_Read_Only_103"></a>经过尝试，上面直接讲metadata的表结构拷贝过去的方法，有一个致命的BUG。如果表是分布式表，直接将表结构拷贝，虽然clickHouse中表已经创建成功，但是在ZK上的表的唯一地址并不会自动创建。所以所有需要与ZK交互的表都变成： Read Only模式,不能插入数据</h6> 
+<h6><a id="_105"></a>改变思路：手动创建表结构</h6> 
+<p>步骤：</p> 
+<ul><li>1、不需要对每一个表来show create table获取表结构，我们复用metadata下的建表语句</li><li>2、通过代码来进行转换，将metadata的 *<strong>.sql</strong> 语句中所有的 <strong>ATTACH</strong> 替换成Create<br> metadata中的sql示例</li></ul> 
+<pre><code class="prism language-sql">ATTACH <span class="token keyword">TABLE</span> cs_user_info
+<span class="token punctuation">(</span>
+    <span class="token punctuation">`</span>id<span class="token punctuation">`</span> Int32<span class="token punctuation">,</span> 
+    <span class="token punctuation">`</span>user_name<span class="token punctuation">`</span> String<span class="token punctuation">,</span> 
+    <span class="token punctuation">`</span>pass_word<span class="token punctuation">`</span> String<span class="token punctuation">,</span> 
+    <span class="token punctuation">`</span>phone<span class="token punctuation">`</span> String<span class="token punctuation">,</span> 
+    <span class="token punctuation">`</span>email<span class="token punctuation">`</span> String<span class="token punctuation">,</span> 
+    <span class="token punctuation">`</span><span class="token keyword">time</span><span class="token punctuation">`</span> String
+<span class="token punctuation">)</span>
+<span class="token keyword">ENGINE</span> <span class="token operator">=</span> ReplicatedMergeTree<span class="token punctuation">(</span><span class="token string">'/clickhouse/tables/{layer}-{shard}/test/cs_user_info'</span><span class="token punctuation">,</span> <span class="token string">'{replica}'</span><span class="token punctuation">)</span>
+<span class="token keyword">ORDER</span> <span class="token keyword">BY</span> <span class="token keyword">time</span>
+SETTINGS index_granularity <span class="token operator">=</span> <span class="token number">8192</span>
+</code></pre> 
+<ul><li>将转化的Sql语句集中保存至某一目录下，eg：/data/salt/clickHouse</li><li>通过CK的客户端来实现建表语句：</li></ul> 
+<pre><code class="prism language-shell"><span class="token variable">$file</span>代表每个sql文件
+<span class="token function">sudo</span> clickhouse-client -h 172.20.3.xxx --port 9000  -u admin --password 6Ml2IxJN  --multiquery <span class="token operator">&lt;</span>  <span class="token variable">$file</span>
+</code></pre> 
+<h6><a id="_134"></a>手动同步数据：</h6> 
+<p>在新的服务器上创建相同的表，将需迁移的服务器上的表数据移动到新的服务器对应目录下，然后连接clickhouse执行以下语句：</p> 
+<pre><code>detach table szt_data_t3; --先将表与数据分离（若表已存在）  
+attach table szt_data_t3; --然后重新添加进来  
+</code></pre>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/45ff093134f9d6c2beff343a2823f80f/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">Shiro 550 反序列化漏洞 详细分析&#43;poc编写</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/d33a7325adae7582904e0ae3c0c66502/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">J2EE  Cookie 基础知识总结</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

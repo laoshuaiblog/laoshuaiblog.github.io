@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>年龄迁移：基于扩散模型的容颜变化，从少年到老年全覆盖 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/b4140ac1fd14cfed965389b47f9c5d16/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="年龄迁移：基于扩散模型的容颜变化，从少年到老年全覆盖">
+  <meta property="og:description" content="文源 新智元 编辑：LRS
+【新智元导读】只需几张图像，用文本即可生成任意年龄图像，用户反馈准确率达80%！ 当下的「人脸识别系统」抗衰老能力非常弱，人物面部老化会显著降低识别性能，隔一段时间就需要更换人脸数据。
+提升人脸识别系统的鲁棒性需要收集个体老化的高质量数据，不过近几年发布的数据集规模通常较小，年限也不够长（如5年左右），或是在姿态、照明、背景等方面有较大变化，没有专注于人脸数据。
+最近，纽约大学的研究人员提出了一种通过隐扩散模型保留不同年龄身份特征的方法，并且只需要少样本训练，即可直观地用「文本提示」来控制模型输出。
+论文链接：https://arxiv.org/pdf/2307.08585.pdf
+研究人员引入了两个关键的组件：一个身份保持损失，以及一个小的（图像，描述）正则化集合来解决现有的基于GAN的方法所带来的限制。
+在两个基准数据集CeleA和AgeDB的评估中，在常用的生物特征忠诚度（biometric fidelity）指标上，该方法比最先进的基线模型在错误不匹配率上降低了约44%
+追踪人脸的年龄变化
+DreamBooth
+文中提出的方法基于潜扩散模型DreamBooth，其可以通过对文生图扩散模型微调的方式将单个主体放置在其他上下文（re-contextualization）中。
+Dreambooth的输入要求为目标主体多张图像，以及包含主体的唯一标识符和类标签（class label）的文本提示，其中类标签是多个实例的集合表示，主体对应于属于该类的特定示例。
+Dreambooth的目标是将唯一标识符与每个主体（类的特定实例）相关联，然后在文本提示的指导下，在不同的上下文中重新创建同一主体的图像。
+类标签需要利用指定类别预训练扩散框架的先验知识，如果类别标签不正确或丢失可能会导致输出质量下降，唯一token充当对特定主题的引用，并且需要足够少见以避免与其他常用概念冲突。
+原文作者使用了一组少于3个Unicode字符序列作为token，并用T5-XXL作为分词器。
+DreamBooth使用类别先验保存损失（class-specific prior preservation loss）来增加生成图像的可变性，同时确保目标对象和输出图像之间的偏差最小，原始训练损失如下：
+DreamBooth在先验保存的帮助下可以有效地合成狗、猫、卡通等主体图像，不过这篇论文中主要关注的是结构更复杂、纹理也偏细节的人脸图像。
+虽然类标签「person」可以捕获类似人类的特征，但这可能不足以捕获因个体差异而形成的身份特征。
+所以研究人员在损失函数中引入了一个身份保存（identity-preserving）项，可以最小化原始图像和生成图像生物特征之间的距离，并用新的损失函数微调VAE。
+公式中的第三项代表被拍摄物体的真实图像和生成图像之间生物特征距离，其中B代表两张图像的L1距离，相同的图像距离接近0，值越大代表两个主体的差异越大，使用预训练VGGFace作为特征抽取器。
+下一步是针对特定目标进行微调，使用冻结的VAE和文本编码器，同时保持U-Net模型解冻。
+UNet对VAE的编码器产生的潜在表征进行去噪，使用身份保持对比损失进行训练。
+研究人员采用SimCLR框架，使用正负样本对之间的归一化温标交叉熵损失（temperature-scaled cross-entropy loss）来增强潜在表征，即下式中的S函数。
+在加权项λs=0.1且温度值=0.5的情况下，计算无噪声输入（z0）和去噪声输出（zt）的潜在表征之间的对比损失。
+U-Net架构中潜在表征之间的对比损失使得模型能够微调不同主体的扩散模型。
+除了定制损失外，研究人员还使用正则化集将面部年龄发展（progression）和回归（regression）的概念赋给潜在扩散模型，其中正则化集合包括一个类别中所有代表性的图像，在本例中为person.
+如果目标是生成真实的人脸图像，那从互联网上选择人脸图像的正则化集就足够了。
+不过本文中的任务是让模型学习衰老和返老还童的概念，并且还要应用到不同的个体上，所以研究人员选择使用不同年龄组的人脸图像，然后将其与一个单词描述（one-word caption）进行配对。
+图像描述对应于六个年龄组 ：儿童（child）、青少年（tennager）、年轻人（youngadults）、中年人（middleaged）、中老年人（elderly）、老年人（old ）。
+相比数字提示（20岁、40岁），年龄描述的性能更好，并且可以在推理中用文本来提示扩散模型（(photo of a ⟨ token ⟩ ⟨ class label ⟩ as ⟨ age group ⟩）
+实验结果
+实验设置
+研究人员使用Stable Diffusion v1.4实现的DreamBooth进行实验,使用CLIP文本编码器（在laion-aesthetics v2 5&#43;上训练）和矢量量化VAE来完成年龄变化，在训练扩散模型时，文本编码器保持冻结状态。
+研究人员使用来自CelebA数据集100名受试者的2258张人脸图像和来自AgeDB数据集100名受试者的659张图像构成训练集。
+除了二元属性「Young」之外，CelebA数据集没有受试者的年龄信息；AgeDB数据集包含精确年龄值，研究人员选择图像数量最多的年龄组，并将其用作训练集，其余图像则用于测试集（共2369幅图像）。
+研究人员使用（图像，描述）数据对作为正则化集，其中每个人脸图像与指示其相应年龄标签的标题相关联，具体儿童&amp;lt;15岁、青少年15-30岁、年轻人30-40岁、中年人40-50岁、中老年人50-65岁、老年人&amp;gt;65岁，使用四个稀少token作为标记：wzx, sks, ams, ukj">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2023-09-08T15:48:16+08:00">
+    <meta property="article:modified_time" content="2023-09-08T15:48:16+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">年龄迁移：基于扩散模型的容颜变化，从少年到老年全覆盖</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <div id="js_content"> 
+ <p style="text-align:right;">文源  新智元  编辑：LRS</p> 
+ <h6>【新智元导读】只需几张图像，用文本即可生成任意年龄图像，用户反馈准确率达80%！<strong></strong></h6> 
+ <p style="text-align:justify;"></p> 
+ <p>当下的「人脸识别系统」抗衰老能力非常弱，人物面部老化会显著降低识别性能，隔一段时间就需要更换人脸数据。</p> 
+ <p style="text-align:center;"><img width="800" src="https://images2.imgbox.com/2a/c8/NVP01iyP_o.png" alt="bbf19fa3f5eb1fa6b4f2f58ae73b6cde.png"></p> 
+ <p>提升人脸识别系统的鲁棒性需要收集个体老化的高质量数据，不过近几年发布的数据集规模通常较小，年限也不够长（如5年左右），或是在姿态、照明、背景等方面有较大变化，没有专注于人脸数据。</p> 
+ <p>最近，纽约大学的研究人员提出了一种通过隐扩散模型保留不同年龄身份特征的方法，并且只需要少样本训练，即可直观地用「文本提示」来控制模型输出。</p> 
+ <p><img width="1074" src="https://images2.imgbox.com/48/01/1QkfyMks_o.png" alt="68d7e022d50edb9d8b98ab949f8e2b84.png"></p> 
+ <p style="text-align:left;">论文链接：https://arxiv.org/pdf/2307.08585.pdf</p> 
+ <p>研究人员引入了两个关键的组件：一个身份保持损失，以及一个小的（图像，描述）正则化集合来解决现有的基于GAN的方法所带来的限制。</p> 
+ <p>在两个基准数据集CeleA和AgeDB的评估中，在常用的生物特征忠诚度（biometric fidelity）指标上，该方法比最先进的基线模型在错误不匹配率上降低了约44%</p> 
+ <h2></h2> 
+ <p>追踪人脸的年龄变化</p> 
+ <p><strong>DreamBooth</strong></p> 
+ <p>文中提出的方法基于潜扩散模型DreamBooth，其可以通过对文生图扩散模型微调的方式将单个主体放置在其他上下文（re-contextualization）中。</p> 
+ <p><img width="1200" src="https://images2.imgbox.com/56/5f/e4txrgKv_o.png" alt="a01f5bff26a0f69c9b2f0b0ad28124f7.png"></p> 
+ <p>Dreambooth的输入要求为目标主体多张图像，以及包含主体的唯一标识符和类标签（class label）的文本提示，其中类标签是多个实例的集合表示，主体对应于属于该类的特定示例。</p> 
+ <p>Dreambooth的目标是将唯一标识符与每个主体（类的特定实例）相关联，然后在文本提示的指导下，在不同的上下文中重新创建同一主体的图像。</p> 
+ <p>类标签需要利用指定类别预训练扩散框架的先验知识，如果类别标签不正确或丢失可能会导致输出质量下降，唯一token充当对特定主题的引用，并且需要足够少见以避免与其他常用概念冲突。</p> 
+ <p>原文作者使用了一组少于3个Unicode字符序列作为token，并用T5-XXL作为分词器。</p> 
+ <p>DreamBooth使用类别先验保存损失（class-specific prior preservation loss）来增加生成图像的可变性，同时确保目标对象和输出图像之间的偏差最小，原始训练损失如下：</p> 
+ <p><img width="515" src="https://images2.imgbox.com/4c/9e/7AnZA953_o.png" alt="b0ae3123b4bc71c75db2480a95851a79.png"></p> 
+ <p>DreamBooth在先验保存的帮助下可以有效地合成狗、猫、卡通等主体图像，不过这篇论文中主要关注的是结构更复杂、纹理也偏细节的人脸图像。</p> 
+ <p><img width="933" src="https://images2.imgbox.com/6c/ec/giOkOKsY_o.png" alt="8274792f8e4879eaf0650d549615f8d2.png"></p> 
+ <p>虽然类标签「person」可以捕获类似人类的特征，但这可能不足以捕获因个体差异而形成的身份特征。</p> 
+ <p>所以研究人员在损失函数中引入了一个身份保存（identity-preserving）项，可以最小化原始图像和生成图像生物特征之间的距离，并用新的损失函数微调VAE。</p> 
+ <p style="text-align:center;"><img width="398" src="https://images2.imgbox.com/49/9b/Dn44j0q5_o.png" alt="7a27df2ff4222f0166c295f0ca1603ad.png"></p> 
+ <p>公式中的第三项代表被拍摄物体的真实图像和生成图像之间生物特征距离，其中B代表两张图像的L1距离，相同的图像距离接近0，值越大代表两个主体的差异越大，使用预训练VGGFace作为特征抽取器。</p> 
+ <p style="text-align:center;"><img width="501" src="https://images2.imgbox.com/b4/60/r4y8r0dS_o.png" alt="ba5fb5b7b8178880c1fa3fac77434416.png"></p> 
+ <p>下一步是针对特定目标进行微调，使用冻结的VAE和文本编码器，同时保持U-Net模型解冻。</p> 
+ <p style="text-align:center;"><img width="278" src="https://images2.imgbox.com/68/f8/Mz71WCDt_o.png" alt="3f1b1adbd3241d004c13c7e136529e78.png"></p> 
+ <p>UNet对VAE的编码器产生的潜在表征进行去噪，使用身份保持对比损失进行训练。</p> 
+ <p>研究人员采用SimCLR框架，使用正负样本对之间的归一化温标交叉熵损失（temperature-scaled cross-entropy loss）来增强潜在表征，即下式中的S函数。</p> 
+ <p style="text-align:center;"><img width="523" src="https://images2.imgbox.com/be/3d/dLYxkLYD_o.png" alt="ef9400ed1e0ed6c23fe2fec77480a79a.png"></p> 
+ <p>在加权项λs=0.1且温度值=0.5的情况下，计算无噪声输入（z0）和去噪声输出（zt）的潜在表征之间的对比损失。</p> 
+ <p>U-Net架构中潜在表征之间的对比损失使得模型能够微调不同主体的扩散模型。</p> 
+ <p>除了定制损失外，研究人员还使用正则化集将面部年龄发展（progression）和回归（regression）的概念赋给潜在扩散模型，其中正则化集合包括一个类别中所有代表性的图像，在本例中为person.</p> 
+ <p>如果目标是生成真实的人脸图像，那从互联网上选择人脸图像的正则化集就足够了。</p> 
+ <p>不过本文中的任务是让模型学习衰老和返老还童的概念，并且还要应用到不同的个体上，所以研究人员选择使用不同年龄组的人脸图像，然后将其与一个单词描述（one-word caption）进行配对。</p> 
+ <p>图像描述对应于六个年龄组 ：儿童（child）、青少年（tennager）、年轻人（youngadults）、中年人（middleaged）、中老年人（elderly）、老年人（old ）。</p> 
+ <p>相比数字提示（20岁、40岁），年龄描述的性能更好，并且可以在推理中用文本来提示扩散模型（(photo of a ⟨ token ⟩ ⟨ class label ⟩ as ⟨ age group ⟩）</p> 
+ <h2></h2> 
+ <p>实验结果</p> 
+ <p><strong>实验设置</strong></p> 
+ <p>研究人员使用Stable Diffusion v1.4实现的DreamBooth进行实验,使用CLIP文本编码器（在laion-aesthetics v2 5+上训练）和矢量量化VAE来完成年龄变化，在训练扩散模型时，文本编码器保持冻结状态。</p> 
+ <p>研究人员使用来自CelebA数据集100名受试者的2258张人脸图像和来自AgeDB数据集100名受试者的659张图像构成训练集。</p> 
+ <p><img width="1095" src="https://images2.imgbox.com/8c/24/qjXR8Mhk_o.png" alt="ab922a7061db164aa3446b937717243c.png"></p> 
+ <p>除了二元属性「Young」之外，CelebA数据集没有受试者的年龄信息；AgeDB数据集包含精确年龄值，研究人员选择图像数量最多的年龄组，并将其用作训练集，其余图像则用于测试集（共2369幅图像）。</p> 
+ <p>研究人员使用（图像，描述）数据对作为正则化集，其中每个人脸图像与指示其相应年龄标签的标题相关联，具体儿童&lt;15岁、青少年15-30岁、年轻人30-40岁、中年人40-50岁、中老年人50-65岁、老年人&gt;65岁，使用四个稀少token作为标记：wzx, sks, ams, ukj</p> 
+ <p><strong>对比结果</strong></p> 
+ <p>研究人员使用IPCGAN、AttGAN和Talk-toEdit作为评估对比基线模型。</p> 
+ <p>由于IPCGAN是在CACD数据集上训练的，所以研究人员对来自CACD数据集的62名受试者进行了微调，可以观察到FNMR=2%，而文中提出的方法FNMR（ False NonMatch Rate）=11%</p> 
+ <p><img width="530" src="https://images2.imgbox.com/28/bd/acOB9LP9_o.png" alt="f2ad66ddd190090accc0ffef8801a4fd.png"></p> 
+ <p>可以看到IPCGAN默认情况无法执行老化或变年轻的操作，导致FNMR值很低。</p> 
+ <p>研究人员使用DeepFace年龄预测器进行自动年龄预测，可以观察到，与原始图像和IPCGAN生成的图像相比，文中方法合成的图像会让年龄预测得更分散，表明年龄编辑操作已经成功。</p> 
+ <p style="text-align:center;"><img width="439" src="https://images2.imgbox.com/d4/d3/p9WtzHkp_o.png" alt="65f90503bcbe10e4e5da769fcf99b465.png"></p> 
+ <p>在CelebA数据集上应用AttGAN和对话编辑时，在图像对比和生物特征匹配性能上，可以观察到，在FMR=0.01时，文中方法在「young」类别的图像上优于AttGAN 19%，在「old」类别图像上优于AttGAN 7%</p> 
+ <p><img width="615" src="https://images2.imgbox.com/23/8e/T8WGsIiE_o.png" alt="52dc34569e9ef7cc43e16e4ef5784aed.png"></p> 
+ <p><strong>用户研究</strong></p> 
+ <p>研究人员收集了26份用户反馈，rank-1生物特征识别准确率（响应总数的平均值）达到了78.8%，各年龄组的正确识别准确率分别为：儿童=99.6%、青少年=72.7%、青少年=68.1%、中年=70.7%、老年人=93.8%</p> 
+ <p><img width="599" src="https://images2.imgbox.com/20/7d/OJ3v7fCw_o.png" alt="42bd7e9019a68677edf9df5e5abaf7f3.png"></p> 
+ <p>也就是说，用户能够以相当高的准确度成功地区分来自不同年龄组的生成图像。</p> 
+ <p style="text-align:left;">参考资料：</p> 
+ <p style="text-align:left;">https://arxiv.org/abs/2307.08585</p> 
+ <p style="text-align:center;"><strong>关注公众号【机器学习与AI生成创作】，更多精彩等你来读</strong></p> 
+ <p style="text-align:center;"><strong><a href="" rel="nofollow">卧剿，6万字！30个方向130篇！CVPR 2023 最全 AIGC 论文！一口气读完</a></strong><strong><br></strong></p> 
+ <p style="text-align:center;"><strong><a href="" rel="nofollow">深入浅出stable diffusion：AI作画技术背后的潜在扩散模型论文解读</a></strong><strong><br></strong></p> 
+ <p style="text-align:center;"><strong><a href="" rel="nofollow">深入浅出ControlNet，一种可控生成的AIGC绘画生成算法！</a> <br></strong></p> 
+ <p style="text-align:center;"><strong><a href="" rel="nofollow">经典GAN不得不读：StyleGAN</a><br></strong></p> 
+ <p style="text-align:center;"><img src="https://images2.imgbox.com/cb/7b/ovJK0AMr_o.png" alt="481919e5b0fee161488f6e4b651fc2fb.png"> <strong><a href="" rel="nofollow">戳我，查看GAN的系列专辑~！</a></strong></p> 
+ <p style="text-align:center;"><strong><a href="" rel="nofollow">一杯奶茶，成为AIGC+CV视觉的前沿弄潮儿！</a></strong><strong><br></strong></p> 
+ <p style="text-align:center;"><strong><a href="" rel="nofollow">最新最全100篇汇总！生成扩散模型Diffusion Models</a></strong></p> 
+ <p style="text-align:center;"><strong><a href="" rel="nofollow">ECCV2022 | 生成对抗网络GAN部分论文汇总</a><br></strong></p> 
+ <p style="text-align:center;"><strong><a href="" rel="nofollow">CVPR 2022 | 25+方向、最新50篇GAN论文</a><br></strong></p> 
+ <p style="text-align:center;"><strong><a href="" rel="nofollow"> ICCV 2021 | 35个主题GAN论文汇总</a><br></strong></p> 
+ <p style="text-align:center;"><strong><a href="" rel="nofollow">超110篇！CVPR 2021最全GAN论文梳理</a></strong><strong><br></strong></p> 
+ <p style="text-align:center;"><a href="" rel="nofollow"><strong>超100篇！CVPR 2020最全GAN论文梳理</strong></a></p> 
+ <p style="text-align:center;"><a href="" rel="nofollow">拆解组新的GAN：解耦表征MixNMatch</a><br></p> 
+ <p style="text-align:center;"><a href="" rel="nofollow">StarGAN第2版：多域多样性图像生成</a></p> 
+ <p style="text-align:center;"><a href="" rel="nofollow">附下载 | 《可解释的机器学习》中文版</a><br></p> 
+ <p style="text-align:center;"><a href="" rel="nofollow">附下载 |《TensorFlow 2.0 深度学习算法实战》</a><br></p> 
+ <p style="text-align:center;"><a href="" rel="nofollow">附下载 |《计算机视觉中的数学方法》分享</a></p> 
+ <p style="text-align:center;"><a href="" rel="nofollow">《基于深度学习的表面缺陷检测方法综述》</a><br></p> 
+ <p style="text-align:center;"><a href="" rel="nofollow">《零样本图像分类综述: 十年进展》</a><br></p> 
+ <p style="text-align:center;"><a href="" rel="nofollow">《基于深度神经网络的少样本学习综述》</a></p> 
+ <blockquote> 
+  <p>《礼记·学记》有云：独学而无友，则孤陋而寡闻</p> 
+ </blockquote> 
+ <p><strong>点击</strong><em><strong><a href="" rel="nofollow">一杯奶茶，成为AIGC+CV视觉的前沿弄潮儿！</a></strong></em><strong>，加入 </strong><strong>AI生成创作与计算机视觉</strong><strong> 知识星球！     </strong></p> 
+</div>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/ace08e02c340f7426688f081b7cbfbfe/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">Python语言使用PyScript开发Web应用程序</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/0bf332796e4fa71c03a5a2af64158116/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">Spring全家桶相关注解总结</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

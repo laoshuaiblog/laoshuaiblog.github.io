@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Service层代码单元测试以及单元测试如何Mock - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/b3561bb77007c56716ce740398e10a4b/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="Service层代码单元测试以及单元测试如何Mock">
+  <meta property="og:description" content="一、背景 接着上一篇文章：单元测试入门篇，本篇文章作为单元测试的进阶篇，主要介绍如何对Springboot Service层代码做单元测试，以及单元测试中涉及外调服务时，如何通过Mock完成测试。
+二、Springboot Service层代码单元测试 现在项目都流行前后端代码分离，后端使用springboot框架，在service层编写接口代码实现逻辑。假设现在前端不是你写的，你要对你自己写的后端springboot service层提供的接口方法做单元测试，以确保你写的代码是能正常工作的。
+Service层代码单元测试：一个简单的service调mapper查询数据库replay_bug表数据量的接口功能
+ReplayBugServiceImpl类代码：
+@Service public class ReplayBugServiceImpl implements ReplayBugService { @Autowired ReplayBugMapper replayBugMapper; @Override public int queryBugTotalCount() { return replayBugMapper.queryBugTotalCount(); } } replayBugMapper.queryBugTotalCount代码：
+@Select(&#34;select count(1) from replay_bug&#34;) int queryBugTotalCount(); 单元测试ReplayBugServiceImplTest类代码：
+import org.junit.Test; import org.junit.runner.RunWith; import org.springframework.beans.factory.annotation.Autowired; import org.springframework.boot.test.context.SpringBootTest; import org.springframework.test.context.junit4.SpringRunner; @RunWith(SpringRunner.class) @SpringBootTest public class ReplayBugServiceImplTest{ @Autowired ReplayBugServiceImpl replayBugService; @Test public void queryBugTotalCount() { int bugCount=replayBugService.queryBugTotalCount(); System.out.println(&#34;结果是：&#34;&#43;bugCount); } } 代码很简单，调用这个接口服务，打印输出，测试是否能正确查出数据。其中关键的两个注解解释：
+@RunWith(SpringRunner.class)注解：是一个测试启动器，可以加载SpringBoot测试注解。 让测试在Spring容器环境下执行。如测试类中无此注解，将导致service、dao等自动注入失败。 @SpringBootTest注解：目的是加载ApplicationContext，启动spring容器。 测试结果如下：">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2022-12-05T08:30:00+08:00">
+    <meta property="article:modified_time" content="2022-12-05T08:30:00+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">Service层代码单元测试以及单元测试如何Mock</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-light">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <h3><a id="_0"></a>一、背景</h3> 
+<p>接着上一篇文章：单元测试入门篇，本篇文章作为单元测试的进阶篇，主要介绍如何对Springboot Service层代码做单元测试，以及单元测试中涉及外调服务时，如何通过Mock完成测试。</p> 
+<h3><a id="Springboot_Service_3"></a>二、Springboot Service层代码单元测试</h3> 
+<p>现在项目都流行前后端代码分离，后端使用springboot框架，在service层编写接口代码实现逻辑。假设现在前端不是你写的，你要对你自己写的后端springboot service层提供的接口方法做单元测试，以确保你写的代码是能正常工作的。</p> 
+<p>Service层代码单元测试：一个简单的service调mapper查询数据库replay_bug表数据量的接口功能</p> 
+<p>ReplayBugServiceImpl类代码：</p> 
+<pre><code class="prism language-java"><span class="token annotation punctuation">@Service</span>
+<span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">ReplayBugServiceImpl</span> <span class="token keyword">implements</span> <span class="token class-name">ReplayBugService</span> <span class="token punctuation">{<!-- --></span>
+
+    <span class="token annotation punctuation">@Autowired</span>
+    <span class="token class-name">ReplayBugMapper</span> replayBugMapper<span class="token punctuation">;</span>
+
+    <span class="token annotation punctuation">@Override</span>
+    <span class="token keyword">public</span> <span class="token keyword">int</span> <span class="token function">queryBugTotalCount</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">return</span> replayBugMapper<span class="token punctuation">.</span><span class="token function">queryBugTotalCount</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>replayBugMapper.queryBugTotalCount代码：</p> 
+<pre><code class="prism language-java"><span class="token annotation punctuation">@Select</span><span class="token punctuation">(</span><span class="token string">"select count(1) from replay_bug"</span><span class="token punctuation">)</span>
+<span class="token keyword">int</span> <span class="token function">queryBugTotalCount</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre> 
+<p>单元测试ReplayBugServiceImplTest类代码：</p> 
+<pre><code class="prism language-java"><span class="token keyword">import</span> <span class="token import"><span class="token namespace">org<span class="token punctuation">.</span>junit<span class="token punctuation">.</span></span><span class="token class-name">Test</span></span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">org<span class="token punctuation">.</span>junit<span class="token punctuation">.</span>runner<span class="token punctuation">.</span></span><span class="token class-name">RunWith</span></span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">org<span class="token punctuation">.</span>springframework<span class="token punctuation">.</span>beans<span class="token punctuation">.</span>factory<span class="token punctuation">.</span>annotation<span class="token punctuation">.</span></span><span class="token class-name">Autowired</span></span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">org<span class="token punctuation">.</span>springframework<span class="token punctuation">.</span>boot<span class="token punctuation">.</span>test<span class="token punctuation">.</span>context<span class="token punctuation">.</span></span><span class="token class-name">SpringBootTest</span></span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">org<span class="token punctuation">.</span>springframework<span class="token punctuation">.</span>test<span class="token punctuation">.</span>context<span class="token punctuation">.</span>junit4<span class="token punctuation">.</span></span><span class="token class-name">SpringRunner</span></span><span class="token punctuation">;</span>
+
+
+<span class="token annotation punctuation">@RunWith</span><span class="token punctuation">(</span><span class="token class-name">SpringRunner</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">)</span>
+<span class="token annotation punctuation">@SpringBootTest</span>
+<span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">ReplayBugServiceImplTest</span><span class="token punctuation">{<!-- --></span>
+    <span class="token annotation punctuation">@Autowired</span>
+    <span class="token class-name">ReplayBugServiceImpl</span> replayBugService<span class="token punctuation">;</span>
+
+    <span class="token annotation punctuation">@Test</span>
+    <span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">queryBugTotalCount</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">int</span> bugCount<span class="token operator">=</span>replayBugService<span class="token punctuation">.</span><span class="token function">queryBugTotalCount</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token class-name">System</span><span class="token punctuation">.</span>out<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"结果是："</span><span class="token operator">+</span>bugCount<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>代码很简单，调用这个接口服务，打印输出，测试是否能正确查出数据。其中关键的两个注解解释：</p> 
+<pre><code class="prism language-java"><span class="token annotation punctuation">@RunWith</span><span class="token punctuation">(</span><span class="token class-name">SpringRunner</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">)</span>注解：是一个测试启动器，可以加载<span class="token class-name">SpringBoot</span>测试注解。
+让测试在<span class="token class-name">Spring</span>容器环境下执行。如测试类中无此注解，将导致service、dao等自动注入失败。
+
+<span class="token annotation punctuation">@SpringBootTest</span>注解：目的是加载<span class="token class-name">ApplicationContext</span>，启动spring容器。
+</code></pre> 
+<p>测试结果如下：</p> 
+<p><img src="https://images2.imgbox.com/19/21/n0OcRhb2_o.png" alt="在这里插入图片描述"></p> 
+<p>更进一步，测试带入参的service接口：新增接口单元测试</p> 
+<pre><code class="prism language-java"><span class="token keyword">import</span> <span class="token import"><span class="token namespace">com<span class="token punctuation">.</span>test<span class="token punctuation">.</span>service<span class="token punctuation">.</span></span><span class="token class-name">BestTest</span></span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">com<span class="token punctuation">.</span>test<span class="token punctuation">.</span>domain<span class="token punctuation">.</span></span><span class="token class-name">UrlWhiteListVO</span></span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">org<span class="token punctuation">.</span>junit<span class="token punctuation">.</span></span><span class="token class-name">Before</span></span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">org<span class="token punctuation">.</span>junit<span class="token punctuation">.</span></span><span class="token class-name">Test</span></span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">org<span class="token punctuation">.</span>springframework<span class="token punctuation">.</span>beans<span class="token punctuation">.</span>factory<span class="token punctuation">.</span>annotation<span class="token punctuation">.</span></span><span class="token class-name">Autowired</span></span><span class="token punctuation">;</span>
+
+<span class="token annotation punctuation">@RunWith</span><span class="token punctuation">(</span><span class="token class-name">SpringRunner</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">)</span>
+<span class="token annotation punctuation">@SpringBootTest</span>
+<span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">ReplayUrlWhiteListServiceImplTest</span><span class="token punctuation">{<!-- --></span>
+    <span class="token annotation punctuation">@Autowired</span>
+    <span class="token class-name">ReplayUrlWhiteListServiceImpl</span> replayUrlWhiteListService<span class="token punctuation">;</span>
+
+    <span class="token keyword">private</span> <span class="token class-name">UrlWhiteListVO</span> urlWhiteListVO<span class="token punctuation">;</span>
+
+    <span class="token annotation punctuation">@Before</span>
+    <span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">setup</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">{<!-- --></span>
+        urlWhiteListVO<span class="token operator">=</span><span class="token keyword">new</span> <span class="token class-name">UrlWhiteListVO</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        urlWhiteListVO<span class="token punctuation">.</span><span class="token function">setAppId</span><span class="token punctuation">(</span><span class="token number">78</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        urlWhiteListVO<span class="token punctuation">.</span><span class="token function">setAppName</span><span class="token punctuation">(</span><span class="token string">"testAPP"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        urlWhiteListVO<span class="token punctuation">.</span><span class="token function">setUrlWhite</span><span class="token punctuation">(</span><span class="token string">"http://www.baidu.com"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        urlWhiteListVO<span class="token punctuation">.</span><span class="token function">setRemarks</span><span class="token punctuation">(</span><span class="token string">"测试一下"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token annotation punctuation">@Test</span>
+    <span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">save</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token class-name">System</span><span class="token punctuation">.</span>out<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"测试结果："</span><span class="token operator">+</span>replayUrlWhiteListService<span class="token punctuation">.</span><span class="token function">save</span><span class="token punctuation">(</span>urlWhiteListVO<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>比之前多了一个@Before注解，下面自行设置不同的参数值，测试是否在各种入参情况下接口代码都没有问题。</p> 
+<p>单元测试结果：</p> 
+<p><img src="https://images2.imgbox.com/9e/41/wY1Nwd1r_o.png" alt="在这里插入图片描述"></p> 
+<p>数据库检查数据插入成功：</p> 
+<p><img src="https://images2.imgbox.com/59/d2/m0IV4Gmw_o.png" alt="在这里插入图片描述"></p> 
+<h3><a id="MockitoMock_112"></a>三、单元测试使用Mockito完成Mock测试</h3> 
+<p>实际业务代码中可能会调到其他第三方接口、会和数据库有交互，如果要测试跑通一个场景，准备数据会非常麻烦。而单元测试很多时候，我们只关心自己的代码逻辑是否有漏洞，这个使用就需要用到Mock, 不真实调用，而是将外调的接口、数据库层面都Mock返回自己想要的各类假数据。</p> 
+<p>因此再进一步，单元测试使用Mockito完成Mock测试：</p> 
+<pre><code class="prism language-java"><span class="token keyword">import</span> <span class="token import"><span class="token namespace">com<span class="token punctuation">.</span>test<span class="token punctuation">.</span>dao<span class="token punctuation">.</span></span><span class="token class-name">ReplayBugMapper</span></span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">org<span class="token punctuation">.</span>junit<span class="token punctuation">.</span></span><span class="token class-name">Before</span></span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">org<span class="token punctuation">.</span>junit<span class="token punctuation">.</span></span><span class="token class-name">Test</span></span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">org<span class="token punctuation">.</span>junit<span class="token punctuation">.</span>runner<span class="token punctuation">.</span></span><span class="token class-name">RunWith</span></span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">org<span class="token punctuation">.</span>mockito<span class="token punctuation">.</span></span><span class="token class-name">InjectMocks</span></span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">org<span class="token punctuation">.</span>mockito<span class="token punctuation">.</span></span><span class="token class-name">Mock</span></span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">org<span class="token punctuation">.</span>mockito<span class="token punctuation">.</span></span><span class="token class-name">Mockito</span></span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">org<span class="token punctuation">.</span>mockito<span class="token punctuation">.</span></span><span class="token class-name">MockitoAnnotations</span></span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">org<span class="token punctuation">.</span>springframework<span class="token punctuation">.</span>beans<span class="token punctuation">.</span>factory<span class="token punctuation">.</span>annotation<span class="token punctuation">.</span></span><span class="token class-name">Autowired</span></span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">org<span class="token punctuation">.</span>springframework<span class="token punctuation">.</span>boot<span class="token punctuation">.</span>test<span class="token punctuation">.</span>context<span class="token punctuation">.</span></span><span class="token class-name">SpringBootTest</span></span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">org<span class="token punctuation">.</span>springframework<span class="token punctuation">.</span>test<span class="token punctuation">.</span>context<span class="token punctuation">.</span>junit4<span class="token punctuation">.</span></span><span class="token class-name">SpringRunner</span></span><span class="token punctuation">;</span>
+
+
+<span class="token annotation punctuation">@RunWith</span><span class="token punctuation">(</span><span class="token class-name">SpringRunner</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">)</span>
+<span class="token annotation punctuation">@SpringBootTest</span>
+<span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">ReplayBugServiceImplMockTest</span> <span class="token punctuation">{<!-- --></span>
+
+    <span class="token comment">/**
+     * 使用@Autowired是让实例对象正常注入
+     * 使用@InjectMocks是为了向里面添加@Mock注入的对象
+     * */</span>
+    <span class="token annotation punctuation">@Autowired</span>
+    <span class="token annotation punctuation">@InjectMocks</span>
+    <span class="token class-name">ReplayBugServiceImpl</span> replayBugService<span class="token punctuation">;</span>
+
+    <span class="token annotation punctuation">@Mock</span>
+    <span class="token class-name">ReplayBugMapper</span> replayBugMapper<span class="token punctuation">;</span>
+    
+    <span class="token annotation punctuation">@Before</span>
+    <span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">setup</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token comment">//添加Mock注解初始化</span>
+        <span class="token class-name">MockitoAnnotations</span><span class="token punctuation">.</span><span class="token function">initMocks</span><span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token annotation punctuation">@Test</span>
+    <span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">queryBugTotalCount</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">int</span> count<span class="token operator">=</span><span class="token number">1</span><span class="token punctuation">;</span>
+        <span class="token class-name">Mockito</span><span class="token punctuation">.</span><span class="token function">when</span><span class="token punctuation">(</span>replayBugMapper<span class="token punctuation">.</span><span class="token function">queryBugTotalCount</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">thenReturn</span><span class="token punctuation">(</span>count<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        <span class="token keyword">int</span> bugCount<span class="token operator">=</span>replayBugService<span class="token punctuation">.</span><span class="token function">queryBugTotalCount</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token class-name">System</span><span class="token punctuation">.</span>out<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"Mock单元测试返回的结果是："</span><span class="token operator">+</span>bugCount<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>同样的接口，之前真实调用数据库的时候，我们看到返回的结果是3。本次Mock测试代码中我们定义了count为1，使用Mockito让数据库调用直接Mock返回我们定义的1，不再真实调用数据库。</p> 
+<p>测试结果：</p> 
+<p><img src="https://images2.imgbox.com/b8/64/CCm4ex7E_o.png" alt="在这里插入图片描述"></p> 
+<p>Mockito介绍：Mockito是一款用于java开发的mock测试框架，用于快速创建和配置mock对象。通过创建外部依赖的 Mock 对象, 然后将此 Mock 对象注入到测试类中，简化有外部依赖的类的测试。</p> 
+<p>Mockito使用：在项目pom.xml中引入依赖spring-boot-starter-test，内部就依赖了Mockito</p> 
+<pre><code class="prism language-java"><span class="token generics"><span class="token punctuation">&lt;</span>dependency<span class="token punctuation">&gt;</span></span>
+    <span class="token generics"><span class="token punctuation">&lt;</span>groupId<span class="token punctuation">&gt;</span></span>org<span class="token punctuation">.</span>springframework<span class="token punctuation">.</span>boot<span class="token operator">&lt;</span><span class="token operator">/</span>groupId<span class="token operator">&gt;</span>
+    <span class="token generics"><span class="token punctuation">&lt;</span>artifactId<span class="token punctuation">&gt;</span></span>spring<span class="token operator">-</span>boot<span class="token operator">-</span>starter<span class="token operator">-</span>test<span class="token operator">&lt;</span><span class="token operator">/</span>artifactId<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span><span class="token operator">/</span>dependency<span class="token operator">&gt;</span>
+</code></pre> 
+<p>测试代码中用到Mockito的注解作用解释：</p> 
+<pre><code class="prism language-bash">@InjectMocks：让@Mock（或@Spy）注解创建的mock将被注入到用该实例中。
+@Mock：对函数的调用均执行mock，不执行真实调用。
+</code></pre> 
+<p><strong>如果只想对某一些外调做mock，其他的外调都走真实调用：</strong></p> 
+<p>比如Service ReplayServiceImpl中方法如下</p> 
+<pre><code class="prism language-java"><span class="token keyword">public</span> <span class="token keyword">int</span> <span class="token function">addBug</span><span class="token punctuation">(</span><span class="token class-name">ReplayVO</span> replayVO<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">if</span><span class="token punctuation">(</span>replayManageMapper<span class="token punctuation">.</span><span class="token function">addBug</span><span class="token punctuation">(</span>replayVO<span class="token punctuation">.</span><span class="token function">getId</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token operator">==</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">{<!-- --></span>
+        <span class="token comment">//判断如果replay_bug表中已经有这条数据，不再重复添加。应对场景是用户多次点击标记记录为待解决bug。</span>
+        <span class="token keyword">if</span><span class="token punctuation">(</span>replayBugService<span class="token punctuation">.</span><span class="token function">existBugRecords</span><span class="token punctuation">(</span>replayVO<span class="token punctuation">)</span><span class="token operator">&gt;=</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">{<!-- --></span>
+            log<span class="token punctuation">.</span><span class="token function">info</span><span class="token punctuation">(</span><span class="token string">"replay_bug表中数据已存在，不再重复插入数据"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token keyword">return</span> <span class="token number">1</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span><span class="token keyword">else</span><span class="token punctuation">{<!-- --></span>
+            log<span class="token punctuation">.</span><span class="token function">info</span><span class="token punctuation">(</span><span class="token string">"向replay_bug表中插入数据"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token keyword">return</span> replayManageMapper<span class="token punctuation">.</span><span class="token function">saveToReplayBug</span><span class="token punctuation">(</span>replayVO<span class="token punctuation">.</span><span class="token function">getAppId</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span>replayVO<span class="token punctuation">.</span><span class="token function">getRequestId</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span>replayVO<span class="token punctuation">.</span><span class="token function">getId</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span>replayVO<span class="token punctuation">.</span><span class="token function">getAppName</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span>replayVO<span class="token punctuation">.</span><span class="token function">getSysDomain</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span>replayVO<span class="token punctuation">.</span><span class="token function">getSysUrl</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span>replayVO<span class="token punctuation">.</span><span class="token function">getUserAccount</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span>replayVO<span class="token punctuation">.</span><span class="token function">getParameters</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span>replayVO<span class="token punctuation">.</span><span class="token function">getResponse</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span>replayVO<span class="token punctuation">.</span><span class="token function">getReplayStatus</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span><span class="token class-name">CommonUtils</span><span class="token punctuation">.</span><span class="token function">convertDateToTime</span><span class="token punctuation">(</span>replayVO<span class="token punctuation">.</span><span class="token function">getReplayTime</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span><span class="token keyword">else</span><span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>第一步先调用replayManageMapper.addBug对replay表中的这条数据更新状态，更新成功后返回1。<br> 第二步再调用replayBugService.existBugRecords判断replay_bug表中是否存在该条记录，如果存在就不再重复插入。<br> 第三步如果不存在，就再调用replayManageMapper.saveToReplayBug，向replay_bug表中插入该条记录。<br> 现在的需求是单元测试时，对第二步外调的其他接口服务replayBugService做Mock处理，对数据库相关的操作不做Mock，真实调用。</p> 
+<p>单元测试代码如下：</p> 
+<pre><code class="prism language-java"><span class="token annotation punctuation">@RunWith</span><span class="token punctuation">(</span><span class="token class-name">SpringRunner</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">)</span>
+<span class="token annotation punctuation">@SpringBootTest</span>
+<span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">ReplayServiceImplTest</span> <span class="token punctuation">{<!-- --></span>
+
+    <span class="token keyword">private</span> <span class="token class-name">ReplayVO</span> replayVO<span class="token punctuation">;</span>
+    
+    <span class="token annotation punctuation">@Autowired</span>
+    <span class="token annotation punctuation">@InjectMocks</span>
+    <span class="token class-name">ReplayServiceImpl</span> replayService<span class="token punctuation">;</span>
+
+    <span class="token annotation punctuation">@Mock</span>
+    <span class="token class-name">ReplayBugService</span> replayBugService<span class="token punctuation">;</span>
+
+    <span class="token annotation punctuation">@Before</span>
+    <span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">setUp</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+
+        <span class="token comment">//添加Mock注解初始化</span>
+        <span class="token class-name">MockitoAnnotations</span><span class="token punctuation">.</span><span class="token function">initMocks</span><span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        replayVO<span class="token operator">=</span><span class="token keyword">new</span> <span class="token class-name">ReplayVO</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        replayVO<span class="token punctuation">.</span><span class="token function">setAppId</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        replayVO<span class="token punctuation">.</span><span class="token function">setRequestId</span><span class="token punctuation">(</span><span class="token number">2</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        replayVO<span class="token punctuation">.</span><span class="token function">setId</span><span class="token punctuation">(</span><span class="token number">111</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        replayVO<span class="token punctuation">.</span><span class="token function">setAppName</span><span class="token punctuation">(</span><span class="token string">"testApp"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        replayVO<span class="token punctuation">.</span><span class="token function">setSysDomain</span><span class="token punctuation">(</span><span class="token string">"www.test.com"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        replayVO<span class="token punctuation">.</span><span class="token function">setSysUrl</span><span class="token punctuation">(</span><span class="token string">"http://www.test.com/queryList"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        replayVO<span class="token punctuation">.</span><span class="token function">setUserAccount</span><span class="token punctuation">(</span><span class="token string">"测试人员"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        replayVO<span class="token punctuation">.</span><span class="token function">setParameters</span><span class="token punctuation">(</span><span class="token string">"{\"userID\":\"123\"}"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        replayVO<span class="token punctuation">.</span><span class="token function">setResponse</span><span class="token punctuation">(</span><span class="token string">"{\"result\":\"成功\"}"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        replayVO<span class="token punctuation">.</span><span class="token function">setReplayStatus</span><span class="token punctuation">(</span><span class="token number">5</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token class-name">Date</span> date <span class="token operator">=</span><span class="token keyword">new</span> <span class="token class-name">Date</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        replayVO<span class="token punctuation">.</span><span class="token function">setReplayTime</span><span class="token punctuation">(</span>date<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token annotation punctuation">@Test</span>
+    <span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">addBug</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token class-name">Mockito</span><span class="token punctuation">.</span><span class="token function">when</span><span class="token punctuation">(</span>replayBugService<span class="token punctuation">.</span><span class="token function">existBugRecords</span><span class="token punctuation">(</span>replayVO<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">thenReturn</span><span class="token punctuation">(</span><span class="token number">5</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token class-name">System</span><span class="token punctuation">.</span>out<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"返回值："</span><span class="token operator">+</span>replayService<span class="token punctuation">.</span><span class="token function">addBug</span><span class="token punctuation">(</span>replayVO<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>代码解释：</p> 
+<pre><code class="prism language-bash">ReplayBugService做Mock处理，所以加了注解@Mock；
+ReplayServiceImpl中，由于需要部分外调服务Mock，部分外调服务不Mock，所以需要加上注解@Autowired和@InjectMocks：
+使用@Autowired是让实例对象正常注入；
+使用@InjectMocks是为了向里面添加@Mock注入的对象；
+</code></pre> 
+<p>当replayBugService.existBugRecords(replayVO)， Mock返回5，测试结果为：</p> 
+<p><img src="https://images2.imgbox.com/bb/13/XQBdQtC2_o.png" alt="在这里插入图片描述"></p> 
+<p>当replayBugService.existBugRecords(replayVO)， Mock返回0，测试结果为：</p> 
+<p><img src="https://images2.imgbox.com/46/1e/MrGk0JLM_o.png" alt="在这里插入图片描述"></p> 
+<p>数据库查看，数据成功插入：</p> 
+<p><img src="https://images2.imgbox.com/69/54/ApHj3Une_o.png" alt="在这里插入图片描述"></p> 
+<p><strong>顺带说一下Mockito的@Spy与@Mock区别：</strong></p> 
+<p>@Spy修饰的外部类，必须是真实存在的，如果没有我们要自己生成创建</p> 
+<pre><code class="prism language-bash">Mockito.doReturn<span class="token punctuation">(</span>response<span class="token punctuation">)</span>.when<span class="token punctuation">(</span>testService<span class="token punctuation">)</span>.save<span class="token punctuation">(</span>Mockito.any<span class="token punctuation">(</span><span class="token punctuation">))</span><span class="token punctuation">;</span>
+</code></pre> 
+<p>@Mock修饰的外部类,是完全模拟出来的，就算项目中没有这个类的实例，也能自己mock出来一个。</p> 
+<p>比如Spring项目中如果你引入了一个外部的Service：</p> 
+<ul><li>如果在写单元测试时候,外部的Service能加载到的话就可以使用@Spy注解，因为Spring能为你从外部服务找到这个Service并生成实例注入。</li><li>但是如果外部的服务没有部署，那么Spring就不能为你创建实例，就会报错提示你在创建@Spy修饰服务必须要先实例，此时只要用@Mock注解替换@Spy就好了。</li></ul> 
+<p>最后，如果有很多的类都需要做单元测试，每一个单元测试类的头上都加公共的注解：<br> @RunWith(SpringRunner.class)<br> @SpringBootTest<br> 就显得比较麻烦，可以抽出来写成一个Base类，如果Springboot项目有一些公共的配置需要添加也可以放在这个Base类中:</p> 
+<pre><code class="prism language-java"><span class="token keyword">import</span> <span class="token import"><span class="token namespace">org<span class="token punctuation">.</span>junit<span class="token punctuation">.</span>runner<span class="token punctuation">.</span></span><span class="token class-name">RunWith</span></span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">org<span class="token punctuation">.</span>springframework<span class="token punctuation">.</span>boot<span class="token punctuation">.</span>test<span class="token punctuation">.</span>context<span class="token punctuation">.</span></span><span class="token class-name">SpringBootTest</span></span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">org<span class="token punctuation">.</span>springframework<span class="token punctuation">.</span>test<span class="token punctuation">.</span>context<span class="token punctuation">.</span>junit4<span class="token punctuation">.</span></span><span class="token class-name">SpringRunner</span></span><span class="token punctuation">;</span>
+
+<span class="token annotation punctuation">@RunWith</span><span class="token punctuation">(</span><span class="token class-name">SpringRunner</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">)</span>
+<span class="token annotation punctuation">@SpringBootTest</span>
+<span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">BeseTest</span> <span class="token punctuation">{<!-- --></span>
+
+    <span class="token annotation punctuation">@BeforeClass</span>
+    <span class="token keyword">public</span> <span class="token keyword">static</span> <span class="token keyword">void</span> <span class="token function">init</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">{<!-- --></span>
+        <span class="token class-name">System</span><span class="token punctuation">.</span><span class="token function">setProperty</span><span class="token punctuation">(</span><span class="token string">"server.domain"</span><span class="token punctuation">,</span> <span class="token string">"test.server.com"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>然后其他单元测试类使用时继承这个BaseTest类就OK了，不用再每个类都去加公共的注解、配置：</p> 
+<pre><code class="prism language-java"><span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">ReplayServiceImplTest</span> <span class="token keyword">extends</span> <span class="token class-name">BestTest</span>
+</code></pre> 
+<p>================================================================================================<br> 以上就是本次的全部内容，都看到这里了，如果对你有帮助，麻烦点个赞+收藏+关注，一键三连啦~</p> 
+<p>欢迎下方扫码关注我的vx公众号：程序员杨叔，各类文章都会第一时间在上面发布，持续分享全栈测试知识干货，你的支持就是作者更新最大的动力~</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/c385768bf6487124537021770c711e30/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">机器学习（五）logistic回归</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/c604e7be7c990736d2f87e3466257b03/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">avue 弹框自定义按钮内容</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

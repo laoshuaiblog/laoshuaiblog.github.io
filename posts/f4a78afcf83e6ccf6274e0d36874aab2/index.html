@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>核间中断测试 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/f4a78afcf83e6ccf6274e0d36874aab2/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="核间中断测试">
+  <meta property="og:description" content="1）假设系统有N个核，创建N个线程，分别绑定到核0...(N-1)；
+2）所有线程通过同一个互斥锁[FIFO方式唤醒]进行阻塞和唤醒操作，并对自己被唤醒计数；
+3）核间随机唤醒；执行一段时间，至少N分钟
+#include &#34;testfrmw.h&#34;
+#include &#34;smp_test.h&#34;
+volatile int ipi_count[CPU_NUM] = {0};
+volatile int ipi_count_temp[CPU_NUM] = {0};
+pthread_mutex_t ipi_thread_mutex;
+pthread_t ipi_t_id[CPU_NUM];
+static smp_arg_stru arg_stru_arry[CPU_NUM];
+int fail_flag = 0;
+int ipi_main_ret = 0;
+static int permanent_thread_init(void)
+{
+int id;
+int ret;
+ret = pthread_mutex_init(&amp;amp;ipi_thread_mutex,NULL);
+if(ret)
+{
+printf(&#34;pthread_mutex_init fail!\n&#34;);
+return ret;
+}
+//每核创建一个常驻线程
+for(id = 0; id &amp;lt; CPU_NUM; id&#43;&#43;)
+{
+arg_stru_arry[id].pcount = &amp;amp;ipi_count[id];
+arg_stru_arry[id].pmutex = &amp;amp;ipi_thread_mutex;
+ret = smp_pthread_init(&amp;amp;ipi_t_id[id],&amp;amp;arg_stru_arry[id],id);
+if(ret)">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2018-06-01T07:45:42+08:00">
+    <meta property="article:modified_time" content="2018-06-01T07:45:42+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">核间中断测试</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <p>1）假设系统有N个核，创建N个线程，分别绑定到核0...(N-1)；</p> 
+<p>2）所有线程通过同一个互斥锁[FIFO方式唤醒]进行阻塞和唤醒操作，并对自己被唤醒计数；</p> 
+<p>3）核间随机唤醒；执行一段时间，至少N分钟</p> 
+<p></p> 
+<table border="1" width="200" cellspacing="1" cellpadding="1"><tbody><tr><td><br><br>#include "testfrmw.h"<br>#include "smp_test.h"<br><br><br>volatile int ipi_count[CPU_NUM] = {0};<br>volatile int ipi_count_temp[CPU_NUM] = {0};<br>pthread_mutex_t ipi_thread_mutex;<br>pthread_t ipi_t_id[CPU_NUM];<br>static smp_arg_stru arg_stru_arry[CPU_NUM];<br><br><br>int fail_flag = 0;<br>int ipi_main_ret = 0;<br><br><br>static int permanent_thread_init(void)<br>{<!-- --><br>    int id;<br>    int ret;<br><br><br>    ret = pthread_mutex_init(&amp;ipi_thread_mutex,NULL);<br>    if(ret)<br>    {<!-- --><br>        printf("pthread_mutex_init fail!\n");<br>        return ret;<br>    }<br><br><br>    //每核创建一个常驻线程<br>    for(id = 0; id &lt; CPU_NUM; id++)<br>    {<!-- --><br>        arg_stru_arry[id].pcount = &amp;ipi_count[id];<br>        arg_stru_arry[id].pmutex = &amp;ipi_thread_mutex;<br><br><br>        ret = smp_pthread_init(&amp;ipi_t_id[id],&amp;arg_stru_arry[id],id);<br>        if(ret)<br>        {<!-- --><br>            printf("smp_base_init fail!\n");<br>            return ret;<br>        }<br>    }<br><br><br>    return 0;<br>}<br><br><br>static int check_result(void)<br>{<!-- --><br>    int id;<br>    int gap = ipi_count_temp[0]/10;<br><br><br>    for(id = 1; id &lt; CPU_NUM; id++)<br>    {<!-- --><br>        if(absolute_value(ipi_count_temp[id] - ipi_count_temp[0]) &gt; gap)<br>        {<!-- --><br>            printf("check_result fail on cpu%d\n",id);<br>            return 1;<br>        }<br>    }<br>    return 0;<br>}<br><br><br>void get_ipi_test_count()<br>{<!-- --><br>    int id;<br><br><br>    memcpy((void*)ipi_count_temp,(void*)ipi_count,sizeof(ipi_count));<br><br><br>    usleep(TEST_UNIT*100000);<br><br><br>    for(id = 0; id &lt; CPU_NUM; id++)<br>        ipi_count_temp[id] = ipi_count[id] - ipi_count_temp[id];<br>}<br><br><br>int ipi_test(int* p_seq)<br>{<!-- --><br>    int ret;<br>    int core_id;<br><br><br>    for(core_id = 0; core_id &lt; CPU_NUM; core_id++)<br>    {<!-- --><br>        ret = bind_thread_to_cpu(ipi_t_id[core_id], p_seq[core_id]);<br>        if(ret)<br>        {<!-- --><br>            printf("bind_thread_to_cpu fail!\n");<br>            return ret;<br>        }<br>    }<br>    get_ipi_test_count();<br><br><br>    ret = check_result();<br>    if(ret)<br>    {<!-- --><br>        printf("check_result fail!\n");<br>        return ret;<br>    }<br><br><br>    return 0;<br>}<br><br><br>static void swap(int *p1,int *p2)<br>{<!-- --><br>    int temp;<br><br><br>    temp = *p1;<br>    *p1 = *p2;<br>    *p2 = temp;<br>}<br>static void permutation(int* a,int index,int size)<br>{<!-- --><br>    int id;<br>    int ret;<br><br><br>    //完成一种排列<br>    if(index == size)<br>    {<!-- --><br>        ret = ipi_test(a);<br>        if(ret)<br>        {<!-- --><br>            printf("ipi_test fail!\n");<br>            fail_flag = 1;<br>        }<br>    }<br>    else<br>    {<!-- --><br>        for(id = index; id &lt; size; id++)<br>        {<!-- --><br>            swap(&amp;a[id], &amp;a[index]);<br>            permutation(a, index + 1, size);<br>            swap(&amp;a[id], &amp;a[index]);<br>        }<br>    }<br><br><br>}<br><br><br>int ipi_for_each_core_test(void)<br>{<!-- --><br>    int id;<br>    int core_array[CPU_NUM];<br><br><br>    for(id = 0; id &lt; CPU_NUM; id++)<br>        core_array[id] = id;<br><br><br>    permutation(core_array,0,CPU_NUM);<br><br><br>    return fail_flag;<br>}<br><br><br>static void *main_thread(void *arg)<br>{<!-- --><br>    int ret;<br>    ret = permanent_thread_init();<br>    if(ret)<br>    {<!-- --><br>        printf("child_thread_init fail!\n");<br>        goto fail;<br>    }<br>    ret = ipi_for_each_core_test();<br>    if(ret)<br>    {<!-- --><br>        printf("get_normal_count fail!\n");<br>        goto fail;<br>    }<br>    ret = smp_cycling(ipi_t_id, NULL,CPU_NUM);<br>    if(ret)<br>    {<!-- --><br>        printf("smp_cycling fail!\n");<br>        goto fail;<br>    }<br>    ret = pthread_mutex_destroy(&amp;ipi_thread_mutex);<br>    if(ret)<br>    {<!-- --><br>        printf("pthread_mutex_destroy fail!\n");<br>        goto fail;<br>    }<br><br><br>    *(int*)arg = 0;<br>    return arg;<br><br><br>fail:<br>    smp_cycling(ipi_t_id, NULL,CPU_NUM);<br>    pthread_mutex_destroy(&amp;ipi_thread_mutex);<br>    *(int*)arg = ret;<br>    return arg;<br>}<br><br><br>#ifndef USE_CUNIT<br> int main(void)<br>#else<br> static int main_entry(void)<br>#endif<br> {<!-- --><br>    pthread_t main_pid;<br>    pthread_attr_t attr;<br>    int* p_main_ret = &amp;ipi_main_ret;<br><br><br>    if(set_pthread_attr(&amp;attr,MAIN_PROC_PRIORITY,SCHED_FIFO))<br>    {<!-- --><br>        printf("set_pthread_attr fail!\n");<br>        return PTS_FAIL;<br>    }<br><br><br>    //创建主线程，绑到主核，优先级设置高于子线程<br>    if(pthread_create(&amp;main_pid,&amp;attr,main_thread,p_main_ret))<br>    {<!-- --><br>        printf("create main thread fail!\n");<br>        return PTS_FAIL;<br>    }<br>    if(bind_thread_to_cpu(main_pid,MAIN_CORE_ID))<br>    {<!-- --><br>        printf("bind_thread_to_cpu fail!\n");<br>        return PTS_FAIL;<br>    }<br><br><br>    if(pthread_join(main_pid,&amp;p_main_ret))<br>    {<!-- --><br>        printf("pthread_join main thread fail!\n");<br>        return PTS_FAIL;<br>    }<br><br><br>    if(*p_main_ret != 0)<br>    {<!-- --><br>        printf("TEST FAIL\n");<br>        return PTS_FAIL;<br>    }<br><br><br>    printf("TEST PASSED\n");<br>    return PTS_PASS;<br> }<br>#ifdef USE_CUNIT<br> DEFINE_TC_ENTRY(smp_ipi_1_1, main_entry);<br>#endif</td></tr></tbody></table> 
+<p> 其中，smp_test.h及smp_test_comm.c文件参见上一篇博客</p> 
+<p>https://blog.csdn.net/gaojy19881225/article/details/80527521</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/d240ec36fb6d7dfd5b9e6ee0b92d1203/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">C#调用C/C&#43;&#43;的DLL实现字符串的传递</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/829067a7e90fe9d85d1289eccf4ee285/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">datagridview中输入密码，显示星号*</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

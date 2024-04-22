@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>关于STM32 HAL库 （I2C/IIC）问题的解决方法 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/dfbcfaf1914adf54d76e1ef3b260ec7d/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="关于STM32 HAL库 （I2C/IIC）问题的解决方法">
+  <meta property="og:description" content="1.情况介绍： 因为某个项目想要颜色识别，去识别球的颜色，但是又不想多来个摄像头，所以想尝试一下颜色传感器的方案，简化流程。然后在淘宝上买了个TCS34725来试试，随后就遇到了问题：HAL库 I2C通信了几次就死锁了 。我之前也接触过I2C，OLED屏，tft屏，我那时候是通过GPIO口模拟I2C（因为淘宝的和网上的例程大多是这个）来实现的。还有就是九轴陀螺仪的磁力计数据读取，ist8310的例程是HAL库的，但是我那时候的问题是我用我的cubeMX去修改配置，更新之后，I2C就死锁了，但是那时候也没有太过深入，因为没有使用九轴陀螺仪的必要，就改成了六轴陀螺仪，间接没有使用I2C了。现在这个问题又给我撞上了，正好解决一下当年没有完成的事情。
+以下是我环境配置：
+【STM32cubeMX Vision】：6.0.1
+【FreeRTOS Vision】 ：CMSIS_1
+是的，我是用FreeRTOS跑的。
+具体的情况是：我移植了例程之后，开始跑调试看数据
+数据开头全零，意料之中。
+将断点打到里面去，是能执行的，就是卡在了HAL_I2C_Master_Transmit返回值有问题上。一路追查下去，卡在了if (I2C_MasterRequestWrite(hi2c, DevAddress, Timeout, tickstart) != HAL_OK)，再追下去卡在了if (I2C_WaitOnMasterAddressFlagUntilTimeout(hi2c, I2C_FLAG_ADDR, Timeout, Tickstart) != HAL_OK)。超时了！看了一眼官方注释：Wait until ADDR flag is set。再追下去，__HAL_I2C_GET_FLAG（I2C_FLAG_ADDR）和 __HAL_I2C_GET_FLAG（I2C_FLAG_AF）
+属于是这两个标志位没有到位报错。
+参考：I2C_GetFlagStatus()函数返回值说明，IIC的标志位-CSDN博客
+I2C_FLAG_ADDR：表示I2C地址发送完成的标志位。
+SET：表示I2C地址发送完成。RESET：表示I2C地址未发送完成。 I2C_FLAG_AF：表示I2C Acknowledge失败的标志位。
+SET：表示I2C Acknowledge失败。RESET：表示I2C Acknowledge成功。 额额额~，没有发送，也没有应答。这就开始难办了。
+结构体里面的ErrorCode 也是这个问题。
+没办法，只能先求助网上了。
+********************************************************************************************************
+2.网上问题描述集合 1. HAL_I2C_Master_Transmit 或者 HAL_I2C_Master_Receive 一直返回 BUSY 或 TIMEOUT 参考：STM32 I2C 死锁问题_if (i2c_waitonflaguntiltimeout(hi2c, i2c_flag_busy-CSDN博客
+他这一篇已经比较完备的介绍了问题，提出了几个解决方法：
+1.当I2C报错时，对其写入一个stop信号，将管脚配置为普通输出管脚后，实现电平的反转，以达到解除死锁，再将其恢复为 I2C 配置。这个方法是很简单的，我也试过了这个方法，问题依旧，然后就发现一直在给我重置，我就知道我的 I2C 一直在超时，一直在报错了，对我遇到的问题没有作用。这个方法仅适用于间接性报错，如果是有明确错误原因的不适用，不然会一直重置。 2.他发现当出现 TIMEOUT 或 ERROR 时，STM32 Master 并不会产生 STOP 信号。这应该是老版cubeMX的遗漏了，我V6.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2024-02-01T19:35:11+08:00">
+    <meta property="article:modified_time" content="2024-02-01T19:35:11+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">关于STM32 HAL库 （I2C/IIC）问题的解决方法</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <h6></h6> 
+<h2><strong>1.情况介绍：</strong></h2> 
+<p><strong>因为某个项目想要颜色识别，去识别球的颜色，但是又不想多来个摄像头，所以想尝试一下颜色传感器的方案，简化流程。然后在淘宝上买了个TCS34725来试试，随后就遇到了问题：<span style="color:#fe2c24;">HAL库 I2C通信了几次就死锁了</span> 。我之前也接触过I2C，OLED屏，tft屏，我那时候是通过GPIO口模拟I2C（因为淘宝的和网上的例程大多是这个）来实现的。还有就是九轴陀螺仪的磁力计数据读取，ist8310的例程是HAL库的，但是我那时候的问题是我用我的cubeMX去修改配置，更新之后，<span style="color:#fe2c24;">I2C就死锁了</span>，但是那时候也没有太过深入，因为没有使用九轴陀螺仪的必要，就改成了六轴陀螺仪，间接没有使用I2C了。现在这个问题又给我撞上了，正好解决一下当年没有完成的事情。</strong></p> 
+<p><strong>以下是我环境配置：</strong></p> 
+<p><strong>【STM32cubeMX Vision】：6.0.1</strong></p> 
+<p><strong><span style="color:#fe2c24;">【FreeRTOS Vision】      ：CMSIS_1</span></strong></p> 
+<p><strong>是的，我是用FreeRTOS跑的。</strong></p> 
+<p></p> 
+<p><strong>具体的情况是：我移植了例程之后，开始跑调试看数据</strong></p> 
+<p><img alt="" height="100" src="https://images2.imgbox.com/4d/cd/ZBA1zZoc_o.png" width="337"></p> 
+<p><strong>数据开头全零，意料之中。</strong></p> 
+<p><img alt="" height="228" src="https://images2.imgbox.com/1e/d1/0UkZrWzu_o.png" width="572"></p> 
+<p><strong>将断点打到里面去，是能执行的，就是卡在了HAL_I2C_Master_Transmit返回值有问题上。一路追查下去，卡在了if (I2C_MasterRequestWrite(hi2c, DevAddress, Timeout, tickstart) != HAL_OK)，再追下去卡在了if (I2C_WaitOnMasterAddressFlagUntilTimeout(hi2c, I2C_FLAG_ADDR, Timeout, Tickstart) != HAL_OK)。超时了！看了一眼官方注释：<span style="color:#fe2c24;">Wait until ADDR flag is set</span><span style="color:#0d0016;">。再追下去，__HAL_I2C_GET_FLAG（</span><span style="color:#fe2c24;">I2C_FLAG_ADDR</span><span style="color:#0d0016;">）和 __HAL_I2C_GET_FLAG（</span><span style="color:#fe2c24;">I2C_FLAG_AF</span><span style="color:#0d0016;">）</span></strong></p> 
+<p><strong>属于是这两个标志位没有到位报错。</strong></p> 
+<p></p> 
+<p><strong>参考：<a href="https://blog.csdn.net/cr_78/article/details/132286445" title="I2C_GetFlagStatus()函数返回值说明，IIC的标志位-CSDN博客">I2C_GetFlagStatus()函数返回值说明，IIC的标志位-CSDN博客</a></strong></p> 
+<p><strong>I2C_FLAG_ADDR：表示I2C地址发送完成的标志位。</strong></p> 
+<ul><li><strong>SET：表示I2C地址发送完成。</strong></li><li><strong>RESET：表示I2C地址未发送完成。</strong></li></ul> 
+<p><strong>I2C_FLAG_AF：表示I2C Acknowledge失败的标志位。</strong></p> 
+<ul><li><strong>SET：表示I2C Acknowledge失败。</strong></li><li><strong>RESET：表示I2C Acknowledge成功。</strong></li></ul> 
+<p><strong>额额额~，没有发送，也没有应答。这就开始难办了。</strong></p> 
+<p><img alt="" height="367" src="https://images2.imgbox.com/6d/b4/H73eEOcZ_o.png" width="404"></p> 
+<p><strong>结构体里面的ErrorCode 也是这个问题。</strong></p> 
+<p><strong><img alt="" height="21" src="https://images2.imgbox.com/df/8c/E8xWP2xx_o.png" width="692"></strong></p> 
+<p><strong>没办法，只能先求助网上了。</strong></p> 
+<p>********************************************************************************************************</p> 
+<h2>2.网上问题描述集合</h2> 
+<p></p> 
+<h5>1.<span style="color:#0d0016;"><strong> HAL_I2C_Master_Transmit 或者 HAL_I2C_Master_Receive 一直返回 BUSY 或 TIMEOUT</strong></span></h5> 
+<p><span style="color:#0d0016;"><strong>参考：</strong></span><a href="https://blog.csdn.net/XiuHua_Wu/article/details/80628874" title="STM32 I2C 死锁问题_if (i2c_waitonflaguntiltimeout(hi2c, i2c_flag_busy-CSDN博客">STM32 I2C 死锁问题_if (i2c_waitonflaguntiltimeout(hi2c, i2c_flag_busy-CSDN博客</a></p> 
+<p></p> 
+<p><strong><span style="color:#4da8ee;">他这一篇已经比较完备的介绍了问题，提出了几个解决方法：</span></strong></p> 
+<h6><span style="color:#0d0016;"><strong>1.当I2C报错时，对其写入一个stop信号，将管脚配置为普通输出管脚后，实现电平的反转，以达到解除死锁，再将其恢复为 I2C 配置。</strong><strong>这个方法是很简单的，我也试过了这个方法，问题依旧，然后就发现一直在给我重置，我就知道我的 I2C 一直在超时，一直在报错了，对我遇到的问题没有作用。这个方法仅适用于间接性报错，如果是有明确错误原因的不适用，不然会一直重置。</strong></span></h6> 
+<h6><span style="color:#0d0016;"><strong>2.他发现</strong></span>当出现 TIMEOUT 或 ERROR 时，STM32 Master 并不会产生 STOP 信号。这应该是老版cubeMX的遗漏了，我V6.0.1 问题就被修补了，<span style="color:#fe2c24;">SET_BIT(hi2c-&gt;Instance-&gt;CR1, I2C_CR1_STOP);</span>添加了停止位。因为这篇文章已经是18年的老文章了，有些情况已经不适用了。</h6> 
+<pre><code class="language-cpp">    /* Wait until TXE flag is set */
+      if (I2C_WaitOnTXEFlagUntilTimeout(hi2c, Timeout, tickstart) != HAL_OK)
+      {
+        if (hi2c-&gt;ErrorCode == HAL_I2C_ERROR_AF)
+        {
+          /* Generate Stop */
+          SET_BIT(hi2c-&gt;Instance-&gt;CR1, I2C_CR1_STOP);
+        }
+        return HAL_ERROR;
+      }</code></pre> 
+<p>***********************************************************************************************************</p> 
+<h5><strong>2<span style="color:#0d0016;">.I2C_WaitOnFlagUntilTimeout return BUSY,运气好的话只有第一次成功访问，但后续将无法读取数据</span></strong></h5> 
+<p><span style="color:#0d0016;"><strong>参</strong>考：</span><a href="https://blog.csdn.net/qq_34901073/article/details/125682555" title="STM32 HAL 库 I2C_WaitOnFlagUntilTimeout BUSY 解决办法-CSDN博客">STM32 HAL 库 I2C_WaitOnFlagUntilTimeout BUSY 解决办法-CSDN博客</a></p> 
+<p>         <a href="https://blog.csdn.net/dldw8816/article/details/51579781?depth_1-utm_source=distr" title="解决STM32 I2C接口死锁在BUSY状态的方法讨论_stm32 i2c总线复位-CSDN博客">解决STM32 I2C接口死锁在BUSY状态的方法讨论_stm32 i2c总线复位-CSDN博客</a></p> 
+<p></p> 
+<p><span style="color:#4da8ee;">他的解决方法：</span></p> 
+<h6>1.外接上拉电阻，稳定信号，确保信号到位。我看了一下我手头上的板子，确实没有上拉电阻，但是手头上没有4K7，就没试了。</h6> 
+<h6>2.STM32IIC引脚 GPIO_InitStruct.Mode = <span style="color:#fe2c24;">GPIO_MODE_AF_PP</span>，改为推挽输出。这个就有意思了，这里把开漏输出改为推挽输出，他的考量是什么我不得而知。我们先来看一下，开漏输出有一个明显的优势就是可以很方便的调节输出的电平，因为输出电平完全由上拉电阻连接的电源电平决定。所以在需要进行电平转换的地方，非常适合使用开漏输出。而推挽输出拥有驱动大负载的能力。事实上 I2C 并不需要拉什么大负载，I2C 更加适合用开漏输出，而有人更是提到“线与”，我倒是觉得，“线与”对于 I2C 来说没什么影响。还有我的cubeMX好像根本不让我有选择推挽输出的可能【笑哭】。</h6> 
+<p><img alt="" height="264" src="https://images2.imgbox.com/b7/53/wqDTTWQN_o.png" width="702"></p> 
+<p></p> 
+<p><strong>3.通过将 CR1 的 SWRST 置‘1’然后清‘0'来复位 I2C 接口，以达到清除 Busy 标志回到空闲状态目的。这种操作是建立在 I2C 在发生总线错误之后，自己会发生一个 stop 信号并重新初始化。</strong></p> 
+<p>***********************************************************************************************************</p> 
+<h5><strong>3<span style="color:#0d0016;">.</span><span style="color:#fe2c24;">I2C_WaitOnTXISFlagUntilTimeou</span><span style="color:#0d0016;">t返回HAL_ERROR</span></strong></h5> 
+<p><strong>参考：<a href="https://bbs.elecfans.com/jishu_2331534_1_1.html" rel="nofollow" title="I2C_WaitOnTXISFlagUntilTimeout返回HAL_ERROR，无法与传感器通信怎么解决？">I2C_WaitOnTXISFlagUntilTimeout返回HAL_ERROR，无法与传感器通信怎么解决？</a></strong></p> 
+<p></p> 
+<p><strong><span style="color:#4da8ee;">这个是比较经典的传输地址出错导致无应答超时。大家一定要检查设备地址与硬件接线。</span></strong></p> 
+<p>*********************************************************************************************************</p> 
+<h5><strong>4.也是busy的错误</strong></h5> 
+<p><strong><span style="color:#0d0016;"> 参考：</span><a href="https://blog.csdn.net/zhypss/article/details/100888450" title="STM32 IIC问题_while (__hal_i2c_get_flag(hi2c, flag) == status)-CSDN博客">STM32 IIC问题_while (__hal_i2c_get_flag(hi2c, flag) == status)-CSDN博客</a></strong></p> 
+<p></p> 
+<p><strong><span style="color:#4da8ee;">这里的方法是</span>，先GPIO时钟使能，再I2C时钟使能，然后才配置IIC。其实还有其他更直观的文章的，找不到了，给大家截个图看吧，我记得有几篇文章的，<span style="color:#fe2c24;">但是顺序好像都不一样</span>。</strong></p> 
+<p><img alt="" height="473" src="https://images2.imgbox.com/fe/1b/L5vl6Exc_o.png" width="680"></p> 
+<p></p> 
+<p>***********************************************************************************************************</p> 
+<h5><strong>5.使用FreeRTOS 并使用HAL库函数，卡奇怪错误的</strong></h5> 
+<p><strong>参考：<a href="https://blog.csdn.net/cjfkneoigoring/article/details/104880770" title="解决STM32 I2C接口死锁在BUSY状态的另一种原因和方法_i2c时钟使能后busy-CSDN博客">解决STM32 I2C接口死锁在BUSY状态的另一种原因和方法_i2c时钟使能后busy-CSDN博客</a></strong></p> 
+<p><strong>这里提到了一嘴<span style="color:#fe2c24;">FreeRTOS 对 HAL I2C库函数的影响</span>，但是我按照他的方法来还是解决不了就先暂时没管了。到了后面我才知道，真的是FreeRTOS搞的鬼！！<span style="color:#0d0016;">还是下面这位老哥的文章点醒我的，</span><span style="color:#fe2c24;">HAL_I2C_Master_Transmit本身是在一个task中调用的，而这个延迟的判定是通过while循环轮询的</span>。I2C的标志位是用while来判定的，并且没有任何释放操作，在SPI，SDMMC等函数中涉及到标志位的一些判定基本都是一个死循环，像I2C的超时时间预设的还不是特别长，我印象里有的函数的超时时间预设的是0xFFFFFFF，相当于死等，进去只要错过了标志位那么系统必然卡死，所以用的时候还是要多注意一下具体库的内部细节，否则这种问题查起来真的是要命。</strong></p> 
+<p><strong>参考：<a href="https://elmagnifico.tech/2020/08/11/STM32-I2C-Syslock/" rel="nofollow" title="STM32 I2C 在FreeRTOS中造成的死锁 - elmagnifico's blog">STM32 I2C 在FreeRTOS中造成的死锁 - elmagnifico's blog</a></strong></p> 
+<p>***********************************************************************************************************</p> 
+<h5><strong>6.还有ST论坛上，Github和其他上的一些文章，感兴趣可以看看：</strong></h5> 
+<p><strong><a href="https://community.st.com/t5/stm32-mcus-products/i2c-waitonflaguntiltimeout-return-hal-error/td-p/126374" rel="nofollow" title="已解决：I2C_WaitOnFlagUntilTimeout返回HAL_ERROR - STMicroelectronics 社区">已解决：I2C_WaitOnFlagUntilTimeout返回HAL_ERROR - STMicroelectronics 社区</a></strong></p> 
+<p><strong><a href="https://github.com/iwatake2222/DigitalCamera_STM32/issues/1" title="很棒的项目，但我无法让 SCCB 工作！">很棒的项目，但我无法让 SCCB 工作！</a></strong></p> 
+<p><strong>关于 HAL_I2C_ERROR_AF ：</strong></p> 
+<p><a href="https://community.st.com/t5/stm32-mcus-products/i2c-always-falls-into-hal-i2c-error-af/td-p/399752" rel="nofollow" title="Solved: I2C always falls into HAL_I2C_ERROR_AF - STMicroelectronics Community">Solved: I2C always falls into HAL_I2C_ERROR_AF - STMicroelectronics Community</a></p> 
+<p>*********************************************************************************************************</p> 
+<h5>7.建议对 I2C 没有太高的性能要求的朋友换成模拟 I2C</h5> 
+<p><strong>其实网上有很多模拟 I2C 了，这其实只需要通过了解一点 I2C 的工作原理就能够写出来。已知硬件 I2C 存在很多问题（HAL库），如果对 I2C 没有太高的性能要求的朋友可以换成模拟 I2C ，因为这会友好很多，网上也有很多可以参考：</strong></p> 
+<p><a href="https://blog.csdn.net/NeoZng/article/details/128496694" title="STM32 HAL I2C（IIC）通信的序列传输(restart condition)_hal_i2c_slave_seq_receive_it">STM32 HAL I2C（IIC）通信的序列传输(restart condition)_hal_i2c_slave_seq_receive_it</a></p> 
+<p><strong><a href="https://blog.csdn.net/m0_57585228/article/details/128488513" title="【STM32F4系列】【HAL库】【自制库】模拟IIC主机_hal库模拟iic-CSDN博客">【STM32F4系列】【HAL库】【自制库】模拟IIC主机_hal库模拟iic-CSDN博客</a></strong></p> 
+<p><strong><a href="https://blog.csdn.net/D742888/article/details/135069798" title="基于STM32的I2C协议，STM32CubeMX生成_stm32 i2c cube-CSDN博客">基于STM32的I2C协议，STM32CubeMX生成_stm32 i2c cube-CSDN博客</a></strong></p> 
+<p><strong>虽然模拟 I2C 的性能 比 硬件 I2C 会差，比如说接口与稳定性，传输方式等。<span style="color:#fe2c24;">首先I2C时钟频率不易确定，因为STM32的时钟频率可以动态调节；此外不用硬件I2C，无法用中断、DMA等高级模式，会严重降低ARM内核效率。</span>但是硬件 I2C 确实很多问题。</strong></p> 
+<p>*********************************************************************************************************</p> 
+<h2>3.结语</h2> 
+<p><strong>这是我新建的工程，<span style="color:#fe2c24;">没有加 FreeRTOS ，直接能跑能读取，正常得不行</span>。想要在 FreeRTOS 上跑硬件 I2C 还是任重而道远啊。继续尝试加delay解决。</strong></p> 
+<p><img alt="" height="835" src="https://images2.imgbox.com/0a/a7/8GVbSwoB_o.png" width="1200"></p> 
+<p><strong>希望以上内容对你有帮助，有什么不对的地方还请多多指点。</strong></p> 
+<p></p> 
+<p></p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/82f3c98aa93291cbe6bb4225741f1bfd/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">【论文&#43;综述&#43;视觉换衣】视觉虚拟换衣调研：StableVITON、OutfitAnyone、TryOnDiffusion、HR-VITON</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/b5b35147a369fbf01aa2ebe0c848aaa0/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">计算机网络——运输层（1）暨小程送书</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

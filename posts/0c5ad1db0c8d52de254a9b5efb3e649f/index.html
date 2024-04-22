@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>epoll 或者 kqueue 的原理是什么？ - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/0c5ad1db0c8d52de254a9b5efb3e649f/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="epoll 或者 kqueue 的原理是什么？">
+  <meta property="og:description" content="作者：张彦飞
+链接：https://www.zhihu.com/question/20122137/answer/2134896876
+刚回答完一个 epoll，又刷到一个，那我就再来回答一遍吧。
+仔细看了一下问题，题主的主要困惑是就是没有看过内核源码，不清楚 epoll 内部究竟是咋工作的。其实我之前和题主一样，也是这个困惑。由于实在是好奇心太强，所以我就抽空撸起袖子，把 epoll 的源码给扒了一遍。
+我把我分析 epoll 的过程都放在我的这本电子书里了，《理解了实现再谈网络性能》。需要的同学戳这里下载，传送门：《理解了实现再谈网络性能》
+在介绍 epoll 的实现之前。我想先聊聊传统的同步阻塞 IO。
+深入理解高性能网络开发路上的绊脚石 - 同步阻塞网络 IO - 知乎
+这种网络 IO 模型在对网络性能要求不高的地方现在用的也还是挺多的，我把这个整体流程画了一个图。
+这种网络IO模型的问题是每次一个进程专门为了等一个 socket 上的数据就得被从 CPU 上拿下来。然后再换上另一个进程。等到数据 ready 了，睡眠的进程又会被唤醒。总共两次进程上下文切换开销，根据之前的测试来看，每一次切换大约是 3-5 us(微秒)左右。 如果是网络 IO 密集型的应用的话，CPU 就不停地做进程切换这种无用功。
+所以多路IO复用，包括 epoll 就是为了解决上述问题而生的。当然 epoll 由于要支持海量的连接，为了高效地插入和删除 socket，在2.6 以后的版本里引入了红黑树。
+epoll 作为多路复用技术中的代表，和传统的阻塞网络 IO 相比，最大的性能提升就是节约掉了大量的进程上下文切换。 epoll 内部又涉及出了一套复杂的数据结构，包括一棵红黑树和一个就绪链表（以及一个epollwait等待队列）。全部都工作在内核态。
+使用 epoll 大体上由三个函数配合而成，分别是 epoll_create 、epollctl 和 epoll_wait，另外内核的网络模块也会参与其中。接下来我就分这四块来讲。这些都是我看过源码后整理出来的，源码版本是 3.10.0。
+一、epoll_create 创建 epoll 内核对象 在用户进程调用 epoll_create 时，内核会创建一个 struct eventpoll 的内核对象。当然了这个对象，并不是由一个结构体构成的，而是一组数据结构。它的结构如下。">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2021-10-24T10:24:16+08:00">
+    <meta property="article:modified_time" content="2021-10-24T10:24:16+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">epoll 或者 kqueue 的原理是什么？</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <p>作者：张彦飞<br> 链接：https://www.zhihu.com/question/20122137/answer/2134896876</p> 
+<p>刚回答完一个 epoll，又刷到一个，那我就再来回答一遍吧。</p> 
+<p>仔细看了一下问题，题主的主要困惑是就是没有看过内核源码，不清楚 epoll 内部究竟是咋工作的。其实我之前和题主一样，也是这个困惑。由于实在是好奇心太强，所以我就抽空撸起袖子，把 epoll 的源码给扒了一遍。</p> 
+<p>我把我分析 epoll 的过程都放在我的这本电子书里了，《理解了实现再谈网络性能》。需要的同学戳这里下载，传送门：<strong><a href="https://link.zhihu.com/?target=https%3A//mp.weixin.qq.com/s/xlRxat5F-G6eZqY9M2JDog" rel="nofollow" title="《理解了实现再谈网络性能》">《理解了实现再谈网络性能》</a></strong></p> 
+<p style="text-align:center;"><img alt="" src="https://images2.imgbox.com/02/c3/YBBEBt9G_o.png" width="1200"></p> 
+<p>在介绍 epoll 的实现之前。我想先聊聊传统的同步阻塞 IO。</p> 
+<p><a href="https://zhuanlan.zhihu.com/p/353850099" rel="nofollow" title="深入理解高性能网络开发路上的绊脚石 - 同步阻塞网络 IO - 知乎">深入理解高性能网络开发路上的绊脚石 - 同步阻塞网络 IO - 知乎</a></p> 
+<p>这种网络 IO 模型在对网络性能要求不高的地方现在用的也还是挺多的，我把这个整体流程画了一个图。</p> 
+<p style="text-align:center;"><img alt="" src="https://images2.imgbox.com/86/ba/u95UEpOT_o.png" width="1200"></p> 
+<p>这种网络IO模型的问题是每次一个进程专门为了等一个 socket 上的数据就得被从 CPU 上拿下来。然后再换上另一个进程。等到数据 ready 了，睡眠的进程又会被唤醒。总共两次进程上下文切换开销，根据之前的测试来看，每一次切换大约是 3-5 us(微秒)左右。 如果是网络 IO 密集型的应用的话，CPU 就不停地做进程切换这种无用功。</p> 
+<p style="text-align:center;"><img alt="" src="https://images2.imgbox.com/b3/2b/1nrsZQHN_o.png" width="799"></p> 
+<p>所以多路IO复用，包括 epoll 就是为了解决上述问题而生的。当然 epoll 由于要支持海量的连接，为了高效地插入和删除 socket，在2.6 以后的版本里引入了红黑树。</p> 
+<p>epoll 作为多路复用技术中的代表，和传统的阻塞网络 IO 相比，最大的性能提升就是节约掉了大量的进程上下文切换。 epoll 内部又涉及出了一套复杂的数据结构，包括一棵红黑树和一个就绪链表（以及一个epollwait等待队列）。全部都工作在内核态。</p> 
+<p>使用 epoll 大体上由三个函数配合而成，<strong>分别是 epoll_create 、epollctl 和 epoll_wait，另外内核的网络模块也会参与其中。</strong>接下来我就分这四块来讲。这些都是我看过源码后整理出来的，源码版本是 3.10.0。</p> 
+<h3>一、epoll_create 创建 epoll 内核对象</h3> 
+<p>在用户进程调用 epoll_create 时，内核会创建一个 struct eventpoll 的内核对象。当然了这个对象，并不是由一个结构体构成的，而是一组数据结构。它的结构如下。</p> 
+<p style="text-align:center;"><img alt="" src="https://images2.imgbox.com/fe/59/aR4zPnrW_o.png" width="591"></p> 
+<p>当然了，刚刚创建的 epoll 中就绪队列、红黑树都是空的，我画出来是为了方便大家理解。</p> 
+<p>就绪队列中存放事件发生，需要处理的 socket。这样后面和用户进程协作的时候就非常的容易了，简单地去就绪队列中查看有没有 Ready，需要被处理的 socket。有就拿走处理。</p> 
+<p>通过红黑树，高效地管理海量的连接，这样即使有百万条连接，插入和删除起来也是能保证效率。</p> 
+<h3>二、epoll_ctl 添加 socket</h3> 
+<p>epoll_ctl 所做的事情包括如下三件：</p> 
+<ul><li>1.分配一个红黑树节点对象 epitem，</li><li>2.添加等待事件到 socket 的等待队列中，其回调函数是 ep_poll_callback</li><li>3.将 epitem 插入到 epoll 对象的红黑树里</li></ul> 
+<p>通过 epoll_ctl 添加两个 socket 以后，这些内核数据结构最终在进程中的关系图大致如下：</p> 
+<p style="text-align:center;"><img alt="" src="https://images2.imgbox.com/38/de/gIuuera3_o.png" width="835"></p> 
+<p>当内核将数据收到 socket 的接收队列后，将会通过 socket 上注册的这个 ep_poll_callback 函数来回调，进而通知到 epoll 对象。然后进一步将Ready 的socket 放到就绪链表中。</p> 
+<h3>三、epoll_wait 等待事件</h3> 
+<p>epoll_wait 做的事情其实不复杂，当它被调用时它观察 eventpoll-&gt;rdllist 就绪链表里有没有数据即可。有数据就返回，没有数据就创建一个等待队列项，将其添加到 eventpoll 的等待队列上，然后把自己阻塞掉就完事。</p> 
+<p style="text-align:center;"><img alt="" src="https://images2.imgbox.com/b9/04/QHPjOW3A_o.png" width="581"></p> 
+<h3>四、内核网络模块接收过程</h3> 
+<p>内核的网络模块要做很多工作。首先是接收数据到 socket 的接收队列</p> 
+<p style="text-align:center;"><img alt="" src="https://images2.imgbox.com/3f/e9/bxCLnjv4_o.png" width="511"></p> 
+<p>接着需要查找 socket 上的就绪回调函数</p> 
+<p style="text-align:center;"><img alt="" src="https://images2.imgbox.com/36/2a/nvwq8Yfa_o.png" width="501"></p> 
+<p>找到了 socket 等待队列项里注册的函数 ep_poll_callback后调用该函数，<strong>把当前的 epitem 添加到 epoll 的就绪队列中</strong>。接着它又会查看 eventpoll 对象上的等待队列里是否有等待项，如果没有进程阻塞在 epoll 上，内核的一次工作就算是完成了。如果有进程在阻塞，那就唤醒它。</p> 
+<h3>五、epoll 整体工作流程图</h3> 
+<p>我们来总结一下，这是 epoll_wait 的工作流程图。</p> 
+<p style="text-align:center;"><img alt="" src="https://images2.imgbox.com/83/0c/jlsarfiU_o.png" width="652"></p> 
+<p>在这种模型下，只需要一个进程就可以维护成千上万甚至是百万级别的连接。<strong>正常情况下只要活儿足够的多，用户进程会一直干活，一直干活。大量地减少了进程切换次数，这就是 epoll 高效的地方所在！</strong>除非这个进程的除非实在是没有需要处理的连接了，epoll_wait才会将当前进程阻塞掉。</p> 
+<p>回答篇幅所限，很多内核源码就没办法贴了。想更详细地理解 epoll 的话建议把我这本《理解了实现再谈网络性能》下载下来慢慢看。这本 PDF 里除了 epoll 以外，还有很多关于网络是如何收包的，如何使用 CPU，如何使用内存的技术细节，非常值得一读。</p> 
+<p style="text-align:center;"><img alt="" src="https://images2.imgbox.com/45/31/JNenKCnf_o.png" width="1200"></p> 
+<p>下载链接传送门：<strong><a href="https://link.zhihu.com/?target=https%3A//mp.weixin.qq.com/s/xlRxat5F-G6eZqY9M2JDog" rel="nofollow" title="《理解了实现再谈网络性能》">《理解了实现再谈网络性能》</a></strong></p> 
+<p>公众号：<strong>开发内功修炼</strong></p> 
+<p><a href="https://link.zhihu.com/?target=https%3A//github.com/yanfeizhang/coder-kung-fu" rel="nofollow" title="GitHub - yanfeizhang/coder-kung-fu: 开发内功修炼">GitHub - yanfeizhang/coder-kung-fu: 开发内功修炼</a></p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/6c26fa6c3bc9fc41aab426535f774676/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">随机打乱数据集和对应标签</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/f00da8eb352cba1bbaf2f1aaa5fffd7f/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">STM32C8T6&#43;面板板&#43;3只LED点亮流水灯</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

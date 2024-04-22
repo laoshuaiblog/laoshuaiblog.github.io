@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>波峰波谷(凸点凹点)的检测算法 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/5aad07bbe5edda36eab69a7ebb0b0835/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="波峰波谷(凸点凹点)的检测算法">
+  <meta property="og:description" content="波峰波谷(凸点凹点)的检测算法 主要使用算子:
+无 目录 波峰波谷(凸点凹点)的检测算法前言前期准备代码总结 前言 在Halcon轮廓线处理中，我们可能需要找到轮廓线的转折点位置进行处理(在这里我们称它为波峰波谷)，如下图（绿色的是凹点、蓝色的是凸点）：
+我们算法要实现的就是上述效果，主要参考信号波峰波谷二阶差分识别算法，对原理感兴趣的可以去看这篇文章。不多说，直接上代码。
+前期准备 halcon任一版本（我使用19.11）。
+代码 main函数代码：
+dev_close_window () dev_open_window (0, 0, 512, 512, &#39;black&#39;, WindowHandle) Rows := [150,150,50,150,140,180,200,150] Cols := [0,50,200,300,400,450,500,600] gen_cross_contour_xld (Cross, Rows, Cols, 12, 0.785398) gen_nurbs_interp (Rows, Cols, [0,-10,0,10], 3, CtrlRows, CtrlCols, Knots) gen_contour_nurbs_xld (Contour, CtrlRows, CtrlCols, Knots, &#39;auto&#39;, 3, 1, 5) dev_display (Contour) dev_display (Cross) get_contour_xld(Contour, RowS,ColumnS) FindPV_COPY_1 (RowS, Pos_PeakL, Pos_ValleyL, Pos_Peak, Pos_Valley) *波峰显示 for j := 0 to Pos_PeakL-1 by 1 Pos_PeakY[j]:=RowS[Pos_Peak[j]] Pos_PeakX[j]:=ColumnS[Pos_Peak[j]] endfor *波谷显示 for j := 0 to Pos_ValleyL-1 by 1 Pos_ValleyY[j]:=RowS[Pos_Valley[j]] Pos_ValleyX[j]:=ColumnS[Pos_Valley[j]] endfor gen_cross_contour_xld (Pos_PeakCross, Pos_PeakY, Pos_PeakX, 100, 0.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2021-08-27T15:12:37+08:00">
+    <meta property="article:modified_time" content="2021-08-27T15:12:37+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">波峰波谷(凸点凹点)的检测算法</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-dark">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <h2><a id="_0"></a>波峰波谷(凸点凹点)的检测算法</h2> 
+<p>主要使用算子:</p> 
+<pre><code class="prism language-csharp">无
+
+</code></pre> 
+<p></p> 
+<div class="toc"> 
+ <h4>目录</h4> 
+ <ul><li><a href="#_0" rel="nofollow">波峰波谷(凸点凹点)的检测算法</a></li><li><a href="#_13" rel="nofollow">前言</a></li><li><a href="#_22" rel="nofollow">前期准备</a></li><li><ul><li><a href="#_26" rel="nofollow">代码</a></li><li><a href="#_144" rel="nofollow">总结</a></li></ul> 
+ </li></ul> 
+</div> 
+<p></p> 
+<hr color="#000000" size='1"'> 
+<h2><a id="_13"></a>前言</h2> 
+<p><font color="#999AAA">在Halcon轮廓线处理中，我们可能需要找到轮廓线的转折点位置进行处理(在这里我们称它为波峰波谷)，如下图（绿色的是凹点、蓝色的是凸点）：<br> <img src="https://images2.imgbox.com/a5/66/wUB4gFtK_o.png" alt="图1"></font></p> 
+<p>我们算法要实现的就是上述效果，主要参考<a href="https://mp.weixin.qq.com/s/LQCfzSrnXU69MTVlTmXwEg" rel="nofollow">信号波峰波谷二阶差分识别算法</a>，对原理感兴趣的可以去看这篇文章。不多说，直接上代码。<br> </p> 
+<hr color="#000000" size='1"'> 
+<h2><a id="_22"></a>前期准备</h2> 
+<p>halcon任一版本（我使用19.11）。</p> 
+<h3><a id="_26"></a>代码</h3> 
+<p><font color="#999AAA">main函数代码：</font></p> 
+<pre><code class="prism language-c"><span class="token function">dev_close_window</span> <span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token function">dev_open_window</span> <span class="token punctuation">(</span><span class="token number">0</span><span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">,</span> <span class="token number">512</span><span class="token punctuation">,</span> <span class="token number">512</span><span class="token punctuation">,</span> <span class="token string">'black'</span><span class="token punctuation">,</span> WindowHandle<span class="token punctuation">)</span>
+Rows <span class="token operator">:</span><span class="token operator">=</span> <span class="token punctuation">[</span><span class="token number">150</span><span class="token punctuation">,</span><span class="token number">150</span><span class="token punctuation">,</span><span class="token number">50</span><span class="token punctuation">,</span><span class="token number">150</span><span class="token punctuation">,</span><span class="token number">140</span><span class="token punctuation">,</span><span class="token number">180</span><span class="token punctuation">,</span><span class="token number">200</span><span class="token punctuation">,</span><span class="token number">150</span><span class="token punctuation">]</span>
+Cols <span class="token operator">:</span><span class="token operator">=</span> <span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">,</span><span class="token number">50</span><span class="token punctuation">,</span><span class="token number">200</span><span class="token punctuation">,</span><span class="token number">300</span><span class="token punctuation">,</span><span class="token number">400</span><span class="token punctuation">,</span><span class="token number">450</span><span class="token punctuation">,</span><span class="token number">500</span><span class="token punctuation">,</span><span class="token number">600</span><span class="token punctuation">]</span>
+<span class="token function">gen_cross_contour_xld</span> <span class="token punctuation">(</span>Cross<span class="token punctuation">,</span> Rows<span class="token punctuation">,</span> Cols<span class="token punctuation">,</span> <span class="token number">12</span><span class="token punctuation">,</span> <span class="token number">0.785398</span><span class="token punctuation">)</span>
+<span class="token function">gen_nurbs_interp</span> <span class="token punctuation">(</span>Rows<span class="token punctuation">,</span> Cols<span class="token punctuation">,</span> <span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">,</span><span class="token operator">-</span><span class="token number">10</span><span class="token punctuation">,</span><span class="token number">0</span><span class="token punctuation">,</span><span class="token number">10</span><span class="token punctuation">]</span><span class="token punctuation">,</span> <span class="token number">3</span><span class="token punctuation">,</span> CtrlRows<span class="token punctuation">,</span> CtrlCols<span class="token punctuation">,</span> Knots<span class="token punctuation">)</span>
+<span class="token function">gen_contour_nurbs_xld</span> <span class="token punctuation">(</span>Contour<span class="token punctuation">,</span> CtrlRows<span class="token punctuation">,</span> CtrlCols<span class="token punctuation">,</span> Knots<span class="token punctuation">,</span> <span class="token string">'auto'</span><span class="token punctuation">,</span> <span class="token number">3</span><span class="token punctuation">,</span> <span class="token number">1</span><span class="token punctuation">,</span> <span class="token number">5</span><span class="token punctuation">)</span>
+<span class="token function">dev_display</span> <span class="token punctuation">(</span>Contour<span class="token punctuation">)</span>
+<span class="token function">dev_display</span> <span class="token punctuation">(</span>Cross<span class="token punctuation">)</span>
+
+<span class="token function">get_contour_xld</span><span class="token punctuation">(</span>Contour<span class="token punctuation">,</span> RowS<span class="token punctuation">,</span>ColumnS<span class="token punctuation">)</span>
+
+<span class="token function">FindPV_COPY_1</span> <span class="token punctuation">(</span>RowS<span class="token punctuation">,</span> Pos_PeakL<span class="token punctuation">,</span> Pos_ValleyL<span class="token punctuation">,</span> Pos_Peak<span class="token punctuation">,</span> Pos_Valley<span class="token punctuation">)</span>
+
+<span class="token operator">*</span>波峰显示
+<span class="token keyword">for</span> j <span class="token operator">:</span><span class="token operator">=</span> <span class="token number">0</span> to  Pos_PeakL<span class="token operator">-</span><span class="token number">1</span> by <span class="token number">1</span>
+    
+    Pos_PeakY<span class="token punctuation">[</span>j<span class="token punctuation">]</span><span class="token operator">:</span><span class="token operator">=</span>RowS<span class="token punctuation">[</span>Pos_Peak<span class="token punctuation">[</span>j<span class="token punctuation">]</span><span class="token punctuation">]</span>
+    Pos_PeakX<span class="token punctuation">[</span>j<span class="token punctuation">]</span><span class="token operator">:</span><span class="token operator">=</span>ColumnS<span class="token punctuation">[</span>Pos_Peak<span class="token punctuation">[</span>j<span class="token punctuation">]</span><span class="token punctuation">]</span>
+      
+endfor
+
+<span class="token operator">*</span>波谷显示
+<span class="token keyword">for</span> j <span class="token operator">:</span><span class="token operator">=</span> <span class="token number">0</span> to  Pos_ValleyL<span class="token operator">-</span><span class="token number">1</span> by <span class="token number">1</span>
+    
+    Pos_ValleyY<span class="token punctuation">[</span>j<span class="token punctuation">]</span><span class="token operator">:</span><span class="token operator">=</span>RowS<span class="token punctuation">[</span>Pos_Valley<span class="token punctuation">[</span>j<span class="token punctuation">]</span><span class="token punctuation">]</span>
+    Pos_ValleyX<span class="token punctuation">[</span>j<span class="token punctuation">]</span><span class="token operator">:</span><span class="token operator">=</span>ColumnS<span class="token punctuation">[</span>Pos_Valley<span class="token punctuation">[</span>j<span class="token punctuation">]</span><span class="token punctuation">]</span>
+      
+endfor
+
+<span class="token function">gen_cross_contour_xld</span> <span class="token punctuation">(</span>Pos_PeakCross<span class="token punctuation">,</span> Pos_PeakY<span class="token punctuation">,</span> Pos_PeakX<span class="token punctuation">,</span> <span class="token number">100</span><span class="token punctuation">,</span> <span class="token number">0.785398</span><span class="token punctuation">)</span>
+<span class="token function">gen_cross_contour_xld</span> <span class="token punctuation">(</span>Pos_ValleyCross<span class="token punctuation">,</span> Pos_ValleyY<span class="token punctuation">,</span> Pos_ValleyX<span class="token punctuation">,</span> <span class="token number">100</span><span class="token punctuation">,</span> <span class="token number">0.785398</span><span class="token punctuation">)</span>
+<span class="token function">dev_clear_window</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token function">dev_set_color</span><span class="token punctuation">(</span><span class="token string">'red'</span><span class="token punctuation">)</span>
+<span class="token function">dev_display</span><span class="token punctuation">(</span>Contour<span class="token punctuation">)</span>
+
+
+<span class="token function">dev_set_color</span><span class="token punctuation">(</span><span class="token string">'green'</span><span class="token punctuation">)</span>
+<span class="token function">dev_display</span><span class="token punctuation">(</span>Pos_PeakCross<span class="token punctuation">)</span>
+<span class="token function">dev_set_color</span><span class="token punctuation">(</span><span class="token string">'blue'</span><span class="token punctuation">)</span>
+
+<span class="token function">dev_display</span><span class="token punctuation">(</span>Pos_ValleyCross<span class="token punctuation">)</span>
+
+</code></pre> 
+<p><font color="#999AAA">函数 FindPV_COPY_1 代码与输入输出：</font></p> 
+<p><img src="https://images2.imgbox.com/46/29/ltf9Om4i_o.png" alt="FindPV_COPY_1"></p> 
+<pre><code class="prism language-c"><span class="token operator">*</span> 初始化相关数据
+<span class="token function">tuple_length</span> <span class="token punctuation">(</span>PointValue<span class="token punctuation">,</span> SAMPLE_MAX<span class="token punctuation">)</span>
+
+<span class="token operator">*</span> Pos_Peak   <span class="token comment">//波峰位置存储</span>
+<span class="token operator">*</span> Pos_Valley <span class="token comment">//波谷位置存储</span>
+
+
+
+SampleDiff <span class="token operator">:</span><span class="token operator">=</span> <span class="token function">gen_tuple_const</span><span class="token punctuation">(</span><span class="token operator">|</span>PointValue<span class="token operator">|</span><span class="token punctuation">,</span><span class="token number">0</span><span class="token punctuation">)</span>
+
+<span class="token operator">*</span> step <span class="token number">1</span> <span class="token operator">:</span>首先进行前向差分，并归一化
+<span class="token keyword">for</span> i <span class="token operator">:</span><span class="token operator">=</span> <span class="token number">0</span> to SAMPLE_MAX<span class="token operator">-</span><span class="token number">2</span> by <span class="token number">1</span>
+
+    d <span class="token operator">:</span><span class="token operator">=</span> PointValue<span class="token punctuation">[</span>i<span class="token operator">+</span><span class="token number">1</span><span class="token punctuation">]</span><span class="token operator">-</span>PointValue<span class="token punctuation">[</span>i<span class="token punctuation">]</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>d<span class="token operator">&gt;</span><span class="token number">0</span><span class="token punctuation">)</span>
+        SampleDiff<span class="token punctuation">[</span>i<span class="token punctuation">]</span> <span class="token operator">:</span><span class="token operator">=</span> <span class="token number">1</span>
+    <span class="token function">elseif</span> <span class="token punctuation">(</span>d<span class="token operator">&lt;</span><span class="token number">0</span><span class="token punctuation">)</span>
+        SampleDiff<span class="token punctuation">[</span>i<span class="token punctuation">]</span> <span class="token operator">:</span><span class="token operator">=</span> <span class="token operator">-</span><span class="token number">1</span>
+    <span class="token keyword">else</span>
+        SampleDiff<span class="token punctuation">[</span>i<span class="token punctuation">]</span> <span class="token operator">:</span><span class="token operator">=</span> <span class="token number">0</span>
+    endif
+
+endfor
+
+<span class="token operator">*</span> step <span class="token number">2</span> <span class="token operator">:</span>对相邻相等的点进行领边坡度处理
+<span class="token keyword">for</span> i <span class="token operator">:</span><span class="token operator">=</span> <span class="token number">0</span> to SAMPLE_MAX<span class="token operator">-</span><span class="token number">2</span> by <span class="token number">1</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>SampleDiff<span class="token punctuation">[</span>i<span class="token punctuation">]</span><span class="token operator">==</span><span class="token number">0</span><span class="token punctuation">)</span>
+
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>i<span class="token operator">==</span><span class="token punctuation">(</span>SAMPLE_MAX<span class="token operator">-</span><span class="token number">2</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+
+            <span class="token keyword">if</span> <span class="token punctuation">(</span>SampleDiff<span class="token punctuation">[</span>i <span class="token operator">-</span> <span class="token number">1</span><span class="token punctuation">]</span> <span class="token operator">&gt;=</span> <span class="token number">0</span><span class="token punctuation">)</span>
+                SampleDiff<span class="token punctuation">[</span>i<span class="token punctuation">]</span> <span class="token operator">:</span><span class="token operator">=</span> <span class="token number">1</span>
+            <span class="token keyword">else</span>
+                SampleDiff<span class="token punctuation">[</span>i<span class="token punctuation">]</span> <span class="token operator">:</span><span class="token operator">=</span> <span class="token operator">-</span><span class="token number">1</span>
+            endif
+        <span class="token keyword">else</span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span>SampleDiff<span class="token punctuation">[</span>i <span class="token operator">+</span> <span class="token number">1</span><span class="token punctuation">]</span> <span class="token operator">&gt;=</span> <span class="token number">0</span><span class="token punctuation">)</span>
+                SampleDiff<span class="token punctuation">[</span>i<span class="token punctuation">]</span> <span class="token operator">:</span><span class="token operator">=</span> <span class="token number">1</span>
+            <span class="token keyword">else</span>
+                SampleDiff<span class="token punctuation">[</span>i<span class="token punctuation">]</span> <span class="token operator">:</span><span class="token operator">=</span> <span class="token operator">-</span><span class="token number">1</span>
+            endif
+        endif
+    endif
+endfor
+
+<span class="token operator">*</span> step <span class="token number">3</span> <span class="token operator">:</span>对相邻相等的点进行领边坡度处理
+Pos_PeakL <span class="token operator">:</span><span class="token operator">=</span> <span class="token number">0</span>
+Pos_ValleyL <span class="token operator">:</span><span class="token operator">=</span> <span class="token number">0</span>
+<span class="token keyword">for</span> i <span class="token operator">:</span><span class="token operator">=</span> <span class="token number">0</span> to SAMPLE_MAX <span class="token operator">-</span> <span class="token number">2</span> by <span class="token number">1</span>
+    <span class="token operator">*</span> <span class="token comment">//波峰识别</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>SampleDiff<span class="token punctuation">[</span>i <span class="token operator">+</span> <span class="token number">1</span><span class="token punctuation">]</span> <span class="token operator">-</span> SampleDiff<span class="token punctuation">[</span>i<span class="token punctuation">]</span> <span class="token operator">==</span> <span class="token operator">-</span><span class="token number">2</span><span class="token punctuation">)</span>
+        Pos_Peak<span class="token punctuation">[</span>Pos_PeakL<span class="token punctuation">]</span> <span class="token operator">:</span><span class="token operator">=</span> i<span class="token operator">+</span><span class="token number">1</span>
+        Pos_PeakL <span class="token operator">:</span><span class="token operator">=</span> Pos_PeakL<span class="token operator">+</span><span class="token number">1</span>
+        <span class="token operator">*</span> <span class="token comment">//波谷识别</span>
+    <span class="token function">elseif</span> <span class="token punctuation">(</span>SampleDiff<span class="token punctuation">[</span>i <span class="token operator">+</span> <span class="token number">1</span><span class="token punctuation">]</span> <span class="token operator">-</span> SampleDiff<span class="token punctuation">[</span>i<span class="token punctuation">]</span> <span class="token operator">==</span> <span class="token number">2</span><span class="token punctuation">)</span>
+        Pos_Valley<span class="token punctuation">[</span>Pos_ValleyL<span class="token punctuation">]</span> <span class="token operator">:</span><span class="token operator">=</span> i<span class="token operator">+</span><span class="token number">1</span>
+        Pos_ValleyL <span class="token operator">:</span><span class="token operator">=</span> Pos_ValleyL<span class="token operator">+</span><span class="token number">1</span>
+    endif
+
+endfor
+<span class="token keyword">return</span> <span class="token punctuation">(</span><span class="token punctuation">)</span>
+</code></pre> 
+<h3><a id="_144"></a>总结</h3> 
+<p><font color="#999AAA">下次分享C#版拟合直线代码。</font></p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/d6b99d0bd0198d7ecc0f777cf723cb2f/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">每日一题11-最近的公共祖先-最大的连续bit数</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/4abddd25a1124bbdf58cda25321da5b5/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">【大数据】如何将数据导入ClickHouse？</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

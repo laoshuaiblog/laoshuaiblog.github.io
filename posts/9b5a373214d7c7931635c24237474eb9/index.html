@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>CAT3.0的集群部署 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/9b5a373214d7c7931635c24237474eb9/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="CAT3.0的集群部署">
+  <meta property="og:description" content="转载 https://www.jianshu.com/p/13d9de1f7fe5
+CAT安装环境 CentOS 6.5 Java 6，7，8，服务端推荐是用jdk7的版本，客户端jdk6、7、8都支持 Maven 3及以上 MySQL 5.6，5.7，更高版本MySQL都不建议使用，不清楚兼容性 J2EE容器建议使用tomcat，建议使用推荐版本7..或8.0.* Hadoop环境可选，一般建议规模较小的公司直接使用磁盘模式，可以申请CAT服务端，500GB磁盘或者更大磁盘，这个磁盘挂载在/data/目录上 CAT组件 CAT主要由以下组件组成： cat-home: 服务端组件，负责收集监控信息，分析处理生成报告、执行告警 cat-client: 客户端组件，负责与服务端进行连接通信， cat-core: 核心处理组件，负责具体的与客户端通信服务，解析数据、输出报告 cat-consumer : 消费处理组件，负责实际的监控数据分析，处理工作 cat-hadoop : HDFS存储组件 安装CAT集群步骤概览 初始化Mysql数据库，一套CAT集群需要部署一个数据库，数据库脚本script/CatApplication.sql 准备三台CAT服务器，IP假设为10.1.1.1，10.1.1.2，10.1.1.3，下面的集群模式安装会以这些IP为例 初始化/data/目录，配置几个配置文件/data/appdatas/cat/*.xml 几个配置文件，具体下面有详细说明 打包并重命名为cat.war，放入tomcat容器webapps根目录下，并启动tomcat 修改服务器配置、及路由配置，重启tomcat 步骤1： 部署tomcat 调整启动参数，修改 catalina.sh文件【服务端】 需要每台CAT集群10.1.1.1，10.1.1.2，10.1.1.3都进行部署 建议使用cms gc策略 建议cat的使用堆大小至少10G以上，开发环境启动2G堆启动即可 CATALINA_OPTS=&#34;$CATALINA_OPTS -server -Djava.awt.headless=true -Xms25G -Xmx25G -XX:PermSize=256m -XX:MaxPermSize=256m -XX:NewSize=10144m -XX:MaxNewSize=10144m -XX:SurvivorRatio=10 -XX:&#43;UseParNewGC -XX:ParallelGCThreads=4 -XX:MaxTenuringThreshold=13 -XX:&#43;UseConcMarkSweepGC -XX:&#43;DisableExplicitGC -XX:&#43;UseCMSInitiatingOccupancyOnly -XX:&#43;ScavengeBeforeFullGC -XX:&#43;UseCMSCompactAtFullCollection -XX:&#43;CMSParallelRemarkEnabled -XX:CMSFullGCsBeforeCompaction=9 -XX:CMSInitiatingOccupancyFraction=60 -XX:&#43;CMSClassUnloadingEnabled -XX:SoftRefLRUPolicyMSPerMB=0 -XX:-ReduceInitialCardMarks -XX:&#43;CMSPermGenSweepingEnabled -XX:CMSInitiatingPermOccupancyFraction=70 -XX:&#43;ExplicitGCInvokesConcurrent -Djava.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2020-10-28T12:31:33+08:00">
+    <meta property="article:modified_time" content="2020-10-28T12:31:33+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">CAT3.0的集群部署</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-dark">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <p>转载 https://www.jianshu.com/p/13d9de1f7fe5</p> 
+<h4><a id="CAT_2"></a>CAT安装环境</h4> 
+<pre><code>    CentOS 6.5
+    Java 6，7，8，服务端推荐是用jdk7的版本，客户端jdk6、7、8都支持
+    Maven 3及以上
+    MySQL 5.6，5.7，更高版本MySQL都不建议使用，不清楚兼容性
+    J2EE容器建议使用tomcat，建议使用推荐版本7..或8.0.*
+    Hadoop环境可选，一般建议规模较小的公司直接使用磁盘模式，可以申请CAT服务端，500GB磁盘或者更大磁盘，这个磁盘挂载在/data/目录上
+</code></pre> 
+<ul><li>CAT组件</li></ul> 
+<pre><code>CAT主要由以下组件组成：
+    cat-home: 服务端组件，负责收集监控信息，分析处理生成报告、执行告警
+    cat-client: 客户端组件，负责与服务端进行连接通信，
+    cat-core: 核心处理组件，负责具体的与客户端通信服务，解析数据、输出报告
+    cat-consumer : 消费处理组件，负责实际的监控数据分析，处理工作
+    cat-hadoop : HDFS存储组件
+</code></pre> 
+<ul><li>安装CAT集群步骤概览</li></ul> 
+<pre><code>    初始化Mysql数据库，一套CAT集群需要部署一个数据库，数据库脚本script/CatApplication.sql
+    准备三台CAT服务器，IP假设为10.1.1.1，10.1.1.2，10.1.1.3，下面的集群模式安装会以这些IP为例
+    初始化/data/目录，配置几个配置文件/data/appdatas/cat/*.xml 几个配置文件，具体下面有详细说明
+    打包并重命名为cat.war，放入tomcat容器webapps根目录下，并启动tomcat
+    修改服务器配置、及路由配置，重启tomcat
+</code></pre> 
+<ul><li>步骤1： 部署tomcat</li></ul> 
+<pre><code>    调整启动参数，修改 catalina.sh文件【服务端】
+        需要每台CAT集群10.1.1.1，10.1.1.2，10.1.1.3都进行部署
+        建议使用cms gc策略
+        建议cat的使用堆大小至少10G以上，开发环境启动2G堆启动即可
+
+CATALINA_OPTS="$CATALINA_OPTS -server -Djava.awt.headless=true -Xms25G -Xmx25G -XX:PermSize=256m -XX:MaxPermSize=256m -XX:NewSize=10144m -XX:MaxNewSize=10144m -XX:SurvivorRatio=10 -XX:+UseParNewGC -XX:ParallelGCThreads=4 -XX:MaxTenuringThreshold=13 -XX:+UseConcMarkSweepGC -XX:+DisableExplicitGC -XX:+UseCMSInitiatingOccupancyOnly -XX:+ScavengeBeforeFullGC -XX:+UseCMSCompactAtFullCollection -XX:+CMSParallelRemarkEnabled -XX:CMSFullGCsBeforeCompaction=9 -XX:CMSInitiatingOccupancyFraction=60 -XX:+CMSClassUnloadingEnabled -XX:SoftRefLRUPolicyMSPerMB=0 -XX:-ReduceInitialCardMarks -XX:+CMSPermGenSweepingEnabled -XX:CMSInitiatingPermOccupancyFraction=70 -XX:+ExplicitGCInvokesConcurrent -Djava.nio.channels.spi.SelectorProvider=sun.nio.ch.EPollSelectorProvider -Djava.util.logging.manager=org.apache.juli.ClassLoaderLogManager -Djava.util.logging.config.file="%CATALINA_HOME%\conf\logging.properties" -XX:+PrintGCDetails -XX:+PrintGCTimeStamps -XX:+PrintGCApplicationConcurrentTime -XX:+PrintHeapAtGC -Xloggc:/data/applogs/heap_trace.txt -XX:-HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/data/applogs/HeapDumpOnOutOfMemoryError -Djava.util.Arrays.useLegacyMergeSort=true"
+</code></pre> 
+<pre><code>修改中文乱码 tomcat conf 目录下 server.xml
+&lt;Connector port="8080" protocol="HTTP/1.1"
+           URIEncoding="utf-8"    connectionTimeout="20000"
+               redirectPort="8443" /&gt;  &lt;!-- 增加  URIEncoding="utf-8"  --&gt;  
+</code></pre> 
+<ul><li>步骤2： 程序对于/data/目录具体读写权限（重要）</li></ul> 
+<pre><code>    Linux
+
+        要求/data/目录能进行读写操作，如果/data/目录不能写，建议使用linux的软链接链接到一个固定可写的目录。
+
+        此目录会存一些CAT必要的配置文件以及运行时候的数据存储目录。
+
+mkdir /data
+chmod 777 /data/ -R
+</code></pre> 
+<ul><li>步骤3： 配置/data/appdatas/cat/client.xml</li></ul> 
+<pre><code>    说明
+        此配置文件的作用是所有的客户端都需要一个地址指向CAT的服务端
+        此文件可以通过运维统一进行部署和维护，比如使用puppet等运维工具
+        不同环境这份文件不一样，比如区分prod环境以及test环境，在美团点评内部一共是2套环境的CAT，一份是生产环境，一份是测试环境
+        注意：当路由错误，且该文件夹下存在client_cache.xml，请删除client_cache.xml，再重启服务
+
+    集群模式
+
+    假设CAT服务端有三个IP，10.1.1.1，10.1.1.2，10.1.1.3，2280是默认的CAT服务端接受数据的端口，不允许修改，http-port是Tomcat启动的端口，默认是8080，建议使用默认端口
+
+&lt;?xml version="1.0" encoding="utf-8"?&gt;
+&lt;config mode="client"&gt;
+    &lt;servers&gt;
+        &lt;server ip="10.1.1.1" port="2280" http-port="8080"/&gt;
+        &lt;server ip="10.1.1.2" port="2280" http-port="8080"/&gt;
+        &lt;server ip="10.1.1.3" port="2280" http-port="8080"/&gt;
+    &lt;/servers&gt;
+&lt;/config&gt;
+</code></pre> 
+<ul><li>步骤4： 安装CAT的数据库</li></ul> 
+<pre><code>    数据库的脚本文件 script/CatApplication.sql
+
+mysql -uroot -Dcat &lt; CatApplication.sql
+
+    MySQL的一个系统参数：max_allowed_packet，其默认值为1048576(1M)，修改为1000M，修改完需要重启mysql
+
+    说明：
+        注意1：一套独立的CAT集群只需要一个数据库（之前碰到过个别同学在每台cat的服务端节点都安装了一个数据库）
+        注意2：数据库编码使用utf8mb4，否则可能造成中文乱码等问题
+</code></pre> 
+<ul><li>步骤5： 配置/data/appdatas/cat/datasources.xml</li></ul> 
+<pre><code>&lt;?xml version="1.0" encoding="utf-8"?&gt;
+
+&lt;data-sources&gt;
+   &lt;data-source id="cat"&gt;
+       &lt;maximum-pool-size&gt;3&lt;/maximum-pool-size&gt;
+       &lt;connection-timeout&gt;1s&lt;/connection-timeout&gt;
+       &lt;idle-timeout&gt;10m&lt;/idle-timeout&gt;
+       &lt;statement-cache-size&gt;1000&lt;/statement-cache-size&gt;
+       &lt;properties&gt;
+           &lt;driver&gt;com.mysql.jdbc.Driver&lt;/driver&gt;
+           &lt;url&gt;&lt;![CDATA[jdbc:mysql://127.0.0.1:3306/cat]]&gt;&lt;/url&gt;  &lt;!-- 请替换为真实数据库URL及Port  --&gt;
+           &lt;user&gt;root&lt;/user&gt;  &lt;!-- 请替换为真实数据库用户名  --&gt;
+           &lt;password&gt;root&lt;/password&gt;  &lt;!-- 请替换为真实数据库密码  --&gt;
+           &lt;connectionProperties&gt;&lt;![CDATA[useUnicode=true&amp;characterEncoding=UTF-8&amp;autoReconnect=true&amp;socketTimeout=120000]]&gt;&lt;/connectionProperties&gt;
+       &lt;/properties&gt;
+   &lt;/data-source&gt;
+&lt;/data-sources&gt;
+
+   说明
+       此xml仅仅为模板，请根据自己实际的情况替换jdbc.url,jdbc.user,jdbc.password的实际值。
+       集群模式每台CAT集群10.1.1.1，10.1.1.2，10.1.1.3都需要部署此文件
+</code></pre> 
+<ul><li>步骤6： war打包</li></ul> 
+<pre><code>    源码构建
+        在cat的源码目录，执行mvn clean install -DskipTests
+        如果发现cat的war打包不通过，CAT所需要依赖jar都部署在 http://unidal.org/nexus/
+        可以配置这个公有云的仓库地址到本地Maven配置（一般为~/.m2/settings.xml)，理论上不需要配置即可，可以参考cat的pom.xml配置：
+
+&lt;repositories&gt;
+  &lt;repository&gt;
+     &lt;id&gt;central&lt;/id&gt;
+     &lt;name&gt;Maven2 Central Repository&lt;/name&gt;
+     &lt;layout&gt;default&lt;/layout&gt;
+     &lt;url&gt;http://repo1.maven.org/maven2&lt;/url&gt;
+  &lt;/repository&gt;
+  &lt;repository&gt;
+     &lt;id&gt;unidal.releases&lt;/id&gt;
+     &lt;url&gt;http://unidal.org/nexus/content/repositories/releases/&lt;/url&gt;
+  &lt;/repository&gt;
+&lt;/repositories&gt;
+
+    官方下载
+
+        如果自行打包仍然问题，请使用下面链接进行下载：
+
+        http://unidal.org/nexus/service/local/repositories/releases/content/com/dianping/cat/cat-home/3.0.0/cat-home-3.0.0.war
+
+        官方的cat的master版本，重命名为cat.war进行部署，注意此war是用jdk8，服务端请使用jdk8版本
+</code></pre> 
+<ul><li>步骤7： war部署</li></ul> 
+<pre><code>    集群模式
+        将上一步打包的war包部署到本机tomcat的webapps下，启动tomcat（war包路径为cat-home/target/cat-alpha-3.x.x.war）
+        cat服务需要部署在tomcat下的/cat路径下，方式请自行搜索“tomcat contextPath配置”
+        打开控制台的URL，http://10.1.1.1:8080/cat/s/config?op=routerConfigUpdate
+        默认用户名：admin 默认密码：admin。CAT本身无登录和权限校验功能，请按需定制
+
+&lt;?xml version="1.0" encoding="utf-8"?&gt;
+&lt;router-config backup-server="10.1.1.1" backup-server-port="2280"&gt;
+   &lt;default-server id="10.1.1.1" weight="1.0" port="2280" enable="false"/&gt;
+   &lt;default-server id="10.1.1.2" weight="1.0" port="2280" enable="true"/&gt;
+   &lt;default-server id="10.1.1.3" weight="1.0" port="2280" enable="true"/&gt;
+   &lt;network-policy id="default" title="default" block="false" server-group="default_group"&gt;
+   &lt;/network-policy&gt;
+   &lt;server-group id="default_group" title="default-group"&gt;
+      &lt;group-server id="10.1.1.2"/&gt;
+      &lt;group-server id="10.1.1.3"/&gt;
+   &lt;/server-group&gt;
+   &lt;domain id="cat"&gt;
+      &lt;group id="default"&gt;
+         &lt;server id="10.1.1.2" port="2280" weight="1.0"/&gt;
+         &lt;server id="10.1.1.3" port="2280" weight="1.0"/&gt;
+      &lt;/group&gt;
+   &lt;/domain&gt;
+&lt;/router-config&gt;
+
+        重启10.1.1.1的机器的tomcat
+        将cat.war部署到10.1.1.2，10.1.1.3这两台机器中，启动tomcat
+
+    说明：
+        注意10.1.1.1，10.1.1.2，10.1.1.3这几个IP需要替换为自己实际的IP，修改路由配置仅仅需要修改一次即可，这部分数据会存入mysql中。
+        enable=false表示机器不可用，10.1.1.1机器不做为消费机集群。所有客户端上报的消息都由于10.1.1.2，10.1.1.3来处理。
+        更多服务端机器按需添加Xml配置即可。
+</code></pre> 
+<ul><li>步骤8： 服务端配置</li></ul> 
+<pre><code>配置链接：http://{ip:port}/cat/s/config?op=serverConfigUpdate
+
+说明：这个只需要更新一次，配置是保存在mysql的数据库里面。
+
+    CAT节点的不同职责
+        控制台 - 提供给业务人员进行数据查看【默认所有的cat节点都可以作为控制台，不可配置】
+        消费机 - 实时接收业务数据，实时处理，提供实时分析报表【默认所有的cat节点都可以作为消费机，不可配置】
+        告警端 - 启动告警线程，进行规则匹配，发送告警（目前仅支持单点部署）【可以配置】
+        任务机 - 做一些离线的任务，合并天、周、月等报表 【可以配置】
+
+    集群模式
+
+    线上做多集群部署，假设有10.1.1.1，10.1.1.2，10.1.1.3这三台机器
+        建议选取一台10.1.1.1 负责角色有控制台、告警端、任务机，建议配置域名访问CAT，就配置一台机器10.1.1.1一台机器挂在域名下面
+        10.1.1.2，10.1.1.3 负责消费机处理，这样能做到有效隔离，任务机、告警等问题不影响实时数据处理
+        remote-servers 这个一定要配置正确，端口号为8080，这里面的remote-servers为10.1.1.1:8080,10.1.1.2:8080,10.1.1.3:8080
+        完成以上步骤，重启下当前CAT节点
+
+    配置的sample如下： id="default"是默认的配置信息，server id="10.1.1.1" 如下的配置是表示10.1.1.1这台服务器的节点配置覆盖default的配置信息，比如下面的job-machine，alarm-machine，send-machine为true。
+
+&lt;?xml version="1.0" encoding="utf-8"?&gt;
+&lt;server-config&gt;
+   &lt;server id="default"&gt;
+      &lt;properties&gt;
+         &lt;property name="local-mode" value="false"/&gt;
+         &lt;property name="job-machine" value="false"/&gt;
+         &lt;property name="send-machine" value="false"/&gt;
+         &lt;property name="alarm-machine" value="false"/&gt;
+         &lt;property name="hdfs-enabled" value="false"/&gt;
+         &lt;property name="remote-servers" value="10.1.1.1:8080,10.1.1.2:8080,10.1.1.3:8080"/&gt;
+      &lt;/properties&gt;
+      &lt;storage  local-base-dir="/data/appdatas/cat/bucket/" max-hdfs-storage-time="15" local-report-storage-time="7" local-logivew-storage-time="7"&gt;
+        &lt;hdfs id="logview" max-size="128M" server-uri="hdfs://10.1.77.86/user/cat" base-dir="logview"/&gt;
+        &lt;hdfs id="dump" max-size="128M" server-uri="hdfs://10.1.77.86/user/cat" base-dir="dump"/&gt;
+        &lt;hdfs id="remote" max-size="128M" server-uri="hdfs://10.1.77.86/user/cat" base-dir="remote"/&gt;
+      &lt;/storage&gt;
+      &lt;consumer&gt;
+         &lt;long-config default-url-threshold="1000" default-sql-threshold="100" default-service-threshold="50"&gt;
+            &lt;domain name="cat" url-threshold="500" sql-threshold="500"/&gt;
+            &lt;domain name="OpenPlatformWeb" url-threshold="100" sql-threshold="500"/&gt;
+         &lt;/long-config&gt;
+      &lt;/consumer&gt;
+   &lt;/server&gt;
+   &lt;server id="10.1.1.1"&gt;
+      &lt;properties&gt;
+         &lt;property name="job-machine" value="true"/&gt;
+         &lt;property name="alarm-machine" value="true"/&gt;
+     &lt;property name="send-machine" value="true"/&gt;
+      &lt;/properties&gt;
+   &lt;/server&gt;
+&lt;/server-config&gt;
+
+    配置说明：
+
+请注意：当一个机器角色更改后，请重启该机器！
+server模型：代表一台机器的配置。如果id为default，代表默认配置；如果id为ip，代表该台服务器的配置
+
+  * property local-mode : 定义服务是否为本地模式（开发模式），在生产环境时，设置为false,启动远程监听模式。默认为 false;
+  * property hdfs-machine : 定义是否启用HDFS存储方式，默认为 false；
+  * property job-machine : 定义当前服务是否为报告工作机（开启生成汇总报告和统计报告的任务，只需要一台服务机开启此功能），默认为 false；
+  * property alarm-machine : 定义当前服务是否为报警机（开启各类报警监听，只需要一台服务机开启此功能），默认为 false；
+  * property send-machine : 定义当前服务告警是否发送（当时为了解决测试环境开启告警线程，但是最后告警不通知，此配置后续会逐步去除，建议alarm-machine开启为true的时候，这个同步为true）
+
+storage模型: 定义数据存储配置信息
+
+  * property local-report-storage-time : 定义本地报告存放时长，单位为（天）
+  * property local-logivew-storage-time : 定义本地日志存放时长，单位为（天）
+  * property local-base-dir : 定义本地数据存储目录.
+  * property hdfs : 定义HDFS配置信息，便于直接登录系统
+  * property server-uri : 定义HDFS服务地址
+  * property console : 定义服务控制台信息
+  * property remote-servers : 定义HTTP服务列表，（远程监听端同步更新服务端信息即取此值）
+  * ldap : 定义LDAP配置信息（这个可以忽略）
+  * ldapUrl : 定义LDAP服务地址（这个可以忽略）
+
+1.每个cat客户端连接cat服务器时，cat服务器会根据路由规则分配给客户端一个cat服务端的节点，然后这个cat客户端与cat服务端节点保持长连接，以后这个cat客户端就一直给这个cat服务端节点发送数据。
+2.这样每个cat服务端节点存储的数据都是不一样的，这样处理是合理的，这样能够充分利用每个节点的存储空间和cpu,带宽等资源。
+3.当我们打开控制台看项目和项目的logview的时候，控制台会遍历各个节点的数据进行展示和查看
+</code></pre> 
+<ul><li>步骤9： 重启不影响数据可用性</li></ul> 
+<pre><code>    请在tomcat重启之前调用当前tomcat的存储数据的链接 http://${ip}:8080/cat/r/home?op=checkpoint，重启之后数据会恢复。【注意重启时间在每小时的整点10-55分钟之间】
+    线上部署时候，建议把此链接调用存放于tomcat的stop脚本中，这样不需要每次手工调用
+</code></pre> 
+<ul><li>步骤10： 本地开发环境运行CAT</li></ul> 
+<pre><code>    请参照上述步骤，进行如下配置：
+
+    配置/data/appdatas/cat/client.xml文件
+    配置/data/appdatas/cat/datasources.xml文件
+    服务器配置 http://{ip:port}/cat/s/config?op=serverConfigUpdate （注意本地节点的角色，job-machine&amp;alarm-machine都可以配置为true，以便于debug）
+
+    根据ide的类型，在cat目录中执行 mvn eclipse:eclipse 或者 mvn idea:idea，此步骤会生成一些代码文件，直接导入到工程会发现找不到类
+    如果ide是eclipse，将源码以普通项目到入eclipse中，注意不要以maven项目导入工程
+    启动方式：
+
+    Intellij IDEA 推荐使用tomcat插件启动cat-home模块，application context设置为/cat。
+    Tomcat启动：打成war包，将war包部署在Tomcat后，启动Tomcat
+    test case启动：运行com.dianping.cat.TestServer 这个类，即可启动cat服务器；注意：执行的是startWebApp()这个test case
+</code></pre>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/4cc604b76cbdcae60161cf73a269990a/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">深度学习CNN网络推理时Batchnorm层和卷积层的融合，以提升推理速度。</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/24128f7bfaf8d8df918e3c0f4c270949/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">Batch Normalization的诅咒</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

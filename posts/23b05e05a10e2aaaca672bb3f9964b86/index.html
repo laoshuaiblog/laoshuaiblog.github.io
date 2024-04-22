@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>kubectl exec 遇到 unable to upgrade connection Forbidden 的解决办法 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/23b05e05a10e2aaaca672bb3f9964b86/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="kubectl exec 遇到 unable to upgrade connection Forbidden 的解决办法">
+  <meta property="og:description" content="为确保安全，`kubernetes` 系统各组件需要使用 `x509` 证书对通信进行加密和认证。
+当我执行 kubectl exec 命令来登陆到 Pod 里面进行操作。遇到以下问题：
+[root@k97 work]# kubectl get pods -o wide NAME READY STATUS RESTARTS AGE IP NODE NOMINATED NODE READINESS GATES dnsutils-ds-bd9pz 1/1 Running 0 26s 172.16.176.4 k99 &amp;lt;none&amp;gt; &amp;lt;none&amp;gt; dnsutils-ds-p4d2x 1/1 Running 0 26s 172.16.120.4 k97 &amp;lt;none&amp;gt; &amp;lt;none&amp;gt; dnsutils-ds-pfhzs 1/1 Running 0 26s 172.16.232.4 k98 &amp;lt;none&amp;gt; &amp;lt;none&amp;gt; my-nginx-86575b68dc-8s44j 1/1 Running 0 8m4s 172.16.176.3 k99 &amp;lt;none&amp;gt; &amp;lt;none&amp;gt; my-nginx-86575b68dc-q89h4 1/1 Running 0 8m4s 172.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2021-02-25T09:35:21+08:00">
+    <meta property="article:modified_time" content="2021-02-25T09:35:21+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">kubectl exec 遇到 unable to upgrade connection Forbidden 的解决办法</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <p>为确保安全，`kubernetes` 系统各组件需要使用 `x509` 证书对通信进行加密和认证。</p> 
+<p>当我执行 kubectl exec 命令来登陆到 Pod 里面进行操作。遇到以下问题：</p> 
+<pre><code>[root@k97 work]# kubectl get pods -o wide
+NAME                        READY   STATUS    RESTARTS   AGE    IP             NODE   NOMINATED NODE   READINESS GATES
+dnsutils-ds-bd9pz           1/1     Running   0          26s    172.16.176.4   k99    &lt;none&gt;           &lt;none&gt;
+dnsutils-ds-p4d2x           1/1     Running   0          26s    172.16.120.4   k97    &lt;none&gt;           &lt;none&gt;
+dnsutils-ds-pfhzs           1/1     Running   0          26s    172.16.232.4   k98    &lt;none&gt;           &lt;none&gt;
+my-nginx-86575b68dc-8s44j   1/1     Running   0          8m4s   172.16.176.3   k99    &lt;none&gt;           &lt;none&gt;
+my-nginx-86575b68dc-q89h4   1/1     Running   0          8m4s   172.16.120.3   k97    &lt;none&gt;           &lt;none&gt;
+nginx-ds-jgnqw              1/1     Running   0          18h    172.16.176.2   k99    &lt;none&gt;           &lt;none&gt;
+nginx-ds-ks4cf              1/1     Running   0          18h    172.16.232.2   k98    &lt;none&gt;           &lt;none&gt;
+nginx-ds-z6d2h              1/1     Running   0          18h    172.16.120.2   k97    &lt;none&gt;           &lt;none&gt;
+
+[root@k97 work]# kubectl -it exec dnsutils-ds-p4d2x  cat /etc/resolv.conf
+error: unable to upgrade connection: Forbidden (user=kubernetes-master, verb=create, resource=nodes, subresource=proxy)
+[root@k97 work]# </code></pre> 
+<p>分析解决问题：</p> 
+<p>在执行 kubectl exec、run、logs 等命令时，apiserver 会将请求转发到 kubelet 的 https 端口，并且我使用的 Kubernetes 集群启用了 RBAC。</p> 
+<p>这里定义 RBAC 规则，授权 apiserver 使用的证书（kubernetes.pem）用户名（CN：kuberntes-master）访问 kubelet API 的权限：</p> 
+<pre><code>[root@k97 work]# kubectl create clusterrolebinding kube-apiserver:kubelet-apis --clusterrole=system:kubelet-api-admin --user kubernetes-master
+clusterrolebinding.rbac.authorization.k8s.io/kube-apiserver:kubelet-apis created</code></pre> 
+<p>授予 kube-apiserver 访问 kubelet API 的权限</p> 
+<p>完成后再执行：</p> 
+<pre><code>
+[root@k97 work]# kubectl -it exec dnsutils-ds-p4d2x  cat /etc/resolv.conf
+nameserver 10.254.0.2
+search default.svc.cluster.local svc.cluster.local cluster.local mayocase.com
+options ndots:5
+[root@k97 work]# </code></pre> 
+<p>网上找到的另一个办法（不推荐）：</p> 
+<p>解决办法2:<br> 为 system:anonymous 临时绑定一个 cluster-admin 的权限</p> 
+<pre><code>kubectl create clusterrolebinding system:anonymous --clusterrole=cluster-admin --user=system:anonymous
+</code></pre> 
+<p>这个权限放太松了，很危险。 可以只对 anonymous 用户绑定必要权限即可，修改为：</p> 
+<pre><code>kubectl create clusterrolebinding kube-apiserver:kubelet-apis --clusterrole=system:kubelet-api-admin --user=system:anonymous
+</code></pre> 
+<p> </p> 
+<p> </p> 
+<p> </p> 
+<p> </p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/586f905832f2d8e3fc3b4cc3fd9aadaf/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">类比学习——java 泛型&amp; kotlin 泛型中的 in out where</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/0ca4f530dcd0c9996780b99c8311b8ea/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">the server is currently unable to handle the request  (get pods.metrics.k8s.io)</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

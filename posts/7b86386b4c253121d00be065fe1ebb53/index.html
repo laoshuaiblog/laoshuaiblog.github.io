@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>linux中的SGI(核间中断)IPI_RESCHEDULE详解 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/7b86386b4c253121d00be065fe1ebb53/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="linux中的SGI(核间中断)IPI_RESCHEDULE详解">
+  <meta property="og:description" content="1、SGI中断(核间通信中断) 在gicv2/gicv3中，SGI中断（中断号0-15）是software generate interrupt，用户核间中断。
+我们一般将0-7划分给linux中使用，8-15给TEE使用。在smp.c定义了linux中使用的SGI中断。
+kernel/arch/arm/kernel/smp.c
+enum ipi_msg_type {
+IPI_WAKEUP,
+IPI_TIMER,
+IPI_RESCHEDULE,
+IPI_CALL_FUNC,
+IPI_CPU_STOP,
+IPI_IRQ_WORK,
+IPI_COMPLETION,
+/*
+* CPU_BACKTRACE is special and not included in NR_IPI
+* or tracable with trace_ipi_*
+/
+IPI_CPU_BACKTRACE,
+#ifdef CONFIG_TRUSTY
+IPI_CUSTOM_FIRST,
+IPI_CUSTOM_LAST = 15,
+#endif
+/
+* SGI8-15 can be reserved by secure firmware, and thus may
+* not be usable by the kernel. Please keep the above limited
+* to at most 8 entries.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2020-06-30T16:12:13+08:00">
+    <meta property="article:modified_time" content="2020-06-30T16:12:13+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">linux中的SGI(核间中断)IPI_RESCHEDULE详解</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-light">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <h4><a id="1SGI_1"></a>1、SGI中断(核间通信中断)</h4> 
+<p>在gicv2/gicv3中，SGI中断（中断号0-15）是software generate interrupt，用户核间中断。<br> 我们一般将0-7划分给linux中使用，8-15给TEE使用。在smp.c定义了linux中使用的SGI中断。</p> 
+<p>kernel/arch/arm/kernel/smp.c<br> enum ipi_msg_type {<!-- --><br> IPI_WAKEUP,<br> IPI_TIMER,<br> IPI_RESCHEDULE,<br> IPI_CALL_FUNC,<br> IPI_CPU_STOP,<br> IPI_IRQ_WORK,<br> IPI_COMPLETION,<br> /*<br> * CPU_BACKTRACE is special and not included in NR_IPI<br> * or tracable with trace_ipi_*<br> <em>/<br> IPI_CPU_BACKTRACE,<br> #ifdef CONFIG_TRUSTY<br> IPI_CUSTOM_FIRST,<br> IPI_CUSTOM_LAST = 15,<br> #endif<br> /</em><br> * SGI8-15 can be reserved by secure firmware, and thus may<br> * not be usable by the kernel. Please keep the above limited<br> * to at most 8 entries.<br> */<br> };</p> 
+<h4><a id="2SGI_30"></a>2、SGI中断的调用流程</h4> 
+<h6><a id="1CPUIRQ_31"></a>（1）、CPU收到IRQ后的处理</h6> 
+<p>当ARM core收到IRQ后，会触发cpu的irq异常，会跳转到linux kernel的irq异常向量表，在该向量表中，会调用gicv2/gicv3的gic_handle_irq函数，在kernel/drivers/irqchip/irq-gic-v3.c中</p> 
+<ul><li><strong>irqnr = gic_read_iar() 读gic寄存器获取硬件中断号</strong></li><li><strong>likely(irqnr &gt; 15 &amp;&amp; irqnr &lt; 1020) || irqnr &gt;= 8192 这这个条件下处理PPI中断和SPI中断</strong></li><li><strong>if (irqnr &lt; 16) 在这个条件下调用handle_IPI(irqnr, regs)来处理SGI中断</strong></li></ul> 
+<pre><code class="prism language-clike">static asmlinkage void __exception_irq_entry <span class="token function">gic_handle_irq</span><span class="token punctuation">(</span>struct pt_regs <span class="token operator">*</span>regs<span class="token punctuation">)</span>
+<span class="token punctuation">{<!-- --></span>
+	u32 irqnr<span class="token punctuation">;</span>
+
+	<span class="token keyword">do</span> <span class="token punctuation">{<!-- --></span>
+		irqnr <span class="token operator">=</span> <span class="token function">gic_read_iar</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+		<span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">likely</span><span class="token punctuation">(</span>irqnr <span class="token operator">&gt;</span> <span class="token number">15</span> <span class="token operator">&amp;&amp;</span> irqnr <span class="token operator">&lt;</span> <span class="token number">1020</span><span class="token punctuation">)</span> <span class="token operator">||</span> irqnr <span class="token operator">&gt;=</span> <span class="token number">8192</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+			int err<span class="token punctuation">;</span>
+
+			<span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">static_key_true</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>supports_deactivate<span class="token punctuation">)</span><span class="token punctuation">)</span>
+				<span class="token function">gic_write_eoir</span><span class="token punctuation">(</span>irqnr<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+			err <span class="token operator">=</span> <span class="token function">handle_domain_irq</span><span class="token punctuation">(</span>gic_data<span class="token punctuation">.</span>domain<span class="token punctuation">,</span> irqnr<span class="token punctuation">,</span> regs<span class="token punctuation">)</span><span class="token punctuation">;</span>
+			<span class="token keyword">if</span> <span class="token punctuation">(</span>err<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+				<span class="token function">WARN_ONCE</span><span class="token punctuation">(</span><span class="token boolean">true</span><span class="token punctuation">,</span> <span class="token string">"Unexpected interrupt received!\n"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+				<span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">static_key_true</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>supports_deactivate<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+					<span class="token keyword">if</span> <span class="token punctuation">(</span>irqnr <span class="token operator">&lt;</span> <span class="token number">8192</span><span class="token punctuation">)</span>
+						<span class="token function">gic_write_dir</span><span class="token punctuation">(</span>irqnr<span class="token punctuation">)</span><span class="token punctuation">;</span>
+				<span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{<!-- --></span>
+					<span class="token function">gic_write_eoir</span><span class="token punctuation">(</span>irqnr<span class="token punctuation">)</span><span class="token punctuation">;</span>
+				<span class="token punctuation">}</span>
+			<span class="token punctuation">}</span>
+			<span class="token keyword">continue</span><span class="token punctuation">;</span>
+		<span class="token punctuation">}</span>
+		<span class="token keyword">if</span> <span class="token punctuation">(</span>irqnr <span class="token operator">&lt;</span> <span class="token number">16</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+			<span class="token function">gic_write_eoir</span><span class="token punctuation">(</span>irqnr<span class="token punctuation">)</span><span class="token punctuation">;</span>
+			<span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">static_key_true</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>supports_deactivate<span class="token punctuation">)</span><span class="token punctuation">)</span>
+				<span class="token function">gic_write_dir</span><span class="token punctuation">(</span>irqnr<span class="token punctuation">)</span><span class="token punctuation">;</span>
+#ifdef CONFIG_SMP
+			<span class="token comment">/*
+			 * Unlike GICv2, we don't need an smp_rmb() here.
+			 * The control dependency from gic_read_iar to
+			 * the ISB in gic_write_eoir is enough to ensure
+			 * that any shared data read by handle_IPI will
+			 * be read after the ACK.
+			 */</span>
+			<span class="token function">handle_IPI</span><span class="token punctuation">(</span>irqnr<span class="token punctuation">,</span> regs<span class="token punctuation">)</span><span class="token punctuation">;</span>
+#<span class="token keyword">else</span>
+			<span class="token function">WARN_ONCE</span><span class="token punctuation">(</span><span class="token boolean">true</span><span class="token punctuation">,</span> <span class="token string">"Unexpected SGI received!\n"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+#endif
+			<span class="token keyword">continue</span><span class="token punctuation">;</span>
+		<span class="token punctuation">}</span>
+	<span class="token punctuation">}</span> <span class="token keyword">while</span> <span class="token punctuation">(</span>irqnr <span class="token operator">!=</span> ICC_IAR1_EL1_SPURIOUS<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<h6><a id="2SGI_86"></a>（2）、处理SGI中断（也叫核间通信中断）</h6> 
+<pre><code class="prism language-clike">void <span class="token function">handle_IPI</span><span class="token punctuation">(</span>int ipinr<span class="token punctuation">,</span> struct pt_regs <span class="token operator">*</span>regs<span class="token punctuation">)</span>
+<span class="token punctuation">{<!-- --></span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+	case IPI_RESCHEDULE<span class="token punctuation">:</span>
+		<span class="token function">scheduler_ipi</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token keyword">break</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<h6><a id="3IPI_RESCHEDULE_99"></a>（3）、处理IPI_RESCHEDULE中断的操作</h6> 
+<pre><code class="prism language-clike">void <span class="token function">scheduler_ipi</span><span class="token punctuation">(</span>void<span class="token punctuation">)</span>
+<span class="token punctuation">{<!-- --></span>
+	int cpu <span class="token operator">=</span> <span class="token function">smp_processor_id</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+	<span class="token comment">/*
+	 * Fold TIF_NEED_RESCHED into the preempt_count; anybody setting
+	 * TIF_NEED_RESCHED remotely (for the first time) will also send
+	 * this IPI.
+	 */</span>
+	<span class="token function">preempt_fold_need_resched</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+	<span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">llist_empty</span><span class="token punctuation">(</span><span class="token operator">&amp;</span><span class="token function">this_rq</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">-</span><span class="token operator">&gt;</span>wake_list<span class="token punctuation">)</span> <span class="token operator">&amp;&amp;</span> <span class="token operator">!</span><span class="token function">got_nohz_idle_kick</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+#ifdef CONFIG_MTK_SCHED_MONITOR
+		<span class="token function">mt_trace_IPI_start</span><span class="token punctuation">(</span>IPI_RESCHEDULE<span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token function">mt_trace_IPI_end</span><span class="token punctuation">(</span>IPI_RESCHEDULE<span class="token punctuation">)</span><span class="token punctuation">;</span>
+#endif
+		<span class="token keyword">return</span><span class="token punctuation">;</span>
+	<span class="token punctuation">}</span>
+
+
+	<span class="token comment">/*
+	 * Not all reschedule IPI handlers call irq_enter/irq_exit, since
+	 * traditionally all their work was done from the interrupt return
+	 * path. Now that we actually do some work, we need to make sure
+	 * we do call them.
+	 *
+	 * Some archs already do call them, luckily irq_enter/exit nest
+	 * properly.
+	 *
+	 * Arguably we should visit all archs and update all handlers,
+	 * however a fair share of IPIs are still resched only so this would
+	 * somewhat pessimize the simple resched case.
+	 */</span>
+	<span class="token function">irq_enter</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+#ifdef CONFIG_MTK_SCHED_MONITOR
+	<span class="token function">mt_trace_IPI_start</span><span class="token punctuation">(</span>IPI_RESCHEDULE<span class="token punctuation">)</span><span class="token punctuation">;</span>
+#endif
+	<span class="token function">sched_ttwu_pending</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+	<span class="token comment">/*
+	 * Check if someone kicked us for doing the nohz idle load balance.
+	 */</span>
+	<span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">unlikely</span><span class="token punctuation">(</span><span class="token function">got_nohz_idle_kick</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token operator">&amp;&amp;</span> <span class="token operator">!</span><span class="token function">cpu_isolated</span><span class="token punctuation">(</span>cpu<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+		<span class="token function">this_rq</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">-</span><span class="token operator">&gt;</span>idle_balance <span class="token operator">=</span> <span class="token number">1</span><span class="token punctuation">;</span>
+		<span class="token function">raise_softirq_irqoff</span><span class="token punctuation">(</span>SCHED_SOFTIRQ<span class="token punctuation">)</span><span class="token punctuation">;</span>
+	<span class="token punctuation">}</span>
+#ifdef CONFIG_MTK_SCHED_MONITOR
+	<span class="token function">mt_trace_IPI_end</span><span class="token punctuation">(</span>IPI_RESCHEDULE<span class="token punctuation">)</span><span class="token punctuation">;</span>
+#endif
+	<span class="token function">irq_exit</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/fd4d1f4e98297b0c0e6cd63f04f8d6dc/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">win10安装anaconda之后jupyter中创建新的notebook的时候出现一个错误</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/df47f62a9f50f7f2a13c2b83624da819/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">【opencv】图片放大缩小到指定大小或按指定比例f放大缩小（resize函数）c&#43;&#43;</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

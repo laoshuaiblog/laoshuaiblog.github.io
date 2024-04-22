@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Linux进程管理2 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/5807573762cdb77b2739d80546bc6fe0/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="Linux进程管理2">
+  <meta property="og:description" content="目录
+一 PCB结构体
+为什么要有结构体PCB
+PCB是什么
+二 如何创建一个进程？
+1 用命令行创建一个进程
+2 用代码来创建进程
+① 基本使用
+②其他问题
+a 为什么有两个返回值
+b 为什么这样返回
+c if和else会被同时执行？
+一 PCB结构体 为什么要有结构体PCB 在windows中，我们双击桌面图标，启动一个软件的本质上，就是启动了一个进程。那么类似的，在linux下，运行一条命令，就是在系统层面创建了一个进程。操作系统只能对进程来进行调度。因此我们用操作系统管理的时候，也就是对进程进行管理。
+有这样一种情况，我们可以同时运行成千上万条命令，同时加载多个程序，也就是说，在OS中可能存在大量的进程，那么OS怎么对这些进程来进行管理？
+之前谈到的概念，先描述，再组织（管理的本质）
+更正：struct_task-&amp;gt;task_struct
+我们写的一个个可执行程序以文件（内容&#43;属性）的形式存储在磁盘上，当运行的时候，需要把他加载到内存中。由于进程很多，为了实现管理，把他们描述成一个个PCB结构体（不用存放内容，只用加载属性即可），以链表的数据结构形式对他们来实现管理。
+struct PCB { struct PCB* next;//指向下一个PCB struct PCB* prev;//指向上一个PCB ……//data 其他的属性数据与进程相关的 }; 写成代码就是这样的一个意思。
+因此，PCB存在的意义就是管理OS中存在的大量进程。
+PCB是什么 PCB（process control block）进程控制块，是结构体的形式存储的。在不同的操作系统中，PCB不同，但是在Linux中叫做task_struct
+task_struct中，有各种属性数据。
+从知乎上截取的：
+(1)标示符 ： 描述本进程的唯一标识符，用来区别其他进程。
+(2)状态 ：任务状态，退出代码，退出信号等。
+(3)优先级 ：相对于其他进程的优先级。
+(4)程序计数器：程序中即将被执行的下一条指令的地址。
+(5)内存指针：包括程序代码和进程相关数据的指针，还有和其他进程共享的内存块的指针。
+(6)上下文数据：进程执行时处理器的寄存器中的数据。
+(7) I／O状态信息：包括显示的I/O请求,分配给进程的I／O设备和被进程使用的文件列表。
+(8) 记账信息：可能包括处理器时间总和，使用的时钟数总和，时间限制，记账号等。
+还有一些其他信息
+接下来会对这些先简单说明下，有个初步的概念，有个感性的认知。
+标识符：相当于我们的身份证号码。用来单独唯一标识我们这些人。也是便于管理
+状态：一个人平时可以在学习，在运动，在娱乐，对应进程就相当于这些状态
+优先级：就是先做什么事情，再做什么事情。注意与权限差别：能否做某事
+程序计数器：一个程序被执行，默认是顺序结构，自顶向下一句一句执行的。但是遇到一些比如循环语句，分支语句，就要进行跳转。是由PC指针（EPC）保存当前正在被执行的下一条指令的地址，从而保证指令自顶向下执行。
+上下文数据：以各种队列的方式存储在寄存器中的。">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2022-09-22T11:09:31+08:00">
+    <meta property="article:modified_time" content="2022-09-22T11:09:31+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">Linux进程管理2</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <p id="main-toc"><strong>目录</strong></p> 
+<p id="-toc" style="margin-left:0px;"></p> 
+<p id="%C2%A0%E4%B8%80%20PCB%E7%BB%93%E6%9E%84%E4%BD%93-toc" style="margin-left:0px;"><a href="#%C2%A0%E4%B8%80%20PCB%E7%BB%93%E6%9E%84%E4%BD%93" rel="nofollow"> 一 PCB结构体</a></p> 
+<p id="%E4%B8%BA%E4%BB%80%E4%B9%88%E8%A6%81%E6%9C%89%E7%BB%93%E6%9E%84%E4%BD%93PCB-toc" style="margin-left:40px;"><a href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E8%A6%81%E6%9C%89%E7%BB%93%E6%9E%84%E4%BD%93PCB" rel="nofollow">为什么要有结构体PCB</a></p> 
+<p id="PCB%E6%98%AF%E4%BB%80%E4%B9%88-toc" style="margin-left:40px;"><a href="#PCB%E6%98%AF%E4%BB%80%E4%B9%88" rel="nofollow">PCB是什么</a></p> 
+<p id="%E4%BA%8C%20%E5%A6%82%E4%BD%95%E5%88%9B%E5%BB%BA%E4%B8%80%E4%B8%AA%E8%BF%9B%E7%A8%8B%EF%BC%9F-toc" style="margin-left:0px;"><a href="#%E4%BA%8C%20%E5%A6%82%E4%BD%95%E5%88%9B%E5%BB%BA%E4%B8%80%E4%B8%AA%E8%BF%9B%E7%A8%8B%EF%BC%9F" rel="nofollow">二 如何创建一个进程？</a></p> 
+<p id="1%20%E7%94%A8%E5%91%BD%E4%BB%A4%E8%A1%8C%E5%88%9B%E5%BB%BA%E4%B8%80%E4%B8%AA%E8%BF%9B%E7%A8%8B-toc" style="margin-left:40px;"><a href="#1%20%E7%94%A8%E5%91%BD%E4%BB%A4%E8%A1%8C%E5%88%9B%E5%BB%BA%E4%B8%80%E4%B8%AA%E8%BF%9B%E7%A8%8B" rel="nofollow">1 用命令行创建一个进程</a></p> 
+<p id="2%20%E7%94%A8%E4%BB%A3%E7%A0%81%E6%9D%A5%E5%88%9B%E5%BB%BA%E8%BF%9B%E7%A8%8B-toc" style="margin-left:40px;"><a href="#2%20%E7%94%A8%E4%BB%A3%E7%A0%81%E6%9D%A5%E5%88%9B%E5%BB%BA%E8%BF%9B%E7%A8%8B" rel="nofollow">2 用代码来创建进程</a></p> 
+<p id="%E2%91%A0%20%E5%9F%BA%E6%9C%AC%E4%BD%BF%E7%94%A8-toc" style="margin-left:40px;"><a href="#%E2%91%A0%20%E5%9F%BA%E6%9C%AC%E4%BD%BF%E7%94%A8" rel="nofollow">① 基本使用</a></p> 
+<p id="%E2%91%A1%E5%85%B6%E4%BB%96%E9%97%AE%E9%A2%98-toc" style="margin-left:40px;"><a href="#%E2%91%A1%E5%85%B6%E4%BB%96%E9%97%AE%E9%A2%98" rel="nofollow">②其他问题</a></p> 
+<p id="a%20%E4%B8%BA%E4%BB%80%E4%B9%88%E6%9C%89%E4%B8%A4%E4%B8%AA%E8%BF%94%E5%9B%9E%E5%80%BC-toc" style="margin-left:80px;"><a href="#a%20%E4%B8%BA%E4%BB%80%E4%B9%88%E6%9C%89%E4%B8%A4%E4%B8%AA%E8%BF%94%E5%9B%9E%E5%80%BC" rel="nofollow">a 为什么有两个返回值</a></p> 
+<p id="b%20%E4%B8%BA%E4%BB%80%E4%B9%88%E8%BF%99%E6%A0%B7%E8%BF%94%E5%9B%9E-toc" style="margin-left:80px;"><a href="#b%20%E4%B8%BA%E4%BB%80%E4%B9%88%E8%BF%99%E6%A0%B7%E8%BF%94%E5%9B%9E" rel="nofollow">b 为什么这样返回</a></p> 
+<p id="c%20if%E5%92%8Celse%E4%BC%9A%E8%A2%AB%E5%90%8C%E6%97%B6%E6%89%A7%E8%A1%8C%EF%BC%9F-toc" style="margin-left:80px;"><a href="#c%20if%E5%92%8Celse%E4%BC%9A%E8%A2%AB%E5%90%8C%E6%97%B6%E6%89%A7%E8%A1%8C%EF%BC%9F" rel="nofollow">c if和else会被同时执行？</a></p> 
+<hr id="hr-toc"> 
+<p></p> 
+<h2 id="%C2%A0%E4%B8%80%20PCB%E7%BB%93%E6%9E%84%E4%BD%93"> 一 PCB结构体</h2> 
+<h3 id="%E4%B8%BA%E4%BB%80%E4%B9%88%E8%A6%81%E6%9C%89%E7%BB%93%E6%9E%84%E4%BD%93PCB">为什么要有结构体PCB</h3> 
+<p>在windows中，我们双击桌面图标，启动一个软件的本质上，就是启动了一个进程。那么类似的，在linux下，运行一条命令，就是在系统层面创建了一个进程。操作系统只能对进程来进行调度。因此我们用操作系统管理的时候，也就是对进程进行管理。</p> 
+<p>有这样一种情况，我们可以同时运行成千上万条命令，同时加载多个程序，也就是说，在OS中可能存在大量的进程，那么OS怎么对这些进程来进行管理？</p> 
+<p>之前谈到的概念，先描述，再组织（管理的本质）</p> 
+<p><img alt="" src="https://images2.imgbox.com/9d/4d/y90VTECY_o.png"></p> 
+<p> 更正：struct_task-&gt;task_struct</p> 
+<p>我们写的一个个可执行程序以文件（内容+属性）的形式存储在磁盘上，当运行的时候，需要把他加载到内存中。由于进程很多，为了实现管理，把他们描述成一个个PCB结构体（不用存放内容，只用加载属性即可），以链表的数据结构形式对他们来实现管理。</p> 
+<pre><code>struct PCB
+{
+	struct PCB* next;//指向下一个PCB
+	struct PCB* prev;//指向上一个PCB
+	……//data 其他的属性数据与进程相关的
+};</code></pre> 
+<p>写成代码就是这样的一个意思。</p> 
+<p>因此，PCB存在的意义就是管理OS中存在的大量进程。</p> 
+<p></p> 
+<h3 id="PCB%E6%98%AF%E4%BB%80%E4%B9%88">PCB是什么</h3> 
+<p>PCB（process control block）进程控制块，是结构体的形式存储的。在不同的操作系统中，PCB不同，但是在Linux中叫做task_struct</p> 
+<p>task_struct中，有各种属性数据。</p> 
+<p>从知乎上截取的：</p> 
+<blockquote> 
+ <p>(1)标示符 ： 描述本进程的唯一标识符，用来区别其他进程。</p> 
+ <p>(2)状态 ：任务状态，退出代码，退出信号等。</p> 
+ <p>(3)优先级 ：相对于其他进程的优先级。</p> 
+ <p>(4)程序计数器：程序中即将被执行的下一条指令的地址。</p> 
+ <p>(5)内存指针：包括程序代码和进程相关数据的指针，还有和其他进程共享的内存块的指针。</p> 
+ <p>(6)上下文数据：进程执行时处理器的寄存器中的数据。</p> 
+ <p>(7) I／O状态信息：包括显示的I/O请求,分配给进程的I／O设备和被进程使用的文件列表。</p> 
+ <p>(8) 记账信息：可能包括处理器时间总和，使用的时钟数总和，时间限制，记账号等。</p> 
+ <p>还有一些其他信息</p> 
+</blockquote> 
+<p> 接下来会对这些先简单说明下，有个初步的概念，有个感性的认知。</p> 
+<p>标识符：相当于我们的身份证号码。用来单独唯一标识我们这些人。也是便于管理</p> 
+<p>状态：一个人平时可以在学习，在运动，在娱乐，对应进程就相当于这些状态</p> 
+<p>优先级：就是先做什么事情，再做什么事情。注意与权限差别：能否做某事</p> 
+<p>程序计数器：一个程序被执行，默认是顺序结构，自顶向下一句一句执行的。但是遇到一些比如循环语句，分支语句，就要进行跳转。是由PC指针（EPC）保存当前正在被执行的下一条指令的地址，从而保证指令自顶向下执行。</p> 
+<p>上下文数据：以各种队列的方式存储在寄存器中的。</p> 
+<p>io状态信息：云服务器啊，内存多大啊，硬盘空间有多少啊，带宽啊，这些。</p> 
+<p>记账信息：进程被处理器执行了多长时间。</p> 
+<p></p> 
+<h2 id="%E4%BA%8C%20%E5%A6%82%E4%BD%95%E5%88%9B%E5%BB%BA%E4%B8%80%E4%B8%AA%E8%BF%9B%E7%A8%8B%EF%BC%9F">二 如何创建一个进程？</h2> 
+<h3 id="1%20%E7%94%A8%E5%91%BD%E4%BB%A4%E8%A1%8C%E5%88%9B%E5%BB%BA%E4%B8%80%E4%B8%AA%E8%BF%9B%E7%A8%8B">1 用命令行创建一个进程</h3> 
+<p>首先我们用vim编写一个程序，之后编写相关的makefile，运行之后就是一个进程了。</p> 
+<p><img alt="" src="https://images2.imgbox.com/e8/a6/TLHguBjT_o.png"></p> 
+<p></p> 
+<p> <img alt="" height="235" src="https://images2.imgbox.com/19/1a/ZpiFOBDp_o.png" width="431"></p> 
+<p></p> 
+<p>查看进程</p> 
+<p>我们可以通过ps命令来查看进程 如下</p> 
+<p></p> 
+<p> <img alt="" src="https://images2.imgbox.com/00/74/UpCs3oiG_o.png"></p> 
+<p>如果带上head -1的话可以带上对应的标头</p> 
+<p><img alt="" src="https://images2.imgbox.com/da/66/6qVUYFKH_o.png"></p> 
+<p>pid-&gt;当前进程id ppid-&gt;父进程的id STAT-&gt;状态</p> 
+<p></p> 
+<p>也可以用/proc的方式来查看一个进程</p> 
+<p>ls /可以查看当前有什么文件目录</p> 
+<p>ls /proc 进入当前进程目录。每一个运行中的进程都会有一个对应的属性，来标识当前所在的工作路径，是一个二进制的文件，也是一个动态的目录，会根据进程的创建和销毁来改变。</p> 
+<p>ls /proc/pid(第三行对应的数字) 查看对应的进程 进入之后就可以查看这个进程的所有属性了</p> 
+<p><img alt="" src="https://images2.imgbox.com/95/b8/yZ84Zv7w_o.png"></p> 
+<p> 如果想要杀掉对应的进程只需要 kill-9就行了</p> 
+<p>有了对一个进程的初步认识——如何以命令行的方式创建进程以及杀死进程，一个进程到底是什么之后，我们从代码的层面来了解一下进程的创建。这就不得不谈到一个系统调用接口——fork了。</p> 
+<h3 id="2%20%E7%94%A8%E4%BB%A3%E7%A0%81%E6%9D%A5%E5%88%9B%E5%BB%BA%E8%BF%9B%E7%A8%8B">2 用代码来创建进程</h3> 
+<p>fork——创建子进程的系统调用接口</p> 
+<h3 id="%E2%91%A0%20%E5%9F%BA%E6%9C%AC%E4%BD%BF%E7%94%A8">① 基本使用</h3> 
+<p> 基本功能：创建一个子进程，有两个返回值：给父进程返回子进程的pid，给子进程返回0。</p> 
+<p>在介绍这个功能的时候，我们为了更显著的观察到这个现象，介绍两个获取pid和ppid的函数——getpid（）和getppid（），他们的返回值类型都是pid_t，一个是返回该进程的pid，一个是返回该进程父进程的pid。头文件#include&lt;unistd.h&gt;</p> 
+<p></p> 
+<p><img alt="" height="389" src="https://images2.imgbox.com/e4/55/N4FOuGHd_o.png" width="471"></p> 
+<p> <img alt="" height="145" src="https://images2.imgbox.com/fa/4e/GaQCHsWi_o.png" width="242"><img alt="" height="632" src="https://images2.imgbox.com/95/01/5MPIAvSm_o.png" width="679"></p> 
+<p></p> 
+<p> <img alt="" height="557" src="https://images2.imgbox.com/69/25/toPf2GmL_o.png" width="944"></p> 
+<p> 我们确实观察到了fork之后会有两个返回值，两个执行流，给父进程返回子进程的pid，给子进程返回0.</p> 
+<h3 id="%E2%91%A1%E5%85%B6%E4%BB%96%E9%97%AE%E9%A2%98">②其他问题</h3> 
+<h4 id="a%20%E4%B8%BA%E4%BB%80%E4%B9%88%E6%9C%89%E4%B8%A4%E4%B8%AA%E8%BF%94%E5%9B%9E%E5%80%BC">a 为什么有两个返回值</h4> 
+<p>有两个返回值，必定是return执行了两次。也就是存在两个进程，分别执行了return语句。</p> 
+<p>我们先来了解下CPU如何执行对应的进程的。</p> 
+<p></p> 
+<p><img alt="" height="814" src="https://images2.imgbox.com/94/6a/OCq3CZo8_o.png" width="1154"></p> 
+<p></p> 
+<p>一个个进程的代码和数据会被一个个task_struct结构体来管理，这些结构体会以链表的形式存储，形成一个运行队列，等待CPU的调度。 </p> 
+<p>CPU执行代码的时候，会根据对应的调度算法，来确定执行的顺序。当CPU执行对应的进程的时候 ，会根据task_struct来找到对应的代码和数据，执行，之后将这个进程从运行队列中拿出来，再去执行其他的进程。操作系统和CPU运行某一个进程，本质是从task_struct形成的队列中挑选一个task_struct来执行他的代码。进程调度就变成了在task_struct的队列中选择一个进程的过程。</p> 
+<p>父子进程被创建出来，哪一个先运行？不一定</p> 
+<p>运行队列会因为各种原因变化，谁先运行是完全不可控的。是由操作系统的调度器来决定的。</p> 
+<p></p> 
+<p><img alt="" height="426" src="https://images2.imgbox.com/f0/50/3XgThu4s_o.png" width="650"></p> 
+<p>我的代码在用户层当中，fork是对应的接口，是个系统调用接口，是个函数，用来创建子进程谁实现的？是操作系统实现的。</p> 
+<p>在操作系统中，fork内部就是实现创建子进程的逻辑。</p> 
+<p>那么在创建进程时，操作系统需要做什么？</p> 
+<p>本质就是系统多了个进程：</p> 
+<p>要新建一个task_struct结构体，创建了对应的空间，但是内部所有属性没有创建，信息如何填充？以父进程的task_struct为模板，父进程是什么值，子进程一般就是什么值。有些会继承，有些是私有的。创建对应的代码和数据。</p> 
+<p>创建一个子进程：要给子进程创建一个task_struct操作系统来管理对应的新进程，对应的结构体变量产生之后入到系统全局的维护进程列表中，操作系统实现管理。</p> 
+<p>关于return：当我们已经准备return了，我们的核心代码执行完了。也就是说，使用fork在return最终结果的时候，子进程已经被创建出来了。</p> 
+<p>创建子进程。不仅创建进程，还要让他在对应的队列里待着。通过父进程的手，准备return的时候，子进程已经被创建并且放在了对应的运行队列中，也就是说可以被调度。已经出现了对应父子进程执行的逻辑。这个return被父子对应执行了。</p> 
+<p>因此会被return两次，有两个返回值。</p> 
+<p>但是这不代表一个变量里面会记录两次。因为一个变量被第二次写入的时候，是覆盖式写入的。这一点之后说明。</p> 
+<p></p> 
+<h4 id="b%20%E4%B8%BA%E4%BB%80%E4%B9%88%E8%BF%99%E6%A0%B7%E8%BF%94%E5%9B%9E">b 为什么这样返回</h4> 
+<p>为什么给子进程返回0，给父进程返回子进程的pid？</p> 
+<p>一个子进程永远都只有一个父进程，但是父进程有多个子进程，父：子=1：n</p> 
+<p>父进程为了更好地控制子进程，会标识子进程：fork之后，给父进程返回子进程的pid，以进行相关的管理。</p> 
+<p>子进程只有一个对应的父进程，只需要返回0就可以了。</p> 
+<p></p> 
+<h4 id="c%20if%E5%92%8Celse%E4%BC%9A%E8%A2%AB%E5%90%8C%E6%97%B6%E6%89%A7%E8%A1%8C%EF%BC%9F">c if和else会被同时执行？</h4> 
+<p>因为fork之后有两个进程，是2个不同的执行流，父子进程的代码是共享的，根据不同的id来执行不同的语句。</p> 
+<p></p> 
+<p>我们对一个进程是什么，有哪些属性值，怎么被os管理以及如何创建进程（命令行，代码），以及fork的使用和基本问题的认识做了一些说明。下次来深入介绍进程状态。</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/0caa7352bb9ac256eb1487c3c12bf9f5/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">VMware NAT模式下 配置固定IP</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/f8d4f4822a9dacd01a78286485aec12e/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">Android studio环境开发配置</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

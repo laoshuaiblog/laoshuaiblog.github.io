@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>通过频域点乘方式计算匹配滤波输出的距离坐标对应问题 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/d724630a2453a74c44da3e8027d74f5d/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="通过频域点乘方式计算匹配滤波输出的距离坐标对应问题">
+  <meta property="og:description" content="参考博主链接: link的文章可知，通过频域点乘方式计算匹配滤波输出有三种方式，这里仅讨论前两种。第一种生成匹配滤波器的方式是对时域匹配滤波器进行fft变换，即将发射信号取共轭反转后进行fft；第二种方式是将发射信号变换到频域后取共轭。文中的弃置区我看得不是很明白，于是有了以下思考：
+首先链接的文章也说了做fft补零是因为循环卷积和线性卷积的差异。
+然后通过仿真发现方法二在没有距离延迟的情况下，频域匹配完通过ifft变换回时域并且fftshift后，峰值总是出现在 N f f t / 2 &#43; 1 N_{fft}/2&#43;1 Nfft​/2&#43;1 ， 比如说64点的fft，峰值总是出现在33处。这是因为方法二在没有噪声的情况下，频域点乘后相位全为0，仅有幅度值。
+而方法一的峰值似乎变得“捉摸不定”。于是通过公式进行比较。
+假设发射信号 s t = [ s 0 , s 1 , … , s K − 1 ] T {s_t} = {[{s_0},{s_1}, \ldots ,{s_{K - 1}}]^T} st​=[s0​,s1​,…,sK−1​]T，根据方法一，匹配滤波器应为 [ s K − 1 ∗ , s K − 2 ∗ , … , s 0 ∗ ] T {[{s_{K-1}^*},{s_{K-2}^*}, \ldots ,{s_{0}^*}]^T} [sK−1∗​,sK−2∗​,…,s0∗​]T，对其补零到 N N N点长度并做 N N N点fft有:">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2023-05-10T10:19:40+08:00">
+    <meta property="article:modified_time" content="2023-05-10T10:19:40+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">通过频域点乘方式计算匹配滤波输出的距离坐标对应问题</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-dark">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <p>参考博主链接: <a href="https://blog.csdn.net/AIMZZY/article/details/106467080?spm=1001.2014.3001.5506">link</a>的文章可知，通过频域点乘方式计算匹配滤波输出有三种方式，这里仅讨论前两种。第一种生成匹配滤波器的方式是对时域匹配滤波器进行fft变换，即将发射信号取共轭反转后进行fft；第二种方式是将发射信号变换到频域后取共轭。文中的弃置区我看得不是很明白，于是有了以下思考：</p> 
+<p>首先链接的文章也说了做fft补零是因为循环卷积和线性卷积的差异。</p> 
+<p>然后通过仿真发现<mark>方法二在没有距离延迟的情况下，频域匹配完通过ifft变换回时域并且fftshift后，峰值总是出现在<span class="katex--inline"><span class="katex"><span class="katex-mathml"> 
+      
+       
+        
+         
+         
+           N 
+          
+          
+          
+            f 
+           
+          
+            f 
+           
+          
+            t 
+           
+          
+         
+        
+          / 
+         
+        
+          2 
+         
+        
+          + 
+         
+        
+          1 
+         
+        
+       
+         N_{fft}/2+1 
+        
+       
+     </span><span class="katex-html"><span class="base"><span class="strut" style="height: 1.0361em; vertical-align: -0.2861em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right: 0.109em;">N</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height: 0.3361em;"><span class="" style="top: -2.55em; margin-left: -0.109em; margin-right: 0.05em;"><span class="pstrut" style="height: 2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight" style="margin-right: 0.1076em;">ff</span><span class="mord mathnormal mtight">t</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height: 0.2861em;"><span class=""></span></span></span></span></span></span><span class="mord">/2</span><span class="mspace" style="margin-right: 0.2222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right: 0.2222em;"></span></span><span class="base"><span class="strut" style="height: 0.6444em;"></span><span class="mord">1</span></span></span></span></span> ，</mark> 比如说64点的fft，峰值总是出现在33处。这是因为方法二在没有噪声的情况下，频域点乘后相位全为0，仅有幅度值。</p> 
+<p>而方法一的峰值似乎变得“捉摸不定”。于是通过公式进行比较。</p> 
+<p>假设发射信号<span class="katex--inline"><span class="katex"><span class="katex-mathml"> 
+     
+      
+       
+        
+        
+          s 
+         
+        
+          t 
+         
+        
+       
+         = 
+        
+        
+        
+          [ 
+         
+         
+         
+           s 
+          
+         
+           0 
+          
+         
+        
+          , 
+         
+         
+         
+           s 
+          
+         
+           1 
+          
+         
+        
+          , 
+         
+        
+          … 
+         
+        
+          , 
+         
+         
+         
+           s 
+          
+          
+          
+            K 
+           
+          
+            − 
+           
+          
+            1 
+           
+          
+         
+         
+         
+           ] 
+          
+         
+           T 
+          
+         
+        
+       
+      
+        {s_t} = {[{s_0},{s_1}, \ldots ,{s_{K - 1}}]^T} 
+       
+      
+    </span><span class="katex-html"><span class="base"><span class="strut" style="height: 0.5806em; vertical-align: -0.15em;"></span><span class="mord"><span class="mord"><span class="mord mathnormal">s</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height: 0.2806em;"><span class="" style="top: -2.55em; margin-left: 0em; margin-right: 0.05em;"><span class="pstrut" style="height: 2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight">t</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height: 0.15em;"><span class=""></span></span></span></span></span></span></span><span class="mspace" style="margin-right: 0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right: 0.2778em;"></span></span><span class="base"><span class="strut" style="height: 1.0913em; vertical-align: -0.25em;"></span><span class="mord"><span class="mopen">[</span><span class="mord"><span class="mord"><span class="mord mathnormal">s</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height: 0.3011em;"><span class="" style="top: -2.55em; margin-left: 0em; margin-right: 0.05em;"><span class="pstrut" style="height: 2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight">0</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height: 0.15em;"><span class=""></span></span></span></span></span></span></span><span class="mpunct">,</span><span class="mspace" style="margin-right: 0.1667em;"></span><span class="mord"><span class="mord"><span class="mord mathnormal">s</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height: 0.3011em;"><span class="" style="top: -2.55em; margin-left: 0em; margin-right: 0.05em;"><span class="pstrut" style="height: 2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight">1</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height: 0.15em;"><span class=""></span></span></span></span></span></span></span><span class="mpunct">,</span><span class="mspace" style="margin-right: 0.1667em;"></span><span class="minner">…</span><span class="mspace" style="margin-right: 0.1667em;"></span><span class="mpunct">,</span><span class="mspace" style="margin-right: 0.1667em;"></span><span class="mord"><span class="mord"><span class="mord mathnormal">s</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height: 0.3283em;"><span class="" style="top: -2.55em; margin-left: 0em; margin-right: 0.05em;"><span class="pstrut" style="height: 2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight" style="margin-right: 0.0715em;">K</span><span class="mbin mtight">−</span><span class="mord mtight">1</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height: 0.2083em;"><span class=""></span></span></span></span></span></span></span><span class="mclose"><span class="mclose">]</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height: 0.8413em;"><span class="" style="top: -3.063em; margin-right: 0.05em;"><span class="pstrut" style="height: 2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight" style="margin-right: 0.1389em;">T</span></span></span></span></span></span></span></span></span></span></span></span></span>，根据方法一，匹配滤波器应为<span class="katex--inline"><span class="katex"><span class="katex-mathml"> 
+     
+      
+       
+       
+         [ 
+        
+        
+        
+          s 
+         
+         
+         
+           K 
+          
+         
+           − 
+          
+         
+           1 
+          
+         
+        
+          ∗ 
+         
+        
+       
+         , 
+        
+        
+        
+          s 
+         
+         
+         
+           K 
+          
+         
+           − 
+          
+         
+           2 
+          
+         
+        
+          ∗ 
+         
+        
+       
+         , 
+        
+       
+         … 
+        
+       
+         , 
+        
+        
+        
+          s 
+         
+        
+          0 
+         
+        
+          ∗ 
+         
+        
+        
+        
+          ] 
+         
+        
+          T 
+         
+        
+       
+      
+        {[{s_{K-1}^*},{s_{K-2}^*}, \ldots ,{s_{0}^*}]^T} 
+       
+      
+    </span><span class="katex-html"><span class="base"><span class="strut" style="height: 1.175em; vertical-align: -0.3337em;"></span><span class="mord"><span class="mopen">[</span><span class="mord"><span class="mord"><span class="mord mathnormal">s</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height: 0.6887em;"><span class="" style="top: -2.4247em; margin-left: 0em; margin-right: 0.05em;"><span class="pstrut" style="height: 2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight" style="margin-right: 0.0715em;">K</span><span class="mbin mtight">−</span><span class="mord mtight">1</span></span></span></span><span class="" style="top: -3.063em; margin-right: 0.05em;"><span class="pstrut" style="height: 2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mbin mtight">∗</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height: 0.3337em;"><span class=""></span></span></span></span></span></span></span><span class="mpunct">,</span><span class="mspace" style="margin-right: 0.1667em;"></span><span class="mord"><span class="mord"><span class="mord mathnormal">s</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height: 0.6887em;"><span class="" style="top: -2.4247em; margin-left: 0em; margin-right: 0.05em;"><span class="pstrut" style="height: 2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight" style="margin-right: 0.0715em;">K</span><span class="mbin mtight">−</span><span class="mord mtight">2</span></span></span></span><span class="" style="top: -3.063em; margin-right: 0.05em;"><span class="pstrut" style="height: 2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mbin mtight">∗</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height: 0.3337em;"><span class=""></span></span></span></span></span></span></span><span class="mpunct">,</span><span class="mspace" style="margin-right: 0.1667em;"></span><span class="minner">…</span><span class="mspace" style="margin-right: 0.1667em;"></span><span class="mpunct">,</span><span class="mspace" style="margin-right: 0.1667em;"></span><span class="mord"><span class="mord"><span class="mord mathnormal">s</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height: 0.6887em;"><span class="" style="top: -2.4519em; margin-left: 0em; margin-right: 0.05em;"><span class="pstrut" style="height: 2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight">0</span></span></span></span><span class="" style="top: -3.063em; margin-right: 0.05em;"><span class="pstrut" style="height: 2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mbin mtight">∗</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height: 0.2481em;"><span class=""></span></span></span></span></span></span></span><span class="mclose"><span class="mclose">]</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height: 0.8413em;"><span class="" style="top: -3.063em; margin-right: 0.05em;"><span class="pstrut" style="height: 2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight" style="margin-right: 0.1389em;">T</span></span></span></span></span></span></span></span></span></span></span></span></span>，对其补零到<span class="katex--inline"><span class="katex"><span class="katex-mathml"> 
+     
+      
+       
+       
+         N 
+        
+       
+      
+        N 
+       
+      
+    </span><span class="katex-html"><span class="base"><span class="strut" style="height: 0.6833em;"></span><span class="mord mathnormal" style="margin-right: 0.109em;">N</span></span></span></span></span>点长度并做<span class="katex--inline"><span class="katex"><span class="katex-mathml"> 
+     
+      
+       
+       
+         N 
+        
+       
+      
+        N 
+       
+      
+    </span><span class="katex-html"><span class="base"><span class="strut" style="height: 0.6833em;"></span><span class="mord mathnormal" style="margin-right: 0.109em;">N</span></span></span></span></span>点fft有:<img src="https://images2.imgbox.com/f3/2d/HuLcVHSO_o.png" alt="在这里插入图片描述"><br> 将其展开写为：<br> <img src="https://images2.imgbox.com/bc/52/6Tr04xF2_o.png" alt="在这里插入图片描述"><br> 与方法二结果进行对比：<br> <img src="https://images2.imgbox.com/7d/a5/Xyk2KbEk_o.png" alt="在这里插入图片描述"><br> 可以看出，将方法二的结果点乘上<br> <img src="https://images2.imgbox.com/94/48/jUyHGv3i_o.png" alt=""><br> 与方法一结果相同。<br> 也即频域相移对应时域时延<span class="katex--inline"><span class="katex"><span class="katex-mathml"> 
+     
+      
+       
+       
+         K 
+        
+       
+         − 
+        
+       
+         1 
+        
+       
+      
+        K-1 
+       
+      
+    </span><span class="katex-html"><span class="base"><span class="strut" style="height: 0.7667em; vertical-align: -0.0833em;"></span><span class="mord mathnormal" style="margin-right: 0.0715em;">K</span><span class="mspace" style="margin-right: 0.2222em;"></span><span class="mbin">−</span><span class="mspace" style="margin-right: 0.2222em;"></span></span><span class="base"><span class="strut" style="height: 0.6444em;"></span><span class="mord">1</span></span></span></span></span>个点，<mark>方法一峰值将会出现在<span class="katex--inline"><span class="katex"><span class="katex-mathml"> 
+      
+       
+        
+         
+         
+           N 
+          
+          
+          
+            f 
+           
+          
+            f 
+           
+          
+            t 
+           
+          
+         
+        
+          / 
+         
+        
+          2 
+         
+        
+          + 
+         
+        
+          K 
+         
+        
+       
+         N_{fft}/2+K 
+        
+       
+     </span><span class="katex-html"><span class="base"><span class="strut" style="height: 1.0361em; vertical-align: -0.2861em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right: 0.109em;">N</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height: 0.3361em;"><span class="" style="top: -2.55em; margin-left: -0.109em; margin-right: 0.05em;"><span class="pstrut" style="height: 2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight" style="margin-right: 0.1076em;">ff</span><span class="mord mathnormal mtight">t</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height: 0.2861em;"><span class=""></span></span></span></span></span></span><span class="mord">/2</span><span class="mspace" style="margin-right: 0.2222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right: 0.2222em;"></span></span><span class="base"><span class="strut" style="height: 0.6833em;"></span><span class="mord mathnormal" style="margin-right: 0.0715em;">K</span></span></span></span></span>处</mark>，其中<span class="katex--inline"><span class="katex"><span class="katex-mathml"> 
+     
+      
+       
+       
+         K 
+        
+       
+      
+        K 
+       
+      
+    </span><span class="katex-html"><span class="base"><span class="strut" style="height: 0.6833em;"></span><span class="mord mathnormal" style="margin-right: 0.0715em;">K</span></span></span></span></span>为发射信号采样点数。<br> 以信号长度<span class="katex--inline"><span class="katex"><span class="katex-mathml"> 
+     
+      
+       
+       
+         K 
+        
+       
+         = 
+        
+       
+         24 
+        
+       
+      
+        K=24 
+       
+      
+    </span><span class="katex-html"><span class="base"><span class="strut" style="height: 0.6833em;"></span><span class="mord mathnormal" style="margin-right: 0.0715em;">K</span><span class="mspace" style="margin-right: 0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right: 0.2778em;"></span></span><span class="base"><span class="strut" style="height: 0.6444em;"></span><span class="mord">24</span></span></span></span></span>，fft点数<span class="katex--inline"><span class="katex"><span class="katex-mathml"> 
+     
+      
+       
+        
+        
+          N 
+         
+         
+         
+           f 
+          
+         
+           f 
+          
+         
+           t 
+          
+         
+        
+       
+         = 
+        
+       
+         64 
+        
+       
+      
+        N_{fft}=64 
+       
+      
+    </span><span class="katex-html"><span class="base"><span class="strut" style="height: 0.9694em; vertical-align: -0.2861em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right: 0.109em;">N</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height: 0.3361em;"><span class="" style="top: -2.55em; margin-left: -0.109em; margin-right: 0.05em;"><span class="pstrut" style="height: 2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight" style="margin-right: 0.1076em;">ff</span><span class="mord mathnormal mtight">t</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height: 0.2861em;"><span class=""></span></span></span></span></span></span><span class="mspace" style="margin-right: 0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right: 0.2778em;"></span></span><span class="base"><span class="strut" style="height: 0.6444em;"></span><span class="mord">64</span></span></span></span></span>为例，方法二峰值出现在<span class="katex--inline"><span class="katex"><span class="katex-mathml"> 
+     
+      
+       
+        
+        
+          N 
+         
+         
+         
+           f 
+          
+         
+           f 
+          
+         
+           t 
+          
+         
+        
+       
+         / 
+        
+       
+         2 
+        
+       
+         + 
+        
+       
+         1 
+        
+       
+         = 
+        
+       
+         33 
+        
+       
+      
+        N_{fft}/2+1=33 
+       
+      
+    </span><span class="katex-html"><span class="base"><span class="strut" style="height: 1.0361em; vertical-align: -0.2861em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right: 0.109em;">N</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height: 0.3361em;"><span class="" style="top: -2.55em; margin-left: -0.109em; margin-right: 0.05em;"><span class="pstrut" style="height: 2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight" style="margin-right: 0.1076em;">ff</span><span class="mord mathnormal mtight">t</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height: 0.2861em;"><span class=""></span></span></span></span></span></span><span class="mord">/2</span><span class="mspace" style="margin-right: 0.2222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right: 0.2222em;"></span></span><span class="base"><span class="strut" style="height: 0.6444em;"></span><span class="mord">1</span><span class="mspace" style="margin-right: 0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right: 0.2778em;"></span></span><span class="base"><span class="strut" style="height: 0.6444em;"></span><span class="mord">33</span></span></span></span></span>处，方法一峰值出现<span class="katex--inline"><span class="katex"><span class="katex-mathml"> 
+     
+      
+       
+        
+        
+          N 
+         
+         
+         
+           f 
+          
+         
+           f 
+          
+         
+           t 
+          
+         
+        
+       
+         / 
+        
+       
+         2 
+        
+       
+         + 
+        
+       
+         K 
+        
+       
+         = 
+        
+       
+         56 
+        
+       
+      
+        N_{fft}/2+K=56 
+       
+      
+    </span><span class="katex-html"><span class="base"><span class="strut" style="height: 1.0361em; vertical-align: -0.2861em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right: 0.109em;">N</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height: 0.3361em;"><span class="" style="top: -2.55em; margin-left: -0.109em; margin-right: 0.05em;"><span class="pstrut" style="height: 2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight" style="margin-right: 0.1076em;">ff</span><span class="mord mathnormal mtight">t</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height: 0.2861em;"><span class=""></span></span></span></span></span></span><span class="mord">/2</span><span class="mspace" style="margin-right: 0.2222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right: 0.2222em;"></span></span><span class="base"><span class="strut" style="height: 0.6833em;"></span><span class="mord mathnormal" style="margin-right: 0.0715em;">K</span><span class="mspace" style="margin-right: 0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right: 0.2778em;"></span></span><span class="base"><span class="strut" style="height: 0.6444em;"></span><span class="mord">56</span></span></span></span></span>处，仿真证明也是如此。<br> 另外上文链接中<mark>弃置区选择</mark>的是<span class="katex--inline"><span class="katex"><span class="katex-mathml"> 
+     
+      
+       
+        
+        
+          N 
+         
+        
+          0 
+         
+        
+       
+         = 
+        
+       
+         ( 
+        
+        
+        
+          N 
+         
+         
+         
+           f 
+          
+         
+           f 
+          
+         
+           t 
+          
+         
+        
+       
+         − 
+        
+       
+         N 
+        
+       
+         ) 
+        
+       
+         / 
+        
+       
+         2 
+        
+       
+      
+        N_0 = (N_{fft}-N)/2 
+       
+      
+    </span><span class="katex-html"><span class="base"><span class="strut" style="height: 0.8333em; vertical-align: -0.15em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right: 0.109em;">N</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height: 0.3011em;"><span class="" style="top: -2.55em; margin-left: -0.109em; margin-right: 0.05em;"><span class="pstrut" style="height: 2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight">0</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height: 0.15em;"><span class=""></span></span></span></span></span></span><span class="mspace" style="margin-right: 0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right: 0.2778em;"></span></span><span class="base"><span class="strut" style="height: 1.0361em; vertical-align: -0.2861em;"></span><span class="mopen">(</span><span class="mord"><span class="mord mathnormal" style="margin-right: 0.109em;">N</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height: 0.3361em;"><span class="" style="top: -2.55em; margin-left: -0.109em; margin-right: 0.05em;"><span class="pstrut" style="height: 2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight" style="margin-right: 0.1076em;">ff</span><span class="mord mathnormal mtight">t</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height: 0.2861em;"><span class=""></span></span></span></span></span></span><span class="mspace" style="margin-right: 0.2222em;"></span><span class="mbin">−</span><span class="mspace" style="margin-right: 0.2222em;"></span></span><span class="base"><span class="strut" style="height: 1em; vertical-align: -0.25em;"></span><span class="mord mathnormal" style="margin-right: 0.109em;">N</span><span class="mclose">)</span><span class="mord">/2</span></span></span></span></span>，之所以要减去<span class="katex--inline"><span class="katex"><span class="katex-mathml"> 
+     
+      
+       
+       
+         N 
+        
+       
+         / 
+        
+       
+         2 
+        
+       
+      
+        N/2 
+       
+      
+    </span><span class="katex-html"><span class="base"><span class="strut" style="height: 1em; vertical-align: -0.25em;"></span><span class="mord mathnormal" style="margin-right: 0.109em;">N</span><span class="mord">/2</span></span></span></span></span>，与文中生成接收信号的方式有关，由于文中取了Rmin和Rmax，二者中点为R0。文中的<mark>目标距离位于R0时才对应0距离门，所以说需要减去N/2来对应Rmin</mark>.</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/0aa7f4090f766dcba778345136035b58/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">尚硅谷-宋红康-JVM上中下篇完整笔记-JVM中篇</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/634f3fac962b96571b3cf0260b02851f/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">1942-2021全国400多个气象站气候数据</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

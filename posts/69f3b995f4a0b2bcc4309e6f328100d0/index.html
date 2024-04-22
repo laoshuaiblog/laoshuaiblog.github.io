@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>springboot的服务端推送技术SSE - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/69f3b995f4a0b2bcc4309e6f328100d0/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="springboot的服务端推送技术SSE">
+  <meta property="og:description" content="一.常见定时推送实现方式 1.客户端轮询:ajax定时拉取
+2.服务端主动推送:WebSocket
+全双工的，本质上是一个额外的tcp连接，建立和关闭时握手使用http协议，其他数据传输不使用http协议，更加复杂一些，适用于需要进行复杂双向数据通讯的场景。
+3.服务端主动推送:SSE (Server Send Event)：
+html5新标准，用来从服务端实时推送数据到浏览器端，
+直接建立在当前http连接上，本质上是保持一个http长连接，轻量协议
+简单的服务器数据推送的场景，使用服务器推送事件 二.SSE介绍 2.1 sse扫盲 sse：sever send event；直译为服务器发送事件，顾名思义，也就是服务端向客户端推送信息的一种技术。通俗解释起来就是一种基于HTTP的，以流的形式由服务端持续向客户端发送数据的技术
+2.2 sse的流程 常规流程：我们常见的 http 交互方式是客户端发起请求，服务端响应，然后一次请求完毕；
+sse模式下：在 sse 的场景下，客户端发起请求，连接一直保持，服务端有数据就可以返回数据给客户端，这个返回可以是多次间隔的方式。
+2.3 sse与websocket的区别 SSE 最大的特点，可以简单规划为两个
+长连接服务端可以向客户端推送信息 sse 是单通道，只能服务端向客户端发消息；而 webscoket 是双通道。和websocket相比，只能单工通信，建立连接后，只能由服务端发往客户端，且占用一个连接，如需客户端向服务端通信，需额外打开一个连接
+2.4 应用场景 从 sse 的特点出发，我们可以大致的判断出它的应用场景，需要轮询获取服务端最新数据的 case 下，多半是可以用它的，比如显示当前网站在线的实时人数，法币汇率显示当前实时汇率，电商大促的实时成交额等等...
+参考文章：http://www.manongjc.com/detail/8-ufnkqsjgmxnyhdw.html
+https://www.cnblogs.com/yihuihui/p/12622729.html
+https://www.jianshu.com/p/ed94c8005f2c
+https://blog.csdn.net/tenyears940326/article/details/109616786
+三. 应用案例 3.1 工程结构 3.2 pom文件 &amp;lt;dependency&amp;gt; &amp;lt;groupId&amp;gt;org.springframework.boot&amp;lt;/groupId&amp;gt; &amp;lt;artifactId&amp;gt;spring-boot-starter-web&amp;lt;/artifactId&amp;gt; &amp;lt;/dependency&amp;gt; 3.3 新建一个html页面 为了直接能够访问，在resource目录下新建一个static目录，用于存放静态页面
+&amp;lt;!DOCTYPE html&amp;gt; &amp;lt;html lang=&#34;en&#34;&amp;gt; &amp;lt;head&amp;gt; &amp;lt;meta charset=&#34;UTF-8&#34;&amp;gt; &amp;lt;title&amp;gt;Title&amp;lt;/title&amp;gt; &amp;lt;script type=&#34;text/javascript&#34;&amp;gt; //需要判断浏览器支不支持，可以去w3c进行查看 var source = new EventSource(&#39;/get_data&#39;); source.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2021-04-05T16:31:12+08:00">
+    <meta property="article:modified_time" content="2021-04-05T16:31:12+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">springboot的服务端推送技术SSE</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <h2>一.常见定时推送实现方式</h2> 
+<p> 1.客户端轮询:ajax定时拉取</p> 
+<p> 2.服务端主动推送:WebSocket<br>            <span style="color:#f33b45;"><strong> 全双工的，本质上是一个额外的tcp连接，建立和关闭时握手使用http协议，其他数据传输不使用http协议</strong></span>，更加复杂一些，适用于需要进行复杂双向数据通讯的场景。</p> 
+<p>   3.服务端主动推送:SSE (Server Send Event)：<br>             html5新标准，<span style="color:#f33b45;"><strong>用来从服务端实时推送数据到浏览器端，</strong></span><br>             直接建立在<span style="color:#f33b45;">当前http连接上，本质上是保持一个http长连接，轻量协议</span><br>             简单<span style="color:#f33b45;">的服务器数据推送的场景，使用服务器推送事件</span>    </p> 
+<h2>二.SSE介绍</h2> 
+<h3>2.1 sse扫盲</h3> 
+<p><strong>sse：</strong><span style="color:#f33b45;"><strong><strong>sever send event</strong>；直译为服务器发送事件，顾名思义，也就是服务端向客户端推送信息的一种技术。</strong></span>通俗解释起来就是一种基于HTTP的<span style="color:#f33b45;"><strong>，以流的形式由服务端持续向客户端发送数据的技术</strong></span></p> 
+<h3>2.2 sse的流程</h3> 
+<p>常规流程：我们常见的 http 交互方式是客户端发起请求，服务端响应，然后一次请求完毕；</p> 
+<p>sse模式下：在 sse 的场景下，<span style="color:#f33b45;"><strong>客户端发起请求，连接一直保持，服务端有数据就可以返回数据给客户端，这个返回可以是多次间隔的方式。</strong></span></p> 
+<h3><span style="color:#f33b45;"><strong>2.3 sse与websocket的区别</strong></span></h3> 
+<p>SSE 最大的特点，可以简单规划为两个</p> 
+<ul><li><span style="color:#f33b45;">长连接</span></li><li><span style="color:#f33b45;">服务端可以向客户端推送信息</span></li></ul> 
+<p><strong>sse 是单通道，只能服务端向客户端发消息；而 webscoket 是双通道。</strong>和websocket相比，只能单工通信，建立连接后，只能由服务端发往客户端，且占用一个连接，如需客户端向服务端通信，需额外打开一个连接</p> 
+<p><img alt="" height="305" src="https://images2.imgbox.com/a9/12/LejHB0Le_o.png" width="694"></p> 
+<h3><strong>2.4 应用场景</strong></h3> 
+<p>从 sse 的特点出发，我们可以大致的判断出它的应用场景，需要轮询获取服务端最新数据的 case 下，多半是可以用它的，比如显示当前网站在线的实时人数，法币汇率显示当前实时汇率，电商大促的实时成交额等等...</p> 
+<p>参考文章：<a href="http://www.manongjc.com/detail/8-ufnkqsjgmxnyhdw.html" rel="nofollow">http://www.manongjc.com/detail/8-ufnkqsjgmxnyhdw.html</a></p> 
+<p><a href="https://www.cnblogs.com/yihuihui/p/12622729.html" rel="nofollow">https://www.cnblogs.com/yihuihui/p/12622729.html</a></p> 
+<p><a href="https://www.jianshu.com/p/ed94c8005f2c" rel="nofollow">https://www.jianshu.com/p/ed94c8005f2c</a></p> 
+<p><a href="https://blog.csdn.net/tenyears940326/article/details/109616786">https://blog.csdn.net/tenyears940326/article/details/109616786</a></p> 
+<h2>三. 应用案例</h2> 
+<h3>3.1 工程结构</h3> 
+<p><img alt="" height="457" src="https://images2.imgbox.com/d2/5e/WzpxoHBk_o.png" width="438"></p> 
+<h3>3.2 pom文件</h3> 
+<pre><code> &lt;dependency&gt;
+      &lt;groupId&gt;org.springframework.boot&lt;/groupId&gt;
+      &lt;artifactId&gt;spring-boot-starter-web&lt;/artifactId&gt;
+    &lt;/dependency&gt;</code></pre> 
+<h3>3.3 新建一个html页面</h3> 
+<p>为了直接能够访问，在resource目录下新建一个static目录，用于存放静态页面</p> 
+<pre><code>&lt;!DOCTYPE html&gt;
+&lt;html lang="en"&gt;
+&lt;head&gt;
+    &lt;meta charset="UTF-8"&gt;
+    &lt;title&gt;Title&lt;/title&gt;
+    &lt;script type="text/javascript"&gt;
+        //需要判断浏览器支不支持，可以去w3c进行查看
+        var source = new EventSource('/get_data');
+        source.onmessage = function (event) {
+            console.info(event.data);
+            document.getElementById('result').innerText = event.data
+        };
+
+        &lt;/script&gt;
+&lt;/head&gt;
+&lt;body&gt;
+&lt;div id="result"&gt;&lt;/div&gt;
+
+&lt;/body&gt;
+&lt;/html&gt;</code></pre> 
+<h3>3.4 后端服务</h3> 
+<p>注意事项：   </p> 
+<p>//1.produces = "text/event-stream;charset=UTF-8"一定要带上</p> 
+<p>//2.！！！注意，EventSource返回的参数必须以data:开头，"\n\n"结尾，不然onmessage方法无法执行。</p> 
+<pre><code>package com.ljf.spring.boot.demo.controller;
+
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+
+import java.io.IOException;
+import java.text.DecimalFormat;
+
+/**
+ * @ClassName: PushDataController
+ * @Description: TODO
+ * @Author: liujianfu
+ * @Date: 2021/04/05 15:34:03 
+ * @Version: V1.0
+ **/
+@RestController
+public class PushDataController {
+    //1.produces = "text/event-stream;charset=UTF-8"一定要带上
+    @RequestMapping(value = "/get_data", produces = "text/event-stream;charset=UTF-8")
+    public String getData(){
+        try {
+            Thread.sleep(1000);
+        }catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        double moeny=Math.random()*10;
+        System.out.println(String.format("%.2f",moeny));
+        DecimalFormat df = new DecimalFormat(".00");
+        String canshu=df.format(moeny);
+        //2.！！！注意，EventSource返回的参数必须以data:开头，"\n\n"结尾，不然onmessage方法无法执行。
+        return "data:白菜价格行情:" + canshu+"元"+ "\n\n";
+    }
+
+
+}
+</code></pre> 
+<h3>3.5 访问</h3> 
+<p>需要把response的类型 改为 text/event-stream，才是sse的类型</p> 
+<p>输入地址：直接访问页面：<a href="http://localhost:8080/index.html" rel="nofollow">http://localhost:8080/index.html</a>  ；而直接访问请求地址：http://localhost:8080/get_data  则只显示一次。主要是没有建立长链接。</p> 
+<p><img alt="" height="831" src="https://images2.imgbox.com/2a/d0/IJJEcjyy_o.png" width="1200"></p> 
+<p> </p> 
+<p> </p> 
+<p> </p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/62813de7e104dd568802e49623f6ce79/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">使用PreparedStatement批量操作数据</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/c32e4bd82a76da94118d9879026ce5f5/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">padas facorize的实际使用一个小案例</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

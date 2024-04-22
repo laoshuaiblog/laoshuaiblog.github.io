@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>SpringBoot中配置多个数据源 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/a29791a14346e2b093a1f7fbf306b6af/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="SpringBoot中配置多个数据源">
+  <meta property="og:description" content="说明 在Spring Boot中配置多个数据源并实现自动切换，可以通过使用AbstractRoutingDataSource和AOP（面向切面编程）的方式来实现。
+下面是一个基本的步骤指南(仅供参考)：
+定义数据源配置 在application.properties或application.yml中定义每个数据源的连接信息。
+# 主数据源 spring.datasource.primary.url=jdbc:mysql://localhost:3306/primary_db spring.datasource.primary.username=root spring.datasource.primary.password=password spring.datasource.primary.driver-class-name=com.mysql.cj.jdbc.Driver # 次数据源 spring.datasource.secondary.url=jdbc:mysql://localhost:3306/secondary_db spring.datasource.secondary.username=root spring.datasource.secondary.password=password spring.datasource.secondary.driver-class-name=com.mysql.cj.jdbc.Driver 创建数据源配置类 为每个数据源创建配置相应的DataSource。
+import com.alibaba.druid.pool.DruidDataSource; import org.springframework.beans.factory.annotation.Qualifier; import org.springframework.boot.context.properties.ConfigurationProperties; import org.springframework.context.annotation.Bean; import org.springframework.context.annotation.Configuration; import org.springframework.context.annotation.Primary; import org.springframework.jdbc.datasource.lookup.AbstractRoutingDataSource; import javax.sql.DataSource; import java.util.HashMap; import java.util.Map; /** * 数据源配置 * @author zq * @since 14:32 2024/03/20 **/ @Configuration public class MoreDataSourceConfig { /** * 配置主数据源 ，用于写入数据 * @author zq * @since 14:27 2024/03/20 * @return javax.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2024-03-22T08:29:41+08:00">
+    <meta property="article:modified_time" content="2024-03-22T08:29:41+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">SpringBoot中配置多个数据源</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-dark">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <h2><a id="_0"></a>说明</h2> 
+<p>在Spring Boot中配置多个数据源并实现自动切换，可以通过使用AbstractRoutingDataSource和AOP（面向切面编程）的方式来实现。</p> 
+<p>下面是一个基本的步骤指南(仅供参考)：</p> 
+<h2><a id="_5"></a>定义数据源配置</h2> 
+<p>在application.properties或application.yml中定义每个数据源的连接信息。</p> 
+<pre><code class="prism language-bash"><span class="token comment"># 主数据源 </span>
+<span class="token assign-left variable">spring.datasource.primary.url</span><span class="token operator">=</span>jdbc:mysql://localhost:3306/primary_db  
+<span class="token assign-left variable">spring.datasource.primary.username</span><span class="token operator">=</span>root  
+<span class="token assign-left variable">spring.datasource.primary.password</span><span class="token operator">=</span>password  
+spring.datasource.primary.driver-class-name<span class="token operator">=</span>com.mysql.cj.jdbc.Driver  
+  
+ <span class="token comment"># 次数据源 </span>
+<span class="token assign-left variable">spring.datasource.secondary.url</span><span class="token operator">=</span>jdbc:mysql://localhost:3306/secondary_db  
+<span class="token assign-left variable">spring.datasource.secondary.username</span><span class="token operator">=</span>root  
+<span class="token assign-left variable">spring.datasource.secondary.password</span><span class="token operator">=</span>password  
+spring.datasource.secondary.driver-class-name<span class="token operator">=</span>com.mysql.cj.jdbc.Driver
+</code></pre> 
+<h2><a id="_22"></a>创建数据源配置类</h2> 
+<p>为每个数据源创建配置相应的DataSource。</p> 
+<pre><code class="prism language-java"><span class="token keyword">import</span> <span class="token import"><span class="token namespace">com<span class="token punctuation">.</span>alibaba<span class="token punctuation">.</span>druid<span class="token punctuation">.</span>pool<span class="token punctuation">.</span></span><span class="token class-name">DruidDataSource</span></span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">org<span class="token punctuation">.</span>springframework<span class="token punctuation">.</span>beans<span class="token punctuation">.</span>factory<span class="token punctuation">.</span>annotation<span class="token punctuation">.</span></span><span class="token class-name">Qualifier</span></span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">org<span class="token punctuation">.</span>springframework<span class="token punctuation">.</span>boot<span class="token punctuation">.</span>context<span class="token punctuation">.</span>properties<span class="token punctuation">.</span></span><span class="token class-name">ConfigurationProperties</span></span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">org<span class="token punctuation">.</span>springframework<span class="token punctuation">.</span>context<span class="token punctuation">.</span>annotation<span class="token punctuation">.</span></span><span class="token class-name">Bean</span></span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">org<span class="token punctuation">.</span>springframework<span class="token punctuation">.</span>context<span class="token punctuation">.</span>annotation<span class="token punctuation">.</span></span><span class="token class-name">Configuration</span></span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">org<span class="token punctuation">.</span>springframework<span class="token punctuation">.</span>context<span class="token punctuation">.</span>annotation<span class="token punctuation">.</span></span><span class="token class-name">Primary</span></span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">org<span class="token punctuation">.</span>springframework<span class="token punctuation">.</span>jdbc<span class="token punctuation">.</span>datasource<span class="token punctuation">.</span>lookup<span class="token punctuation">.</span></span><span class="token class-name">AbstractRoutingDataSource</span></span><span class="token punctuation">;</span>
+
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">javax<span class="token punctuation">.</span>sql<span class="token punctuation">.</span></span><span class="token class-name">DataSource</span></span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">java<span class="token punctuation">.</span>util<span class="token punctuation">.</span></span><span class="token class-name">HashMap</span></span><span class="token punctuation">;</span>
+<span class="token keyword">import</span> <span class="token import"><span class="token namespace">java<span class="token punctuation">.</span>util<span class="token punctuation">.</span></span><span class="token class-name">Map</span></span><span class="token punctuation">;</span>
+
+<span class="token comment">/**
+ * 数据源配置
+ * @author zq
+ * @since 14:32 2024/03/20
+ **/</span>
+<span class="token annotation punctuation">@Configuration</span>
+<span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">MoreDataSourceConfig</span> <span class="token punctuation">{<!-- --></span>
+
+    <span class="token comment">/**
+     * 配置主数据源 ，用于写入数据
+     * @author zq
+     * @since 14:27 2024/03/20
+     * @return javax.sql.DataSource
+     **/</span>
+    <span class="token annotation punctuation">@Bean</span><span class="token punctuation">(</span>name <span class="token operator">=</span> <span class="token string">"primaryDataSource"</span><span class="token punctuation">)</span>
+    <span class="token annotation punctuation">@ConfigurationProperties</span><span class="token punctuation">(</span>prefix <span class="token operator">=</span> <span class="token string">"spring.datasource.primary"</span><span class="token punctuation">)</span>
+    <span class="token keyword">public</span> <span class="token class-name">DataSource</span> <span class="token function">primaryDataSource</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">return</span> <span class="token keyword">new</span> <span class="token class-name">DruidDataSource</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token comment">/**
+     * 配置从数据源 ，用于读取数据
+     * @author zq
+     * @since 14:27 2024/03/20
+     * @return javax.sql.DataSource
+     **/</span>
+    <span class="token annotation punctuation">@Bean</span><span class="token punctuation">(</span>name <span class="token operator">=</span> <span class="token string">"secondaryDataSource"</span><span class="token punctuation">)</span>
+    <span class="token annotation punctuation">@ConfigurationProperties</span><span class="token punctuation">(</span>prefix <span class="token operator">=</span> <span class="token string">"spring.datasource.secondary"</span><span class="token punctuation">)</span>
+    <span class="token keyword">public</span> <span class="token class-name">DataSource</span> <span class="token function">secondaryDataSource</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token comment">//return DataSourceBuilder.create().build();</span>
+        <span class="token keyword">return</span> <span class="token keyword">new</span> <span class="token class-name">DruidDataSource</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token comment">// ...</span>
+<span class="token punctuation">}</span>
+
+</code></pre> 
+<h2><a id="_75"></a>创建动态数据源</h2> 
+<p>实现一个继承自AbstractRoutingDataSource的动态数据源类，用来根据上下文切换数据源。</p> 
+<pre><code class="prism language-java"><span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">DynamicDataSource</span> <span class="token keyword">extends</span> <span class="token class-name">AbstractRoutingDataSource</span> <span class="token punctuation">{<!-- --></span>  
+    <span class="token annotation punctuation">@Override</span>  
+    <span class="token keyword">protected</span> <span class="token class-name">Object</span> <span class="token function">determineCurrentLookupKey</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>  
+        <span class="token keyword">return</span> <span class="token class-name">DataSourceContextHolder</span><span class="token punctuation">.</span><span class="token function">getDataSourceType</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>  
+    <span class="token punctuation">}</span>  
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>DataSourceContextHolder是一个用来保存当前线程的数据源键的工具类。</p> 
+<pre><code class="prism language-java"><span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">DataSourceContextHolder</span> <span class="token punctuation">{<!-- --></span>  
+    <span class="token keyword">private</span> <span class="token keyword">static</span> <span class="token keyword">final</span> <span class="token class-name">ThreadLocal</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">String</span><span class="token punctuation">&gt;</span></span> contextHolder <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">ThreadLocal</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token punctuation">&gt;</span></span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>  
+  
+    <span class="token keyword">public</span> <span class="token keyword">static</span> <span class="token keyword">void</span> <span class="token function">setDataSourceType</span><span class="token punctuation">(</span><span class="token class-name">String</span> dataSourceType<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>  
+        contextHolder<span class="token punctuation">.</span><span class="token function">set</span><span class="token punctuation">(</span>dataSourceType<span class="token punctuation">)</span><span class="token punctuation">;</span>  
+    <span class="token punctuation">}</span>  
+  
+    <span class="token keyword">public</span> <span class="token keyword">static</span> <span class="token class-name">String</span> <span class="token function">getDataSourceType</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>  
+        <span class="token keyword">return</span> contextHolder<span class="token punctuation">.</span><span class="token function">get</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>  
+    <span class="token punctuation">}</span>  
+  
+    <span class="token keyword">public</span> <span class="token keyword">static</span> <span class="token keyword">void</span> <span class="token function">clearDataSourceType</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>  
+        contextHolder<span class="token punctuation">.</span><span class="token function">remove</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>  
+    <span class="token punctuation">}</span>  
+<span class="token punctuation">}</span>
+</code></pre> 
+<h2><a id="_105"></a>注册动态数据源</h2> 
+<p>在配置类中注册动态数据源，并将所有数据源设置到动态数据源中。</p> 
+<pre><code class="prism language-java"><span class="token annotation punctuation">@Configuration</span>  
+<span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">DataSourceConfig</span> <span class="token punctuation">{<!-- --></span>  
+  
+    <span class="token annotation punctuation">@Autowired</span>  
+    <span class="token annotation punctuation">@Qualifier</span><span class="token punctuation">(</span><span class="token string">"primaryDataSource"</span><span class="token punctuation">)</span>  
+    <span class="token keyword">private</span> <span class="token class-name">DataSource</span> dataSourcePrimary<span class="token punctuation">;</span>  
+  
+    <span class="token annotation punctuation">@Autowired</span>  
+    <span class="token annotation punctuation">@Qualifier</span><span class="token punctuation">(</span><span class="token string">"secondaryDataSource"</span><span class="token punctuation">)</span>  
+    <span class="token keyword">private</span> <span class="token class-name">DataSource</span> dataSourceSecondary<span class="token punctuation">;</span>  
+  
+    <span class="token annotation punctuation">@Bean</span><span class="token punctuation">(</span>name <span class="token operator">=</span> <span class="token string">"dataSource"</span><span class="token punctuation">)</span>  
+    <span class="token keyword">public</span> <span class="token class-name">DataSource</span> <span class="token function">dataSource</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>  
+        <span class="token class-name">Map</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Object</span><span class="token punctuation">,</span> <span class="token class-name">Object</span><span class="token punctuation">&gt;</span></span> targetDataSources <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">HashMap</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token punctuation">&gt;</span></span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>  
+        targetDataSources<span class="token punctuation">.</span><span class="token function">put</span><span class="token punctuation">(</span><span class="token string">"primary"</span><span class="token punctuation">,</span> dataSourcePrimary<span class="token punctuation">)</span><span class="token punctuation">;</span>  
+        targetDataSources<span class="token punctuation">.</span><span class="token function">put</span><span class="token punctuation">(</span><span class="token string">"secondary"</span><span class="token punctuation">,</span> dataSourceSecondary<span class="token punctuation">)</span><span class="token punctuation">;</span>  
+  
+        <span class="token class-name">DynamicDataSource</span> dataSource <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">DynamicDataSource</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>  
+        dataSource<span class="token punctuation">.</span><span class="token function">setTargetDataSources</span><span class="token punctuation">(</span>targetDataSources<span class="token punctuation">)</span><span class="token punctuation">;</span>  
+        dataSource<span class="token punctuation">.</span><span class="token function">setDefaultTargetDataSource</span><span class="token punctuation">(</span>dataSourcePrimary<span class="token punctuation">)</span><span class="token punctuation">;</span> <span class="token comment">// 设置默认数据源  </span>
+        <span class="token keyword">return</span> dataSource<span class="token punctuation">;</span>  
+    <span class="token punctuation">}</span>  
+  
+    <span class="token comment">// ... 其他配置 ...  </span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<h2><a id="AOP_135"></a>使用AOP实现数据源自动切换</h2> 
+<p>通过AOP在方法执行前设置数据源，并在方法执行后清除数据源。</p> 
+<pre><code class="prism language-java"><span class="token annotation punctuation">@Aspect</span>  
+<span class="token annotation punctuation">@Component</span>  
+<span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">DataSourceAspect</span> <span class="token punctuation">{<!-- --></span>  
+  
+    <span class="token annotation punctuation">@Before</span><span class="token punctuation">(</span><span class="token string">"@annotation(dataSource)"</span><span class="token punctuation">)</span>  
+    <span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">switchDataSource</span><span class="token punctuation">(</span><span class="token class-name">JoinPoint</span> point<span class="token punctuation">,</span> <span class="token class-name">DataSourceSwitch</span> dataSource<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>  
+        <span class="token class-name">DataSourceContextHolder</span><span class="token punctuation">.</span><span class="token function">setDataSourceType</span><span class="token punctuation">(</span>dataSource<span class="token punctuation">.</span><span class="token function">value</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>  
+    <span class="token punctuation">}</span>  
+  
+    <span class="token annotation punctuation">@After</span><span class="token punctuation">(</span><span class="token string">"@annotation(dataSource)"</span><span class="token punctuation">)</span>  
+    <span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">restoreDataSource</span><span class="token punctuation">(</span><span class="token class-name">JoinPoint</span> point<span class="token punctuation">,</span> <span class="token class-name">DataSourceSwitch</span> dataSource<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>  
+        <span class="token class-name">DataSourceContextHolder</span><span class="token punctuation">.</span><span class="token function">clearDataSourceType</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>  
+    <span class="token punctuation">}</span>  
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>DataSourceSwitch是一个自定义注解，用来标识需要切换数据源的方法。</p> 
+<pre><code class="prism language-java"><span class="token annotation punctuation">@Target</span><span class="token punctuation">(</span><span class="token punctuation">{<!-- --></span><span class="token class-name">ElementType</span><span class="token punctuation">.</span><span class="token constant">METHOD</span><span class="token punctuation">}</span><span class="token punctuation">)</span>  
+<span class="token annotation punctuation">@Retention</span><span class="token punctuation">(</span><span class="token class-name">RetentionPolicy</span><span class="token punctuation">.</span><span class="token constant">RUNTIME</span><span class="token punctuation">)</span>  
+<span class="token keyword">public</span> <span class="token annotation punctuation">@interface</span> <span class="token class-name">DataSourceSwitch</span> <span class="token punctuation">{<!-- --></span>  
+    <span class="token class-name">String</span> <span class="token function">value</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token keyword">default</span> <span class="token string">"primary"</span><span class="token punctuation">;</span>  
+<span class="token punctuation">}</span>
+</code></pre> 
+<h2><a id="_163"></a>在需要切换数据源的方法上使用注解</h2> 
+<p>在需要切换数据源的服务层或DAO层方法上添加@DataSourceSwitch注解，并指定数据源类型。</p> 
+<pre><code class="prism language-java"><span class="token annotation punctuation">@Service</span>  
+<span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">SomeService</span> <span class="token punctuation">{<!-- --></span>  
+    <span class="token comment">// 调用secondary数据源的进行读取操作  </span>
+    <span class="token annotation punctuation">@DataSourceSwitch</span><span class="token punctuation">(</span><span class="token string">"secondary"</span><span class="token punctuation">)</span>
+    <span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">someMethodUsingSecondaryDataSource</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+     
+    <span class="token punctuation">}</span>
+
+    <span class="token comment">// 默认使用primary数据源的写入操作</span>
+    <span class="token annotation punctuation">@DataSourceSwitch</span>
+    <span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">someMethodUsingDefaultDataSource</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>  
+          
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<h2><a id="_184"></a>事务管理说明</h2> 
+<p>如果你的业务操作需要在事务中执行，确保你的事务管理器能够处理数据源的切换。这可能需要你自定义事务管理器，或者使用AOP来在事务开始之前设置正确的数据源。</p> 
+<h2><a id="_187"></a>注意事项</h2> 
+<p>通过以上步骤，实现了在Spring Boot中配置多个数据源，并可以通过注解的方式自动切换数据源。在调用带有<code>@DataSourceSwitch</code>注解的方法时，AOP切面会自动将数据源切换到指定的数据源，并在方法执行完毕后恢复默认数据源。</p> 
+<p>当使用JPA时，确保每个数据源都有自己的EntityManagerFactory和TransactionManager。<br> 考虑到线程安全问题，<strong>确保你的数据源切换逻辑是线程安全的</strong>。<br> 数据源切换通常用于读取和写入操作分离的场景，或者当你有多个独立的数据库需要访问时。确保不要过度使用，因为它可能增加复杂性和出错的可能性。</p> 
+<p>请注意，这是一个高级功能，并且可能会引入额外的复杂性和潜在的问题。<strong>在生产环境中使用之前，请确保彻底测试你的实现</strong>。</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/22f47af28d526bd29ffd04807c7ee9e3/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">【TS】1992- as const 5 种使用技巧</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/68fd794aa1abb72a1c10168476bd5984/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">【WEEK4】 【DAY2】Integrating SSM Framework: Overview and Adding Data 【English Version】</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

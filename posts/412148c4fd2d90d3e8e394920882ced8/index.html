@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>案例|某城商行Zabbix 监控架构分享 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/412148c4fd2d90d3e8e394920882ced8/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="案例|某城商行Zabbix 监控架构分享">
+  <meta property="og:description" content="编者荐语：
+作者所在的某城商行顺利完成应用系统监控迁移到 Zabbix平台，将从架构部署、监控维度、自动化方案、运营管理层面，分享Zabbix 系统发展壮大的经验。本文作者也在&#34;Zabbix技术交流群“，欢迎加入交流。
+AcidGo：某城商行基础架构运维工程师
+2018年开始使用并在公司内部普及Zabbix监控系统，在内部生产环境使用Zabbix监控了多款存储设备、数千台操作系统主机、各个数据库产品等多维度的监控覆盖，开发了多个自定义监控脚本、应用监控框架和前端页面展示。
+Zabbix 平台概述
+平台介绍
+Zabbix 是一个基于 Web 界面提供分布式系统监视及网络监视功能的企业级开源解决方案。它能监视各种网络参数，保证服务器系统的安全运营，并提供灵活的通知机制以让系统管理员快速定位、解决存在的各种问题，借助Zabbix 可很轻松地减轻运维人员繁重的服务器管理任务，保证业务系统持续运行。其后端使用数据库存储监控配置和历史数据，可以非常方便地对接数据分析、报表定制等渠道，在前端开放了丰富的 RESTful API 供第三方平台调用，整体架构在当下的 DevOps 的趋势下显得非常亮眼。
+选型过程
+我们于 2017 年开始接触 Zabbix，之前运维内主要使用的监控系统是 Nagios，但 Nagios 的页面展示、监控配置、自动化等各项功能对基础架构的运维人员来说不是特别友好，而风头正劲的 Zabbix 正好引起了我们的注意。基础架构的运维工作中，需要面对各种各样的监控场景，例如 PC 服务器的故障灯巡检、存储设备的阵列健康判断、小型机 LPAR 的资源监控、操作系统的多路径检查，等等。而 Zabbix 内置提供了 SNMP、IMPI、SSH、Agent 等多种监控途径，在系统架构的各层场景下都能很好的适配，其中 Agent 还支持自定义工具，总体的表现非常灵活。在网页前端管理上，Zabbix 可以满足各个粒度的监控管理，从整个集群到单独一个监控项都能够进行细分管控，自定义 dashboard 和历史数据可视化功能也极大地方便运维人员对监控数据的审查。综合以上的考虑因素，行内选择了 Zabbix 作为一个新的监控平台试点，从基础资源的监控出发，首先将大部分存储、主机和操作系统接管到 Zabbix。
+使用现状
+2017 年底在基础架构范围内试行的 Zabbix 系统，从 3.2 版本开始逐步演进到现在的 4.4 版本，其中经历了各项监控系统的里程碑事件。目前的 Zabbix 系统也由原先的小范围试用，逐步扩展到涵盖硬件、应用、平台、业务等更大范围的场景，架构上也从单数据中心进化为三中心的分布式部署。除了逐渐替代旧的监控系统，越来越多的第三方系统也开始对接起了 Zabbix，例如自动化运维平台、持续发布平台、运维可视化平台等，通过 API 或者数据库抽数的方式，使用海量的运维监控数据实现智能运维的工作模式。
+在编写此文前不久，我们也顺利完成应用系统监控迁移到 Zabbix 平台，作为一名全程参与 Zabbix 系统推广实施和自动化开发的运维人员，非常荣幸能够见证我们运维力量的茁壮成长，在此，本人也将从架构部署、监控维度、自动化方案、运营管理层面，分享我们 Zabbix 系统发展壮大的经验。
+硬件监控
+数据中心的运维管理中，系统架构的纵向深度是非常陡长的，包括最基础的硬件设备也需要运维人员费尽心思地去巡检排查，但随着数据中心的设备数量呈爆发式增长，人工巡检已不能满足当下监控实时性、可靠性的要求。对于这种低层级的监控，Zabbix 的多维度特性就非常好的解决了这个问题，其内置的 SNMP/IPMI 协议能够轻松对接相关硬件设备的带外监控。">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2023-06-21T11:49:20+08:00">
+    <meta property="article:modified_time" content="2023-06-21T11:49:20+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">案例|某城商行Zabbix 监控架构分享</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-dark">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <p>编者荐语：</p> 
+<p>作者所在的某城商行顺利完成应用系统监控迁移到 Zabbix平台，将从架构部署、监控维度、自动化方案、运营管理层面，分享Zabbix 系统发展壮大的经验。本文作者也在"Zabbix技术交流群“，欢迎加入交流。</p> 
+<p>AcidGo：某城商行基础架构运维工程师</p> 
+<p>2018年开始使用并在公司内部普及Zabbix监控系统，在内部生产环境使用Zabbix监控了多款存储设备、数千台操作系统主机、各个数据库产品等多维度的监控覆盖，开发了多个自定义监控脚本、应用监控框架和前端页面展示。</p> 
+<p><strong>Zabbix 平台概述</strong><br> 平台介绍<br> Zabbix 是一个基于 Web 界面提供分布式系统监视及网络监视功能的企业级开源解决方案。它能监视各种网络参数，保证服务器系统的安全运营，并提供灵活的通知机制以让系统管理员快速定位、解决存在的各种问题，借助Zabbix 可很轻松地减轻运维人员繁重的服务器管理任务，保证业务系统持续运行。其后端使用数据库存储监控配置和历史数据，可以非常方便地对接数据分析、报表定制等渠道，在前端开放了丰富的 RESTful API 供第三方平台调用，整体架构在当下的 DevOps 的趋势下显得非常亮眼。</p> 
+<p><strong>选型过程</strong><br> 我们于 2017 年开始接触 Zabbix，之前运维内主要使用的监控系统是 Nagios，但 Nagios 的页面展示、监控配置、自动化等各项功能对基础架构的运维人员来说不是特别友好，而风头正劲的 Zabbix 正好引起了我们的注意。基础架构的运维工作中，需要面对各种各样的监控场景，例如 PC 服务器的故障灯巡检、存储设备的阵列健康判断、小型机 LPAR 的资源监控、操作系统的多路径检查，等等。而 Zabbix 内置提供了 SNMP、IMPI、SSH、Agent 等多种监控途径，在系统架构的各层场景下都能很好的适配，其中 Agent 还支持自定义工具，总体的表现非常灵活。在网页前端管理上，Zabbix 可以满足各个粒度的监控管理，从整个集群到单独一个监控项都能够进行细分管控，自定义 dashboard 和历史数据可视化功能也极大地方便运维人员对监控数据的审查。综合以上的考虑因素，行内选择了 Zabbix 作为一个新的监控平台试点，从基础资源的监控出发，首先将大部分存储、主机和操作系统接管到 Zabbix。</p> 
+<p><strong>使用现状</strong><br> 2017 年底在基础架构范围内试行的 Zabbix 系统，从 3.2 版本开始逐步演进到现在的 4.4 版本，其中经历了各项监控系统的里程碑事件。目前的 Zabbix 系统也由原先的小范围试用，逐步扩展到涵盖硬件、应用、平台、业务等更大范围的场景，架构上也从单数据中心进化为三中心的分布式部署。除了逐渐替代旧的监控系统，越来越多的第三方系统也开始对接起了 Zabbix，例如自动化运维平台、持续发布平台、运维可视化平台等，通过 API 或者数据库抽数的方式，使用海量的运维监控数据实现智能运维的工作模式。</p> 
+<p>在编写此文前不久，我们也顺利完成应用系统监控迁移到 Zabbix 平台，作为一名全程参与 Zabbix 系统推广实施和自动化开发的运维人员，非常荣幸能够见证我们运维力量的茁壮成长，在此，本人也将从架构部署、监控维度、自动化方案、运营管理层面，分享我们 Zabbix 系统发展壮大的经验。</p> 
+<p><strong>硬件监控</strong><br> 数据中心的运维管理中，系统架构的纵向深度是非常陡长的，包括最基础的硬件设备也需要运维人员费尽心思地去巡检排查，但随着数据中心的设备数量呈爆发式增长，人工巡检已不能满足当下监控实时性、可靠性的要求。对于这种低层级的监控，Zabbix 的多维度特性就非常好的解决了这个问题，其内置的 SNMP/IPMI 协议能够轻松对接相关硬件设备的带外监控。</p> 
+<p>目前我们使用 SNMP Agent 的被动方式定期巡检硬件设备的基础指标，例如故障灯信号、电源功率、内存信息、磁盘阵列等，代替人工巡检的方式来实现异常捕获，并对数据中心内的所有设备做到硬件信息采集，定时更新至 CMDB。例如以下为部分华为 RH2288 V3 IBMC 监控模板中自动发现的配置：</p> 
+<p><img src="https://images2.imgbox.com/83/26/Xw0a2Roa_o.png" alt="图片"><br> Zabbix 配置硬件监控的操作过程也非常便捷，大部分都是在网页界面配置，只需要定义好 SNMP Agent/Trap 的接口或 IPMI 传感器目标端口后即可灵活定义监控项。对于 IPMI 监控的配置，主要是将传感器的名称填入即可，目前我们对 IPMI 的带外监控使用的相对较少，主要是部分浪潮 PC 服务器在使用，对 IPMI 更多地考虑应用于在如 VMware vSphere 的 DPM 等带外管理上。<br> **在硬件监控选择监控协议时，保持的一项原则是：能用 SNMP 就不用其他，能用 SNMPv3 就不用 SNMPv2。**因为 SNMP 在 Zabbix 中可以非常灵活的实现自动发现，而 SNMPv3 可以提供更健壮的认证机制，因为在开放硬件监控的同时也必须考量网络安全的风险。对单个 SNMPv3 的监控项配置如下，大部分参数都提供了输入窗口：</p> 
+<p><img src="https://images2.imgbox.com/0c/c3/vrzZka3B_o.png" alt="图片"><br> 对于上述提及的 SNMP 配置自动发现的灵活性，这也是依赖于 SNMP 设计的原理，借助树结构的索引方式，可以根据 index 字段枚举现有元素的数量，然后再根据数量长度来遍历下一层元素。对于这种遍历，Zabbix 自身提供了友好的 discovery[{#SNMPVALUE},OID] 函数来完成，无缝对接到内部通用的自动发现数据结构。整个 SNMP 自动发现的机制原理如下<img src="https://images2.imgbox.com/4a/7b/QyJBULVp_o.png" alt="图片"><br> 由于我们 Zabbix 的起步试点是从基础设施运维开始，加上 Zabbix 对 SNMP/IPMI 协议配置的操作非常方便，所以经常可以根据厂家提供的 mib 文件及 mib 文档说明即可筛选出需要自定义的监控，这样既可以通过减少采集来降低管理系统的繁忙度，又能优化监控质量。例如以下为根据 Lenovo XCC 带外管理系统的 mib 说明（http://www.circitor.fr/Mibs/Html/L/LENOVO-XCC-MIB.php）来自定义配置的 ThinkSystem SR650 的 SNMPv3 监控使用效果：</p> 
+<p><img src="https://images2.imgbox.com/0b/84/QUIDOdUG_o.png" alt="图片"><br> 上图中的电源、阵列、磁盘等均是通过自动发现的规则来生成的，这对拥有不同阵列卡数量、网卡数量、路数等的 XCC 带外服务器，都可以使用同一个模板，设备变化完全交给 Zabbix 维护。另外，分享一个定制 SNMP 监控过程中的经验，首先在 MIB 文件中收集所有需要监控的指标，对筛选的指标做分组，找到每个组的最高父级索引的 OID，然后在 Zabbix Proxy 上使用 snmpwalk 遍历这个 OID 找到所有 OID 内容，区分出 Index 和 Detail 后，划分常规监控和自动发现监控，最后使用 snmpget 来逐个获取 OID 的值确定对应 Zabbix 上的数值类型。需要特别注意，snmpwalk 是遍历，并不需要 OID 的完整值，而 snmpget 则是根据一个完整的 OID 来检索，对应于 Zabbix 则是 snmpwalk 类似自动发现，snmpget 类似常规监控项。</p> 
+<p><strong>存储监控</strong><br> 在数据中心中，存储设备是非常核心且关键的基础设施，任何一个相关告警都会让运维人员警觉。在推进 Zabbix 的存储监控的过程中，体会到一个非常棘手的困难点，即存储不单单是硬件设备，SNMP 的协议不能获取到带内的性能信息，但也不像主流操作系统那样可以安装 Zabbix Agent 来做数据采集。对于这种问题的处理，我们积累的经验是，首选使用 RESTful 等外部接口来获取监控数据，在不支持此条件的情况下，在 Zabbix Proxy 服务器上通过自定义监控封装厂家推荐工具或方法来监控。</p> 
+<p><strong>Zabbix Agent</strong> 支持运维人员自定义监控，将执行命令封装成一个 Zabbix Item Key 来供 Zabbix 调用，也支持额外的安全策略，例如 AllowRoot 可以设置是否允许 root 来执行 agent，UnsafeUserParameters 参数能够过滤特殊符号注入。我们对自定义配置的标准，以 RedHat 基线为例，在 /etc/zabbix/zabbix_agentd.d 目录一个监控类为一份 conf 文件的形式保存，命名形式为 ClassA_ClassB_Detail.conf，并且定义的执行文件均放置于 /usr/local/zbxexec/ClassA/ClassB/xxxx.xx。</p> 
+<p>对于自定义监控项的方法，能够便捷地对接各个存储厂家的产品监控方式，将厂家建议的监控命令封装为 Zabbix 的一个监控项。这类被封装的方法主要是 CLI、RESTful 和 SSH，例如以下我们目前对各产品使用的监控方式：<br> <img src="https://images2.imgbox.com/89/c8/SglxoplL_o.png" alt="在这里插入图片描述"></p> 
+<p>除了跟厂家沟通对接 Zabbix 外，其实也可以借助开源生态和 Zabbix 的合作推广，也有很多企业与我们一样会分享 Zabbix 的经验、模板、工具到 Zabbix Share，可以斟酌筛选后使用。同时，Zabbix 也一直努力与其他厂家共同合作，共同推出每个厂家在 Zabbix 上的官方监控模板，例如 DELL EMC 在 Zabbix 中推出的各个产品的监控模板（https://www.zabbix.com/integrations/emc）。</p> 
+<p>通过上述的监控方式，Zabbix 对生产环境存储设备的监控效果让运维人员感到比较满意，agentless 的架构避免对重要设备的侵入，同时相关的存储告警也能够及时触发，并帮助存储管理人员迅速发现问题、定位原因。</p> 
+<p><strong>主机监控</strong><br> 我们目前的主机监控主要包含了 Power 的小型机和 x86 的 ESXi，这类对象有一非常明显的特点，就是数量和信息不固定。一台小型机可能需要为新部署的数据库划分物理分区或虚拟分区，亦或者要调整某个数据库的 CPU 分配；一个 vSphere 集群可能会扩容 ESXi 主机数量或资源，亦或新建一个集群。在这种多变的的环境里，首先考虑的是使用 Zabbix 的自动发现来适配，并且此场景有一个非常明显的相似特性，就是需要一个主控端来管理整个主机资源池。因此，我们对主机的监控常常采用的原则是，<strong>通过监控主控端来自动发现主机，让被发现的主机自动使用对应模板。</strong></p> 
+<p><img src="https://images2.imgbox.com/ad/ba/VZNvALs1_o.png" alt="图片"><br> 上述的监控流程主要是依赖 Zabbix 的自动注册主机来实现，不同于硬件监控中提及的自动注册监控项，这里的自动注册会直接根据主控端获取的资源列表，自动注册一个待监控的主机，相关的主机配置包括主机名、可见名称、agent 接口等都会继承主控，然后会为每个主机都绑定一个预先配置的监控模板。如果主控端发现某一个主机不在上一次收集的资源列表中，会在超过资源保留策略时间后，自动删除该主机。例如自动发现的 ESXi 主机：</p> 
+<p><img src="https://images2.imgbox.com/37/2d/qUWrxv2T_o.png" alt="在这里插入图片描述"></p> 
+<p><strong>操作系统监控</strong><br> 操作系统的监控是非常庞大的，除了操作系统种类多，每个操作系统内的监控项数量也是覆盖面广，再乘上物理机、虚拟机的数量，整个监控面积会非常之大。另外，将每一台服务器纳管至 Zabbix 中的操作也变得异常繁琐。对此，我们保持的思路是，通过自动化手段让服务器自动上报到 Zabbix，优化模板以减少重复监控，定制触发器的依赖关系。</p> 
+<p>操作系统的监控都是使用 Zabbix Agent 方案来实现的，Zabbix 也推出了各种操作系统的 agent，不需要编译就能直接运行。对此，我们的所有虚拟机基线、小型机备份、物理机 Ansible 部署脚本里，都会事先准备好对应操作系统的 Agent 安装和配置。其中，推荐使用被动方式，并且主要修改 agent 配置的如下内容：</p> 
+<pre><code class="prism language-c"># <span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+# 众多 Zabbix Proxy 中的两个
+ServerActive <span class="token operator">=</span> <span class="token number">10.10</span><span class="token number">.32</span><span class="token number">.1</span><span class="token punctuation">,</span><span class="token number">10.10</span><span class="token number">.32</span><span class="token number">.2</span>
+# 其中 <span class="token number">10.10</span><span class="token number">.32</span><span class="token number">.0</span><span class="token operator">/</span><span class="token number">24</span> 为当前机房的 Zabbix Proxy 节点网段
+Server <span class="token operator">=</span> <span class="token number">127.0</span><span class="token number">.0</span><span class="token number">.1</span><span class="token punctuation">,</span><span class="token number">10.10</span><span class="token number">.32</span><span class="token number">.0</span><span class="token operator">/</span><span class="token number">24</span>
+<span class="token macro property"><span class="token directive-hash">#</span> <span class="token expression">Hostname 是这台服务器的管理 IP</span></span>
+Hostname <span class="token operator">=</span> <span class="token number">10.10</span><span class="token number">.33</span><span class="token number">.1</span>
+</code></pre> 
+<p>这种配置主要是方便于 agent 在多个 Proxy 中平移，在故障恢复、Zabbix 升级等场景下，可以非常便利的保证 agent 的持续有效。另外将本地回环地址也写入 Server 中，方便以后需要在此操作系统中通过 agent 调用本地脚本。Hostname 在被动模式下并不是必须的，配置管理 IP 可以保证主动模式和配置管理的便利。</p> 
+<p>以上仅是 agent 的配置标准，如果需要自动上报至 Zabbix，还需要其他步骤。目前我们对于物理机和虚拟机的 x86 操作系统实现了自动上报主机的机制，每天上午八点会做一次上报，然后对新增的主机自动加入维护模式，避免部署阶段中各种不关键的异常带来告警风暴，直至系统稳定才会退出维护模式。在物理机的部署中，我们除了一套完善的自动化 RAID 配置、PXE 安装系统外，还有对操作系统配置基线的 Ansible 方案，每个操作系统的 roles 里，都有一个 Install Zabbix Agent And Report 的 task，这样通过实现配置的好的 vars 即可将此主机以标准命名添加到 Zabbix 中。而对于数量庞大的虚拟机，我们编写了一套 Python 脚本，扫描各个机房 vCenter 中的虚拟机获取到每日的虚拟机差异，再使用其在 CMDB 的属性、vCenter 上的备注，来填充业务系统、应用集群、服务器描述等，最后注册到 Zabbix。这种机制除了极大程度地解放运维人员对新系统的主机监控注册外，还可以在脚本中指定纳管策略来实现各种额外的预期目标，列举以下几点：</p> 
+<p>· 根据网段信息，将同机房的服务器接口对接同机房的 Proxy，避免机房流量交叉。</p> 
+<p>· 通过判断当前 Zabbix 各个 Proxy 的 vps，将新增主机接入到低负载的 Proxy。</p> 
+<p>· 将 CMDB 中现有的信息填入到被注册主机的标签和资产信息中。</p> 
+<p>其架构上的拓扑简化如下：</p> 
+<p><img src="https://images2.imgbox.com/be/e2/KkHpet3w_o.png" alt="图片"></p> 
+<p>在这套自动化机制下，极大地减轻了运维人员对监控配置的厌恶，也加到了对我们 CMDB 的关联，为以后的工单系统打下架构基础。但是，我们对监控系统的分析和探索没有仅仅止步于此，考虑到操作系统监控中触发器带来的大量告警，我们也研究了一些额外的措施，避免太宽泛的告警涌现。<br> 首先，将模板细分为各个类别作为基类的 template，然后根据应用场景来指定上层的模板由哪些基类组合，避免太多的定制模板中近似功能的监控带来重复监控。然后，对每个模板中的触发器指定严格的依赖关系，避免告警的连带触发导致风暴。例如 Linux 系统的分区容量监控触发器，我们制定了几个水位线之间的依赖：</p> 
+<p><img src="https://images2.imgbox.com/de/b4/pBe9NGX3_o.png" alt="图片"></p> 
+<p><strong>数据库监控</strong><br> 数据库监控也是一条每个运维人员心中紧绷的弦，除了普通的表空间使用、会话数量、SGA 使用、ASM 使用、缓存命中、刷脏频率等，还有宕机、切换等状态检查。加上我们近几年分布式数据库落地，及尝试国产数据库的背景下，越来越多的数据库产品需要对接至 Zabbix。目前我们对数据库的监控，结合了多种监控思路，制定了各种数据库产品的监控指标，在性能数据追溯与故障告警的场景下都体现出非常优秀的表现。</p> 
+<p>在金融行业的传统架构中，Oracle 数据库往往是不可或缺的一个基座，我们通过模板定制，提供了 Sinlge-Instance、RAC、DG、F5 等多种架构的模板，覆盖了大部分 Oracle DBA 关心的监控项。在 Zabbix 中专门使用一台高性能的 Proxy，通过自定义监控的方式来执行 Oracle 监控脚本。除了应急的故障告警外，现在 Zabbix 也成为了 DBA 分析数据库性能的工具，对比历史数据排查数据库问题，这也依赖于 Zabbix 保存的大量监控信息。如下为其中有给数据库的性能与 RAC 部分监控指标：</p> 
+<p><img src="https://images2.imgbox.com/76/2b/u8IwPPc9_o.png" alt="图片"><br> 除了传统架构的数据库，我们对其他数据库产品也提供了全面的监控，并且对此监控采用了主控服务（RootService）的思路，将数据库更自动的纳入监控中。这种方法的优点是可以完美展现 Zabbix 自动注册主机的机制，将数据库添加到监控中，并使用自动注册监控原型的方式来识别数据库开启了哪些需要监控的细节。目前我们编写了 OceanBase、巨杉数据库、MySQL、DRDS 等数据库产品的监控脚本，在 Zabbix 中以全新的数据库监控架构运行自管理。此框架的工作流程如下。</p> 
+<p><img src="https://images2.imgbox.com/6f/65/pQdVMOB3_o.png" alt="图片"><br> 以 MySQL 的监控为例作为详细描述整个过程，参见下图。</p> 
+<p><img src="https://images2.imgbox.com/fa/ab/4XZ0J2tS_o.png" alt="图片"><br> 在 MySQL 实例的配置 zbx_mysql.py 文件中，新增一个 testenv_zabbix 的数据库实例，这份文件是通过 acl 设置仅为 zabbix 用户读取的。当作为 MySQL RootService 的主机执行自动发现主机的监控时，会将新增的实例配置生成 Zabbix 自动发现的 json 规则，根据配置信息创建监控实例，并附加使用 MySQL 基础模板。在 MySQL 基础模板中，配置了一系列特殊的监控自动发现规则，例如 Discovery MySQL Replication Enable 会对发现的实例执行 show slave status 命令，这里仍会调用 MySQL RootService 的脚本，如果发现目标实例开启了主从，则会在自动发现返回 josn 中包含一个 {#REPLICATION}: “enabled” 的字段，从而触发主从复制的监控项生效。</p> 
+<p>创建一台逻辑主机作为主控服务，以链式发散的传播模式自动注册主机，然后根据模板内的自动发现判断是否需要附加额外的监控配置，这种在我们创新使用的监控方法，取到了非常好的成效，让监控系统变得更加智能，也不用像某些数据库监控还需要将连接的用户与密码写入到 Zabbix 的宏，而只要保证读取的配置文件在文件系统的 ACL 上是最小权限即可，提高了数据库的访问安全。另外一点，现在很多的分布式数据库也是采用 控制+计算+存储 的架构，例如 TiDB 的 PD 负责元数据管理、DB 负责 SQL 解析与计算、KV 负责底层键值对存储，面对众多的分区也好，副本也罢，最有效的监控方式就是直接对接其管控部件，将 Zabbix 主控服务的起点映射至数据库集群的管控上，不断顺着架构分层，将各个组件之间的监控项固化成自动发现规则，实现精准有效的监控覆盖。以目前我们的 OceanBase 分布式数据库监控为例，以下从 OB RootService 自动发散出 OB Zone、OB Tenant、OB Server、OB Partition 等监控细节。</p> 
+<p><img src="https://images2.imgbox.com/91/da/1r1i5NUw_o.png" alt="图片"></p> 
+<p>除了监控架构的不断灵活，我们也在考虑更加深入的监控效果，对于数据库的监控排查，DBA 更多地希望所有相关的告警都是同一个时间点的，这样更加便于横向参照。根据这个出发点，运维人员利用“监控快照”的思想，将监控项尽可能多地集中在同一个时间点上，这样也能极大减少监控数据库时频繁交互带来的性能损耗。实现这一点，主要借助于自定义脚本规范和 Zabbix 监控项中的相关项目依赖特性。以巨杉数据库的监控作为例，也正好通过巨杉数据库快照动作具有一定的性能消耗来说明减少交互频率的重要性。<br> <img src="https://images2.imgbox.com/f2/ee/16krcHyz_o.png" alt="图片"></p> 
+<p>这台测试环境的巨杉数据库集群的 Coord 主机，总共有 56 个监控项，如果每一个监控项都需要单独连接到其中一个协调节点并做快照获取对应的监控指标，那么集群对于这些频繁的快照操作会付出非常大的性能成本。但实际上，这里真实的监控项只有 3 个，也就是截图中的 multi_snapshot_SDB_SNAP_* 开头的，其余的都是由这三个监控项派生出来的，也就表示交互次数可以从 56 次缩减到 3 次。我们对这种方案的实施，是通过自定义脚本或 LDD macros 来生成一个包含各个子监控项的 JSON，并设置为不保存历史记录，这一点非常重要，因为子监控项的生成是在父监控项转储前计算得到的，保存大量被拆分的冗余 JSON 字符串也没有实际意义。在子监控项的生成动作中，主要使用了 Zabbix 监控项的预处理操作，使用 JSONPath 将对应的 K/V 抽出，再通过倍数/每秒变更/正则等方式获取到最终的子监控值。虽然预处理会消耗 Zabbix 的 CPU，但是实测调大 StartPreprocessors 参数后，CPU 没有明显的攀升，而且 Zabbix Proxy 是分布式可扩展的，这种瓶颈也非常容易通过扩容来解决。综合评估下来，这种方案带来的回报是很可观的，当出现数据库问题时，或许更多的 DBA 希望回溯监控历史，能够看到的是这样同一时间平面上的各项指标：<br> <img src="https://images2.imgbox.com/7f/cd/Dr9AYhOw_o.png" alt="图片"></p> 
+<p><strong>应用监控</strong><br> 当监控的考虑维度上升至应用组件时，我们依旧坚持使用自动化的方式去面对眼花缭乱的监控需求，思考如何让应用的监控更加富有生命力，同时也分析了在过去使用 Nagios 进行应用监控时遇到的痛点，最终，编写一个框架级别的工具，接管应用的监控生命周期。这个框架在我们内部称为 zbx_app，通过一个文件服务器和应用监控的准则来完成运行，可以自动完成自定义脚本拉取、版本迭代、自动注册监控项等，运维人员仅需要编写一份应用监控的声明文件，其他工作完全交由框架执行。</p> 
+<p>此框架的内部原理，主要是通过 Zabbix 发送来特定的监控项和自动发现作为更新配置与自动检查基础环境的信号，如果发现文件服务器的相关模块版本更新则会主动拉取文件，从而实现自管理的操作。这个接收特定信号并管理自身的环境的模块我们内部称之为基类，所有的模块监控会有一个自动发现规则与基类交互，如果基类声明文件里包含了请求的自动发现模块，那么就会应答，让 Zabbix 感知并利用返回的结果来生成此模块的监控项。对应的监控项生成后，每个监控项会使用快照的方法去捕获一次监控目标，然后再由监控相关项来拆分同一时间点上的各个子项。在这个调用的阶段，也是与基类交互的，只不过基类会根据其模块名来调用同步过来的模块方法的固定接口，这些接口是编写这类模块的开发准则，目的是为了保证基类能够顺利调用并解析。</p> 
+<p><img src="https://images2.imgbox.com/79/8b/rjtqm6f8_o.png" alt="图片"><br> 把考虑对象限制在一台主机上，简化这个流程，可以有如下的时间线，由上至下是时间前进的方向。</p> 
+<p><img src="https://images2.imgbox.com/3c/5b/vXXAp6wY_o.png" alt="图片"></p> 
+<p>Zabbix Proxy 会调用 Discovery APP 自动发现，触发主机初始化一次当前的 zbx_app 基类，基类收到信号后也会扫描环境，主要是收集各目录下的声明文件（lps.cfg），并根据声明文件做一次基础环境配置拉取，然后返回 Zabbix Proxy 相关信息。</p> 
+<p>Zabbix Proxy 收到了基类生效，其他模块的自动发现也会紧随着对主机做一次探测，发送各自的自动发现信号。</p> 
+<p>基类发现声明文件里存在 redis 的模块声明，那么会把内部信息整合为自动发现返回结构体，Zabbix Proxy 感知后会生成对应的监控项。</p> 
+<p>Redis 模块持续发送监控快照请求至基类，基类收到后会调用已经从 HTTPFileServer 上拉取下来的 redis 模块来执行监控请求，并返回结果集。</p> 
+<p>如果过程中应用维护人员将 url 模块的监控需求写入声明文件，下一次接收到 Discovery APP 信号时，基类会发现新增声明，迅速前往 HTTPFileServer 拉取指定版本的 url 监控模块。后续 URL 的监控也会与 Redis 一样持续生效，直至声明文件删除或注释了此模块。</p> 
+<p>如果过程中自动化开发人员对版本库里的 redis 模块更新了代码，基类也会在下一次接收到 Discovery APP 信号后对比 MD5 列别发现版本更新，从而拉取替换为最新版本。</p> 
+<p>使用自管理的基类实现了应用监控的闭环纳管，监控的操作上，细分了自动化开发人员开发模块职能，也给应用维护人员更多的自由度去声明自己需要的应用监控。而且，对基类的动作也纳入一个监控项，能保证基类自己的稳定，不至于罢工后无人知晓。<br> 通过这个框架，我们将应用监控从上一代的 Nagios 系统成功地迁移到了 Zabbix 系统，并且维护成本变得更低，运行模式更加稳定。</p> 
+<p><strong>业务监控</strong><br> 当有了强大的应用监控框架支撑后，运维人员也开始更往上地关注更上层的业务监控，业务的特征也是整套架构运行稳定的最直白表现。Zabbix 提供了数据库的监控，直接在网页界面直接编写 SQL 语句，由 Proxy/Server 通过 unixodbc 加载对应驱动去连接目标数据库，最终返回执行结果。目前我们利用这种方法，对业务的状态信息、交易成功率、设备报活、跑批等进行数据库查询，再通过 Zabbix 的告警渠道发送告警信息给全行订阅了这个业务系统的技术人员。直接在网页界面编写 SQL 能够适应业务查询的多变性，当受监控业务新增一个子系统时，仅需要在其监控项里连接一个新表，不需要修改自定义脚本。另外，这种方法可以降低自定义脚本的维护成本，ODBC 提供了多种数据库的驱动，在网页端开来底层一切都是封装好的，没有必要去考虑连接如何初始化、怎么建立游标、合适释放会话等。当获取到各个业务的监控数据后，能够平滑地对接到 Zabbix 的 dashboard，为各个业务创建一个监控面板，实现大屏展示的效果。</p> 
+<p><img src="https://images2.imgbox.com/a4/d7/xobqiZ6y_o.png" alt="图片"></p> 
+<p>在实践过程中，对于这种便捷的监控方式，要特别注意几点：</p> 
+<p>在文件系统上缩小 odbc 连接配置文件 odbc.ini 的权限，仅保证 zabbix 用户可访问，修改由特殊用户修改。</p> 
+<p>规范 SQL 编写规则，不允许出现执行成本较大的语句，这也需要跟 DBA 沟通好。</p> 
+<p>尽可能地让结果集返回一行甚至一行一列。</p> 
+<p>把数据计算操作分摊给 Zabbix 预处理，不能把太多的计算操作下推至数据库层面。</p> 
+<p><strong>页面监控</strong><br> 从上面讨论的各个监控维度上看，在一个运维的纵向坐标上，从硬件监控到业务监控，实现了最底层到最顶层的全方面的监控覆盖，多个层面保证了监控系统能够快速发现问题故障，进行准确的告警报送。但运维人员对监控的思考还没有结束，进而思考一个问题，监控的点位够否不单单在纵坐标上移动，而是可以前移至“未来”的时间点。例如不仅仅是用户登录系统进行交易后才触发一次失败才产生数据被监控，而是周期性地去探测一次交易前置条件，即便在没有客户进行交易时，也会有 Zabbix 在交易页面上探测需要资源是否具备。这样能够保证比真实客户更早的发现一些交易平台的页面异常，在逻辑上实现了”预知“的效果。另外，可以通过多个运营商线路去做页面监控，更加全面地覆盖客户案例，在发现异常时，也能够对比其他线路是否存在运行商的网络问题，例如 CDN、黑名单等。</p> 
+<p>我们使用 Zabbix Web 的监控方式，通过防火墙和 NAT 的网络隔离，使用 Squid 实现线路选择，以及运用 selenium 等自动化工具进行页面动作模拟，实现了网银系统的内外网、运营商线路层面的监控。</p> 
+<p><img src="https://images2.imgbox.com/82/87/6B4BiQCa_o.png" alt="图片"></p> 
+<p><strong>平台监控</strong><br> 除了上面提到的监控以外，有一个特殊场景，是运维人员难以回避的，那就是某一些系统自带了一套监控平台，但目前使用的主流监控却无法兼容或替换掉它，当引入组件、产品逐渐增多时，这种问题就越发明显。例如移动开发平台 mPaaS 中自带了例如 monitorkernel、corewatch、monitorguard 等监控组件，对整个 mPaaS 平台运行具有非常重要的作用，如果考虑使用其他监控系统将其替换，技术磨合的成本也会非常巨大，而且也丢失了平台自身的稳定性。对此，我们决定使用自建外部渠道加 Zabbix Sender 实现外部平台以监控流的方式对接至 Zabbix，这样既能既能避免对原有第三方监控系统的侵入，也能让其监控数据汇聚到 Zabbix。<br> 首先，这里介绍一下 Zabbix Sender 的原理。当受监控的主机在 Zabbix 中是处于主动模式的话（大部分主机是被动模式），该主机可以自行构建一个已存在的监控项数据发送给 Zabbix，而 Zabbix 收到数据进行验证后，也会作为该主机的监控项数据，这样也可以实现监控的实时性。当对接主机的上游是第三方监控平台时，整个流程看起来就像动态的数据流一样，从上游不断流入至 Zabbix。对接上游第三方平台的实现，我们目前有如下方案：</p> 
+<p>· 当外部平台支持 HTTP RESTful 的监控对接时，将其对接至一个专门负责接受此类告警的 HTTP 服务器，并为其设置一个独立的资源路径的 handler。</p> 
+<p>· 当外部平台不支持监控对接，但支持告警推送，可以将接受的告警级别调至最低或全量，将其发送给 HTTP 服务器、TCP/UDP 服务器或邮件服务器。</p> 
+<p>· 当外部平台没有任何渠道外送信息时，会选择网页爬虫、数据库监控等方式，当这样也会丢失监控流式的特性。</p> 
+<p>以目前遇到的情况，几乎没有第三种情况，一般都是提供 HTTP 外推监控或告警的，所以这类都会接入到我们一个使用 Golang 编写的专用 HTTP 服务器，在每次新增对接平台时，增加对应的 handler 中的 OtherReader 和 ZBXSender 接口实现即可。但需要注意对于这种方式的触发器，需要着重关心 change()/diff() 函数的依赖，因为有时候同一个监控项推送频率会非常高。<br> 还是以上面提到的 mPaaS 为例，通过这种方式对接其核心监控平台 corewathc，能够获取到此平台的所有告警监控。</p> 
+<p><img src="https://images2.imgbox.com/0a/08/YRfOH3iU_o.png" alt="图片"></p> 
+<p><strong>告警通知</strong><br> 监控覆盖的话题，到此也算是结束了，下面进而讨论下一个环节，那就是监控触发的告警需要如何才能推送到需要接收的技术人员。其实，Zabbix 自身也提供了非常多样的告警推送渠道，也可以自定义脚本来处理告警内容再推送给至渠道。但我们选择将这个推送的渠道稍微拉长，让告警发挥出更多的作用。<br> 如果告警无法推送，那么监控的意义就少了一大半，但推送的太多，告警也就没有价值可言。Zabbix 的告警消息结构体只是一个字符串，有些特殊符号混杂会对后面的序列化动作触发异常，抑或发送告警的 Proxy 宕机了，而大量告警却发不出来。由此种种产生的困扰，想必每一个接触过告警的技术人员，都会深有感触。为了解决这些最后一百米的问题，我们也不断地尝试各种方法，目前也依旧在努力寻求突破。<br> 我们编写了一个内部命名为 Zabbxi Robot 的工具，可以按照预定的 Zabbix 告警字符串进行 JSON 解析，并在预处理完后，会判断此告警是否需要抑制，是否属于一次需要收敛的抖动，然后才把告警推送至下游。另外，在 Zabbix 的架构设计上，将一个负责主要告警推送的 Proxy 与 Server 配置为互相监控，而 Server 会有两个推送渠道在主渠道失效后进行通知，进而避免告警空白。</p> 
+<p><img src="https://images2.imgbox.com/53/e1/H5uO3bma_o.png" alt="图片"><br> 这里的短息猫通过 gnokii 调用串行接口实现的短信发送，发送效率非常低，仅当探测发现 Zabbix 架构出现重大故障时，会应急发送给几位负责监控系统的运维人员。而备用渠道与主要驱动实现方法都是把告警信息以 curl POST 的方式传送给 Zabbix Robot，不同点在于两者使用了不同的 Header，从而在 Zabbix Robot 中区分出具体的渠道，也会对此过滤。Zabbix Robot 是我们使用 Golang 开发的 HTTP 服务器，目前具备两个模块，先触发抑制模块，后触发收敛模块。这里的抑制操作是以 LimitUnitGroup 来生效的，当期触发条件满足每一个 gorup 的三元组（{flag, number, second}，当判断为 flag 的告警，在 second 秒内收到了超过 number 数量）时，则会使用 flag 派生出一个 InhibitionUnit 的 goroutine，而这个 flag 如果存在 InhibitionUnit，那么就可以判断处于抑制状态，不会发送出去。<br> InhibitionUnit 也是一个三元组（{flag, number, second}），当判断为 flag 的告警，在收到 number 数量后或超过 second 秒后退出此次抑制。而在 Zabbix-Robot 的配置文件里，细分了每个 flag 和其属性。一般而言，目前常用的 flag 就是 Zabbix 的 TRIGGER.SEVERITY，即告警级别。<br> 收敛模块是目前在测试阶段的一个功能，优先实现了 Weights 的方法，即判断收到告警与过去三十分钟（可调）样本中的 hostid<em>X+itemid</em>Y+triggerid*Z 总分，如果超过预定值 K，则会被判定为抖动进而收敛。这里的 X/Y/Z 是可自定义的权重，比如可以通过提高 X 来把收敛权重倾向于主机，那么同一台主机发送的告警数则会被优先收敛。另外还有其他收敛的方法，比如字符串特征和机器学习，这两个也是我们尝试的方向。<br> 当走完抑制和收敛，告警会流向我们的自动化平台，并由平台判断是否派生工单，然后再经订阅系统把告警发送给指定负责人后，负责人将在工单系统反馈处理情况。这里的订阅系统也对接了 Zabbix 的一些元数据，Zabbix 在 4.0 后推出的标签功能（tags）非常便利与做告警筛选，如果使用过 K8S，那么可以将这种筛选过程理解为 Labels 和 Selectors。</p> 
+<p>目前这套告警推送流程，解决了原先的大部分问题，也能让 Zabbix 为工单系统、订阅系统提供有力支持，Golang 天生强大的并发能力也能非常有效的抵抗告警泛洪，而且其也是无状态的，在未来甚至可以部署双节点来实现高可用。</p> 
+<p><strong>报表生成</strong><br> 为了让 Zabbix 具备更多的报表展示能力，我们也对其前端进行了一定的定制开发，将常用的一些报表对接至 Zabbix。同时，Zabbix 也提供了资产清单、自定义拓扑、dashboard 等功能，具备了一定的报表生成能力。<br> 像上面提到的页面监控，其实也是一个内外网的流向拓扑，可以将各个层面的页面分别前后对接，那么就可以提供非常优秀的问题定位能力。</p> 
+<p><img src="https://images2.imgbox.com/91/7f/J583nd4a_o.png" alt="图片"></p> 
+<p>除此，还有每日一更的容量清单、硬件信息、巡检报告等。就如其中一个 VMware 虚拟机互斥检查为例，其通过树形图的形式，展示出每个业务系统的应用模块中，判断冗余节点是否部署在相错的资源（ESXi 或 LUN 或 Cluster）上的，这样方便虚拟机管理员分离关联虚拟机，降低发生 HA 时受影响的系统模块，也能够保应用证同城灾备的建设是否符合预期。</p> 
+<p><img src="https://images2.imgbox.com/78/a4/g9JfBiRg_o.png" alt="图片"></p> 
+<p><strong>高可用</strong><br> 在 5.0 之前，并没有官方的 Zabbix 高可用方案，我们采用的是数据库级别的恢复方案。通过定时脚本，每日凌晨（注意，这里要尽可能错开 Housekeeping）将 Zabbix 中排除 history* 的表和 zabbix web 前端文件备份到灾备机房。如果发生不可恢复的故障，可以重新部署 Zabbix Server，并恢复数据库，这样的代价仅会丢失历史数据和趋势，但能够快速恢复监控运行的状态。<br> 此外，建议 Zabbix Agent 的被动模式 Server 的地址配置为 Proxy 的网段，这样当 Proxy 出现故障时，也能够快速平移至其他 Proxy。</p> 
+<p><strong>未来规划</strong><br> 在我们使用 Zabbix 的两年里，运维也开始了全面的自动化，在这个背景下，我们越来越多地认识到监控的价值，监控也不单纯是告警广播，需要有更多智能的方式去挖掘监控的潜能。在这两年多的时间里，我们对 Zabbix 系统进行了各方面的功能扩展，也期待未来会有更多的发展可能。现在，对未来的规划，细数下来，有如下几点。</p> 
+<p><strong>Zabbix 数据库选型</strong><br> 目前生产使用的 Zabbix 数据库架构是 Zabbix 4.4 + Percona 8.0 + TokuDB，TokuDB 主要是用于 history* 表，并且对 history* 表都进行了分区，而其他的配置表仍是使用 Innodb，TokuDB 使用 QUICKLZ 的压缩算法。另外，对数据库的配置进行了优化，例如双 1 这类需要性能成本的设置也统统改为性能为主。在刚迁移到这个架构时，压缩率和历史数据 QPS 都有非常显著的提升，但是随着监控项数量的增加，也开始慢慢感受到了瓶颈与压力。历史数据即便开了压缩也不能抑制上涨的趋势，而开启管家后每次删除过期数据带来的 CPU iowait 也令人烦恼，当查询大量冷的历史数据时，漫长的加载时间也让人崩溃。<br> 我们在测试环境的 Zabbix 平台，纳管了几倍于生产环境的主机数量，可以当成是一个实打实的压测场景。为了寻求最佳实践，我们在测试环境先后测试了 TokuDB、RocksDB、TiDB、Elasticsearch、TimescaleDB 等数据库产品，其中我们基于 4.8 版本的 Zabbix 稍微改造了一个兼容 TiDB 3.0 的版本（https://github.com/AcidGo/zabbix_tidb），但无奈于 TiDB 对外键的支持并没有符合使用的预期，不过对于归档历史库也许是不错的选择。在测试后，发现 Zabbix 5.0 + PostgreSQL TimescaleDB 12 的效果较为理想，作为时序数据库解决方案，对于 history* 表的追加与范围查找都非常适合应用场景，而且也支持指定天数外的压缩，整体对比起来优于目前使用的 TokuDB 方案。此外，我们也会考虑使用一个数据库作为归档历史数据，开启更高的压缩率，然后单独部署一个只读的 Zabbix Server 来进行访问，从而把温热数据分离开来。</p> 
+<p><strong>Oracle 数据库监控改造</strong><br> 不同于 MySQL 或其他轻量一些的数据库，Oracle 的连接需要耗费巨大的成本，不单单是庞大的外部驱动，还有 F5 架构下的择路，加上庞大的监控项，经常会出现部分监控挤在任务队列里。目前已经实现了应用监控的改造，对 MySQL、OceanBase、巨杉数据库等的监控也更换为更轻便、更自动化的方案，因此也计划着对 Oracle 数据库监控方法的改造。首先是编写一个连接池中间件，管理每个库的连接会话，Zabbix Agent 对数据库的检测将通过 RPC 来调用中间件并返回结果，减少会话创建与销毁的开销。然后，规划一次查询尽可能多地获取批量数据，例如可一次获取所有表的当前表空间使用率，依靠 Zabbix 的监控项相关项和预处理，获取一个时间点上的多项监控，从而减少 RPC 调用频率。</p> 
+<p><strong>告警自愈</strong><br> 目前我们的自动化成效显著，自动化工具库里提供了多种解决方案的处理操作，我们预计未来低级别的告警，可以借助这种强大的自动化能力，来实现自动痊愈的机制。</p> 
+<p><strong>嵌套主机自动发现</strong><br> 在一些链式架构的场景，我们非常希望可以借助 Zabbix 的自动发现主机的功能不断沿着架构分层往下分岔衍生新的主机或主机群组，例如巨杉数据库中 Domain -&gt; Database -&gt; CollectionSpace -&gt; Collection 的链式发现机制。但是在实际测试中，自动发现主机的功能仅能触发一次，下一层的自动发现会丢失已经选中的模板。相关问题也反馈在了 Zabbix Forum（https://www.zabbix.com/forum/zabbix-help/404802-how-to-nesting-automatically-discovers-hosts-did-i-encounter-a-bug）。期待以后有类似的灵活方案可以实现这种顺延架构脉络的方式创建各个层面的主机监控。</p> 
+<p><strong>容器平台与分布式应用的监控</strong><br> 容器的发展在近几年突飞猛进，各种编排平台也层出不穷，从 Swarm 到 Kubernetes，容器监控的演进也循循渐进。Zabbix 在 4.0 之后支持了 Prometheus 数据采集，对容器监控踏出了坚定的一步，加上结合 LDD macros 可以更灵活地对接 JSON 格式，未来可以将两者结合起来，实现自动化的、容器级别的智能监控。</p> 
+<p><strong>agent2 的使用</strong><br> 从我们在编写其他运维工具的经验来看，Golang 非常适合运维管理的二进制工具开发，强大的并发能力、静态语言的稳定可靠和较低的学习成本，都让工具的质量得到显著提升。Zabbix 近期推出的 agent2 也由 Golang 开发，并且提供了接口规范，让运维人员可以定制最合适的 Zabbix Agent。这一点，我们也在测试环境中探索，逐渐了解开发流程，相信不久后会随着生产环境 Zabbix 升级至 5.0 时同时推广强大的 agent2。</p> 
+<p>Zabbix 系统的推广、配套工具的开发、监控依赖的细分、从旧监控系统进行迁移的推进，都是我们众多运维人员在这两年多的时间里，不断积累和创新出来的成果，在此由衷地感谢我们每一位运维人员的努力，也寄予坚定的自信去实现未来规划的监控系统愿景。</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/043fce1d3b1705b6a5119abf4ac5b72c/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">「ShardingSphere」从简介到实践，一篇文章带你了解</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/2539adcc642254d756e6db648cb4bb91/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">干爆源码系列之Step by step lldb/gdb调试多线程</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

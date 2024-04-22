@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>DSP_TMS320F28377D_ADC应用 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/d2312e202ff07f3211fab160714c4a5e/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="DSP_TMS320F28377D_ADC应用">
+  <meta property="og:description" content="前言
+DSP各种模块的使用，基本上就是 GPIO复用配置、相关控制寄存器的配置、中断的配置。本文主要记录本人对ADC模块的学习笔记。TMS320F28377D上面有24路ADC专用IO，这意味着不需要进行GPIO复用配置。 只需要考虑相关控制寄存器和中断的配置。看代码请直接跳到最后。
+单端模式/差分模式
+在放代码之前，先谈谈TMS320F28377D的ADC里面非常容易搞蒙的一点：单端模式/差分模式
+根据TMS320F28377D 的reference的介绍(pg:1554)，ADC模块有以下特性 ：
+差分信号转换 仅限16位模式
+单端信号转换 仅限12位模式
+单端的话，就能有16通道（12位）| 差分的话，就能有8通道（16位）。
+很多人都对差分模式下DSP的代码应该如何编写还不够理解，相信看了下面这个帖子会有启发。TMS320F28388D: 16位差分采样 - C2000™︎ 微控制器论坛 - C2000 微控制器 - E2E™ 设计支持 (ti.com)
+我怕帖子被删除了，还是复述点关键的东西吧。 下表不仅给出了单端/差分在16位模式下的解算方式，也间接说明了单端也并非是 12-bit mode only，单端也是可以用16位的。
+而下面两条评论，则清晰的解释了差分模式下，如何得到ADC的采集结果 最后，结合一张硬件原理图，基本上已经一目了然了 代码理解 下面给出ADC控制寄存器的相关配置代码，并进行解释。
+EALLOW; AdcaRegs.ADCCTL2.bit.PRESCALE = 6; // Set ADCCLK divider to /4 AdcSetMode(ADC_ADCA, ADC_RESOLUTION_16BIT, ADC_SIGNALMODE_SINGLE); AdcaRegs.ADCCTL1.bit.INTPULSEPOS = 1; AdcaRegs.ADCCTL1.bit.ADCPWDNZ = 1; DELAY_US(1000); EDIS; AdcaRegs.ADCCTL2.bit.PRESCALE = 6;
+本行代码是ADC的时钟预分频，参考手册pg1597可以看到，6表示4分频，此行代码是参考Ti的官方例程里面的代码。
+AdcSetMode(ADC_ADCA, ADC_RESOLUTION_16BIT, ADC_SIGNALMODE_SINGLE);
+此行代码是设置ADC模块的A组ADCA（还有ADCB、ADCC、ADCD）的分辨率，和单端/差分模式。正文开篇也提到了，单端模式也是可以使用16位的分辨率的。 当然我们也可以把ADCA配置成差分模式，然后使用16位的分辨率，
+AdcSetMode(ADC_ADCA, ADC_RESOLUTION_16BIT, ADC_SIGNALMODE_DIFFERENTIAL);">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2023-12-06T22:18:57+08:00">
+    <meta property="article:modified_time" content="2023-12-06T22:18:57+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">DSP_TMS320F28377D_ADC应用</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <p>前言<br> DSP各种模块的使用，基本上就是 GPIO复用配置、相关控制寄存器的配置、中断的配置。本文主要记录本人对ADC模块的学习笔记。TMS320F28377D上面有24路ADC专用IO，这意味着不需要进行GPIO复用配置。 只需要考虑相关控制寄存器和中断的配置。看代码请直接跳到最后。</p> 
+<p>单端模式/差分模式<br> 在放代码之前，先谈谈TMS320F28377D的ADC里面非常容易搞蒙的一点：单端模式/差分模式</p> 
+<p>根据TMS320F28377D 的reference的介绍(pg:1554)，ADC模块有以下特性 ：</p> 
+<p>差分信号转换 仅限16位模式</p> 
+<p>单端信号转换 仅限12位模式</p> 
+<p>单端的话，就能有16通道（12位）|  差分的话，就能有8通道（16位）。</p> 
+<p>很多人都对差分模式下DSP的代码应该如何编写还不够理解，相信看了下面这个帖子会有启发。TMS320F28388D: 16位差分采样 - C2000™︎ 微控制器论坛 - C2000 微控制器 - E2E™ 设计支持 (ti.com)</p> 
+<p>我怕帖子被删除了，还是复述点关键的东西吧。 下表不仅给出了单端/差分在16位模式下的解算方式，也间接说明了单端也并非是 12-bit mode only，单端也是可以用16位的。</p> 
+<p><img alt="" height="280" src="https://images2.imgbox.com/f9/e8/jzQ0q4vF_o.png" width="860"></p> 
+<p>而下面两条评论，则清晰的解释了差分模式下，如何得到ADC的采集结果 </p> 
+<p><img alt="" height="395" src="https://images2.imgbox.com/dd/f0/3Y75jQPL_o.png" width="865"></p> 
+<p>最后，结合一张硬件原理图，基本上已经一目了然了 </p> 
+<p><img alt="" height="600" src="https://images2.imgbox.com/7d/c8/ZfcvJu0j_o.png" width="865"></p> 
+<p></p> 
+<h4>代码理解</h4> 
+<p>下面给出ADC控制寄存器的相关配置代码，并进行解释。</p> 
+<pre><code class="hljs">    EALLOW;
+    AdcaRegs.ADCCTL2.bit.PRESCALE       = 6;    // Set ADCCLK divider to /4
+    AdcSetMode(ADC_ADCA, ADC_RESOLUTION_16BIT, ADC_SIGNALMODE_SINGLE);
+    AdcaRegs.ADCCTL1.bit.INTPULSEPOS    = 1;
+    AdcaRegs.ADCCTL1.bit.ADCPWDNZ       = 1;
+    DELAY_US(1000);
+    EDIS;</code></pre> 
+<p>AdcaRegs.ADCCTL2.bit.PRESCALE       = 6;</p> 
+<p>本行代码是ADC的时钟预分频，参考手册pg1597可以看到，6表示4分频，此行代码是参考Ti的官方例程里面的代码。</p> 
+<p><img alt="" height="488" src="https://images2.imgbox.com/74/f0/NDCkda4q_o.png" width="865"></p> 
+<p></p> 
+<p>AdcSetMode(ADC_ADCA, ADC_RESOLUTION_16BIT, ADC_SIGNALMODE_SINGLE);</p> 
+<p>此行代码是设置ADC模块的A组ADCA（还有ADCB、ADCC、ADCD）的分辨率，和单端/差分模式。正文开篇也提到了，单端模式也是可以使用16位的分辨率的。 当然我们也可以把ADCA配置成差分模式，然后使用16位的分辨率，</p> 
+<p>AdcSetMode(ADC_ADCA, ADC_RESOLUTION_16BIT, ADC_SIGNALMODE_DIFFERENTIAL);</p> 
+<p>但，后续对ADC转换结果的解算需要做相应的修改，参考前面放的解算表。</p> 
+<p>关于下面三行代码<br>  </p> 
+<pre><code class="hljs">AdcaRegs.ADCCTL1.bit.INTPULSEPOS    = 1;
+AdcaRegs.ADCCTL1.bit.ADCPWDNZ       = 1;
+DELAY_US(1000);</code></pre> 
+<p>也是参考Ti的官方例程里面的代码。</p> 
+<p>第一行AdcaRegs.ADCCTL1.bit.INTPULSEPOS    = 1;是配置 ADC中断脉冲位置。Pg1596</p> 
+<p><img alt="" height="196" src="https://images2.imgbox.com/15/a9/36rqKVny_o.png" width="865"></p> 
+<p>0采集窗口结束时产生中断脉冲 | 1在转换结束时产生中断脉冲。结果将在1个或多个周期后锁定。 不纠结，抄就完了。</p> 
+<p>第二行AdcaRegs.ADCCTL1.bit.ADCPWDNZ       = 1;是打开ADC的电源</p> 
+<p><img alt="" height="121" src="https://images2.imgbox.com/ca/1c/Ae2i7Vjq_o.png" width="865"></p> 
+<p>第三行DELAY_US(1000);是延迟1ms等待ADC上电成功。 </p> 
+<p></p> 
+<p>下面给出ADC的SOC及中断相关寄存器的配置代码，并给出解释。</p> 
+<pre><code class="hljs"> 
+    EALLOW;
+    AdcaRegs.ADCSOC0CTL.bit.CHSEL       = 0;    // SOC0 will convert internal connection A0
+    AdcaRegs.ADCSOC0CTL.bit.ACQPS       = 63;   // Sample window is 64 SYSCLK cycles
+    AdcaRegs.ADCSOC0CTL.bit.TRIGSEL     = 0x5;  // Trigger on ePWM1 ADCSOCA  触发源的选择
+ 
+    AdcaRegs.ADCSOC1CTL.bit.CHSEL       = 2;    // SOC1 will convert internal connection A2
+    AdcaRegs.ADCSOC1CTL.bit.ACQPS       = 63;   // Sample window is 65 SYSCLK cycles
+    AdcaRegs.ADCSOC1CTL.bit.TRIGSEL     = 0x5;  // Trigger on ePWM1 ADCSOCA 触发源的选择
+ 
+    AdcaRegs.ADCINTSEL1N2.bit.INT1SEL   = 1;    // End of SOC1 will set INT1 flag
+    AdcaRegs.ADCINTSEL1N2.bit.INT1E     = 1;    // Enable INT1 flag
+    AdcaRegs.ADCINTFLGCLR.bit.ADCINT1   = 1;    // Make sure INT1 flag is cleared
+    EDIS;</code></pre> 
+<p>首先我们来解释这三行</p> 
+<pre><code class="hljs">AdcaRegs.ADCSOC0CTL.bit.CHSEL       = 0;    // SOC0 will convert internal connection A0
+AdcaRegs.ADCSOC0CTL.bit.ACQPS       = 63;   // Sample window is 64 SYSCLK cycles
+AdcaRegs.ADCSOC0CTL.bit.TRIGSEL     = 0x5;  // Trigger on ePWM1 ADCSOCA  触发源的选择</code></pre> 
+<p>第一行AdcaRegs.ADCSOC0CTL.bit.CHSEL       = 0; 表示ADCa的SOC0信道的选择是ADCIN0（单端模式）或者 ADCIN0和ADCIN1组合的差分模式。 SOC（start of conversion），相当于：【ADCIN0单端模式】 或【ADCIN0与ADCIN1组合的差分模式】的转换结果，将会保存到 AdcaResultRegs.ADCRESULT0中。</p> 
+<p>第二行AdcaRegs.ADCSOC0CTL.bit.ACQPS       = 63;表示SOC0的捕获预分频设置成了64个周期，主要控制该SOC的采样和保持窗口的时长。此行也是参考Ti官方例程里面的程序。 官方推荐，12位分辨率ACQPS=14，// 75 ns。16位分辨率ACQPS=63，// 320 ns</p> 
+<p>第三行AdcaRegs.ADCSOC0CTL.bit.TRIGSEL     = 0x5; 表示SOC0触发源的选择。</p> 
+<p> 我们的系统要用PWM去控制电机的，所以配置了用PWM去作为SOC0的触发源。也可以直接写某个寄存器（ADCSOCFRC1）触发，写用定时器触发。这些方式可以参考Ti的官方例程。</p> 
+<p>下面，我们来解释中断相关的这三行代码<br>  </p> 
+<pre><code class="hljs">AdcaRegs.ADCINTSEL1N2.bit.INT1SEL   = 1;    // End of SOC1 will set INT1 flag
+AdcaRegs.ADCINTSEL1N2.bit.INT1E     = 1;    // Enable INT1 flag
+AdcaRegs.ADCINTFLGCLR.bit.ADCINT1   = 1;    // Make sure INT1 flag is cleared</code></pre> 
+<p>第一行：AdcaRegs.ADCINTSEL1N2.bit.INT1SEL   = 1;表示当SOC1转换结束后，才给出ADCa INT1的中断信号，然后产生中断， 如果配置成 = 7; 那就得等SOC7转换结束后，才给ADCa INT1的中断信号。</p> 
+<p>第二行：AdcaRegs.ADCINTSEL1N2.bit.INT1E     = 1;  使能ADCa的INT1中断。</p> 
+<p>第三行：AdcaRegs.ADCINTFLGCLR.bit.ADCINT1   = 1; 清空中断标志</p> 
+<p>代码整理<br> 下面将所有代码整理到一起，一便借鉴，其中也包含ADC的中断配置，以及中断处理函数的定义。<br>  </p> 
+<pre><code class="hljs">void adcinterruptinit(void){
+    // ADC
+    EALLOW;     // 设置中断入口函数
+        PieVectTable.ADCA1_INT = &amp;ADCaHandler;
+    EDIS;
+ 
+    PieCtrlRegs.PIEIER1.bit.INTx1   = 1;    // 使能PIE中断  ADCa
+ 
+    IER |= M_INT1;
+}
+ 
+ 
+ 
+interrupt void ADCaHandler(void){
+ 
+// AdcaResultRegs.ADCRESULT0
+// AdcaResultRegs.ADCRESULT1
+ 
+    AdcaRegs.ADCINTFLGCLR.bit.ADCINT1   = 1;    // Clear INT1 flag
+    PieCtrlRegs.PIEACK.all  = PIEACK_GROUP1;
+}
+ 
+ 
+void adc_register_init(void){
+ 
+    EALLOW;
+    AdcaRegs.ADCCTL2.bit.PRESCALE       = 6;    // Set ADCCLK divider to /4
+    AdcSetMode(ADC_ADCA, ADC_RESOLUTION_16BIT, ADC_SIGNALMODE_SINGLE);
+    AdcaRegs.ADCCTL1.bit.INTPULSEPOS    = 1;
+    AdcaRegs.ADCCTL1.bit.ADCPWDNZ       = 1;
+    DELAY_US(1000);
+    EDIS;
+ 
+    EALLOW;
+    AdcaRegs.ADCSOC0CTL.bit.CHSEL       = 0;    // SOC0 will convert internal connection A0
+    AdcaRegs.ADCSOC0CTL.bit.ACQPS       = 63;   // Sample window is 64 SYSCLK cycles
+    AdcaRegs.ADCSOC0CTL.bit.TRIGSEL     = 0x5;  // Trigger on ePWM1 ADCSOCA  触发源的选择
+ 
+    AdcaRegs.ADCSOC1CTL.bit.CHSEL       = 2;    // SOC1 will convert internal connection A2
+    AdcaRegs.ADCSOC1CTL.bit.ACQPS       = 63;   // Sample window is 65 SYSCLK cycles
+    AdcaRegs.ADCSOC1CTL.bit.TRIGSEL     = 0x5;  // Trigger on ePWM1 ADCSOCA 触发源的选择
+ 
+    AdcaRegs.ADCINTSEL1N2.bit.INT1SEL   = 1;    // End of SOC1 will set INT1 flag
+    AdcaRegs.ADCINTSEL1N2.bit.INT1E     = 1;    // Enable INT1 flag
+    AdcaRegs.ADCINTFLGCLR.bit.ADCINT1   = 1;    // Make sure INT1 flag is cleared
+    EDIS;
+}</code></pre> 
+<p></p> 
+<p></p> 
+<p></p> 
+<p></p> 
+<p></p> 
+<p></p> 
+<p></p> 
+<p></p> 
+<p></p> 
+<p></p> 
+<p></p> 
+<p></p> 
+<p></p> 
+<p></p> 
+<p></p> 
+<p></p> 
+<p></p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/971abf2fbe64d64de371a8735583898c/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">TMS320F28034工程模板建立及LED测试程序编写</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/ccf514965e159263e4bb852297e08021/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">我的Android播放器封装经验</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

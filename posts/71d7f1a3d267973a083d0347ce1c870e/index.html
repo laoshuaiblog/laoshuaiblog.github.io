@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>公开密钥密码体制（C语言实现RSA加密算法） - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/71d7f1a3d267973a083d0347ce1c870e/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="公开密钥密码体制（C语言实现RSA加密算法）">
+  <meta property="og:description" content="公开密钥密码体制： 公开密钥密码体制的产生主要是因为两个方面的原因，一是由于常规密钥密码体制的密钥分配问题，另一种是由于对和数字签名的需求。
+传统的加密方法是加密、解密使用同样的密钥，由发送者和接收者分别保存，在加密和解密时使用，采用这种方法的主要问题是密钥的生成、注入、存储、管理、分发等很复杂，特别是随着用户的增加，密钥的需求量成倍增加。在网络通信中，大量密钥的分配是一个难以解决的问题。
+1976年美国斯坦福大学的两名学者迪菲和赫尔曼提出了公开密钥密码体制的概念。所谓的公开密钥密码体制就是使用不同的加密密钥与解密密钥，是一种“由已知加密密钥推导出解密密钥在计算上是不可行的”密码体制。
+在公开密钥密码体制中，公开密钥PK是公开信息，而秘密密钥SK是需要保密的。加密算法E和解密算法D也都是公开的。虽然秘密密钥SK是由公开密钥PK决定的，但却不能根据PK计算出SK。
+该技术采用&#34;非对称式加密方法，也就是两个不同的密钥来对信息加密和解密。
+举个例子吧，单看概念属实看不懂
+首先我有两把钥匙，公钥和私钥。我可以把我的公钥给任何一个想给我写信的人，他们写完信之后用我的公钥加密，发给我，然后我用自己的私钥解密。这里要强调的是，只要我的的私钥不泄露，这封信就是安全的，即使落在别人手里，也无法解密。
+加密解密原理： 对称加密：又称共享密钥加密，使用同一个密钥对数据进行加密解密。非对称加密：加密解密使用不同密钥，用公钥加密，私钥解密。 RSA公钥加密体制 RSA公共密码密钥体制是一种使用不同的加密密钥与解密密钥，“由已知加密密钥推导出解密密钥在计算上是不可行的”密码体制 。
+在公开密钥密码体制中，加密密钥（即公开密钥）PK是公开信息，而解密密钥（即秘密密钥）SK是需要保密的。加密算法E和解密算法D也都是公开的。虽然解密密钥SK是由公开密钥PK决定的，但却不能根据PK计算出SK 。
+正是基于这种理论，1978年出现了著名的RSA算法，它通常是先生成一对RSA密钥，其中之一是保密密钥，由用户保存；另一个为公开密钥，可对外公开，甚至可在网络服务器中注册。为提高保密强度，RSA密钥至少为500位长，一般推荐使用1024位。这就使加密的计算量很大。为减少计算量，在传送信息时，常采用传统加密方法与公开密钥加密方法相结合的方式，即信息采用改进的DES或IDEA对话密钥加密，然后使用RSA密钥加密对话密钥和信息摘要。对方收到信息后，用不同的密钥解密并可核对信息摘要。
+分析RSA加密原理 RSA算法的过程
+RSA算法用到的数学知识特别多，所以在中间介绍这个算法生成私钥和公钥的过程中会穿插一些数学知识。生成步骤如下：
+寻找两个不相同的质数
+随意选择两个大的质数p和q，p不等于q，计算N=p*q; 什么是质数?我想可能会有一部分人已经忘记了，定义如下： 除了1和该数自身外，无法被其他自然数整除的数（也可定义为只有1该数本身两个正因数]的数）。 比如2，3，5，7这些都是质数，9就不是了，因为3*3=9了 根据欧拉函数获取r
+r = φ(N) = φ§φ(q) = (p-1)(q-1)。
+这里的数学概念就是什么是欧拉函数了，什么是欧拉函数呢？ 欧拉函数的定义： 欧拉函数 φ(n)是小于或等于n的正整数中与n互质的数的数目。 互质的定义： 如果两个或两个以上的整数的最大公约数是 1，则称它们为互质 例如：φ(8) = 4，因为1,3,5,7均和8互质。 推导欧拉函数: （1）如果n = 1, φ(1) = 1；(小于等于1的正整数中唯一和1互质的数就是1本身)； （2）如果n为质数，φ(n) = n - 1；因为质数和每一个比它小的数字都互质。比如5，比它小的正整数1,2,3,4都和他互质； (3) 如果n是a的k次幂，则 φ(n) = φ(a^k) = a^k - a^(k-1) = (a-1)a^(k-1)； (4) 若m,n互质，则φ(mn) = φ(m)φ(n) 证明：设A, B, C是跟m, n, mn互质的数的集，据中国剩余定理(经常看数学典故的童鞋应该了解，剩余定理又叫韩信点兵，也叫孙子定理)，A*B和C可建立双射一一对应)的关系。（或者也可以从初等代数角度给出欧拉函数积性的简单证明） 因此的φ(n)值使用算术基本定理便知。（来自维基百科） 选择一个小于r并与r互质的整数e">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2021-10-17T21:53:36+08:00">
+    <meta property="article:modified_time" content="2021-10-17T21:53:36+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">公开密钥密码体制（C语言实现RSA加密算法）</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-light">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <h3><a id="_0"></a>公开密钥密码体制：</h3> 
+<p>公开密钥密码体制的产生主要是因为两个方面的原因，一是由于常规密钥密码体制的密钥分配问题，另一种是由于对和数字签名的需求。</p> 
+<p>传统的加密方法是加密、解密使用同样的密钥，由发送者和接收者分别保存，在加密和解密时使用，采用这种方法的主要问题是密钥的生成、注入、存储、管理、分发等很复杂，特别是随着用户的增加，密钥的需求量成倍增加。在网络通信中，大量密钥的分配是一个难以解决的问题。</p> 
+<p>1976年美国斯坦福大学的两名学者迪菲和赫尔曼提出了公开密钥密码体制的概念。所谓的公开密钥密码体制就是使用不同的加密密钥与解密密钥，是一种“由已知加密密钥推导出解密密钥在计算上是不可行的”密码体制。<br> 在公开密钥密码体制中，公开密钥PK是公开信息，而秘密密钥SK是需要保密的。加密算法E和解密算法D也都是公开的。虽然秘密密钥SK是由公开密钥PK决定的，但却不能根据PK计算出SK。<br> 该技术采用"非对称式加密方法，也就是两个不同的密钥来对信息加密和解密。</p> 
+<p>举个例子吧，单看概念属实看不懂<br> 首先我有两把钥匙，公钥和私钥。我可以把我的公钥给任何一个想给我写信的人，他们写完信之后用我的公钥加密，发给我，然后我用自己的私钥解密。这里要强调的是，只要我的的私钥不泄露，这封信就是安全的，即使落在别人手里，也无法解密。</p> 
+<h3><a id="_13"></a>加密解密原理：</h3> 
+<ol><li>对称加密：又称共享密钥加密，使用同一个密钥对数据进行加密解密。</li><li>非对称加密：加密解密使用不同密钥，用公钥加密，私钥解密。</li></ol> 
+<h3><a id="RSA_19"></a>RSA公钥加密体制</h3> 
+<p>RSA公共密码密钥体制是一种使用不同的加密密钥与解密密钥，“由已知加密密钥推导出解密密钥在计算上是不可行的”密码体制 。</p> 
+<p>在公开密钥密码体制中，加密密钥（即公开密钥）PK是公开信息，而解密密钥（即秘密密钥）SK是需要保密的。加密算法E和解密算法D也都是公开的。虽然解密密钥SK是由公开密钥PK决定的，但却不能根据PK计算出SK 。</p> 
+<p>正是基于这种理论，1978年出现了著名的RSA算法，它通常是先生成一对RSA密钥，其中之一是保密密钥，由用户保存；另一个为公开密钥，可对外公开，甚至可在网络服务器中注册。为提高保密强度，RSA密钥至少为500位长，一般推荐使用1024位。这就使加密的计算量很大。为减少计算量，在传送信息时，常采用传统加密方法与公开密钥加密方法相结合的方式，即信息采用改进的DES或IDEA对话密钥加密，然后使用RSA密钥加密对话密钥和信息摘要。对方收到信息后，用不同的密钥解密并可核对信息摘要。</p> 
+<h3><a id="RSA_27"></a>分析RSA加密原理</h3> 
+<p>RSA算法的过程</p> 
+<p>RSA算法用到的数学知识特别多，所以在中间介绍这个算法生成私钥和公钥的过程中会穿插一些数学知识。生成步骤如下：</p> 
+<ol><li>寻找两个不相同的质数<br> 随意选择两个大的质数p和q，p不等于q，计算N=p*q;</li></ol> 
+<pre><code class="prism language-bash">什么是质数?我想可能会有一部分人已经忘记了，定义如下：
+除了1和该数自身外，无法被其他自然数整除的数（也可定义为只有1该数本身两个正因数<span class="token punctuation">]</span>的数）。
+比如2，3，5，7这些都是质数，9就不是了，因为3*3<span class="token operator">=</span><span class="token number">9</span>了
+</code></pre> 
+<ol start="2"><li>根据欧拉函数获取r<br> r = φ(N) = φ§φ(q) = (p-1)(q-1)。<br> 这里的数学概念就是什么是欧拉函数了，什么是欧拉函数呢？</li></ol> 
+<pre><code class="prism language-bash">欧拉函数的定义：
+欧拉函数 φ<span class="token punctuation">(</span>n<span class="token punctuation">)</span>是小于或等于n的正整数中与n互质的数的数目。
+
+互质的定义：
+如果两个或两个以上的整数的最大公约数是 <span class="token number">1</span>，则称它们为互质
+例如：φ<span class="token punctuation">(</span><span class="token number">8</span><span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">4</span>，因为1,3,5,7均和8互质。
+
+推导欧拉函数:
+（1）如果n <span class="token operator">=</span> <span class="token number">1</span>, φ<span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">1</span>；<span class="token punctuation">(</span>小于等于1的正整数中唯一和1互质的数就是1本身<span class="token punctuation">)</span>；
+（2）如果n为质数，φ<span class="token punctuation">(</span>n<span class="token punctuation">)</span> <span class="token operator">=</span> n - <span class="token number">1</span>；因为质数和每一个比它小的数字都互质。比如5，比它小的正整数1,2,3,4都和他互质；
+<span class="token punctuation">(</span><span class="token number">3</span><span class="token punctuation">)</span> 如果n是a的k次幂，则 φ<span class="token punctuation">(</span>n<span class="token punctuation">)</span> <span class="token operator">=</span> φ<span class="token punctuation">(</span>a^k<span class="token punctuation">)</span> <span class="token operator">=</span> a^k - a^<span class="token punctuation">(</span>k-1<span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token punctuation">(</span>a-1<span class="token punctuation">)</span>a^<span class="token punctuation">(</span>k-1<span class="token punctuation">)</span>；
+<span class="token punctuation">(</span><span class="token number">4</span><span class="token punctuation">)</span> 若m,n互质，则φ<span class="token punctuation">(</span>mn<span class="token punctuation">)</span> <span class="token operator">=</span> φ<span class="token punctuation">(</span>m<span class="token punctuation">)</span>φ<span class="token punctuation">(</span>n<span class="token punctuation">)</span>
+证明：设A, B, C是跟m, n, mn互质的数的集，据中国剩余定理<span class="token punctuation">(</span>经常看数学典故的童鞋应该了解，剩余定理又叫韩信点兵，也叫孙子定理<span class="token punctuation">)</span>，A*B和C可建立双射一一对应<span class="token punctuation">)</span>的关系。（或者也可以从初等代数角度给出欧拉函数积性的简单证明） 因此的φ<span class="token punctuation">(</span>n<span class="token punctuation">)</span>值使用算术基本定理便知。（来自维基百科）
+</code></pre> 
+<ol start="3"><li>选择一个小于r并与r互质的整数e<br> 选择一个小于r并与r互质的整数e，求得e关于r的模反元素，命名为d（ed = 1(mod r)模反元素存在，当且仅当e与r互质），e我们通常取65537。</li></ol> 
+<pre><code class="prism language-bash">模反元素：
+如果两个正整数a和n互质，那么一定可以找到整数b，使得 ab-1 被n整除，或者说ab被n除的余数是1。
+比如3和5互质，3关于5的模反元素就可能是2，因为3*2-1<span class="token operator">=</span><span class="token number">5</span>可以被5整除。所以很明显模反元素不止一个，2加减5的整数倍都是3关于5的模反元素<span class="token punctuation">{<!-- --></span><span class="token punctuation">..</span>.-3, <span class="token number">2,7</span>,12…<span class="token punctuation">}</span> 放在公式里就是3*2 <span class="token operator">=</span> <span class="token number">1</span> <span class="token punctuation">(</span>mod <span class="token number">5</span><span class="token punctuation">)</span>
+</code></pre> 
+<p>上面所提到的欧拉函数用处实际上在于欧拉定理：</p> 
+<pre><code class="prism language-bash">欧拉定理：
+如果两个正整数a和n互质，则n的欧拉函数 φ<span class="token punctuation">(</span>n<span class="token punctuation">)</span> 可以让下面的等式成立：
+a^φ<span class="token punctuation">(</span>n<span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">1</span><span class="token punctuation">(</span>mod n<span class="token punctuation">)</span>
+由此可得：a的φ<span class="token punctuation">(</span>n - <span class="token number">1</span><span class="token punctuation">)</span>次方肯定是a关于n的模反元素。
+欧拉定理就可以用来证明模反元素必然存在。
+
+由模反元素的定义和欧拉定理我们知道，a的φ<span class="token punctuation">(</span>n<span class="token punctuation">)</span>次方减去1，可以被n整除。比如，3和5互质，而5的欧拉函数φ<span class="token punctuation">(</span><span class="token number">5</span><span class="token punctuation">)</span>等于4，所以3的4次方<span class="token punctuation">(</span><span class="token number">81</span><span class="token punctuation">)</span>减去1，可以被5整除（80/5<span class="token operator">=</span><span class="token number">16</span>）。
+
+小费马定理：
+假设正整数a与质数p互质，因为质数p的φ<span class="token punctuation">(</span>p<span class="token punctuation">)</span>等于p-1，则欧拉定理可以写成
+a^<span class="token punctuation">(</span>p-1<span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">1</span> <span class="token punctuation">(</span>mod p<span class="token punctuation">)</span>
+这其实是欧拉定理的一个特例。
+</code></pre> 
+<ol start="4"><li>销毁p和q<br> 此时我们的(N , e)是公钥，(N, d)为私钥，爱丽丝会把公钥(N, e)传给鲍勃，然后将(N, d)自己藏起来。一对公钥和私钥就产生了。</li></ol> 
+<h3><a id="_90"></a>主流加密方法：</h3> 
+<ol><li> <p>不可逆加密<br> 常应用于用户密码</p> </li><li> <p>可逆加密<br> 2.1. 对称加密<br> 常用于身份证号手机号等敏感信息<br> 将明文和加密密钥一起经过特殊加密处理，使用密钥只有一个<br> 优点：算法公开、计算量小、加密速度快、加密效率高<br> AES、DES、3DES、Blowfish、IDEA、RC4、RC5、RC6等</p> <p>2.2 非对称加密<br> 常用于签名和认证<br> 非加密算法需要2密钥：私有密钥和公有密钥<br> 采用公有密钥加密需采用对应私有密钥解密。反之<br> 优点：非对称加密与对称加密相比，其安全性更好；<br> 缺点：非对称加密的缺点是加密和解密花费时间长、速度慢，只适合对少量数据进行加密。<br> RSA、DSA（数字签名用）、ECC（移动设备用）、Diffie-Hellman、El Gamal等</p> </li></ol> 
+<h3><a id="_110"></a>防御密码破译手段</h3> 
+<ol><li> <p>严禁使用明文存储</p> </li><li> <p>不可逆算法<br> MD5 sha hmac等</p> </li><li> <p>安全机制，防止暴力破解（防止暴力破解）<br> 比如验证码，或几次密码错误账号锁定</p> </li><li> <p>要复杂，加盐（防止脱库）<br> 盐：没有固定规律的随机字符串，盐越长越复杂，密码越安全，盐进行持久化保存<br> 例如：<br> f()为某种加密算法<br> 密文=f(明文密码) --&gt; 密文=f(明文密码+盐) --&gt; 密文=f(明文密码+盐+账号相关信息)</p> </li><li> <p>客户端加传输过程加密（防止传输劫取）<br> 传输过程例如https/tls<br> <img src="https://images2.imgbox.com/0f/d1/jO9vVZRu_o.png" alt="在这里插入图片描述"></p> </li></ol> 
+<h3><a id="CRSA_127"></a>C语言（或其它主流语言）实现RSA加密和解密算法</h3> 
+<pre><code class="prism language-c"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdio.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdlib.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;time.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;string.h&gt;</span></span>
+
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token macro-name">ACCURACY</span> <span class="token expression"><span class="token number">5</span></span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token macro-name">SINGLE_MAX</span> <span class="token expression"><span class="token number">10000</span></span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token macro-name">EXPONENT_MAX</span> <span class="token expression"><span class="token number">1000</span></span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token macro-name">BUF_SIZE</span> <span class="token expression"><span class="token number">1024</span></span></span>
+
+<span class="token comment">/**
+ * Computes a^b mod c，计算a^b mod c
+ */</span>
+<span class="token keyword">int</span> <span class="token function">modpow</span><span class="token punctuation">(</span><span class="token keyword">long</span> <span class="token keyword">long</span> a<span class="token punctuation">,</span> <span class="token keyword">long</span> <span class="token keyword">long</span> b<span class="token punctuation">,</span> <span class="token keyword">int</span> c<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">int</span> res <span class="token operator">=</span> <span class="token number">1</span><span class="token punctuation">;</span>
+    <span class="token keyword">while</span><span class="token punctuation">(</span>b <span class="token operator">&gt;</span> <span class="token number">0</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token comment">/* Need long multiplication else this will overflow...
+         必须使用长乘法，否则这将溢出*/</span>
+        <span class="token keyword">if</span><span class="token punctuation">(</span>b <span class="token operator">&amp;</span> <span class="token number">1</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            res <span class="token operator">=</span> <span class="token punctuation">(</span>res <span class="token operator">*</span> a<span class="token punctuation">)</span> <span class="token operator">%</span> c<span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        b <span class="token operator">=</span> b <span class="token operator">&gt;&gt;</span> <span class="token number">1</span><span class="token punctuation">;</span>
+        a <span class="token operator">=</span> <span class="token punctuation">(</span>a <span class="token operator">*</span> a<span class="token punctuation">)</span> <span class="token operator">%</span> c<span class="token punctuation">;</span> <span class="token comment">/* Same deal here */</span>
+    <span class="token punctuation">}</span>
+    <span class="token keyword">return</span> res<span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token comment">/**
+ * Computes the Jacobi symbol, (a, n)，计算Jacobi符号（a,n）
+ */</span>
+<span class="token keyword">int</span> <span class="token function">jacobi</span><span class="token punctuation">(</span><span class="token keyword">int</span> a<span class="token punctuation">,</span> <span class="token keyword">int</span> n<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">int</span> twos<span class="token punctuation">,</span> temp<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> mult <span class="token operator">=</span> <span class="token number">1</span><span class="token punctuation">;</span>
+    <span class="token keyword">while</span><span class="token punctuation">(</span>a <span class="token operator">&gt;</span> <span class="token number">1</span> <span class="token operator">&amp;&amp;</span> a <span class="token operator">!=</span> n<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        a <span class="token operator">=</span> a <span class="token operator">%</span> n<span class="token punctuation">;</span>
+        <span class="token keyword">if</span><span class="token punctuation">(</span>a <span class="token operator">&lt;=</span> <span class="token number">1</span> <span class="token operator">||</span> a <span class="token operator">==</span> n<span class="token punctuation">)</span> <span class="token keyword">break</span><span class="token punctuation">;</span>
+        twos <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+        <span class="token keyword">while</span><span class="token punctuation">(</span>a <span class="token operator">%</span> <span class="token number">2</span> <span class="token operator">==</span> <span class="token number">0</span> <span class="token operator">&amp;&amp;</span> <span class="token operator">++</span>twos<span class="token punctuation">)</span> a <span class="token operator">/=</span> <span class="token number">2</span><span class="token punctuation">;</span> <span class="token comment">/* Factor out multiples of 2 ,减去2的倍数*/</span>
+        <span class="token keyword">if</span><span class="token punctuation">(</span>twos <span class="token operator">&gt;</span> <span class="token number">0</span> <span class="token operator">&amp;&amp;</span> twos <span class="token operator">%</span> <span class="token number">2</span> <span class="token operator">==</span> <span class="token number">1</span><span class="token punctuation">)</span> mult <span class="token operator">*=</span> <span class="token punctuation">(</span>n <span class="token operator">%</span> <span class="token number">8</span> <span class="token operator">==</span> <span class="token number">1</span> <span class="token operator">||</span> n <span class="token operator">%</span> <span class="token number">8</span> <span class="token operator">==</span> <span class="token number">7</span><span class="token punctuation">)</span> <span class="token operator">*</span> <span class="token number">2</span> <span class="token operator">-</span> <span class="token number">1</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span><span class="token punctuation">(</span>a <span class="token operator">&lt;=</span> <span class="token number">1</span> <span class="token operator">||</span> a <span class="token operator">==</span> n<span class="token punctuation">)</span> <span class="token keyword">break</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span><span class="token punctuation">(</span>n <span class="token operator">%</span> <span class="token number">4</span> <span class="token operator">!=</span> <span class="token number">1</span> <span class="token operator">&amp;&amp;</span> a <span class="token operator">%</span> <span class="token number">4</span> <span class="token operator">!=</span> <span class="token number">1</span><span class="token punctuation">)</span> mult <span class="token operator">*=</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">;</span> <span class="token comment">/* Coefficient for flipping，翻转系数 */</span>
+        temp <span class="token operator">=</span> a<span class="token punctuation">;</span>
+        a <span class="token operator">=</span> n<span class="token punctuation">;</span>
+        n <span class="token operator">=</span> temp<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token keyword">if</span><span class="token punctuation">(</span>a <span class="token operator">==</span> <span class="token number">0</span><span class="token punctuation">)</span> <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+    <span class="token keyword">else</span> <span class="token keyword">if</span><span class="token punctuation">(</span>a <span class="token operator">==</span> <span class="token number">1</span><span class="token punctuation">)</span> <span class="token keyword">return</span> mult<span class="token punctuation">;</span>
+    <span class="token keyword">else</span> <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span> <span class="token comment">/* a == n =&gt; gcd(a, n) != 1 */</span>
+<span class="token punctuation">}</span>
+
+<span class="token comment">/**
+ * Check whether a is a Euler witness for n，检查a是否为n的欧拉见证 */</span>
+<span class="token keyword">int</span> <span class="token function">solovayPrime</span><span class="token punctuation">(</span><span class="token keyword">int</span> a<span class="token punctuation">,</span> <span class="token keyword">int</span> n<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">int</span> x <span class="token operator">=</span> <span class="token function">jacobi</span><span class="token punctuation">(</span>a<span class="token punctuation">,</span> n<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span><span class="token punctuation">(</span>x <span class="token operator">==</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">)</span> x <span class="token operator">=</span> n <span class="token operator">-</span> <span class="token number">1</span><span class="token punctuation">;</span>
+    <span class="token keyword">return</span> x <span class="token operator">!=</span> <span class="token number">0</span> <span class="token operator">&amp;&amp;</span> <span class="token function">modpow</span><span class="token punctuation">(</span>a<span class="token punctuation">,</span> <span class="token punctuation">(</span>n <span class="token operator">-</span> <span class="token number">1</span><span class="token punctuation">)</span><span class="token operator">/</span><span class="token number">2</span><span class="token punctuation">,</span> n<span class="token punctuation">)</span> <span class="token operator">==</span> x<span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token comment">/**
+ * Test if n is probably prime, using accuracy of k (k solovay tests)，用k的精度检查n是否可能是素数 */</span>
+<span class="token keyword">int</span> <span class="token function">probablePrime</span><span class="token punctuation">(</span><span class="token keyword">int</span> n<span class="token punctuation">,</span> <span class="token keyword">int</span> k<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">if</span><span class="token punctuation">(</span>n <span class="token operator">==</span> <span class="token number">2</span><span class="token punctuation">)</span> <span class="token keyword">return</span> <span class="token number">1</span><span class="token punctuation">;</span>
+    <span class="token keyword">else</span> <span class="token keyword">if</span><span class="token punctuation">(</span>n <span class="token operator">%</span> <span class="token number">2</span> <span class="token operator">==</span> <span class="token number">0</span> <span class="token operator">||</span> n <span class="token operator">==</span> <span class="token number">1</span><span class="token punctuation">)</span> <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+    <span class="token keyword">while</span><span class="token punctuation">(</span>k<span class="token operator">--</span> <span class="token operator">&gt;</span> <span class="token number">0</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">if</span><span class="token punctuation">(</span><span class="token operator">!</span><span class="token function">solovayPrime</span><span class="token punctuation">(</span><span class="token function">rand</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">%</span> <span class="token punctuation">(</span>n <span class="token operator">-</span> <span class="token number">2</span><span class="token punctuation">)</span> <span class="token operator">+</span> <span class="token number">2</span><span class="token punctuation">,</span> n<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token keyword">return</span> <span class="token number">1</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token comment">/**
+ * Find a random (probable) prime between 3 and n - 1在3和（n-1）之间找一个随机素数, this distribution is，
+ * nowhere near uniform, see prime gaps
+ */</span>
+<span class="token keyword">int</span> <span class="token function">randPrime</span><span class="token punctuation">(</span><span class="token keyword">int</span> n<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">int</span> prime <span class="token operator">=</span> <span class="token function">rand</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">%</span> n<span class="token punctuation">;</span>
+    n <span class="token operator">+=</span> n <span class="token operator">%</span> <span class="token number">2</span><span class="token punctuation">;</span> <span class="token comment">/* n needs to be even so modulo wrapping preserves oddness */</span>
+    prime <span class="token operator">+=</span> <span class="token number">1</span> <span class="token operator">-</span> prime <span class="token operator">%</span> <span class="token number">2</span><span class="token punctuation">;</span>
+    <span class="token keyword">while</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">if</span><span class="token punctuation">(</span><span class="token function">probablePrime</span><span class="token punctuation">(</span>prime<span class="token punctuation">,</span> ACCURACY<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token keyword">return</span> prime<span class="token punctuation">;</span>
+        prime <span class="token operator">=</span> <span class="token punctuation">(</span>prime <span class="token operator">+</span> <span class="token number">2</span><span class="token punctuation">)</span> <span class="token operator">%</span> n<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+
+<span class="token comment">/**
+ * Compute gcd(a, b)，计算gcd（a,b）
+ */</span>
+<span class="token keyword">int</span> <span class="token function">gcd</span><span class="token punctuation">(</span><span class="token keyword">int</span> a<span class="token punctuation">,</span> <span class="token keyword">int</span> b<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">int</span> temp<span class="token punctuation">;</span>
+    <span class="token keyword">while</span><span class="token punctuation">(</span>b <span class="token operator">!=</span> <span class="token number">0</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        temp <span class="token operator">=</span> b<span class="token punctuation">;</span>
+        b <span class="token operator">=</span> a <span class="token operator">%</span> b<span class="token punctuation">;</span>
+        a <span class="token operator">=</span> temp<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token keyword">return</span> a<span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token comment">/**
+ * Find a random exponent x between 3 and n - 1 such that gcd(x, phi) = 1,在3和n-1之间找到随机指数x，使得gcd(x,phi)=1
+ * this distribution is similarly nowhere near uniform,这种分布同样不接近制服
+ */</span>
+<span class="token keyword">int</span> <span class="token function">randExponent</span><span class="token punctuation">(</span><span class="token keyword">int</span> phi<span class="token punctuation">,</span> <span class="token keyword">int</span> n<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">int</span> e <span class="token operator">=</span> <span class="token function">rand</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">%</span> n<span class="token punctuation">;</span>
+    <span class="token keyword">while</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">if</span><span class="token punctuation">(</span><span class="token function">gcd</span><span class="token punctuation">(</span>e<span class="token punctuation">,</span> phi<span class="token punctuation">)</span> <span class="token operator">==</span> <span class="token number">1</span><span class="token punctuation">)</span> <span class="token keyword">return</span> e<span class="token punctuation">;</span>
+        e <span class="token operator">=</span> <span class="token punctuation">(</span>e <span class="token operator">+</span> <span class="token number">1</span><span class="token punctuation">)</span> <span class="token operator">%</span> n<span class="token punctuation">;</span>
+        <span class="token keyword">if</span><span class="token punctuation">(</span>e <span class="token operator">&lt;=</span> <span class="token number">2</span><span class="token punctuation">)</span> e <span class="token operator">=</span> <span class="token number">3</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+
+<span class="token comment">/**
+ * Compute n^-1 mod m by extended euclidian method，用扩展欧几里得法计算n^-1 mod m
+ */</span>
+<span class="token keyword">int</span> <span class="token function">inverse</span><span class="token punctuation">(</span><span class="token keyword">int</span> n<span class="token punctuation">,</span> <span class="token keyword">int</span> modulus<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">int</span> a <span class="token operator">=</span> n<span class="token punctuation">,</span> b <span class="token operator">=</span> modulus<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> x <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">,</span> y <span class="token operator">=</span> <span class="token number">1</span><span class="token punctuation">,</span> x0 <span class="token operator">=</span> <span class="token number">1</span><span class="token punctuation">,</span> y0 <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">,</span> q<span class="token punctuation">,</span> temp<span class="token punctuation">;</span>
+    <span class="token keyword">while</span><span class="token punctuation">(</span>b <span class="token operator">!=</span> <span class="token number">0</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        q <span class="token operator">=</span> a <span class="token operator">/</span> b<span class="token punctuation">;</span>
+        temp <span class="token operator">=</span> a <span class="token operator">%</span> b<span class="token punctuation">;</span>
+        a <span class="token operator">=</span> b<span class="token punctuation">;</span>
+        b <span class="token operator">=</span> temp<span class="token punctuation">;</span>
+        temp <span class="token operator">=</span> x<span class="token punctuation">;</span> x <span class="token operator">=</span> x0 <span class="token operator">-</span> q <span class="token operator">*</span> x<span class="token punctuation">;</span> x0 <span class="token operator">=</span> temp<span class="token punctuation">;</span>
+        temp <span class="token operator">=</span> y<span class="token punctuation">;</span> y <span class="token operator">=</span> y0 <span class="token operator">-</span> q <span class="token operator">*</span> y<span class="token punctuation">;</span> y0 <span class="token operator">=</span> temp<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token keyword">if</span><span class="token punctuation">(</span>x0 <span class="token operator">&lt;</span> <span class="token number">0</span><span class="token punctuation">)</span> x0 <span class="token operator">+=</span> modulus<span class="token punctuation">;</span>
+    <span class="token keyword">return</span> x0<span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token comment">/**
+ * Read the file fd into an array of bytes ready for encryption.将文件fd读入准备加密的字节数组
+ * The array will be padded with zeros until it divides the number of数组将填充零，知道它划分每个块加密的字节数
+ * bytes encrypted per block. Returns the number of bytes read.返回读取的字节数
+ */</span>
+<span class="token keyword">int</span> <span class="token function">readFile</span><span class="token punctuation">(</span>FILE<span class="token operator">*</span> fd<span class="token punctuation">,</span> <span class="token keyword">char</span><span class="token operator">*</span><span class="token operator">*</span> buffer<span class="token punctuation">,</span> <span class="token keyword">int</span> bytes<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">int</span> len <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">,</span> cap <span class="token operator">=</span> BUF_SIZE<span class="token punctuation">,</span> r<span class="token punctuation">;</span>
+    <span class="token keyword">char</span> buf<span class="token punctuation">[</span>BUF_SIZE<span class="token punctuation">]</span><span class="token punctuation">;</span>
+    <span class="token operator">*</span>buffer <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token keyword">char</span> <span class="token operator">*</span><span class="token punctuation">)</span><span class="token function">malloc</span><span class="token punctuation">(</span>BUF_SIZE <span class="token operator">*</span> <span class="token keyword">sizeof</span><span class="token punctuation">(</span><span class="token keyword">char</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">while</span><span class="token punctuation">(</span><span class="token punctuation">(</span>r <span class="token operator">=</span> <span class="token function">fread</span><span class="token punctuation">(</span>buf<span class="token punctuation">,</span> <span class="token keyword">sizeof</span><span class="token punctuation">(</span><span class="token keyword">char</span><span class="token punctuation">)</span><span class="token punctuation">,</span> BUF_SIZE<span class="token punctuation">,</span> fd<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token operator">&gt;</span> <span class="token number">0</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">if</span><span class="token punctuation">(</span>len <span class="token operator">+</span> r <span class="token operator">&gt;=</span> cap<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            cap <span class="token operator">*=</span> <span class="token number">2</span><span class="token punctuation">;</span>
+            <span class="token operator">*</span>buffer <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token keyword">char</span> <span class="token operator">*</span><span class="token punctuation">)</span><span class="token function">realloc</span><span class="token punctuation">(</span><span class="token operator">*</span>buffer<span class="token punctuation">,</span> cap<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        <span class="token function">memcpy</span><span class="token punctuation">(</span><span class="token operator">&amp;</span><span class="token punctuation">(</span><span class="token operator">*</span>buffer<span class="token punctuation">)</span><span class="token punctuation">[</span>len<span class="token punctuation">]</span><span class="token punctuation">,</span> buf<span class="token punctuation">,</span> r<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        len <span class="token operator">+=</span> r<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token comment">/* Pad the last block with zeros to signal end of cryptogram. An additional block is added if there is no room，将最后一个带有零的块插入密码的信号端。 如果没有房间，则增加一个额外的街区 */</span>
+    <span class="token keyword">if</span><span class="token punctuation">(</span>len <span class="token operator">+</span> bytes <span class="token operator">-</span> len <span class="token operator">%</span> bytes <span class="token operator">&gt;</span> cap<span class="token punctuation">)</span> <span class="token operator">*</span>buffer <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token keyword">char</span> <span class="token operator">*</span><span class="token punctuation">)</span><span class="token function">realloc</span><span class="token punctuation">(</span><span class="token operator">*</span>buffer<span class="token punctuation">,</span> len <span class="token operator">+</span> bytes <span class="token operator">-</span> len <span class="token operator">%</span> bytes<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">do</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token punctuation">(</span><span class="token operator">*</span>buffer<span class="token punctuation">)</span><span class="token punctuation">[</span>len<span class="token punctuation">]</span> <span class="token operator">=</span> <span class="token string">'\0'</span><span class="token punctuation">;</span>
+        len<span class="token operator">++</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token keyword">while</span><span class="token punctuation">(</span>len <span class="token operator">%</span> bytes <span class="token operator">!=</span> <span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">return</span> len<span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token comment">/**
+ * Encode the message m using public exponent and modulus, c = m^e mod n使用公共指数和模量对消息m进行编码，c = m^e Mod n
+ */</span>
+<span class="token keyword">int</span> <span class="token function">encode</span><span class="token punctuation">(</span><span class="token keyword">int</span> m<span class="token punctuation">,</span> <span class="token keyword">int</span> e<span class="token punctuation">,</span> <span class="token keyword">int</span> n<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">return</span> <span class="token function">modpow</span><span class="token punctuation">(</span>m<span class="token punctuation">,</span> e<span class="token punctuation">,</span> n<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token comment">/**
+ * Decode cryptogram c using private exponent and public modulus, m = c^d mod n，用私有指数和公共模量解码密码c，m = c^d Mod n
+ */</span>
+<span class="token keyword">int</span> <span class="token function">decode</span><span class="token punctuation">(</span><span class="token keyword">int</span> c<span class="token punctuation">,</span> <span class="token keyword">int</span> d<span class="token punctuation">,</span> <span class="token keyword">int</span> n<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">return</span> <span class="token function">modpow</span><span class="token punctuation">(</span>c<span class="token punctuation">,</span> d<span class="token punctuation">,</span> n<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token comment">/**
+ * Encode the message of given length, using the public key (exponent, modulus)
+ * The resulting array will be of size len/bytes, each index being the encryption
+ * of "bytes" consecutive characters, given by m = (m1 + m2*128 + m3*128^2 + ..),
+ * encoded = m^exponent mod modulus
+ * 使用公钥（指数、模数)对给定长度的消息进行编码）
+ 得到的数组将是大小为len/字节，每个索引是由m=(m1m2*128m3*128^2.)给出的“字节”连续字符的加密，编码=m^指数mod模量
+ */</span>
+<span class="token keyword">int</span><span class="token operator">*</span> <span class="token function">encodeMessage</span><span class="token punctuation">(</span><span class="token keyword">int</span> len<span class="token punctuation">,</span> <span class="token keyword">int</span> bytes<span class="token punctuation">,</span> <span class="token keyword">char</span><span class="token operator">*</span> message<span class="token punctuation">,</span> <span class="token keyword">int</span> exponent<span class="token punctuation">,</span> <span class="token keyword">int</span> modulus<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">int</span> <span class="token operator">*</span>encoded <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token keyword">int</span> <span class="token operator">*</span><span class="token punctuation">)</span><span class="token function">malloc</span><span class="token punctuation">(</span><span class="token punctuation">(</span>len<span class="token operator">/</span>bytes<span class="token punctuation">)</span> <span class="token operator">*</span> <span class="token keyword">sizeof</span><span class="token punctuation">(</span><span class="token keyword">int</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">int</span> x<span class="token punctuation">,</span> i<span class="token punctuation">,</span> j<span class="token punctuation">;</span>
+    <span class="token keyword">for</span><span class="token punctuation">(</span>i <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span> i <span class="token operator">&lt;</span> len<span class="token punctuation">;</span> i <span class="token operator">+=</span> bytes<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        x <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+        <span class="token keyword">for</span><span class="token punctuation">(</span>j <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span> j <span class="token operator">&lt;</span> bytes<span class="token punctuation">;</span> j<span class="token operator">++</span><span class="token punctuation">)</span> x <span class="token operator">+=</span> message<span class="token punctuation">[</span>i <span class="token operator">+</span> j<span class="token punctuation">]</span> <span class="token operator">*</span> <span class="token punctuation">(</span><span class="token number">1</span> <span class="token operator">&lt;&lt;</span> <span class="token punctuation">(</span><span class="token number">7</span> <span class="token operator">*</span> j<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        encoded<span class="token punctuation">[</span>i<span class="token operator">/</span>bytes<span class="token punctuation">]</span> <span class="token operator">=</span> <span class="token function">encode</span><span class="token punctuation">(</span>x<span class="token punctuation">,</span> exponent<span class="token punctuation">,</span> modulus<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">ifndef</span> <span class="token expression">MEASURE</span></span>
+        <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"%d "</span><span class="token punctuation">,</span> encoded<span class="token punctuation">[</span>i<span class="token operator">/</span>bytes<span class="token punctuation">]</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">endif</span></span>
+    <span class="token punctuation">}</span>
+    <span class="token keyword">return</span> encoded<span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token comment">/**
+ * Decode the cryptogram of given length, using the private key (exponent, modulus)
+ * Each encrypted packet should represent "bytes" characters as per encodeMessage.
+ * The returned message will be of size len * bytes.
+ * 使用私钥（指数、模数)解码给定长度的密码）
+ 每个加密的数据包应该按照编码消息表示“字节”字符。
+ 返回的消息大小为len*字节。
+ */</span>
+<span class="token keyword">int</span><span class="token operator">*</span> <span class="token function">decodeMessage</span><span class="token punctuation">(</span><span class="token keyword">int</span> len<span class="token punctuation">,</span> <span class="token keyword">int</span> bytes<span class="token punctuation">,</span> <span class="token keyword">int</span><span class="token operator">*</span> cryptogram<span class="token punctuation">,</span> <span class="token keyword">int</span> exponent<span class="token punctuation">,</span> <span class="token keyword">int</span> modulus<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">int</span> <span class="token operator">*</span>decoded <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token keyword">int</span> <span class="token operator">*</span><span class="token punctuation">)</span><span class="token function">malloc</span><span class="token punctuation">(</span>len <span class="token operator">*</span> bytes <span class="token operator">*</span> <span class="token keyword">sizeof</span><span class="token punctuation">(</span><span class="token keyword">int</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">int</span> x<span class="token punctuation">,</span> i<span class="token punctuation">,</span> j<span class="token punctuation">;</span>
+    <span class="token keyword">for</span><span class="token punctuation">(</span>i <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span> i <span class="token operator">&lt;</span> len<span class="token punctuation">;</span> i<span class="token operator">++</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        x <span class="token operator">=</span> <span class="token function">decode</span><span class="token punctuation">(</span>cryptogram<span class="token punctuation">[</span>i<span class="token punctuation">]</span><span class="token punctuation">,</span> exponent<span class="token punctuation">,</span> modulus<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">for</span><span class="token punctuation">(</span>j <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span> j <span class="token operator">&lt;</span> bytes<span class="token punctuation">;</span> j<span class="token operator">++</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            decoded<span class="token punctuation">[</span>i<span class="token operator">*</span>bytes <span class="token operator">+</span> j<span class="token punctuation">]</span> <span class="token operator">=</span> <span class="token punctuation">(</span>x <span class="token operator">&gt;&gt;</span> <span class="token punctuation">(</span><span class="token number">7</span> <span class="token operator">*</span> j<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token operator">%</span> <span class="token number">128</span><span class="token punctuation">;</span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">ifndef</span> <span class="token expression">MEASURE</span></span>
+            <span class="token keyword">if</span><span class="token punctuation">(</span>decoded<span class="token punctuation">[</span>i<span class="token operator">*</span>bytes <span class="token operator">+</span> j<span class="token punctuation">]</span> <span class="token operator">!=</span> <span class="token string">'\0'</span><span class="token punctuation">)</span> <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"%c"</span><span class="token punctuation">,</span> decoded<span class="token punctuation">[</span>i<span class="token operator">*</span>bytes <span class="token operator">+</span> j<span class="token punctuation">]</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">endif</span></span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+    <span class="token keyword">return</span> decoded<span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token comment">/**
+ * Main method to demostrate the system. Sets up primes p, q, and proceeds to encode and
+ * decode the message given in "text.txt"
+ * 系统降级的主要方法。 设置素数p，q，并开始编码和
+ *解码“text.txt”中给出的消息；
+ */</span>
+<span class="token keyword">int</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token keyword">void</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">int</span> p<span class="token punctuation">,</span> q<span class="token punctuation">,</span> n<span class="token punctuation">,</span> phi<span class="token punctuation">,</span> e<span class="token punctuation">,</span> d<span class="token punctuation">,</span> bytes<span class="token punctuation">,</span> len<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> <span class="token operator">*</span>encoded<span class="token punctuation">,</span> <span class="token operator">*</span>decoded<span class="token punctuation">;</span>
+    <span class="token keyword">char</span> <span class="token operator">*</span>buffer<span class="token punctuation">;</span>
+    FILE <span class="token operator">*</span>f<span class="token punctuation">;</span>
+    <span class="token function">srand</span><span class="token punctuation">(</span><span class="token function">time</span><span class="token punctuation">(</span><span class="token constant">NULL</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">while</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        p <span class="token operator">=</span> <span class="token number">17</span><span class="token punctuation">;</span><span class="token comment">//randPrime(SINGLE_MAX);</span>
+        <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"生成第一个随机素数, p = %d ... "</span><span class="token punctuation">,</span> p<span class="token punctuation">)</span><span class="token punctuation">;</span>
+       <span class="token function">getchar</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        q <span class="token operator">=</span> <span class="token number">11</span><span class="token punctuation">;</span><span class="token comment">//randPrime(SINGLE_MAX);</span>
+        <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"生成第二个随机素数, q = %d ... "</span><span class="token punctuation">,</span> q<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">getchar</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        n <span class="token operator">=</span> p <span class="token operator">*</span> q<span class="token punctuation">;</span>
+        <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"计算p和q的乘积n, n = pq = %d ... "</span><span class="token punctuation">,</span> n<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span><span class="token punctuation">(</span>n <span class="token operator">&lt;</span> <span class="token number">128</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"Modulus is less than 128, cannot encode single bytes. Trying again ... "</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token function">getchar</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        <span class="token keyword">else</span> <span class="token keyword">break</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token keyword">if</span><span class="token punctuation">(</span>n <span class="token operator">&gt;&gt;</span> <span class="token number">21</span><span class="token punctuation">)</span> bytes <span class="token operator">=</span> <span class="token number">3</span><span class="token punctuation">;</span>
+    <span class="token keyword">else</span> <span class="token keyword">if</span><span class="token punctuation">(</span>n <span class="token operator">&gt;&gt;</span> <span class="token number">14</span><span class="token punctuation">)</span> bytes <span class="token operator">=</span> <span class="token number">2</span><span class="token punctuation">;</span>
+    <span class="token keyword">else</span> bytes <span class="token operator">=</span> <span class="token number">1</span><span class="token punctuation">;</span>
+    <span class="token function">getchar</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    phi <span class="token operator">=</span> <span class="token punctuation">(</span>p <span class="token operator">-</span> <span class="token number">1</span><span class="token punctuation">)</span> <span class="token operator">*</span> <span class="token punctuation">(</span>q <span class="token operator">-</span> <span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"计算欧拉函数的值phi, phi = %d ... "</span><span class="token punctuation">,</span> phi<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">getchar</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    e <span class="token operator">=</span> <span class="token function">randExponent</span><span class="token punctuation">(</span>phi<span class="token punctuation">,</span> EXPONENT_MAX<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"选取一个随机素数e, e = %d...\n获得公钥 (%d, %d) ... "</span><span class="token punctuation">,</span> e<span class="token punctuation">,</span> e<span class="token punctuation">,</span> n<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">getchar</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    d <span class="token operator">=</span> <span class="token function">inverse</span><span class="token punctuation">(</span>e<span class="token punctuation">,</span> phi<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"计算模反元素d, d = %d...\n获得密钥 (%d, %d) ... "</span><span class="token punctuation">,</span> d<span class="token punctuation">,</span> d<span class="token punctuation">,</span> n<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">getchar</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"打开文件 \"text.txt\" 用于读取信息\n"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    f <span class="token operator">=</span> <span class="token function">fopen</span><span class="token punctuation">(</span><span class="token string">"text.txt"</span><span class="token punctuation">,</span> <span class="token string">"r"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span><span class="token punctuation">(</span>f <span class="token operator">==</span> <span class="token constant">NULL</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"Failed to open file \"text.txt\". Does it exist?\n"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">return</span> EXIT_FAILURE<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    len <span class="token operator">=</span> <span class="token function">readFile</span><span class="token punctuation">(</span>f<span class="token punctuation">,</span> <span class="token operator">&amp;</span>buffer<span class="token punctuation">,</span> bytes<span class="token punctuation">)</span><span class="token punctuation">;</span> <span class="token comment">/* len will be a multiple of bytes, to send whole chunks伦将是多个字节，以发送整个块 */</span>
+    <span class="token function">fclose</span><span class="token punctuation">(</span>f<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"文件 \"text.txt\" 读取成功, 读取到%d字节. 以%d字节的字节流编码 ... "</span><span class="token punctuation">,</span> len<span class="token punctuation">,</span> bytes<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">getchar</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"加密得密文为："</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    encoded <span class="token operator">=</span> <span class="token function">encodeMessage</span><span class="token punctuation">(</span>len<span class="token punctuation">,</span> bytes<span class="token punctuation">,</span> buffer<span class="token punctuation">,</span> e<span class="token punctuation">,</span> n<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"\n编码成功完成 ... "</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">getchar</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+
+    <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"正在解码编码的信息 ... "</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">getchar</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"解码得明文为："</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    decoded <span class="token operator">=</span> <span class="token function">decodeMessage</span><span class="token punctuation">(</span>len<span class="token operator">/</span>bytes<span class="token punctuation">,</span> bytes<span class="token punctuation">,</span> encoded<span class="token punctuation">,</span> d<span class="token punctuation">,</span> n<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+
+    <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"\nRSA算法演示完成!\n"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token function">free</span><span class="token punctuation">(</span>encoded<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">free</span><span class="token punctuation">(</span>decoded<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">free</span><span class="token punctuation">(</span>buffer<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">return</span> EXIT_SUCCESS<span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+</code></pre> 
+<p><img src="https://images2.imgbox.com/2c/68/PMKnQrBl_o.png" alt="在这里插入图片描述"></p> 
+<p>将hainu（要加密解密的明文）存放在text.txt文档中，与rsa.c存放在同一目录下<br> <img src="https://images2.imgbox.com/50/e5/6ysrawbk_o.png" alt="在这里插入图片描述"></p> 
+<p>实验结果：<br> <img src="https://images2.imgbox.com/2f/e4/sTuolfkB_o.png" alt="在这里插入图片描述"><br> 注：p和q是可以修改的，可以在源代码228行改成自己希望的任意质数（尽量大一点）。此源代码原本是用来实现随机的p和q的质数，因为我们实验老师对p和q的要求,我对代码做了一定的修改，在这贴一份<a href="https://www.cnblogs.com/67-Min/p/13247074.html" rel="nofollow">原来的代码</a>。</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/42074f9cdb447a71d785263560001544/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">某银行开发岗面试</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/dbfcdc4b1fca935a511d66def355940c/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">js怎样通过class获取多个下拉框选择的value</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

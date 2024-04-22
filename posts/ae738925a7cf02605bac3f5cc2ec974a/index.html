@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>BN使用总结及启发 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/ae738925a7cf02605bac3f5cc2ec974a/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="BN使用总结及启发">
+  <meta property="og:description" content="声明：文章仅作知识整理、分享，如有侵权请联系作者删除博文，谢谢！
+Batch Normalization视神经网络的经典结构，本文对BN的引入，训练、推理过程及BN的特性，进行整理。
+1、数据预算处理（Data Preprocessing） 为什么输入数据需要归一化（Normalized Data）
+归一化后有什么好处呢？原因在于：
+1）神经网络学习过程本质就是为了学习数据分布，一旦训练数据与测试数据的分布不同，那么网络的泛化能力也大大降低；
+2）另外一方面，一旦每批训练数据的分布各不相同(batch 梯度下降)，那么网络就要在每次迭代都去学习适应不同的分布，这样将会大大降低网络的训练速度。
+这也正是为什么我们需要对数据都要做一个归一化预处理的原因。对于深度网络的训练是一个复杂的过程，只要网络的前面几层发生微小的改变，那么后面几层就会被累积放大下去。一旦网络某一层的输入数据的分布发生改变，那么这一层网络就需要去适应学习这个新的数据分布，所以如果训练过程中，训练数据的分布一直在发生变化，那么将会影响网络的训练速度。
+2、批量归一化（BN: Batch Normalization) 2.1、BN训练 1）随机梯度下降法（SGD）对于训练深度网络简单高效，但是它有个毛病，就是需要我们人为的去选择参数，比如学习率、参数初始化、权重衰减系数、Drop out比例等。这些参数的选择对训练结果至关重要，以至于我们很多时间都浪费在这些的调参上。那么使用BN（详见论文《Batch Normalization_ Accelerating Deep Network Training by Reducing Internal Covariate Shift》）之后，你可以不需要那么刻意的慢慢调整参数。
+2）神经网络一旦训练起来，那么参数就要发生更新，除了输入层的数据外(因为输入层数据，我们已经人为的为每个样本归一化)，后面网络每一层的输入数据分布是一直在发生变化的，因为在训练的时候，前面层训练参数的更新将导致后面层输入数据分布的变化。以网络第二层为例：网络的第二层输入，是由第一层的参数和input计算得到的，而第一层的参数在整个训练过程中一直在变化，因此必然会引起后面每一层输入数据分布的改变。我们把网络中间层在训练过程中，数据分布的改变称之为：“Internal Covariate Shift”。Paper所提出的算法，就是要解决在训练过程中，中间层数据分布发生改变的情况，于是就有了Batch Normalization，这个牛逼算法的诞生。
+3）BN的地位：与激活函数层、卷积层、全连接层、池化层一样，BN(Batch Normalization)也属于网络的一层。
+4）BN的本质原理：在网络的每一层输入的时候，又插入了一个归一化层，也就是先做一个归一化处理（归一化至：均值0、方差为1），然后再进入网络的下一层。不过文献归一化层，可不像我们想象的那么简单，它是一个可学习、有参数（γ、β）的网络层。
+5）归一化公式：
+6）如果是仅仅使用上面的归一化公式，对网络某一层A的输出数据做归一化，然后送入网络下一层B，这样是会影响到本层网络A所学习到的特征的。比如我网络中间某一层学习到特征数据本身就分布在S型激活函数的两侧，你强制把它给我归一化处理、标准差也限制在了1，把数据变换成分布于s函数的中间部分，这样就相当于我这一层网络所学习到的特征分布被你搞坏了，这可怎么办？于是文献使出了一招惊天地泣鬼神的招式：变换重构，引入了可学习参数γ、β，这就是算法关键之处：
+上面的公式表明，通过学习到的重构参数γ、β，是可以恢复出原始的某一层所学到的特征的。
+7）引入了这个可学习重构参数γ、β，让我们的网络可以学习恢复出原始网络所要学习的特征分布。最后Batch Normalization网络层的前向传导过程公式就是：
+8）BN层是对于每个神经元做归一化处理，甚至只需要对某一个神经元进行归一化，而不是对一整层网络的神经元进行归一化。既然BN是对单个神经元的运算，那么在CNN中卷积层上要怎么搞？假如某一层卷积层有6个特征图，每个特征图的大小是100*100，这样就相当于这一层网络有6*100*100个神经元，如果采用BN，就会有6*100*100个参数γ、β，这样岂不是太恐怖了。因此卷积层上的BN使用，其实也是使用了类似权值共享的策略，把一整张特征图当做一个神经元进行处理。
+9）卷积神经网络经过卷积后得到的是一系列的特征图，如果min-batch sizes为m，那么网络某一层输入数据可以表示为四维矩阵(m,f,w,h)，m为min-batch sizes，f为特征图个数，w、h分别为特征图的宽高。在CNN中我们可以把每个特征图看成是一个特征处理（一个神经元），因此在使用Batch Normalization，mini-batch size 的大小就是：m*w*h，于是对于每个特征图都只有一对可学习参数：γ、β。说白了吧，这就是相当于求取所有样本所对应的一个特征图的所有神经元的平均值、方差，然后对这个特征图神经元做归一化。
+10) 在使用BN前，减小学习率、小心的权重初始化的目的是：使其输出的数据分布不要发生太大的变化。
+11） BN的作用：
+1、改善流经网络的梯度；
+2、允许更大的学习率，大幅提高训练速度；
+你可以选择比较大的初始学习率，让你的训练速度飙涨。以前还需要慢慢调整学习率，甚至在网络训练到一半的时候，还需要想着学习率进一步调小的比例选择多少比较合适，现在我们可以采用初始很大的学习率，然后学习率的衰减速度也很大，因为这个算法收敛很快。当然这个算法即使你选择了较小的学习率，也比以前的收敛速度快，因为它具有快速训练收敛的特性；
+3、减少对初始化的强烈依赖；
+4、改善正则化策略：作为正则化的一种形式，轻微减少了对dropout的需求；
+你再也不用去理会过拟合中drop out、L2正则项参数的选择问题，采用BN算法后，你可以移除这两项了参数，或者可以选择更小的L2正则约束参数了，因为BN具有提高网络泛化能力的特性；
+5、再也不需要使用使用局部响应归一化层了（局部响应归一化是Alexnet网络用到的方法，搞视觉的估计比较熟悉），因为BN本身就是一个归一化网络层；
+6、可以把训练数据彻底打乱（防止每批训练的时候，某一个样本都经常被挑选到，文献说这个可以提高1%的精度）。
+注：以上为学习过程，在测试时，均值和方差(mean/std)不基于小批量进行计算， 可取训练过程中的激活值的均值。
+2.2、BN测试 1）实际测试时，我们依然使用下面的公式：
+这里的均值和方差已经不是针对某一个Batch了，而是针对整个数据集而言。因此，在训练过程中除了正常的前向传播和反向求导之外，我们还要记录每一个Batch的均值和方差，以便训练完成之后按照下式计算整体的均值和方差：
+上面简单理解就是：对于均值来说直接计算所有batch u值的平均值；然后对于标准偏差采用每个batch σB的无偏估计。最后测试阶段，BN的使用公式就是：
+2）BN可以应用于一个神经网络的任何神经元上。文献主要是把BN变换，置于网络激活函数层的前面。在没有采用BN的时候，激活函数层是这样的： z=g(Wu&#43;b)">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2020-08-18T21:43:25+08:00">
+    <meta property="article:modified_time" content="2020-08-18T21:43:25+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">BN使用总结及启发</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <p style="text-indent:0;"><span style="color:#ffbb66;">声明：文章仅作知识整理、分享，如有侵权请联系作者删除博文，谢谢！</span></p> 
+<p style="text-indent:33px;">Batch Normalization视神经网络的经典结构，本文对BN的引入，训练、推理过程及BN的特性，进行整理。</p> 
+<h2>1、数据预算处理（Data Preprocessing）</h2> 
+<p> </p> 
+<p style="text-align:center;"><img alt="" height="220" src="https://images2.imgbox.com/14/67/WDWAqToo_o.jpg" width="448"></p> 
+<p>为什么输入数据需要归一化（Normalized Data）</p> 
+<p>归一化后有什么好处呢？原因在于：</p> 
+<p style="text-indent:33px;">1）<span style="color:#f33b45;">神经网络学习过程本质就是为了学习数据分布</span>，一旦训练数据与测试数据的分布不同，那么网络的泛化能力也大大降低；</p> 
+<p style="text-indent:33px;">2）另外一方面，一旦每批训练数据的分布各不相同(batch 梯度下降)，那么网络就要在每次迭代都去学习适应不同的分布，这样将会大大降低网络的训练速度。</p> 
+<p style="text-indent:33px;">这也正是为什么我们需要对数据都要做一个归一化预处理的原因。对于深度网络的训练是一个复杂的过程，<span style="color:#f33b45;">只要网络的前面几层发生微小的改变，那么后面几层就会被累积放大下去。</span>一旦网络某一层的输入数据的分布发生改变，那么这一层网络就需要去适应学习这个新的数据分布，所以如果训练过程中，训练数据的分布一直在发生变化，那么将会影响网络的训练速度。</p> 
+<h2>2、批量归一化（BN: Batch Normalization)</h2> 
+<h3>2.1、BN训练</h3> 
+<p style="text-indent:33px;">1）随机梯度下降法（SGD）对于训练深度网络简单高效，但是它<span style="color:#f33b45;">有个毛病，就是需要我们人为的去选择参数，比如学习率、参数初始化、权重衰减系数、Drop out比例等。</span>这些参数的选择对训练结果至关重要，以至于我们很多时间都浪费在这些的调参上。那么使用BN（详见论文《Batch Normalization_ Accelerating Deep Network Training by Reducing Internal Covariate Shift》）之后，你可以不需要那么刻意的慢慢调整参数。</p> 
+<p style="text-indent:33px;">2）<span style="color:#f33b45;">神经网络一旦训练起来，那么参数就要发生更新</span>，除了输入层的数据外(因为输入层数据，我们已经人为的为每个样本归一化)，后面网络每一层的输入数据分布是一直在发生变化的，因为在训练的时候，前面层训练参数的更新将导致后面层输入数据分布的变化。以网络第二层为例：网络的第二层输入，是由第一层的参数和input计算得到的，而第一层的参数在整个训练过程中一直在变化，因此必然会引起后面每一层输入数据分布的改变。我们把网络中间层在训练过程中，数据分布的改变称之为：“Internal  Covariate Shift”。Paper所提出的算法，就是<span style="color:#f33b45;">要解决在训练过程中，中间层数据分布发生改变的情况，于是就有了Batch  Normalization，</span>这个牛逼算法的诞生。</p> 
+<p style="text-indent:33px;">3）<strong>BN的地位</strong>：与激活函数层、卷积层、全连接层、池化层一样，BN(Batch Normalization)也属于网络的一层。</p> 
+<p style="text-indent:33px;">4）<strong>BN的本质原理</strong>：在网络的每一层输入的时候，又插入了一个归一化层，也就是先做一个归一化处理（<span style="color:#f33b45;">归一化至：均值0、方差为1</span>），然后再进入网络的下一层。不过文献归一化层，可不像我们想象的那么简单，<span style="color:#3399ea;">它是一个可学习、有参数（γ、β）的网络层。</span></p> 
+<p style="text-indent:33px;">5）归一化公式：</p> 
+<p style="text-align:center;"><img alt="" height="121" src="https://images2.imgbox.com/7f/d0/mKZk0Svn_o.png" width="308"></p> 
+<p> </p> 
+<p style="text-indent:33px;">6）如果是仅仅使用上面的归一化公式，对网络某一层A的输出数据做归一化，然后送入网络下一层B，这样是<span style="color:#f33b45;">会影响到本层网络A所学习到的特征的。</span>比如我网络中间某一层学习到特征数据本身就分布在S型激活函数的两侧，你强制把它给我归一化处理、标准差也限制在了1，把数据变换成分布于s函数的中间部分，这样就相当于我这一层网络所学习到的特征分布被你搞坏了，这可怎么办？于是文献使出了一招惊天地泣鬼神的招式：<span style="color:#f33b45;">变换重构，引入了可学习参数γ、β，这就是算法关键之处：</span></p> 
+<p style="text-align:center;"><img alt="" height="113" src="https://images2.imgbox.com/ae/24/aMxUVEqY_o.png" width="222"></p> 
+<p> </p> 
+<p>       上面的<span style="color:#f33b45;">公式表明，通过学习到的重构参数γ、β，是可以恢复出原始的某一层所学到的特征的。</span></p> 
+<p style="text-align:center;"><img alt="" height="414" src="https://images2.imgbox.com/8f/e4/KvpZNNDi_o.jpg" width="565"></p> 
+<p> </p> 
+<p style="text-indent:33px;">7）引入了这个可学习重构参数γ、β，让我们的网络可以学习恢复出原始网络所要学习的特征分布。最后Batch Normalization网络层的前向传导过程公式就是：</p> 
+<p style="text-align:center;"><img alt="" height="213" src="https://images2.imgbox.com/16/0b/K7fEXTtB_o.png" width="297"></p> 
+<p> </p> 
+<p> </p> 
+<p style="text-align:center;"><img alt="" height="320" src="https://images2.imgbox.com/ea/6b/vLehte3u_o.jpg" width="528"></p> 
+<p style="text-indent:33px;">8）<span style="color:#f33b45;">BN层是对于每个神经元做归一化处理，甚至只需要对某一个神经元进行归一化</span>，而不是对一整层网络的神经元进行归一化。既然BN是对单个神经元的运算，那么在CNN中卷积层上要怎么搞？假如某一层卷积层有6个特征图，每个特征图的大小是100*100，这样就相当于这一层网络有6*100*100个神经元，如果采用BN，就会有6*100*100个参数γ、β，这样岂不是太恐怖了。<span style="color:#f33b45;">因此卷积层上的BN使用，其实也是使用了类似权值共享的策略，把一整张特征图当做一个神经元进行处理</span>。</p> 
+<p style="text-indent:33px;">9）卷积神经网络经过卷积后得到的是一系列的特征图，如果min-batch sizes为m，那么网络某一层输入数据可以表示为四维矩阵(m,f,w,h)，m为min-batch sizes，f为特征图个数，w、h分别为特征图的宽高。<span style="color:#f33b45;">在CNN中我们可以把每个特征图看成是一个特征处理（一个神经元）</span>，因此在使用Batch Normalization，mini-batch size 的大小就是：m*w*h，于是<span style="color:#f33b45;">对于每个特征图都只有一对可学习参数：γ、β。</span>说白了吧，这就是相当于求取所有样本所对应的一个特征图的所有神经元的平均值、方差，然后对这个特征图神经元做归一化。</p> 
+<p style="text-indent:33px;">10)    在使用BN前，<span style="color:#f33b45;">减小学习率、小心的权重初始化</span>的目的是：使其输出的数据分布不要发生太大的变化。</p> 
+<p style="text-indent:33px;"><span style="color:#f33b45;"><strong>11） BN的作用：</strong></span></p> 
+<p style="text-indent:33px;">1、改善流经网络的梯度；</p> 
+<p style="text-indent:33px;">2、允许更大的学习率，大幅提高训练速度；</p> 
+<p style="text-indent:33px;">你可以选择比较大的初始学习率，让你的训练速度飙涨。以前还需要慢慢调整学习率，甚至在网络训练到一半的时候，还需要想着学习率进一步调小的比例选择多少比较合适，现在我们可以采用初始很大的学习率，然后学习率的衰减速度也很大，因为这个算法收敛很快。当然这个算法即使你选择了较小的学习率，也比以前的收敛速度快，因为它具有快速训练收敛的特性；</p> 
+<p style="text-indent:33px;"> 3、减少对初始化的强烈依赖；</p> 
+<p style="text-indent:33px;"> 4、改善正则化策略：作为正则化的一种形式，轻微减少了对dropout的需求；</p> 
+<p style="text-indent:33px;">你再也不用去理会过拟合中drop out、L2正则项参数的选择问题，采用BN算法后，你可以移除这两项了参数，或者可以选择更小的L2正则约束参数了，因为BN具有提高网络泛化能力的特性；</p> 
+<p style="text-indent:33px;">5、再也不需要使用使用局部响应归一化层了（局部响应归一化是Alexnet网络用到的方法，搞视觉的估计比较熟悉），因为BN本身就是一个归一化网络层；</p> 
+<p style="text-indent:33px;">6、可以把训练数据彻底打乱（防止每批训练的时候，某一个样本都经常被挑选到，文献说这个可以提高1%的精度）。</p> 
+<p>       注：以上为学习过程，在测试时，均值和方差(mean/std)不基于小批量进行计算， 可取训练过程中的激活值的均值。</p> 
+<h3>2.2、BN测试</h3> 
+<p>     1）实际测试时，我们依然使用下面的公式：</p> 
+<p style="text-align:center;"><img alt="" height="56" src="https://images2.imgbox.com/a0/06/ZayRVtQ6_o.png" width="156"></p> 
+<p> </p> 
+<p style="text-indent:33px;"><span style="color:#f33b45;">这里的均值和方差已经不是针对某一个Batch了，而是针对整个数据集而言。</span>因此，在训练过程中除了正常的前向传播和反向求导之外，我们还要记录每一个Batch的均值和方差，以便训练完成之后按照下式计算整体的均值和方差：</p> 
+<p style="text-align:center;"><img alt="" height="67" src="https://images2.imgbox.com/bf/d5/RXQpqxyB_o.png" width="222"></p> 
+<p style="text-indent:33px;">上面简单理解就是：对于均值来说直接计算所有batch u值的平均值；然后对于标准偏差采用每个batch σB的无偏估计。最后测试阶段，BN的使用公式就是：</p> 
+<p style="text-align:center;"><img alt="" height="47" src="https://images2.imgbox.com/63/ea/28qtdM84_o.png" width="339"></p> 
+<p> </p> 
+<p>     2）BN可以应用于一个神经网络的任何神经元上。文献主要是把BN变换，置于网络激活函数层的前面。在没有采用BN的时候，激活函数层是这样的： z=g(Wu+b)</p> 
+<p>       也就是我们希望一个激活函数，比如s型函数s(x)的自变量x是经过BN处理后的结果。因此前向传导的计算公式就应该是：z=g(BN(Wu+b))</p> 
+<p>       <span style="color:#f33b45;"> 其实因为偏置参数b经过BN层后其实是没有用的，最后也会被均值归一化</span>，当然BN层后面还有个β参数作为偏置项，<span style="color:#f33b45;">所以b这个参数就可以不用了</span>。因此最后把BN层+激活函数层就变成了：z=g(BN(Wu))</p> 
+<h2>3、补充结论</h2> 
+<h3>3.1、Batch Size大小对模型泛化能力的影响</h3> 
+<p style="text-indent:33px;">目前可以实验证实的是：<span style="color:#f33b45;">batch size 设置得较小训练出来的模型相对大 batch size 训练出的模型泛化能力更强，</span>在测试集上的表现更好，而太大的 batch size 往往不太 Work，而且泛化能力较差。但是背后是什么原因造成的，目前还未有定论，持不同看法者各持己见。</p> 
+<h3>3.2、BN的位置</h3> 
+<p style="text-align:center;"><img alt="" height="266" src="https://images2.imgbox.com/1c/3c/ovzwzDtv_o.jpg" width="374"></p> 
+<p> </p> 
+<p style="text-indent:33px;">目前有两种在神经元中插入 Normalization 操作的地方（参考图 4），第一种是原始 BN 论文提出的，放在激活函数之前；另外一种是后续研究提出的，放在激活函数之后，<span style="color:#f33b45;">不少研究表明将 BN 放在激活函数之后效果更好</span>。</p> 
+<h3>3.3、Batch Norm 的四大罪状</h3> 
+<p><strong>局限 1：如果 Batch Size 太小，则 BN 效果明显下降。</strong></p> 
+<p style="text-indent:33px;">Imagenet上使用resnet实现分类任务时，不同batch的影响。</p> 
+<p style="text-align:center;"><img alt="" height="262" src="https://images2.imgbox.com/05/51/tZEB6y7L_o.jpg" width="352"></p> 
+<p> </p> 
+<p><strong>局限 2：对于有些像素级图片生成任务来说，BN 效果不佳。</strong></p> 
+<p style="text-indent:33px;">对于<span style="color:#f33b45;">图片分类等任务，只要能够找出关键特征，就能正确分类，这算是一种粗粒度的任务</span>，在这种情形下通常 BN 是有积极效果的。但是对于有些输入输出都是图片的像素级别图片生成任务，比如图片风格转换等应用场景，使用 BN 会带来负面效果，这很可能是因为<span style="color:#f33b45;">在 Mini-Batch 内多张无关的图片之间计算统计量，弱化了单张图片本身特有的一些细节信息。</span></p> 
+<p><strong>局限 3：RNN 等动态网络使用 BN 效果不佳且使用起来不方便。</strong></p> 
+<p style="text-indent:33px;">对于 RNN 来说，尽管其结构看上去是个静态网络，但在实际运行展开时是个动态网络结构，因为<span style="color:#f33b45;">输入的 Sequence 序列是不定长的，这源自同一个 Mini-Batch 中的训练实例有长有短。</span>对于类似 RNN 这种动态网络结构，BN 使用起来不方便，因为要应用 BN，那么 RNN 的每个时间步需要维护各自的统计量，而 Mini-Batch 中的训练实例长短不一，<span style="color:#f33b45;">这意味着 RNN 不同时间步的隐层会看到不同数量的输入数据</span>，而这会给 BN 的正确使用带来问题。假设 Mini-Batch 中只有个别特别长的例子，那么对较深时间步深度的 RNN 网络隐层来说，其统计量不方便统计而且其统计有效性也非常值得怀疑。另外，如果在推理阶段遇到长度特别长的例子，也许根本在训练阶段都无法获得深层网络的统计量。综上，在 RNN 这种动态网络中使用 BN 很不方便，而且很多改进版本的 BN 应用在 RNN 效果也一般。</p> 
+<p><strong>局限 4：训练时和推理时统计量不一致。</strong></p> 
+<p style="text-indent:33px;">对于 BN 来说，采用 Mini-Batch 内实例来计算统计量，这在训练时没有问题，但是在模型训练好之后，在线推理的时候会有麻烦。因为在线推理或预测的时候，是单实例的，不存在 Mini-Batch，所以就无法获得 BN 计算所需的均值和方差，<span style="color:#f33b45;">一般解决方法是采用训练时刻记录的各个 Mini-Batch 的统计量的数学期望，以此来推算全局的均值和方差，在线推理时采用这样推导出的统计量。</span>虽说实际使用并没大问题，但是<span style="color:#f33b45;">确实存在训练和推理时刻统计量计算方法不一致的问题。</span></p> 
+<p style="text-indent:0;">参考文章：</p> 
+<p>https://www.sohu.com/a/250702875_129720</p> 
+<p style="text-indent:33px;"> </p> 
+<p> </p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/74dfee5d6a168c39958d8fbe7ecbb657/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">JavaScript  启用严格模式</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/0bc6bee530082a2565b50c0b83169443/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">解决webpack “regeneratorRuntime is not defined“报错的问题</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

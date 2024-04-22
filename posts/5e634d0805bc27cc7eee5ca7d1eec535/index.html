@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>图解|什么是缺页错误Page Fault - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/5e634d0805bc27cc7eee5ca7d1eec535/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="图解|什么是缺页错误Page Fault">
+  <meta property="og:description" content="1.号外号外 各位老铁，大家好！
+上周大白有事停更1次，最近在想如何让大家在10分钟中有所收获，于是准备搞一个&#34;什么是xxx&#34;系列，写一些精悍的知识点。
+先抛一道阿里面试题给大家热热身，引出今天的主角-缺页异常Page Fault。
+谈谈对缺页异常Page Fault的理解。
+话不多说，集合上车。
+2. 术语约定 VA：Virtual Address 虚拟地址
+PA：Physical Address 物理地址
+MMU：Memory Manage Unit 内存管理单元
+TLB：Translation Lookaside Buffer 旁路快表缓存/地址变换高速缓存
+PTE：Page Table Entry 分页表项
+3. 内存的惰性分配 以32位的Linux系统为例，每个进程独立拥有4GB的虚拟地址空间，根据局部性原理没有必要也不可能为每个进程分配4GB的物理地址空间。
+64位系统也是一样的道理，只不过空间寻址范围大了很多很多倍，进程的虚拟地址空间会分为几个部分：
+实际上只有程序运行时用到了才去内存中寻找虚拟地址对应的页帧，找不到才可能进行分配，这就是内存的惰性(延时)分配机制。
+对于一个运行中的进程来说，不是所有的虚拟地址在物理内存中都有对应的页，如图展示了部分虚拟地址存在对应物理页的情况：
+虚拟地址空间根据固定大小一般是4KB进行划分，物理内存可以设置不同的页面大小，通常物理页大小和虚拟页大小是一样的，本文按照物理页4KB大小展开。
+经过前面的分析，我们将面临一个问题：如何将虚拟地址准确快速地映射到物理页呢？
+&amp;gt;&amp;gt;&amp;gt;高能预警 敲黑板 本段小结&amp;lt;&amp;lt;&amp;lt;
+1. Linux的虚拟地址空间就是空头支票，看着很大但是实际对应的物理空间只有很少的一部分。
+2.内存的惰性分配是个有效的机制，可以保证内存利用率和服务器利用率，是资源合理配置的方法。
+3.大量的虚拟地址到物理地址的快速准确地查询转换是一个难题。
+4. CPU如果获取内存中的数据 CPU并不直接和物理内存打交道，而是把地址转换的活外包给了MMU，MMU是一种硬件电路，其速度很快，主要工作是进行内存管理，地址转换只是它承接的业务之一。
+一起看看MMU是如何搞定地址转换的。
+4.1 MMU和Page Table 每个进程都会有自己的页表Page Table，页表存储了进程中虚拟地址到物理地址的映射关系，所以就相当于一张地图，MMU收到CPU的虚拟地址之后开始查询页表，确定是否存在映射以及读写权限是否正常，如图：
+对于4GB的虚拟地址且大小为4KB页，一级页表将有2^20个表项，页表占有连续内存并且存储空间大，多级页表可以有效降低页表的存储空间以及内存连续性要求，但是多级页表同时也带来了查询效率问题。
+我们以2级页表为例，MMU要先进行两次页表查询确定物理地址，在确认了权限等问题后，MMU再将这个物理地址发送到总线，内存收到之后开始读取对应地址的数据并返回。
+MMU在2级页表的情况下进行了2次检索和1次读写，那么当页表变为N级时，就变成了N次检索&#43;1次读写。
+可见，页表级数越多查询的步骤越多，对于CPU来说等待时间越长，效率越低，这个问题还需要优化才行。
+&amp;gt;&amp;gt; 本段小结 敲黑板 划重点 &amp;lt;&amp;lt;
+1.页表存在于进程的内存之中，MMU收到虚拟地址之后查询Page Table来获取物理地址。
+2.单级页表对连续内存要求高，于是引入了多级页表，但是多级页表也是一把双刃剑，在减少连续存储要求且减少存储空间的同时降低了查询效率。
+4.2 MMU和TLB的故事 MMU和TLB的故事就这样开始了...
+CPU觉得MMU干活虽然卖力气，但是效率有点低，不太想继续外包给它了，这一下子把MMU急坏了。
+MMU于是找来了一些精通统计的朋友，经过一番研究之后发现CPU用的数据经常是一小搓，但是每次MMU都还要重复之前的步骤来检索，害，就知道埋头干活了，也得讲究方式方法呀！">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2020-07-09T11:45:00+08:00">
+    <meta property="article:modified_time" content="2020-07-09T11:45:00+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">图解|什么是缺页错误Page Fault</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <div id="js_content"> 
+ <h3>1.号外号外</h3> 
+ <p>各位老铁，大家好！</p> 
+ <p>上周大白有事停更1次，最近在想如何让大家在10分钟中有所收获，于是准备搞一个"<strong>什么是xxx</strong>"系列，写一些精悍的知识点。</p> 
+ <p>先抛一道<strong>阿里面试题给大家热热身，引出今天的主角-缺页异常Page Fault。</strong></p> 
+ <blockquote> 
+  <p><strong>谈谈对缺页异常Page Fault的理解。</strong></p> 
+ </blockquote> 
+ <p style="text-align: center"><strong>话不多说，集合上车。</strong><br></p> 
+ <p style="text-align: center"><img src="https://images2.imgbox.com/5a/62/TZjtVpSU_o.png"></p> 
+ <h3>2. 术语约定</h3> 
+ <ul><li><p><strong>VA</strong>：Virtual Address 虚拟地址</p></li><li><p><strong>PA</strong>：Physical Address 物理地址</p></li><li><p><strong>MMU</strong>：Memory Manage Unit 内存管理单元</p></li><li><p><strong>TLB</strong>：Translation Lookaside Buffer 旁路快表缓存/地址变换高速缓存</p></li><li><p><strong>PTE</strong>：Page Table Entry 分页表项</p></li></ul> 
+ <h3>3. 内存的惰性分配</h3> 
+ <p>以32位的Linux系统为例，每个进程独立拥有4GB的虚拟地址空间，根据局部性原理没有必要也不可能为每个进程分配4GB的物理地址空间。</p> 
+ <p>64位系统也是一样的道理，只不过空间寻址范围大了很多很多倍，进程的虚拟地址空间会分为几个部分：</p> 
+ <p style="text-align: center"><img src="https://images2.imgbox.com/f8/ed/51mTXY96_o.png"></p> 
+ <p>实际上只有程序运行时用到了才去内存中寻找虚拟地址对应的页帧，找不到才可能进行分配，这就是内存的惰性(延时)分配机制。</p> 
+ <p style="text-align: center"><img src="https://images2.imgbox.com/ca/50/oNRvc9DT_o.png"></p> 
+ <p>对于一个运行中的进程来说，不是所有的虚拟地址在物理内存中都有对应的页，如图展示了部分虚拟地址存在对应物理页的情况：</p> 
+ <p><img src="https://images2.imgbox.com/62/11/hL8kHW7i_o.png"></p> 
+ <p>虚拟地址空间根据固定大小一般是4KB进行划分，物理内存可以设置不同的页面大小，通常物理页大小和虚拟页大小是一样的，本文按照物理页4KB大小展开。</p> 
+ <p>经过前面的分析，我们将面临一个问题：<strong>如何将虚拟地址准确快速地映射到物理页呢</strong><strong>？</strong></p> 
+ <blockquote> 
+  <p><strong>&gt;&gt;&gt;高能预警 敲黑板 本段小结&lt;&lt;&lt;</strong><br><strong>1.</strong> Linux的虚拟地址空间就是<strong>空头支票</strong>，看着很大但是实际对应的物理空间只有很少的一部分。</p> 
+  <p>2.内存的<strong>惰性分配</strong>是个有效的机制，可以保证内存利用率和服务器利用率，是资源合理配置的方法。<br></p> 
+  <p>3.大量的虚拟地址到物理地址的<strong>快速准确地查询转换</strong>是一个难题。</p> 
+ </blockquote> 
+ <h3>4. CPU如果获取内存中的数据</h3> 
+ <p>CPU并不直接和物理内存打交道，而是把地址转换的活外包给了MMU，MMU是一种硬件电路，其速度很快，主要工作是进行内存管理，地址转换只是它承接的业务之一。</p> 
+ <p style="text-align: center"><img src="https://images2.imgbox.com/a2/d8/fEkvSKyg_o.png"></p> 
+ <p>一起看看MMU是如何搞定地址转换的。</p> 
+ <h4>4.1 MMU和Page Table</h4> 
+ <p>每个进程都会有自己的页表Page Table，页表存储了进程中虚拟地址到物理地址的映射关系，所以就相当于一张地图，MMU收到CPU的虚拟地址之后开始查询页表，确定是否存在映射以及读写权限是否正常，如图：</p> 
+ <p style="text-align: center"><img src="https://images2.imgbox.com/a3/a1/Gmz48e0E_o.png"></p> 
+ <p>对于4GB的虚拟地址且大小为4KB页，一级页表将有2^20个表项，页表占有连续内存并且存储空间大，多级页表可以有效降低页表的存储空间以及内存连续性要求，但是多级页表同时也带来了查询效率问题。</p> 
+ <p style="text-align: center"><img src="https://images2.imgbox.com/cb/8c/ciZtBrH7_o.png"></p> 
+ <p>我们以2级页表为例，MMU要先进行两次页表查询确定物理地址，在确认了权限等问题后，MMU再将这个物理地址发送到总线，内存收到之后开始读取对应地址的数据并返回。</p> 
+ <p style="text-align: center"><img src="https://images2.imgbox.com/cc/4d/J2L3hYlK_o.png"></p> 
+ <p>MMU在2级页表的情况下进行了2次检索和1次读写，那么当页表变为N级时，就变成了N次检索+1次读写。</p> 
+ <p>可见，页表级数越多查询的步骤越多，对于CPU来说等待时间越长，效率越低，这个问题还需要优化才行。</p> 
+ <blockquote> 
+  <p><strong>&gt;&gt; 本段小结 敲黑板 划重点 &lt;&lt;</strong><br>1.页表存在于进程的内存之中，MMU收到虚拟地址之后查询Page Table来获取物理地址。</p> 
+  <p>2.单级页表对连续内存要求高，于是引入了多级页表，但是<strong>多级页表也是一把双刃剑</strong>，在减少连续存储要求且减少存储空间的同时降低了查询效率。</p> 
+ </blockquote> 
+ <h4>4.2 MMU和TLB的故事</h4> 
+ <p>MMU和TLB的故事就这样开始了...<br></p> 
+ <p>CPU觉得MMU干活虽然卖力气，但是效率有点低，不太想继续外包给它了，这一下子把MMU急坏了。</p> 
+ <p style="text-align: center"><img src="https://images2.imgbox.com/60/01/OmHDfzjc_o.png"></p> 
+ <p>MMU于是找来了一些精通统计的朋友，经过一番研究之后发现CPU用的数据经常是一小搓，但是每次MMU都还要重复之前的步骤来检索，害，就知道埋头干活了，也得讲究方式方法呀！</p> 
+ <p>找到瓶颈之后，MMU引入了新武器，江湖人称快表的TLB，别看TLB容量小，但是正式上岗之后干活还真是不含糊。</p> 
+ <p style="text-align: center"><img src="https://images2.imgbox.com/2d/96/p8yTO9Ja_o.png"></p> 
+ <p>当CPU给MMU传新虚拟地址之后，MMU先去问TLB那边有没有，如果有就直接拿到物理地址发到总线给内存，齐活。</p> 
+ <p>TLB容量比较小，难免发生Cache Miss，这时候MMU还有保底的老武器页表 Page Table，在页表中找到之后MMU除了把地址发到总线传给内存，还把这条映射关系给到TLB，让它记录一下刷新缓存。</p> 
+ <p style="text-align: center"><img src="https://images2.imgbox.com/be/25/dJeCIg9u_o.png"></p> 
+ <p>TLB容量不满的时候就直接把新记录存储了，当满了的时候就开启了淘汰大法把旧记录清除掉，来保存新记录，彷佛完美解决了问题。</p> 
+ <p style="text-align: center"><img src="https://images2.imgbox.com/f0/3c/oBIw1oFX_o.png"></p> 
+ <p>在TLB和Page Table加持之下，CPU感觉最近MMU比较给力了，就问MMU怎么做到的？MMU就一五一十告诉了CPU。</p> 
+ <p>CPU说是个不错的路子，随后说出了自己的建议：TLB还是有点小，缓存不命中也是经常发生的，要不要搞个大的，这样存储更多访问更快？</p> 
+ <p>MMU一脸苦笑说道大哥TLB很贵的，要不你给涨点外包费？话音未落，CPU就说涨工资是不可能了，这辈子都不可能了。</p> 
+ <blockquote> 
+  <p><strong>&gt;&gt;&gt;高能预警 敲黑板 本段小结&lt;&lt;&lt;</strong><br>1. CPU要根据用户进程提供的虚拟地址来获取真实数据，但是它并不自己做而是交给了MMU<strong>。</strong></p> 
+  <p>2. MMU也是个聪明的家伙，集成了TLB来存储CPU最近常用的页表项来加速寻址，TLB找不到再去全量页表寻址，可以认为TLB是MMU的缓存。<br></p> 
+  <p>3. TLB的容量毕竟有限，为此必须依靠Page Table一起完成TLB Miss情况的查询，并且更新到TLB建立新映射关系。<br></p> 
+ </blockquote> 
+ <h3>5.缺页异常Page Fault大揭秘</h3> 
+ <p>设想<strong>CPU给MMU的虚拟地址在TLB和Page Table都没有找到对应的物理页帧或者权限不对，该怎么办呢？</strong></p> 
+ <p>没错，这就是缺页异常Page Fault，<strong>它是一个由硬件中断触发的可以由软件逻辑纠正的错误</strong>。</p> 
+ <p style="text-align: center"><img src="https://images2.imgbox.com/da/4a/GfG8wrdx_o.png"></p> 
+ <h4>5.1 PageFault，它来了</h4> 
+ <p>假如目标内存页在物理内存中<strong>没有对应的页帧或者存在但无对应权限</strong>，<strong>CPU 就无法获取数据</strong>，这种情况下<strong>CPU就会报告一个缺页错误</strong>。</p> 
+ <p>由于CPU没有数据就无法进行计算，CPU罢工了<strong>用户进程也就出现了缺页中断</strong>，进程会从用户态切换到内核态，并将缺页中断交给内核的 <strong>Page Fault Handler</strong> 处理。<br></p> 
+ <p style="text-align: center"><img src="https://images2.imgbox.com/f3/da/p8Ua6zHL_o.png"></p> 
+ <p style="text-align: left">缺页异常并不可怕，只要CPU要的虚拟地址经过MMU的一番寻址之后没有找到或者找到后无权限，就会出现缺页异常，因此触发异常后的处理流程将是重点内容。</p> 
+ <h4>5.2 缺页错误的分类处理</h4> 
+ <p style="text-align: left">缺页中断会交给PageFaultHandler处理，其根据缺页中断的不同类型会进行不同的处理：</p> 
+ <ul><li><p><strong>Hard Page Fault</strong><br>也被称为Major Page Fault，翻译为硬缺页错误/主要缺页错误，这时物理内存中没有对应的页帧，需要CPU打开磁盘设备读取到物理内存中，再让MMU建立VA和PA的映射。</p></li><li><p><strong>Soft Page Fault</strong><br>也被称为Minor Page Fault，翻译为软缺页错误/次要缺页错误，这时物理内存中是存在对应页帧的，只不过可能是其他进程调入的，发出缺页异常的进程不知道而已，此时MMU只需要建立映射即可，无需从磁盘读取写入内存，一般出现在多进程共享内存区域。</p></li><li><p><strong>Invalid Page Fault</strong><br>翻译为无效缺页错误，比如进程访问的内存地址越界访问，又比如对空指针解引用内核就会报segment fault错误中断进程直接挂掉。</p></li></ul> 
+ <p style="text-align: center"><img src="https://images2.imgbox.com/08/a2/tnGaMWVZ_o.png"></p> 
+ <h4>5.3 缺页错误出现的原因</h4> 
+ <p>不同类型的Page Fault出现的原因也不一样，常见的几种原因包括：</p> 
+ <ul><li><p><strong>非法操作访问越界</strong><br>这种情况产生的影响也是最大的，也是Coredump的重要来源，比如空指针解引用或者权限问题等都会出现缺页错误。</p></li><li><p><strong>使用malloc新申请内存</strong><br>malloc机制是延时分配内存，当使用malloc申请内存时并未真实分配物理内存，等到真正开始使用malloc申请的物理内存时发现没有才会启动申请，期间就会出现Page Fault。</p></li><li><p><strong>访问数据被swap换出</strong><br>物理内存是有限资源，当运行很多进程时并不是每个进程都活跃，对此OS会启动内存页面置换将长时间未使用的物理内存页帧放到swap分区来腾空资源给其他进程，当存在于swap分区的页面被访问时就会触发Page Fault从而再置换回物理内存。</p></li></ul> 
+ <blockquote> 
+  <p><strong>&gt;&gt;&gt; 敲黑板 划重点 本段小结：&lt;&lt;&lt;</strong><br>触发Page Fault的原因可能有很多，归根到底也只有几种大类：</p> 
+  <p>1. 如使用共享内存区域，没有存储VA-&gt;PA的映射但是存在物理页帧的软缺页错误，在Page Table/TLB中建立映射关系即可。</p> 
+  <p>2. 访问的地址在物理内存中确实不存在，需要从磁盘/swap分区读入才能使用，这种性能影响会比较大，因为磁盘太慢了，尽量使用高性能的SSD来降低延时。</p> 
+  <p>3. 访问的地址内存非法，缺页错误会升级触发SIGSEGV信号结束进程，这种属于可以导致进程挂掉的一种缺页错误。</p> 
+ </blockquote> 
+ <p style="text-align: center"><img src="https://images2.imgbox.com/72/f9/qn2z3LtA_o.png"></p> 
+ <h3>6.全文总结</h3> 
+ <p style="text-align: left">本文粗浅地和大家一起学习了Page Fault的相关知识点，包括Linux虚拟地址和物理地址的关系、CPU获取内存数据的过程、MMU和TLB&amp;页表的协同配合、缺页异常产生的原因和分类处理。</p> 
+ <p style="text-align: left">本文并没有对MMU的内部机制、内核态&amp;用户态缺页异常、缺页异常处理函数等内容进行展开，主要是因为这部分内容相对晦涩，还得靠自己深入研究。</p> 
+ <p style="text-align: left">本文旨在把火点燃而不是把桶填满，对于文中相关知识点，欢迎交流沟通学习。</p> 
+ <p style="text-align: left">感谢各位老铁的倾情安排，下期再见！</p> 
+ <pre class="has"><code class="language-php">特别推荐一个分享架构+算法的优质内容，还没关注的小伙伴，可以长按关注一下：
+
+</code></pre> 
+ <p style="text-align: center"><img src="https://images2.imgbox.com/68/f7/2MpjSs85_o.png"></p> 
+ <pre class="has"><code class="language-php">长按订阅更多精彩▼
+
+如有收获，点个在看，诚挚感谢
+</code></pre> 
+</div>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/72dc658524ef430c5f677c0a49127ba4/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">kafka从部署到Java springboot整合</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/8e89b21150df04d2fd9858d57730b00f/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">Java内存模型：解决可见性、有序性和原子性问题</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

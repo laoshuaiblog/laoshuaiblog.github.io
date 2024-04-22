@@ -1,0 +1,1846 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>pytorch实现yolov4_v2（网络模块） - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/53277e1c6b6a44c2b4de81956829df76/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="pytorch实现yolov4_v2（网络模块）">
+  <meta property="og:description" content="1.CSPdarknet.py import math from collections import OrderedDict import torch import torch.nn as nn import torch.nn.functional as F #-------------------------------------------------# # MISH激活函数 #-------------------------------------------------# class Mish(nn.Module): def __init__(self): super(Mish, self).__init__() def forward(self, x): return x * torch.tanh(F.softplus(x)) #---------------------------------------------------# # 卷积块 -&amp;gt; 卷积 &#43; 标准化 &#43; 激活函数 # Conv2d &#43; BatchNormalization &#43; Mish #---------------------------------------------------# class BasicConv(nn.Module): def __init__(self, in_channels, out_channels, kernel_size, stride=1): super(BasicConv, self).__init__() self.conv = nn.Conv2d(in_channels, out_channels, kernel_size, stride, kernel_size//2, bias=False) self.bn = nn.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2021-07-09T12:26:28+08:00">
+    <meta property="article:modified_time" content="2021-07-09T12:26:28+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">pytorch实现yolov4_v2（网络模块）</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <h3>1.CSPdarknet.py</h3> 
+<pre><code class="language-python">import math
+from collections import OrderedDict
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+
+#-------------------------------------------------#
+#   MISH激活函数
+#-------------------------------------------------#
+class Mish(nn.Module):
+    def __init__(self):
+        super(Mish, self).__init__()
+
+    def forward(self, x):
+        return x * torch.tanh(F.softplus(x))
+
+#---------------------------------------------------#
+#   卷积块 -&gt; 卷积 + 标准化 + 激活函数
+#   Conv2d + BatchNormalization + Mish
+#---------------------------------------------------#
+class BasicConv(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1):
+        super(BasicConv, self).__init__()
+
+        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size, stride, kernel_size//2, bias=False)
+        self.bn = nn.BatchNorm2d(out_channels)
+        self.activation = Mish()
+
+    def forward(self, x):
+        x = self.conv(x)
+        x = self.bn(x)
+        x = self.activation(x)
+        return x
+
+#---------------------------------------------------#
+#   CSPdarknet的结构块的组成部分
+#   内部堆叠的残差块
+#---------------------------------------------------#
+class Resblock(nn.Module):
+    def __init__(self, channels, hidden_channels=None):
+        super(Resblock, self).__init__()
+
+        if hidden_channels is None:
+            hidden_channels = channels
+
+        self.block = nn.Sequential(
+            BasicConv(channels, hidden_channels, 1),
+            BasicConv(hidden_channels, channels, 3)
+        )
+
+    def forward(self, x):
+        return x + self.block(x)
+
+#--------------------------------------------------------------------#
+#   CSPdarknet的结构块
+#   首先利用ZeroPadding2D和一个步长为2x2的卷积块进行高和宽的压缩
+#   然后建立一个大的残差边shortconv、这个大残差边绕过了很多的残差结构
+#   主干部分会对num_blocks进行循环，循环内部是残差结构。
+#   对于整个CSPdarknet的结构块，就是一个大残差块+内部多个小残差块
+#--------------------------------------------------------------------#
+class Resblock_body(nn.Module):
+    def __init__(self, in_channels, out_channels, num_blocks, first):
+        super(Resblock_body, self).__init__()
+        #----------------------------------------------------------------#
+        #   利用一个步长为2x2的卷积块进行高和宽的压缩
+        #----------------------------------------------------------------#
+        self.downsample_conv = BasicConv(in_channels, out_channels, 3, stride=2)
+
+        if first:
+            #--------------------------------------------------------------------------#
+            #   然后建立一个大的残差边self.split_conv0、这个大残差边绕过了很多的残差结构
+            #--------------------------------------------------------------------------#
+            self.split_conv0 = BasicConv(out_channels, out_channels, 1)
+
+            #----------------------------------------------------------------#
+            #   主干部分会对num_blocks进行循环，循环内部是残差结构。
+            #----------------------------------------------------------------#
+            self.split_conv1 = BasicConv(out_channels, out_channels, 1)  
+            self.blocks_conv = nn.Sequential(
+                Resblock(channels=out_channels, hidden_channels=out_channels//2),
+                BasicConv(out_channels, out_channels, 1)
+            )
+
+            self.concat_conv = BasicConv(out_channels*2, out_channels, 1)
+        else:
+            #--------------------------------------------------------------------------#
+            #   然后建立一个大的残差边self.split_conv0、这个大残差边绕过了很多的残差结构
+            #--------------------------------------------------------------------------#
+            self.split_conv0 = BasicConv(out_channels, out_channels//2, 1)
+
+            #----------------------------------------------------------------#
+            #   主干部分会对num_blocks进行循环，循环内部是残差结构。
+            #----------------------------------------------------------------#
+            self.split_conv1 = BasicConv(out_channels, out_channels//2, 1)
+            self.blocks_conv = nn.Sequential(
+                *[Resblock(out_channels//2) for _ in range(num_blocks)],
+                BasicConv(out_channels//2, out_channels//2, 1)
+            )
+
+            self.concat_conv = BasicConv(out_channels, out_channels, 1)
+
+    def forward(self, x):
+        x = self.downsample_conv(x)
+
+        x0 = self.split_conv0(x)
+
+        x1 = self.split_conv1(x)
+        x1 = self.blocks_conv(x1)
+
+        #------------------------------------#
+        #   将大残差边再堆叠回来
+        #------------------------------------#
+        x = torch.cat([x1, x0], dim=1)
+        #------------------------------------#
+        #   最后对通道数进行整合
+        #------------------------------------#
+        x = self.concat_conv(x)
+
+        return x
+
+#---------------------------------------------------#
+#   CSPdarknet53 的主体部分
+#   输入为一张416x416x3的图片
+#   输出为三个有效特征层
+#---------------------------------------------------#
+class CSPDarkNet(nn.Module):
+    def __init__(self, layers):
+        super(CSPDarkNet, self).__init__()
+        self.inplanes = 32
+        # 416,416,3 -&gt; 416,416,32
+        self.conv1 = BasicConv(3, self.inplanes, kernel_size=3, stride=1)
+        self.feature_channels = [64, 128, 256, 512, 1024]
+
+        self.stages = nn.ModuleList([
+            # 416,416,32 -&gt; 208,208,64
+            Resblock_body(self.inplanes, self.feature_channels[0], layers[0], first=True),
+            # 208,208,64 -&gt; 104,104,128
+            Resblock_body(self.feature_channels[0], self.feature_channels[1], layers[1], first=False),
+            # 104,104,128 -&gt; 52,52,256
+            Resblock_body(self.feature_channels[1], self.feature_channels[2], layers[2], first=False),
+            # 52,52,256 -&gt; 26,26,512
+            Resblock_body(self.feature_channels[2], self.feature_channels[3], layers[3], first=False),
+            # 26,26,512 -&gt; 13,13,1024
+            Resblock_body(self.feature_channels[3], self.feature_channels[4], layers[4], first=False)
+        ])
+
+        self.num_features = 1
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+                m.weight.data.normal_(0, math.sqrt(2. / n))
+            elif isinstance(m, nn.BatchNorm2d):
+                m.weight.data.fill_(1)
+                m.bias.data.zero_()
+
+
+    def forward(self, x):
+        x = self.conv1(x)
+
+        x = self.stages[0](x)
+        x = self.stages[1](x)
+        out3 = self.stages[2](x)
+        out4 = self.stages[3](out3)
+        out5 = self.stages[4](out4)
+
+        return out3, out4, out5
+
+def darknet53(pretrained, **kwargs):
+    model = CSPDarkNet([1, 2, 8, 8, 4])
+    if pretrained:
+        if isinstance(pretrained, str):
+            model.load_state_dict(torch.load(pretrained))
+        else:
+            raise Exception("darknet request a pretrained path. got [{}]".format(pretrained))
+    return model
+</code></pre> 
+<hr> 
+<h3></h3> 
+<h3>2.yolo4.py</h3> 
+<pre><code class="language-python">from collections import OrderedDict
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from CSPdarknet import darknet53
+
+
+def conv2d(filter_in, filter_out, kernel_size, stride=1):
+    pad = (kernel_size - 1) // 2 if kernel_size else 0
+    return nn.Sequential(OrderedDict([
+        ("conv", nn.Conv2d(filter_in, filter_out, kernel_size=kernel_size, stride=stride, padding=pad, bias=False)),
+        ("bn", nn.BatchNorm2d(filter_out)),
+        ("relu", nn.LeakyReLU(0.1)),
+    ]))
+
+#---------------------------------------------------#
+#   SPP结构，利用不同大小的池化核进行池化
+#   池化后堆叠
+#---------------------------------------------------#
+class SpatialPyramidPooling(nn.Module):
+    def __init__(self, pool_sizes=[5, 9, 13]):
+        super(SpatialPyramidPooling, self).__init__()
+
+        self.maxpools = nn.ModuleList([nn.MaxPool2d(pool_size, 1, pool_size//2) for pool_size in pool_sizes])
+
+    def forward(self, x):
+        features = [maxpool(x) for maxpool in self.maxpools[::-1]]
+        features = torch.cat(features + [x], dim=1)
+
+        return features
+
+#---------------------------------------------------#
+#   卷积 + 上采样
+#---------------------------------------------------#
+class Upsample(nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super(Upsample, self).__init__()
+        self.conv=conv2d(in_channels, out_channels, 1)
+
+    def forward(self, x, target_size, inference=False):
+        x=self.conv(x)
+
+        if inference:
+            return x.view(x.size(0), x.size(1), x.size(2), 1, x.size(3), 1).\
+                    expand(x.size(0), x.size(1), x.size(2), target_size[2] // x.size(2), x.size(3), target_size[3] // x.size(3)).\
+                    contiguous().view(x.size(0), x.size(1), target_size[2], target_size[3])
+        else:
+            return F.interpolate(x, size=(target_size[2], target_size[3]), mode='nearest')
+
+# #原始upsample，与Atlas的结果不一致
+# class Upsample(nn.Module):
+#     def __init__(self, in_channels, out_channels):
+#         super(Upsample, self).__init__()
+
+#         self.upsample = nn.Sequential(
+#             conv2d(in_channels, out_channels, 1),
+#             nn.Upsample(scale_factor=2, mode='nearest')
+#         )
+
+#     def forward(self, x,):
+#         x = self.upsample(x)
+#         return x
+
+#---------------------------------------------------#
+#   三次卷积块
+#---------------------------------------------------#
+def make_three_conv(filters_list, in_filters):
+    m = nn.Sequential(
+        conv2d(in_filters, filters_list[0], 1),
+        conv2d(filters_list[0], filters_list[1], 3),
+        conv2d(filters_list[1], filters_list[0], 1),
+    )
+    return m
+
+#---------------------------------------------------#
+#   五次卷积块
+#---------------------------------------------------#
+def make_five_conv(filters_list, in_filters):
+    m = nn.Sequential(
+        conv2d(in_filters, filters_list[0], 1),
+        conv2d(filters_list[0], filters_list[1], 3),
+        conv2d(filters_list[1], filters_list[0], 1),
+        conv2d(filters_list[0], filters_list[1], 3),
+        conv2d(filters_list[1], filters_list[0], 1),
+    )
+    return m
+
+#---------------------------------------------------#
+#   最后获得yolov4的输出
+#---------------------------------------------------#
+def yolo_head(filters_list, in_filters):
+    m = nn.Sequential(
+        conv2d(in_filters, filters_list[0], 3),
+        nn.Conv2d(filters_list[0], filters_list[1], 1),
+    )
+    return m
+
+#---------------------------------------------------#
+#   yolo_body
+#---------------------------------------------------#
+class YoloBody(nn.Module):
+    def __init__(self, num_anchors, num_classes):
+        super(YoloBody, self).__init__()
+        #---------------------------------------------------#   
+        #   生成CSPdarknet53的主干模型
+        #   获得三个有效特征层，他们的shape分别是：
+        #   52,52,256
+        #   26,26,512
+        #   13,13,1024
+        #---------------------------------------------------#
+        self.backbone = darknet53(None)
+
+        self.conv1 = make_three_conv([512,1024],1024)
+        self.SPP = SpatialPyramidPooling()
+        self.conv2 = make_three_conv([512,1024],2048)
+
+        self.upsample1 = Upsample(512,256)
+        self.conv_for_P4 = conv2d(512,256,1)
+        self.make_five_conv1 = make_five_conv([256, 512],512)
+
+        self.upsample2 = Upsample(256,128)
+        self.conv_for_P3 = conv2d(256,128,1)
+        self.make_five_conv2 = make_five_conv([128, 256],256)
+
+        # 3*(5+num_classes) = 3*(5+20) = 3*(4+1+20)=75
+        final_out_filter2 = num_anchors * (5 + num_classes)
+        self.yolo_head3 = yolo_head([256, final_out_filter2],128)
+
+        self.down_sample1 = conv2d(128,256,3,stride=2)
+        self.make_five_conv3 = make_five_conv([256, 512],512)
+
+        # 3*(5+num_classes) = 3*(5+20) = 3*(4+1+20)=75
+        final_out_filter1 =  num_anchors * (5 + num_classes)
+        self.yolo_head2 = yolo_head([512, final_out_filter1],256)
+
+        self.down_sample2 = conv2d(256,512,3,stride=2)
+        self.make_five_conv4 = make_five_conv([512, 1024],1024)
+
+        # 3*(5+num_classes)=3*(5+20)=3*(4+1+20)=75
+        final_out_filter0 =  num_anchors * (5 + num_classes)
+        self.yolo_head1 = yolo_head([1024, final_out_filter0],512)
+
+
+    def forward(self, x):
+        inference=False
+        #  backbone
+        x2, x1, x0 = self.backbone(x)
+
+        # 13,13,1024 -&gt; 13,13,512 -&gt; 13,13,1024 -&gt; 13,13,512 -&gt; 13,13,2048 
+        P5 = self.conv1(x0)
+        P5 = self.SPP(P5)
+        # 13,13,2048 -&gt; 13,13,512 -&gt; 13,13,1024 -&gt; 13,13,512
+        P5 = self.conv2(P5)
+        
+        # 13,13,512 -&gt; 13,13,256 -&gt; 26,26,256
+        P5_upsample = self.upsample1(P5, x1.size(), inference)
+        # 26,26,512 -&gt; 26,26,256
+        P4 = self.conv_for_P4(x1)
+        # 26,26,256 + 26,26,256 -&gt; 26,26,512
+        P4 = torch.cat([P4,P5_upsample],axis=1)
+        # 26,26,512 -&gt; 26,26,256 -&gt; 26,26,512 -&gt; 26,26,256 -&gt; 26,26,512 -&gt; 26,26,256
+        P4 = self.make_five_conv1(P4)
+
+        # 26,26,256 -&gt; 26,26,128 -&gt; 52,52,128
+        P4_upsample = self.upsample2(P4, x2.size(), inference)
+        # 52,52,256 -&gt; 52,52,128
+        P3 = self.conv_for_P3(x2)
+        # 52,52,128 + 52,52,128 -&gt; 52,52,256
+        P3 = torch.cat([P3,P4_upsample],axis=1)
+        # 52,52,256 -&gt; 52,52,128 -&gt; 52,52,256 -&gt; 52,52,128 -&gt; 52,52,256 -&gt; 52,52,128
+        P3 = self.make_five_conv2(P3)
+
+        # 52,52,128 -&gt; 26,26,256
+        P3_downsample = self.down_sample1(P3)
+        # 26,26,256 + 26,26,256 -&gt; 26,26,512
+        P4 = torch.cat([P3_downsample,P4],axis=1)
+        # 26,26,512 -&gt; 26,26,256 -&gt; 26,26,512 -&gt; 26,26,256 -&gt; 26,26,512 -&gt; 26,26,256
+        P4 = self.make_five_conv3(P4)
+
+        # 26,26,256 -&gt; 13,13,512
+        P4_downsample = self.down_sample2(P4)
+        # 13,13,512 + 13,13,512 -&gt; 13,13,1024
+        P5 = torch.cat([P4_downsample,P5],axis=1)
+        # 13,13,1024 -&gt; 13,13,512 -&gt; 13,13,1024 -&gt; 13,13,512 -&gt; 13,13,1024 -&gt; 13,13,512
+        P5 = self.make_five_conv4(P5)
+
+        #---------------------------------------------------#
+        #   第三个特征层
+        #   y3=(batch_size,75,52,52)
+        #---------------------------------------------------#
+        out2 = self.yolo_head3(P3)
+        #---------------------------------------------------#
+        #   第二个特征层
+        #   y2=(batch_size,75,26,26)
+        #---------------------------------------------------#
+        out1 = self.yolo_head2(P4)
+        #---------------------------------------------------#
+        #   第一个特征层
+        #   y1=(batch_size,75,13,13)
+        #---------------------------------------------------#
+        out0 = self.yolo_head1(P5)
+
+        return out0, out1, out2
+
+</code></pre> 
+<hr> 
+<h3></h3> 
+<h3>3.yolo_training.py</h3> 
+<pre><code class="language-python">import cv2  
+from random import shuffle
+import numpy as np
+import torch
+import torch.nn as nn
+import math
+import torch.nn.functional as F
+from matplotlib.colors import rgb_to_hsv, hsv_to_rgb
+from PIL import Image
+from utils import bbox_iou, merge_bboxes
+
+def jaccard(_box_a, _box_b):
+    b1_x1, b1_x2 = _box_a[:, 0] - _box_a[:, 2] / 2, _box_a[:, 0] + _box_a[:, 2] / 2
+    b1_y1, b1_y2 = _box_a[:, 1] - _box_a[:, 3] / 2, _box_a[:, 1] + _box_a[:, 3] / 2
+    b2_x1, b2_x2 = _box_b[:, 0] - _box_b[:, 2] / 2, _box_b[:, 0] + _box_b[:, 2] / 2
+    b2_y1, b2_y2 = _box_b[:, 1] - _box_b[:, 3] / 2, _box_b[:, 1] + _box_b[:, 3] / 2
+    box_a = torch.zeros_like(_box_a)
+    box_b = torch.zeros_like(_box_b)
+    box_a[:, 0], box_a[:, 1], box_a[:, 2], box_a[:, 3] = b1_x1, b1_y1, b1_x2, b1_y2
+    box_b[:, 0], box_b[:, 1], box_b[:, 2], box_b[:, 3] = b2_x1, b2_y1, b2_x2, b2_y2
+    A = box_a.size(0)
+    B = box_b.size(0)
+    max_xy = torch.min(box_a[:, 2:].unsqueeze(1).expand(A, B, 2),
+                       box_b[:, 2:].unsqueeze(0).expand(A, B, 2))
+    min_xy = torch.max(box_a[:, :2].unsqueeze(1).expand(A, B, 2),
+                       box_b[:, :2].unsqueeze(0).expand(A, B, 2))
+    inter = torch.clamp((max_xy - min_xy), min=0)
+
+    inter = inter[:, :, 0] * inter[:, :, 1]
+    # 计算先验框和真实框各自的面积
+    area_a = ((box_a[:, 2]-box_a[:, 0]) *
+              (box_a[:, 3]-box_a[:, 1])).unsqueeze(1).expand_as(inter)  # [A,B]
+    area_b = ((box_b[:, 2]-box_b[:, 0]) *
+              (box_b[:, 3]-box_b[:, 1])).unsqueeze(0).expand_as(inter)  # [A,B]
+    # 求IOU
+    union = area_a + area_b - inter
+    return inter / union  # [A,B]
+    
+#---------------------------------------------------#
+#   平滑标签
+#---------------------------------------------------#
+def smooth_labels(y_true, label_smoothing,num_classes):
+    return y_true * (1.0 - label_smoothing) + label_smoothing / num_classes
+
+def box_ciou(b1, b2):
+    """
+    输入为：
+    ----------
+    b1: tensor, shape=(batch, feat_w, feat_h, anchor_num, 4), xywh
+    b2: tensor, shape=(batch, feat_w, feat_h, anchor_num, 4), xywh
+
+    返回为：
+    -------
+    ciou: tensor, shape=(batch, feat_w, feat_h, anchor_num, 1)
+    """
+    # 求出预测框左上角右下角
+    b1_xy = b1[..., :2]
+    b1_wh = b1[..., 2:4]
+    b1_wh_half = b1_wh/2.
+    b1_mins = b1_xy - b1_wh_half
+    b1_maxes = b1_xy + b1_wh_half
+    # 求出真实框左上角右下角
+    b2_xy = b2[..., :2]
+    b2_wh = b2[..., 2:4]
+    b2_wh_half = b2_wh/2.
+    b2_mins = b2_xy - b2_wh_half
+    b2_maxes = b2_xy + b2_wh_half
+
+    # 求真实框和预测框所有的iou
+    intersect_mins = torch.max(b1_mins, b2_mins)
+    intersect_maxes = torch.min(b1_maxes, b2_maxes)
+    intersect_wh = torch.max(intersect_maxes - intersect_mins, torch.zeros_like(intersect_maxes))
+    intersect_area = intersect_wh[..., 0] * intersect_wh[..., 1]
+    b1_area = b1_wh[..., 0] * b1_wh[..., 1]
+    b2_area = b2_wh[..., 0] * b2_wh[..., 1]
+    union_area = b1_area + b2_area - intersect_area
+    iou = intersect_area / torch.clamp(union_area,min = 1e-6)
+
+    # 计算中心的差距
+    center_distance = torch.sum(torch.pow((b1_xy - b2_xy), 2), axis=-1)
+    
+    # 找到包裹两个框的最小框的左上角和右下角
+    enclose_mins = torch.min(b1_mins, b2_mins)
+    enclose_maxes = torch.max(b1_maxes, b2_maxes)
+    enclose_wh = torch.max(enclose_maxes - enclose_mins, torch.zeros_like(intersect_maxes))
+    # 计算对角线距离
+    enclose_diagonal = torch.sum(torch.pow(enclose_wh,2), axis=-1)
+    ciou = iou - 1.0 * (center_distance) / torch.clamp(enclose_diagonal,min = 1e-6)
+    
+    v = (4 / (math.pi ** 2)) * torch.pow((torch.atan(b1_wh[..., 0]/torch.clamp(b1_wh[..., 1],min = 1e-6)) - torch.atan(b2_wh[..., 0]/torch.clamp(b2_wh[..., 1],min = 1e-6))), 2)
+    alpha = v / torch.clamp((1.0 - iou + v),min=1e-6)
+    ciou = ciou - alpha * v
+    return ciou
+  
+def clip_by_tensor(t,t_min,t_max):
+    t=t.float()
+    result = (t &gt;= t_min).float() * t + (t &lt; t_min).float() * t_min
+    result = (result &lt;= t_max).float() * result + (result &gt; t_max).float() * t_max
+    return result
+
+def MSELoss(pred,target):
+    return (pred-target)**2
+
+def BCELoss(pred,target):
+    epsilon = 1e-7
+    pred = clip_by_tensor(pred, epsilon, 1.0 - epsilon)
+    output = -target * torch.log(pred) - (1.0 - target) * torch.log(1.0 - pred)
+    return output
+
+class YOLOLoss(nn.Module):
+    def __init__(self, anchors, num_classes, img_size, label_smooth=0, cuda=True, normalize=True):
+        super(YOLOLoss, self).__init__()
+        self.anchors = anchors
+        self.num_anchors = len(anchors)
+        self.num_classes = num_classes
+        self.bbox_attrs = 5 + num_classes
+        self.img_size = img_size
+        self.feature_length = [img_size[0]//32,img_size[0]//16,img_size[0]//8]
+        self.label_smooth = label_smooth
+
+        self.ignore_threshold = 0.5
+        self.lambda_conf = 1.0
+        self.lambda_cls = 1.0
+        self.lambda_loc = 1.0
+        self.cuda = cuda
+        self.normalize = normalize
+
+    def forward(self, input, targets=None):
+        #----------------------------------------------------#
+        #   input的shape为  bs, 3*(5+num_classes), 13, 13
+        #                   bs, 3*(5+num_classes), 26, 26
+        #                   bs, 3*(5+num_classes), 52, 52
+        #----------------------------------------------------#
+        
+        #-----------------------#
+        #   一共多少张图片
+        #-----------------------#
+        bs = input.size(0)
+        #-----------------------#
+        #   特征层的高
+        #-----------------------#
+        in_h = input.size(2)
+        #-----------------------#
+        #   特征层的宽
+        #-----------------------#
+        in_w = input.size(3)
+
+        #-----------------------------------------------------------------------#
+        #   计算步长
+        #   每一个特征点对应原来的图片上多少个像素点
+        #   如果特征层为13x13的话，一个特征点就对应原来的图片上的32个像素点
+        #   如果特征层为26x26的话，一个特征点就对应原来的图片上的16个像素点
+        #   如果特征层为52x52的话，一个特征点就对应原来的图片上的8个像素点
+        #   stride_h = stride_w = 32、16、8
+        #-----------------------------------------------------------------------#
+        stride_h = self.img_size[1] / in_h
+        stride_w = self.img_size[0] / in_w
+
+
+        #-------------------------------------------------#
+        #   此时获得的scaled_anchors大小是相对于特征层的
+        #-------------------------------------------------#
+        scaled_anchors = [(a_w / stride_w, a_h / stride_h) for a_w, a_h in self.anchors]
+        
+        #-----------------------------------------------#
+        #   输入的input一共有三个，他们的shape分别是
+        #   batch_size, 3, 13, 13, 5 + num_classes
+        #   batch_size, 3, 26, 26, 5 + num_classes
+        #   batch_size, 3, 52, 52, 5 + num_classes
+        #-----------------------------------------------#
+        prediction = input.view(bs, int(self.num_anchors/3),
+                                self.bbox_attrs, in_h, in_w).permute(0, 1, 3, 4, 2).contiguous()
+        
+        # 获得置信度，是否有物体
+        conf = torch.sigmoid(prediction[..., 4])
+        # 种类置信度
+        pred_cls = torch.sigmoid(prediction[..., 5:])
+
+        #---------------------------------------------------------------#
+        #   找到哪些先验框内部包含物体
+        #   利用真实框和先验框计算交并比
+        #   mask        batch_size, 3, in_h, in_w   有目标的特征点
+        #   noobj_mask  batch_size, 3, in_h, in_w   无目标的特征点
+        #   t_box       batch_size, 3, in_h, in_w, 4   中心宽高的真实值
+        #   tconf       batch_size, 3, in_h, in_w   置信度真实值
+        #   tcls        batch_size, 3, in_h, in_w, num_classes  种类真实值
+        #----------------------------------------------------------------#
+        mask, noobj_mask, t_box, tconf, tcls, box_loss_scale_x, box_loss_scale_y = self.get_target(targets, scaled_anchors,in_w, in_h,self.ignore_threshold)
+
+        #---------------------------------------------------------------#
+        #   将预测结果进行解码，判断预测结果和真实值的重合程度
+        #   如果重合程度过大则忽略，因为这些特征点属于预测比较准确的特征点
+        #   作为负样本不合适
+        #----------------------------------------------------------------#
+        noobj_mask, pred_boxes_for_ciou = self.get_ignore(prediction, targets, scaled_anchors, in_w, in_h, noobj_mask)
+
+        if self.cuda:
+            mask, noobj_mask = mask.cuda(), noobj_mask.cuda()
+            box_loss_scale_x, box_loss_scale_y= box_loss_scale_x.cuda(), box_loss_scale_y.cuda()
+            tconf, tcls = tconf.cuda(), tcls.cuda()
+            pred_boxes_for_ciou = pred_boxes_for_ciou.cuda()
+            t_box = t_box.cuda()
+
+        box_loss_scale = 2 - box_loss_scale_x * box_loss_scale_y
+        #---------------------------------------------------------------#
+        #   计算预测结果和真实结果的CIOU
+        #----------------------------------------------------------------#
+        ciou = (1 - box_ciou( pred_boxes_for_ciou[mask.bool()], t_box[mask.bool()]))* box_loss_scale[mask.bool()]
+        loss_loc = torch.sum(ciou)
+
+        # 计算置信度的loss
+        loss_conf = torch.sum(BCELoss(conf, mask) * mask) + \
+                    torch.sum(BCELoss(conf, mask) * noobj_mask)
+                    
+        loss_cls = torch.sum(BCELoss(pred_cls[mask == 1], smooth_labels(tcls[mask == 1],self.label_smooth,self.num_classes)))
+        
+        loss = loss_conf * self.lambda_conf + loss_cls * self.lambda_cls + loss_loc * self.lambda_loc
+
+        if self.normalize:
+            num_pos = torch.sum(mask)
+            num_pos = torch.max(num_pos, torch.ones_like(num_pos))
+        else:
+            num_pos = bs/3
+
+        return loss, num_pos
+
+    def get_target(self, target, anchors, in_w, in_h, ignore_threshold):
+        #-----------------------------------------------------#
+        #   计算一共有多少张图片
+        #-----------------------------------------------------#
+        bs = len(target)
+        #-------------------------------------------------------#
+        #   获得当前特征层先验框所属的编号，方便后面对先验框筛选
+        #-------------------------------------------------------#
+        anchor_index = [[0,1,2],[3,4,5],[6,7,8]][self.feature_length.index(in_w)]
+        subtract_index = [0,3,6][self.feature_length.index(in_w)]
+        #-------------------------------------------------------#
+        #   创建全是0或者全是1的阵列
+        #-------------------------------------------------------#
+        mask = torch.zeros(bs, int(self.num_anchors/3), in_h, in_w, requires_grad=False)
+        noobj_mask = torch.ones(bs, int(self.num_anchors/3), in_h, in_w, requires_grad=False)
+
+        tx = torch.zeros(bs, int(self.num_anchors/3), in_h, in_w, requires_grad=False)
+        ty = torch.zeros(bs, int(self.num_anchors/3), in_h, in_w, requires_grad=False)
+        tw = torch.zeros(bs, int(self.num_anchors/3), in_h, in_w, requires_grad=False)
+        th = torch.zeros(bs, int(self.num_anchors/3), in_h, in_w, requires_grad=False)
+        t_box = torch.zeros(bs, int(self.num_anchors/3), in_h, in_w, 4, requires_grad=False)
+        tconf = torch.zeros(bs, int(self.num_anchors/3), in_h, in_w, requires_grad=False)
+        tcls = torch.zeros(bs, int(self.num_anchors/3), in_h, in_w, self.num_classes, requires_grad=False)
+
+        box_loss_scale_x = torch.zeros(bs, int(self.num_anchors/3), in_h, in_w, requires_grad=False)
+        box_loss_scale_y = torch.zeros(bs, int(self.num_anchors/3), in_h, in_w, requires_grad=False)
+        for b in range(bs):
+            if len(target[b])==0:
+                continue
+            #-------------------------------------------------------#
+            #   计算出正样本在特征层上的中心点
+            #-------------------------------------------------------#
+            gxs = target[b][:, 0:1] * in_w
+            gys = target[b][:, 1:2] * in_h
+            
+            #-------------------------------------------------------#
+            #   计算出正样本相对于特征层的宽高
+            #-------------------------------------------------------#
+            gws = target[b][:, 2:3] * in_w
+            ghs = target[b][:, 3:4] * in_h
+
+            #-------------------------------------------------------#
+            #   计算出正样本属于特征层的哪个特征点
+            #-------------------------------------------------------#
+            gis = torch.floor(gxs)
+            gjs = torch.floor(gys)
+            
+            #-------------------------------------------------------#
+            #   将真实框转换一个形式
+            #   num_true_box, 4
+            #-------------------------------------------------------#
+            gt_box = torch.FloatTensor(torch.cat([torch.zeros_like(gws), torch.zeros_like(ghs), gws, ghs], 1))
+            
+            #-------------------------------------------------------#
+            #   将先验框转换一个形式
+            #   9, 4
+            #-------------------------------------------------------#
+            anchor_shapes = torch.FloatTensor(torch.cat((torch.zeros((self.num_anchors, 2)), torch.FloatTensor(anchors)), 1))
+            #-------------------------------------------------------#
+            #   计算交并比
+            #   num_true_box, 9
+            #-------------------------------------------------------#
+            anch_ious = jaccard(gt_box, anchor_shapes)
+
+            #-------------------------------------------------------#
+            #   计算重合度最大的先验框是哪个
+            #   num_true_box, 
+            #-------------------------------------------------------#
+            best_ns = torch.argmax(anch_ious,dim=-1)
+            for i, best_n in enumerate(best_ns):
+                if best_n not in anchor_index:
+                    continue
+                #-------------------------------------------------------------#
+                #   取出各类坐标：
+                #   gi和gj代表的是真实框对应的特征点的x轴y轴坐标
+                #   gx和gy代表真实框的x轴和y轴坐标
+                #   gw和gh代表真实框的宽和高
+                #-------------------------------------------------------------#
+                gi = gis[i].long()
+                gj = gjs[i].long()
+                gx = gxs[i]
+                gy = gys[i]
+                gw = gws[i]
+                gh = ghs[i]
+                if (gj &lt; in_h) and (gi &lt; in_w):
+                    best_n = best_n - subtract_index
+                    #----------------------------------------#
+                    #   noobj_mask代表无目标的特征点
+                    #----------------------------------------#
+                    noobj_mask[b, best_n, gj, gi] = 0
+                    #----------------------------------------#
+                    #   mask代表有目标的特征点
+                    #----------------------------------------#
+                    mask[b, best_n, gj, gi] = 1
+                    #----------------------------------------#
+                    #   tx、ty代表中心的真实值
+                    #----------------------------------------#
+                    tx[b, best_n, gj, gi] = gx
+                    ty[b, best_n, gj, gi] = gy
+                    #----------------------------------------#
+                    #   tw、th代表宽高的真实值
+                    #----------------------------------------#
+                    tw[b, best_n, gj, gi] = gw
+                    th[b, best_n, gj, gi] = gh
+                    #----------------------------------------#
+                    #   用于获得xywh的比例
+                    #   大目标loss权重小，小目标loss权重大
+                    #----------------------------------------#
+                    box_loss_scale_x[b, best_n, gj, gi] = target[b][i, 2]
+                    box_loss_scale_y[b, best_n, gj, gi] = target[b][i, 3]
+                    #----------------------------------------#
+                    #   tconf代表物体置信度
+                    #----------------------------------------#
+                    tconf[b, best_n, gj, gi] = 1
+                    #----------------------------------------#
+                    #   tcls代表种类置信度
+                    #----------------------------------------#
+                    tcls[b, best_n, gj, gi, target[b][i, 4].long()] = 1
+                else:
+                    print('Step {0} out of bound'.format(b))
+                    print('gj: {0}, height: {1} | gi: {2}, width: {3}'.format(gj, in_h, gi, in_w))
+                    continue
+        t_box[...,0] = tx
+        t_box[...,1] = ty
+        t_box[...,2] = tw
+        t_box[...,3] = th
+        return mask, noobj_mask, t_box, tconf, tcls, box_loss_scale_x, box_loss_scale_y
+
+
+    def get_ignore(self,prediction,target,scaled_anchors,in_w, in_h,noobj_mask):
+        #-----------------------------------------------------#
+        #   计算一共有多少张图片
+        #-----------------------------------------------------#
+        bs = len(target)
+        #-------------------------------------------------------#
+        #   获得当前特征层先验框所属的编号，方便后面对先验框筛选
+        #-------------------------------------------------------#
+        anchor_index = [[0,1,2],[3,4,5],[6,7,8]][self.feature_length.index(in_w)]
+        scaled_anchors = np.array(scaled_anchors)[anchor_index]
+        
+        # 先验框的中心位置的调整参数
+        x = torch.sigmoid(prediction[..., 0])  
+        y = torch.sigmoid(prediction[..., 1])
+        # 先验框的宽高调整参数
+        w = prediction[..., 2]  # Width
+        h = prediction[..., 3]  # Height
+
+        FloatTensor = torch.cuda.FloatTensor if x.is_cuda else torch.FloatTensor
+        LongTensor = torch.cuda.LongTensor if x.is_cuda else torch.LongTensor
+
+        # 生成网格，先验框中心，网格左上角
+        grid_x = torch.linspace(0, in_w - 1, in_w).repeat(in_h, 1).repeat(
+            int(bs*self.num_anchors/3), 1, 1).view(x.shape).type(FloatTensor)
+        grid_y = torch.linspace(0, in_h - 1, in_h).repeat(in_w, 1).t().repeat(
+            int(bs*self.num_anchors/3), 1, 1).view(y.shape).type(FloatTensor)
+
+        # 生成先验框的宽高
+        anchor_w = FloatTensor(scaled_anchors).index_select(1, LongTensor([0]))
+        anchor_h = FloatTensor(scaled_anchors).index_select(1, LongTensor([1]))
+        
+        anchor_w = anchor_w.repeat(bs, 1).repeat(1, 1, in_h * in_w).view(w.shape)
+        anchor_h = anchor_h.repeat(bs, 1).repeat(1, 1, in_h * in_w).view(h.shape)
+        
+        #-------------------------------------------------------#
+        #   计算调整后的先验框中心与宽高
+        #-------------------------------------------------------#
+        pred_boxes = FloatTensor(prediction[..., :4].shape)
+        pred_boxes[..., 0] = x + grid_x
+        pred_boxes[..., 1] = y + grid_y
+        pred_boxes[..., 2] = torch.exp(w) * anchor_w
+        pred_boxes[..., 3] = torch.exp(h) * anchor_h
+        for i in range(bs):
+            pred_boxes_for_ignore = pred_boxes[i]
+            #-------------------------------------------------------#
+            #   将预测结果转换一个形式
+            #   pred_boxes_for_ignore      num_anchors, 4
+            #-------------------------------------------------------#
+            pred_boxes_for_ignore = pred_boxes_for_ignore.view(-1, 4)
+            #-------------------------------------------------------#
+            #   计算真实框，并把真实框转换成相对于特征层的大小
+            #   gt_box      num_true_box, 4
+            #-------------------------------------------------------#
+            if len(target[i]) &gt; 0:
+                gx = target[i][:, 0:1] * in_w
+                gy = target[i][:, 1:2] * in_h
+                gw = target[i][:, 2:3] * in_w
+                gh = target[i][:, 3:4] * in_h
+                gt_box = torch.FloatTensor(torch.cat([gx, gy, gw, gh],-1)).type(FloatTensor)
+
+                #-------------------------------------------------------#
+                #   计算交并比
+                #   anch_ious       num_true_box, num_anchors
+                #-------------------------------------------------------#
+                anch_ious = jaccard(gt_box, pred_boxes_for_ignore)
+                #-------------------------------------------------------#
+                #   每个先验框对应真实框的最大重合度
+                #   anch_ious_max   num_anchors
+                #-------------------------------------------------------#
+                anch_ious_max, _ = torch.max(anch_ious,dim=0)
+                anch_ious_max = anch_ious_max.view(pred_boxes[i].size()[:3])
+                noobj_mask[i][anch_ious_max&gt;self.ignore_threshold] = 0
+        return noobj_mask, pred_boxes
+
+
+def rand(a=0, b=1):
+    return np.random.rand()*(b-a) + a
+
+
+class Generator(object):
+    def __init__(self,batch_size,
+                 train_lines, image_size,
+                 ):
+        
+        self.batch_size = batch_size
+        self.train_lines = train_lines
+        self.train_batches = len(train_lines)
+        self.image_size = image_size
+        
+    def get_random_data(self, annotation_line, input_shape, jitter=.3, hue=.1, sat=1.5, val=1.5, random=True):
+        '''r实时数据增强的随机预处理'''
+        line = annotation_line.split()
+        image = Image.open(line[0])
+        iw, ih = image.size
+        h, w = input_shape
+        box = np.array([np.array(list(map(int,box.split(',')))) for box in line[1:]])
+
+        if not random:
+            scale = min(w/iw, h/ih)
+            nw = int(iw*scale)
+            nh = int(ih*scale)
+            dx = (w-nw)//2
+            dy = (h-nh)//2
+
+            image = image.resize((nw,nh), Image.BICUBIC)
+            new_image = Image.new('RGB', (w,h), (128,128,128))
+            new_image.paste(image, (dx, dy))
+            image_data = np.array(new_image, np.float32)
+
+            # 调整目标框坐标
+            box_data = np.zeros((len(box), 5))
+            if len(box) &gt; 0:
+                np.random.shuffle(box)
+                box[:, [0, 2]] = box[:, [0, 2]] * nw / iw + dx
+                box[:, [1, 3]] = box[:, [1, 3]] * nh / ih + dy
+                box[:, 0:2][box[:, 0:2] &lt; 0] = 0
+                box[:, 2][box[:, 2] &gt; w] = w
+                box[:, 3][box[:, 3] &gt; h] = h
+                box_w = box[:, 2] - box[:, 0]
+                box_h = box[:, 3] - box[:, 1]
+                box = box[np.logical_and(box_w &gt; 1, box_h &gt; 1)]  # 保留有效框
+                box_data = np.zeros((len(box), 5))
+                box_data[:len(box)] = box
+
+            return image_data, box_data
+
+        # resize image
+        new_ar = w/h * rand(1-jitter,1+jitter)/rand(1-jitter,1+jitter)
+        scale = rand(.25, 2)
+        if new_ar &lt; 1:
+            nh = int(scale*h)
+            nw = int(nh*new_ar)
+        else:
+            nw = int(scale*w)
+            nh = int(nw/new_ar)
+        image = image.resize((nw,nh), Image.BICUBIC)
+
+        # place image
+        dx = int(rand(0, w-nw))
+        dy = int(rand(0, h-nh))
+        new_image = Image.new('RGB', (w,h), (128,128,128))
+        new_image.paste(image, (dx, dy))
+        image = new_image
+
+        # flip image or not
+        flip = rand()&lt;.5
+        if flip: image = image.transpose(Image.FLIP_LEFT_RIGHT)
+
+        # distort image
+        hue = rand(-hue, hue)
+        sat = rand(1, sat) if rand()&lt;.5 else 1/rand(1, sat)
+        val = rand(1, val) if rand()&lt;.5 else 1/rand(1, val)
+        x = cv2.cvtColor(np.array(image,np.float32)/255, cv2.COLOR_RGB2HSV)
+        x[..., 0] += hue*360
+        x[..., 0][x[..., 0]&gt;1] -= 1
+        x[..., 0][x[..., 0]&lt;0] += 1
+        x[..., 1] *= sat
+        x[..., 2] *= val
+        x[x[:,:, 0]&gt;360, 0] = 360
+        x[:, :, 1:][x[:, :, 1:]&gt;1] = 1
+        x[x&lt;0] = 0
+        image_data = cv2.cvtColor(x, cv2.COLOR_HSV2RGB)*255
+
+        # correct boxes
+        box_data = np.zeros((len(box),5))
+        if len(box)&gt;0:
+            np.random.shuffle(box)
+            box[:, [0,2]] = box[:, [0,2]]*nw/iw + dx
+            box[:, [1,3]] = box[:, [1,3]]*nh/ih + dy
+            if flip: box[:, [0,2]] = w - box[:, [2,0]]
+            box[:, 0:2][box[:, 0:2]&lt;0] = 0
+            box[:, 2][box[:, 2]&gt;w] = w
+            box[:, 3][box[:, 3]&gt;h] = h
+            box_w = box[:, 2] - box[:, 0]
+            box_h = box[:, 3] - box[:, 1]
+            box = box[np.logical_and(box_w&gt;1, box_h&gt;1)] # discard invalid box
+            box_data = np.zeros((len(box),5))
+            box_data[:len(box)] = box
+
+        return image_data, box_data
+
+    def get_random_data_with_Mosaic(self, annotation_line, input_shape, hue=.1, sat=1.5, val=1.5):
+        '''random preprocessing for real-time data augmentation'''
+        h, w = input_shape
+        min_offset_x = 0.3
+        min_offset_y = 0.3
+        scale_low = 1-min(min_offset_x,min_offset_y)
+        scale_high = scale_low+0.2
+
+        image_datas = [] 
+        box_datas = []
+        index = 0
+
+        place_x = [0,0,int(w*min_offset_x),int(w*min_offset_x)]
+        place_y = [0,int(h*min_offset_y),int(h*min_offset_y),0]
+        for line in annotation_line:
+            # 每一行进行分割
+            line_content = line.split()
+            # 打开图片
+            image = Image.open(line_content[0])
+            image = image.convert("RGB") 
+            # 图片的大小
+            iw, ih = image.size
+            # 保存框的位置
+            box = np.array([np.array(list(map(int,box.split(',')))) for box in line_content[1:]])
+            
+            # 是否翻转图片
+            flip = rand()&lt;.5
+            if flip and len(box)&gt;0:
+                image = image.transpose(Image.FLIP_LEFT_RIGHT)
+                box[:, [0,2]] = iw - box[:, [2,0]]
+
+            # 对输入进来的图片进行缩放
+            new_ar = w/h
+            scale = rand(scale_low, scale_high)
+            if new_ar &lt; 1:
+                nh = int(scale*h)
+                nw = int(nh*new_ar)
+            else:
+                nw = int(scale*w)
+                nh = int(nw/new_ar)
+            image = image.resize((nw,nh), Image.BICUBIC)
+
+            # 进行色域变换
+            hue = rand(-hue, hue)
+            sat = rand(1, sat) if rand()&lt;.5 else 1/rand(1, sat)
+            val = rand(1, val) if rand()&lt;.5 else 1/rand(1, val)
+            x = cv2.cvtColor(np.array(image,np.float32)/255, cv2.COLOR_RGB2HSV)
+            x[..., 0] += hue*360
+            x[..., 0][x[..., 0]&gt;1] -= 1
+            x[..., 0][x[..., 0]&lt;0] += 1
+            x[..., 1] *= sat
+            x[..., 2] *= val
+            x[x[:,:, 0]&gt;360, 0] = 360
+            x[:, :, 1:][x[:, :, 1:]&gt;1] = 1
+            x[x&lt;0] = 0
+            image = cv2.cvtColor(x, cv2.COLOR_HSV2RGB) # numpy array, 0 to 1
+            
+            image = Image.fromarray((image*255).astype(np.uint8))
+            # 将图片进行放置，分别对应四张分割图片的位置
+            dx = place_x[index]
+            dy = place_y[index]
+            new_image = Image.new('RGB', (w,h), (128,128,128))
+            new_image.paste(image, (dx, dy))
+            image_data = np.array(new_image)
+
+            
+            index = index + 1
+            box_data = []
+            # 对box进行重新处理
+            if len(box)&gt;0:
+                np.random.shuffle(box)
+                box[:, [0,2]] = box[:, [0,2]]*nw/iw + dx
+                box[:, [1,3]] = box[:, [1,3]]*nh/ih + dy
+                box[:, 0:2][box[:, 0:2]&lt;0] = 0
+                box[:, 2][box[:, 2]&gt;w] = w
+                box[:, 3][box[:, 3]&gt;h] = h
+                box_w = box[:, 2] - box[:, 0]
+                box_h = box[:, 3] - box[:, 1]
+                box = box[np.logical_and(box_w&gt;1, box_h&gt;1)]
+                box_data = np.zeros((len(box),5))
+                box_data[:len(box)] = box
+            
+            image_datas.append(image_data)
+            box_datas.append(box_data)
+
+        # 将图片分割，放在一起
+        cutx = np.random.randint(int(w*min_offset_x), int(w*(1 - min_offset_x)))
+        cuty = np.random.randint(int(h*min_offset_y), int(h*(1 - min_offset_y)))
+
+        new_image = np.zeros([h,w,3])
+        new_image[:cuty, :cutx, :] = image_datas[0][:cuty, :cutx, :]
+        new_image[cuty:, :cutx, :] = image_datas[1][cuty:, :cutx, :]
+        new_image[cuty:, cutx:, :] = image_datas[2][cuty:, cutx:, :]
+        new_image[:cuty, cutx:, :] = image_datas[3][:cuty, cutx:, :]
+
+        # 对框进行进一步的处理
+        new_boxes = np.array(merge_bboxes(box_datas, cutx, cuty))
+
+        if len(new_boxes) == 0:
+            return new_image, []
+        if (new_boxes[:,:4]&gt;0).any():
+            return new_image, new_boxes
+        else:
+            return new_image, []
+
+    def generate(self, train = True, mosaic = True):
+        while True:
+            shuffle(self.train_lines)
+            lines = self.train_lines
+            inputs = []
+            targets = []
+            flag = True
+            n = len(lines)
+            for i in range(len(lines)):
+                if mosaic == True:
+                    if flag and (i+4) &lt; n:
+                        img,y = self.get_random_data_with_Mosaic(lines[i:i+4], self.image_size[0:2])
+                        i = (i+4) % n
+                    else:
+                        img,y = self.get_random_data(lines[i], self.image_size[0:2], random=train)
+                        i = (i+1) % n
+                    flag = bool(1-flag)
+                else:
+                    img,y = self.get_random_data(lines[i], self.image_size[0:2], random=train)
+                    i = (i+1) % n
+                    
+                if len(y)!=0:
+                    boxes = np.array(y[:,:4],dtype=np.float32)
+                    boxes[:,0] = boxes[:,0]/self.image_size[1]
+                    boxes[:,1] = boxes[:,1]/self.image_size[0]
+                    boxes[:,2] = boxes[:,2]/self.image_size[1]
+                    boxes[:,3] = boxes[:,3]/self.image_size[0]
+
+                    boxes = np.maximum(np.minimum(boxes,1),0)
+                    boxes[:,2] = boxes[:,2] - boxes[:,0]
+                    boxes[:,3] = boxes[:,3] - boxes[:,1]
+    
+                    boxes[:,0] = boxes[:,0] + boxes[:,2]/2
+                    boxes[:,1] = boxes[:,1] + boxes[:,3]/2
+                    y = np.concatenate([boxes,y[:,-1:]],axis=-1)
+                    
+                img = np.array(img,dtype = np.float32)
+
+                inputs.append(np.transpose(img/255.0,(2,0,1)))              
+                targets.append(np.array(y,dtype = np.float32))
+                if len(targets) == self.batch_size:
+                    tmp_inp = np.array(inputs)
+                    tmp_targets = targets
+                    inputs = []
+                    targets = []
+                    yield tmp_inp, tmp_targets
+</code></pre> 
+<hr> 
+<h3></h3> 
+<h3>4.dataloader.py</h3> 
+<pre><code class="language-python">from random import shuffle
+import numpy as np
+import torch
+import torch.nn as nn
+import math
+import torch.nn.functional as F
+from PIL import Image
+from torch.autograd import Variable
+from torch.utils.data import DataLoader
+from torch.utils.data.dataset import Dataset
+from utils import bbox_iou, merge_bboxes
+from matplotlib.colors import rgb_to_hsv, hsv_to_rgb
+from yolo_training import Generator
+import cv2
+
+class YoloDataset(Dataset):
+    def __init__(self, train_lines, image_size, mosaic=True, is_train=True):
+        super(YoloDataset, self).__init__()
+
+        self.train_lines = train_lines
+        self.train_batches = len(train_lines)
+        self.image_size = image_size
+        self.mosaic = mosaic
+        self.flag = True
+        self.is_train = is_train
+
+    def __len__(self):
+        return self.train_batches
+
+    def rand(self, a=0, b=1):
+        return np.random.rand() * (b - a) + a
+
+    def get_random_data(self, annotation_line, input_shape, jitter=.3, hue=.1, sat=1.5, val=1.5, random=True):
+        """实时数据增强的随机预处理"""
+        line = annotation_line.split()
+        image = Image.open(line[0])
+        iw, ih = image.size
+        h, w = input_shape
+        box = np.array([np.array(list(map(int, box.split(',')))) for box in line[1:]])
+
+        if not random:
+            scale = min(w/iw, h/ih)
+            nw = int(iw*scale)
+            nh = int(ih*scale)
+            dx = (w-nw)//2
+            dy = (h-nh)//2
+
+            image = image.resize((nw,nh), Image.BICUBIC)
+            new_image = Image.new('RGB', (w,h), (128,128,128))
+            new_image.paste(image, (dx, dy))
+            image_data = np.array(new_image, np.float32)
+
+            # 调整目标框坐标
+            box_data = np.zeros((len(box), 5))
+            if len(box) &gt; 0:
+                np.random.shuffle(box)
+                box[:, [0, 2]] = box[:, [0, 2]] * nw / iw + dx
+                box[:, [1, 3]] = box[:, [1, 3]] * nh / ih + dy
+                box[:, 0:2][box[:, 0:2] &lt; 0] = 0
+                box[:, 2][box[:, 2] &gt; w] = w
+                box[:, 3][box[:, 3] &gt; h] = h
+                box_w = box[:, 2] - box[:, 0]
+                box_h = box[:, 3] - box[:, 1]
+                box = box[np.logical_and(box_w &gt; 1, box_h &gt; 1)]  # 保留有效框
+                box_data = np.zeros((len(box), 5))
+                box_data[:len(box)] = box
+
+            return image_data, box_data
+
+        # 调整图片大小
+        new_ar = w / h * self.rand(1 - jitter, 1 + jitter) / self.rand(1 - jitter, 1 + jitter)
+        scale = self.rand(.25, 2)
+        if new_ar &lt; 1:
+            nh = int(scale * h)
+            nw = int(nh * new_ar)
+        else:
+            nw = int(scale * w)
+            nh = int(nw / new_ar)
+        image = image.resize((nw, nh), Image.BICUBIC)
+
+        # 放置图片
+        dx = int(self.rand(0, w - nw))
+        dy = int(self.rand(0, h - nh))
+        new_image = Image.new('RGB', (w, h),
+                              (np.random.randint(0, 255), np.random.randint(0, 255), np.random.randint(0, 255)))
+        new_image.paste(image, (dx, dy))
+        image = new_image
+
+        # 是否翻转图片
+        flip = self.rand() &lt; .5
+        if flip:
+            image = image.transpose(Image.FLIP_LEFT_RIGHT)
+
+        # 色域变换
+        hue = self.rand(-hue, hue)
+        sat = self.rand(1, sat) if self.rand() &lt; .5 else 1 / self.rand(1, sat)
+        val = self.rand(1, val) if self.rand() &lt; .5 else 1 / self.rand(1, val)
+        x = cv2.cvtColor(np.array(image,np.float32)/255, cv2.COLOR_RGB2HSV)
+        x[..., 0] += hue*360
+        x[..., 0][x[..., 0]&gt;1] -= 1
+        x[..., 0][x[..., 0]&lt;0] += 1
+        x[..., 1] *= sat
+        x[..., 2] *= val
+        x[x[:,:, 0]&gt;360, 0] = 360
+        x[:, :, 1:][x[:, :, 1:]&gt;1] = 1
+        x[x&lt;0] = 0
+        image_data = cv2.cvtColor(x, cv2.COLOR_HSV2RGB)*255
+
+        # 调整目标框坐标
+        box_data = np.zeros((len(box), 5))
+        if len(box) &gt; 0:
+            np.random.shuffle(box)
+            box[:, [0, 2]] = box[:, [0, 2]] * nw / iw + dx
+            box[:, [1, 3]] = box[:, [1, 3]] * nh / ih + dy
+            if flip:
+                box[:, [0, 2]] = w - box[:, [2, 0]]
+            box[:, 0:2][box[:, 0:2] &lt; 0] = 0
+            box[:, 2][box[:, 2] &gt; w] = w
+            box[:, 3][box[:, 3] &gt; h] = h
+            box_w = box[:, 2] - box[:, 0]
+            box_h = box[:, 3] - box[:, 1]
+            box = box[np.logical_and(box_w &gt; 1, box_h &gt; 1)]  # 保留有效框
+            box_data = np.zeros((len(box), 5))
+            box_data[:len(box)] = box
+
+        return image_data, box_data
+
+    def get_random_data_with_Mosaic(self, annotation_line, input_shape, hue=.1, sat=1.5, val=1.5):
+        h, w = input_shape
+        min_offset_x = 0.3
+        min_offset_y = 0.3
+        scale_low = 1 - min(min_offset_x, min_offset_y)
+        scale_high = scale_low + 0.2
+
+        image_datas = []
+        box_datas = []
+        index = 0
+
+        place_x = [0, 0, int(w * min_offset_x), int(w * min_offset_x)]
+        place_y = [0, int(h * min_offset_y), int(h * min_offset_y), 0]
+        for line in annotation_line:
+            # 每一行进行分割
+            line_content = line.split()
+            # 打开图片
+            image = Image.open(line_content[0])
+            image = image.convert("RGB")
+            # 图片的大小
+            iw, ih = image.size
+            # 保存框的位置
+            box = np.array([np.array(list(map(int, box.split(',')))) for box in line_content[1:]])
+
+            # 是否翻转图片
+            flip = self.rand() &lt; .5
+            if flip and len(box) &gt; 0:
+                image = image.transpose(Image.FLIP_LEFT_RIGHT)
+                box[:, [0, 2]] = iw - box[:, [2, 0]]
+
+            # 对输入进来的图片进行缩放
+            new_ar = w / h
+            scale = self.rand(scale_low, scale_high)
+            if new_ar &lt; 1:
+                nh = int(scale * h)
+                nw = int(nh * new_ar)
+            else:
+                nw = int(scale * w)
+                nh = int(nw / new_ar)
+            image = image.resize((nw, nh), Image.BICUBIC)
+
+            # 进行色域变换
+            hue = self.rand(-hue, hue)
+            sat = self.rand(1, sat) if self.rand() &lt; .5 else 1 / self.rand(1, sat)
+            val = self.rand(1, val) if self.rand() &lt; .5 else 1 / self.rand(1, val)
+            x = cv2.cvtColor(np.array(image,np.float32)/255, cv2.COLOR_RGB2HSV)
+            x[..., 0] += hue*360
+            x[..., 0][x[..., 0]&gt;1] -= 1
+            x[..., 0][x[..., 0]&lt;0] += 1
+            x[..., 1] *= sat
+            x[..., 2] *= val
+            x[x[:,:, 0]&gt;360, 0] = 360
+            x[:, :, 1:][x[:, :, 1:]&gt;1] = 1
+            x[x&lt;0] = 0
+            image = cv2.cvtColor(x, cv2.COLOR_HSV2RGB) # numpy array, 0 to 1
+
+            image = Image.fromarray((image * 255).astype(np.uint8))
+            # 将图片进行放置，分别对应四张分割图片的位置
+            dx = place_x[index]
+            dy = place_y[index]
+            new_image = Image.new('RGB', (w, h),
+                                  (np.random.randint(0, 255), np.random.randint(0, 255), np.random.randint(0, 255)))
+            new_image.paste(image, (dx, dy))
+            image_data = np.array(new_image)
+
+            index = index + 1
+            box_data = []
+            # 对box进行重新处理
+            if len(box) &gt; 0:
+                np.random.shuffle(box)
+                box[:, [0, 2]] = box[:, [0, 2]] * nw / iw + dx
+                box[:, [1, 3]] = box[:, [1, 3]] * nh / ih + dy
+                box[:, 0:2][box[:, 0:2] &lt; 0] = 0
+                box[:, 2][box[:, 2] &gt; w] = w
+                box[:, 3][box[:, 3] &gt; h] = h
+                box_w = box[:, 2] - box[:, 0]
+                box_h = box[:, 3] - box[:, 1]
+                box = box[np.logical_and(box_w &gt; 1, box_h &gt; 1)]
+                box_data = np.zeros((len(box), 5))
+                box_data[:len(box)] = box
+
+            image_datas.append(image_data)
+            box_datas.append(box_data)
+
+        # 将图片分割，放在一起
+        cutx = np.random.randint(int(w * min_offset_x), int(w * (1 - min_offset_x)))
+        cuty = np.random.randint(int(h * min_offset_y), int(h * (1 - min_offset_y)))
+
+        new_image = np.zeros([h, w, 3])
+        new_image[:cuty, :cutx, :] = image_datas[0][:cuty, :cutx, :]
+        new_image[cuty:, :cutx, :] = image_datas[1][cuty:, :cutx, :]
+        new_image[cuty:, cutx:, :] = image_datas[2][cuty:, cutx:, :]
+        new_image[:cuty, cutx:, :] = image_datas[3][:cuty, cutx:, :]
+
+        # 对框进行进一步的处理
+        new_boxes = np.array(merge_bboxes(box_datas, cutx, cuty))
+
+        return new_image, new_boxes
+
+    def __getitem__(self, index):
+        lines = self.train_lines
+        n = self.train_batches
+        index = index % n
+        if self.mosaic:
+            if self.flag and (index + 4) &lt; n:
+                img, y = self.get_random_data_with_Mosaic(lines[index:index + 4], self.image_size[0:2])
+            else:
+                img, y = self.get_random_data(lines[index], self.image_size[0:2], random=self.is_train)
+            self.flag = bool(1-self.flag)
+        else:
+            img, y = self.get_random_data(lines[index], self.image_size[0:2], random=self.is_train)
+
+        if len(y) != 0:
+            # 从坐标转换成0~1的百分比
+            boxes = np.array(y[:, :4], dtype=np.float32)
+            boxes[:, 0] = boxes[:, 0] / self.image_size[1]
+            boxes[:, 1] = boxes[:, 1] / self.image_size[0]
+            boxes[:, 2] = boxes[:, 2] / self.image_size[1]
+            boxes[:, 3] = boxes[:, 3] / self.image_size[0]
+
+            boxes = np.maximum(np.minimum(boxes, 1), 0)
+            boxes[:, 2] = boxes[:, 2] - boxes[:, 0]
+            boxes[:, 3] = boxes[:, 3] - boxes[:, 1]
+
+            boxes[:, 0] = boxes[:, 0] + boxes[:, 2] / 2
+            boxes[:, 1] = boxes[:, 1] + boxes[:, 3] / 2
+            y = np.concatenate([boxes, y[:, -1:]], axis=-1)
+
+        img = np.array(img, dtype=np.float32)
+
+        tmp_inp = np.transpose(img / 255.0, (2, 0, 1))
+        tmp_targets = np.array(y, dtype=np.float32)
+        return tmp_inp, tmp_targets
+
+
+# DataLoader中collate_fn使用
+def yolo_dataset_collate(batch):
+    images = []
+    bboxes = []
+    for img, box in batch:
+        images.append(img)
+        bboxes.append(box)
+    images = np.array(images)
+    return images, bboxes
+
+</code></pre> 
+<hr> 
+<h3></h3> 
+<h3>5.utils.py</h3> 
+<pre><code class="language-python">from __future__ import division
+
+import math
+import os
+import time
+
+import numpy as np
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from PIL import Image, ImageDraw, ImageFont
+from torch.autograd import Variable
+from torchvision.ops import nms
+
+
+class DecodeBox(nn.Module):
+    def __init__(self, anchors, num_classes, img_size):
+        super(DecodeBox, self).__init__()
+        #-----------------------------------------------------------#
+        #   13x13的特征层对应的anchor是[142, 110], [192, 243], [459, 401]
+        #   26x26的特征层对应的anchor是[36, 75], [76, 55], [72, 146]
+        #   52x52的特征层对应的anchor是[12, 16], [19, 36], [40, 28]
+        #-----------------------------------------------------------#
+        self.anchors = anchors
+        self.num_anchors = len(anchors)
+        self.num_classes = num_classes
+        self.bbox_attrs = 5 + num_classes
+        self.img_size = img_size
+
+    def forward(self, input):
+        #-----------------------------------------------#
+        #   输入的input一共有三个，他们的shape分别是
+        #   batch_size, 255, 13, 13
+        #   batch_size, 255, 26, 26
+        #   batch_size, 255, 52, 52
+        #-----------------------------------------------#
+        batch_size = input.size(0)
+        input_height = input.size(2)
+        input_width = input.size(3)
+
+        #-----------------------------------------------#
+        #   输入为416x416时
+        #   stride_h = stride_w = 32、16、8
+        #-----------------------------------------------#
+        stride_h = self.img_size[1] / input_height
+        stride_w = self.img_size[0] / input_width
+        #-------------------------------------------------#
+        #   此时获得的scaled_anchors大小是相对于特征层的
+        #-------------------------------------------------#
+        scaled_anchors = [(anchor_width / stride_w, anchor_height / stride_h) for anchor_width, anchor_height in self.anchors]
+
+        #-----------------------------------------------#
+        #   输入的input一共有三个，他们的shape分别是
+        #   batch_size, 3, 13, 13, 85
+        #   batch_size, 3, 26, 26, 85
+        #   batch_size, 3, 52, 52, 85
+        #-----------------------------------------------#
+        prediction = input.view(batch_size, self.num_anchors,
+                                self.bbox_attrs, input_height, input_width).permute(0, 1, 3, 4, 2).contiguous()
+
+        # 先验框的中心位置的调整参数
+        x = torch.sigmoid(prediction[..., 0])  
+        y = torch.sigmoid(prediction[..., 1])
+        # 先验框的宽高调整参数
+        w = prediction[..., 2]
+        h = prediction[..., 3]
+        # 获得置信度，是否有物体
+        conf = torch.sigmoid(prediction[..., 4])
+        # 种类置信度
+        pred_cls = torch.sigmoid(prediction[..., 5:])
+
+        FloatTensor = torch.cuda.FloatTensor if x.is_cuda else torch.FloatTensor
+        LongTensor = torch.cuda.LongTensor if x.is_cuda else torch.LongTensor
+
+        #----------------------------------------------------------#
+        #   生成网格，先验框中心，网格左上角 
+        #   batch_size,3,13,13
+        #----------------------------------------------------------#
+        grid_x = torch.linspace(0, input_width - 1, input_width).repeat(input_height, 1).repeat(
+            batch_size * self.num_anchors, 1, 1).view(x.shape).type(FloatTensor)
+        grid_y = torch.linspace(0, input_height - 1, input_height).repeat(input_width, 1).t().repeat(
+            batch_size * self.num_anchors, 1, 1).view(y.shape).type(FloatTensor)
+
+        #----------------------------------------------------------#
+        #   按照网格格式生成先验框的宽高
+        #   batch_size,3,13,13
+        #----------------------------------------------------------#
+        anchor_w = FloatTensor(scaled_anchors).index_select(1, LongTensor([0]))
+        anchor_h = FloatTensor(scaled_anchors).index_select(1, LongTensor([1]))
+        anchor_w = anchor_w.repeat(batch_size, 1).repeat(1, 1, input_height * input_width).view(w.shape)
+        anchor_h = anchor_h.repeat(batch_size, 1).repeat(1, 1, input_height * input_width).view(h.shape)
+
+        #----------------------------------------------------------#
+        #   利用预测结果对先验框进行调整
+        #   首先调整先验框的中心，从先验框中心向右下角偏移
+        #   再调整先验框的宽高。
+        #----------------------------------------------------------#
+        pred_boxes = FloatTensor(prediction[..., :4].shape)
+        pred_boxes[..., 0] = x.data + grid_x
+        pred_boxes[..., 1] = y.data + grid_y
+        pred_boxes[..., 2] = torch.exp(w.data) * anchor_w
+        pred_boxes[..., 3] = torch.exp(h.data) * anchor_h
+
+        # fig = plt.figure()
+        # ax = fig.add_subplot(121)
+        # if input_height==13:
+        #     plt.ylim(0,13)
+        #     plt.xlim(0,13)
+        # elif input_height==26:
+        #     plt.ylim(0,26)
+        #     plt.xlim(0,26)
+        # elif input_height==52:
+        #     plt.ylim(0,52)
+        #     plt.xlim(0,52)
+        # plt.scatter(grid_x.cpu(),grid_y.cpu())
+
+        # anchor_left = grid_x - anchor_w/2 
+        # anchor_top = grid_y - anchor_h/2 
+
+        # rect1 = plt.Rectangle([anchor_left[0,0,5,5],anchor_top[0,0,5,5]],anchor_w[0,0,5,5],anchor_h[0,0,5,5],color="r",fill=False)
+        # rect2 = plt.Rectangle([anchor_left[0,1,5,5],anchor_top[0,1,5,5]],anchor_w[0,1,5,5],anchor_h[0,1,5,5],color="r",fill=False)
+        # rect3 = plt.Rectangle([anchor_left[0,2,5,5],anchor_top[0,2,5,5]],anchor_w[0,2,5,5],anchor_h[0,2,5,5],color="r",fill=False)
+
+        # ax.add_patch(rect1)
+        # ax.add_patch(rect2)
+        # ax.add_patch(rect3)
+
+        # ax = fig.add_subplot(122)
+        # if input_height==13:
+        #     plt.ylim(0,13)
+        #     plt.xlim(0,13)
+        # elif input_height==26:
+        #     plt.ylim(0,26)
+        #     plt.xlim(0,26)
+        # elif input_height==52:
+        #     plt.ylim(0,52)
+        #     plt.xlim(0,52)
+        # plt.scatter(grid_x.cpu(),grid_y.cpu())
+        # plt.scatter(pred_boxes[0,:,5,5,0].cpu(),pred_boxes[0,:,5,5,1].cpu(),c='r')
+
+        # pre_left = pred_boxes[...,0] - pred_boxes[...,2]/2 
+        # pre_top = pred_boxes[...,1] - pred_boxes[...,3]/2 
+
+        # rect1 = plt.Rectangle([pre_left[0,0,5,5],pre_top[0,0,5,5]],pred_boxes[0,0,5,5,2],pred_boxes[0,0,5,5,3],color="r",fill=False)
+        # rect2 = plt.Rectangle([pre_left[0,1,5,5],pre_top[0,1,5,5]],pred_boxes[0,1,5,5,2],pred_boxes[0,1,5,5,3],color="r",fill=False)
+        # rect3 = plt.Rectangle([pre_left[0,2,5,5],pre_top[0,2,5,5]],pred_boxes[0,2,5,5,2],pred_boxes[0,2,5,5,3],color="r",fill=False)
+
+        # ax.add_patch(rect1)
+        # ax.add_patch(rect2)
+        # ax.add_patch(rect3)
+
+        # plt.show()
+
+        #----------------------------------------------------------#
+        #   将输出结果调整成相对于输入图像大小
+        #----------------------------------------------------------#
+        _scale = torch.Tensor([stride_w, stride_h] * 2).type(FloatTensor)
+        output = torch.cat((pred_boxes.view(batch_size, -1, 4) * _scale,
+                            conf.view(batch_size, -1, 1), pred_cls.view(batch_size, -1, self.num_classes)), -1)
+        return output.data
+        
+def letterbox_image(image, size):
+    iw, ih = image.size
+    w, h = size
+    scale = min(w/iw, h/ih)
+    nw = int(iw*scale)
+    nh = int(ih*scale)
+
+    image = image.resize((nw,nh), Image.BICUBIC)
+    new_image = Image.new('RGB', size, (128,128,128))
+    new_image.paste(image, ((w-nw)//2, (h-nh)//2))
+    return new_image
+
+def yolo_correct_boxes(top, left, bottom, right, input_shape, image_shape):
+    new_shape = image_shape*np.min(input_shape/image_shape)
+
+    offset = (input_shape-new_shape)/2./input_shape
+    scale = input_shape/new_shape
+
+    box_yx = np.concatenate(((top+bottom)/2,(left+right)/2),axis=-1)/input_shape
+    box_hw = np.concatenate((bottom-top,right-left),axis=-1)/input_shape
+
+    box_yx = (box_yx - offset) * scale
+    box_hw *= scale
+
+    box_mins = box_yx - (box_hw / 2.)
+    box_maxes = box_yx + (box_hw / 2.)
+    boxes =  np.concatenate([
+        box_mins[:, 0:1],
+        box_mins[:, 1:2],
+        box_maxes[:, 0:1],
+        box_maxes[:, 1:2]
+    ],axis=-1)
+    boxes *= np.concatenate([image_shape, image_shape],axis=-1)
+    return boxes
+
+def bbox_iou(box1, box2, x1y1x2y2=True):
+    """
+        计算IOU
+    """
+    if not x1y1x2y2:
+        b1_x1, b1_x2 = box1[:, 0] - box1[:, 2] / 2, box1[:, 0] + box1[:, 2] / 2
+        b1_y1, b1_y2 = box1[:, 1] - box1[:, 3] / 2, box1[:, 1] + box1[:, 3] / 2
+        b2_x1, b2_x2 = box2[:, 0] - box2[:, 2] / 2, box2[:, 0] + box2[:, 2] / 2
+        b2_y1, b2_y2 = box2[:, 1] - box2[:, 3] / 2, box2[:, 1] + box2[:, 3] / 2
+    else:
+        b1_x1, b1_y1, b1_x2, b1_y2 = box1[:, 0], box1[:, 1], box1[:, 2], box1[:, 3]
+        b2_x1, b2_y1, b2_x2, b2_y2 = box2[:, 0], box2[:, 1], box2[:, 2], box2[:, 3]
+
+    inter_rect_x1 = torch.max(b1_x1, b2_x1)
+    inter_rect_y1 = torch.max(b1_y1, b2_y1)
+    inter_rect_x2 = torch.min(b1_x2, b2_x2)
+    inter_rect_y2 = torch.min(b1_y2, b2_y2)
+
+    inter_area = torch.clamp(inter_rect_x2 - inter_rect_x1 + 1, min=0) * \
+                 torch.clamp(inter_rect_y2 - inter_rect_y1 + 1, min=0)
+                 
+    b1_area = (b1_x2 - b1_x1 + 1) * (b1_y2 - b1_y1 + 1)
+    b2_area = (b2_x2 - b2_x1 + 1) * (b2_y2 - b2_y1 + 1)
+
+    iou = inter_area / (b1_area + b2_area - inter_area + 1e-16)
+
+    return iou
+
+
+def non_max_suppression(prediction, num_classes, conf_thres=0.5, nms_thres=0.4):
+    #----------------------------------------------------------#
+    #   将预测结果的格式转换成左上角右下角的格式。
+    #   prediction  [batch_size, num_anchors, 85]
+    #----------------------------------------------------------#
+    box_corner = prediction.new(prediction.shape)
+    box_corner[:, :, 0] = prediction[:, :, 0] - prediction[:, :, 2] / 2
+    box_corner[:, :, 1] = prediction[:, :, 1] - prediction[:, :, 3] / 2
+    box_corner[:, :, 2] = prediction[:, :, 0] + prediction[:, :, 2] / 2
+    box_corner[:, :, 3] = prediction[:, :, 1] + prediction[:, :, 3] / 2
+    prediction[:, :, :4] = box_corner[:, :, :4]
+
+    output = [None for _ in range(len(prediction))]
+    for image_i, image_pred in enumerate(prediction):
+        #----------------------------------------------------------#
+        #   对种类预测部分取max。
+        #   class_conf  [num_anchors, 1]    种类置信度
+        #   class_pred  [num_anchors, 1]    种类
+        #----------------------------------------------------------#
+        class_conf, class_pred = torch.max(image_pred[:, 5:5 + num_classes], 1, keepdim=True)
+
+        #----------------------------------------------------------#
+        #   利用置信度进行第一轮筛选
+        #----------------------------------------------------------#
+        conf_mask = (image_pred[:, 4] * class_conf[:, 0] &gt;= conf_thres).squeeze()
+
+        #----------------------------------------------------------#
+        #   根据置信度进行预测结果的筛选
+        #----------------------------------------------------------#
+        image_pred = image_pred[conf_mask]
+        class_conf = class_conf[conf_mask]
+        class_pred = class_pred[conf_mask]
+        if not image_pred.size(0):
+            continue
+        #-------------------------------------------------------------------------#
+        #   detections  [num_anchors, 7]
+        #   7的内容为：x1, y1, x2, y2, obj_conf, class_conf, class_pred
+        #-------------------------------------------------------------------------#
+        detections = torch.cat((image_pred[:, :5], class_conf.float(), class_pred.float()), 1)
+
+        #------------------------------------------#
+        #   获得预测结果中包含的所有种类
+        #------------------------------------------#
+        unique_labels = detections[:, -1].cpu().unique()
+
+        if prediction.is_cuda:
+            unique_labels = unique_labels.cuda()
+            detections = detections.cuda()
+
+        for c in unique_labels:
+            #------------------------------------------#
+            #   获得某一类得分筛选后全部的预测结果
+            #------------------------------------------#
+            detections_class = detections[detections[:, -1] == c]
+
+            #------------------------------------------#
+            #   使用官方自带的非极大抑制会速度更快一些！
+            #------------------------------------------#
+            keep = nms(
+                detections_class[:, :4],
+                detections_class[:, 4] * detections_class[:, 5],
+                nms_thres
+            )
+            max_detections = detections_class[keep]
+            
+            # # 按照存在物体的置信度排序
+            # _, conf_sort_index = torch.sort(detections_class[:, 4]*detections_class[:, 5], descending=True)
+            # detections_class = detections_class[conf_sort_index]
+            # # 进行非极大抑制
+            # max_detections = []
+            # while detections_class.size(0):
+            #     # 取出这一类置信度最高的，一步一步往下判断，判断重合程度是否大于nms_thres，如果是则去除掉
+            #     max_detections.append(detections_class[0].unsqueeze(0))
+            #     if len(detections_class) == 1:
+            #         break
+            #     ious = bbox_iou(max_detections[-1], detections_class[1:])
+            #     detections_class = detections_class[1:][ious &lt; nms_thres]
+            # # 堆叠
+            # max_detections = torch.cat(max_detections).data
+            
+            # Add max detections to outputs
+            output[image_i] = max_detections if output[image_i] is None else torch.cat(
+                (output[image_i], max_detections))
+
+    return output
+
+
+def merge_bboxes(bboxes, cutx, cuty):
+    merge_bbox = []
+    for i in range(len(bboxes)):
+        for box in bboxes[i]:
+            tmp_box = []
+            x1,y1,x2,y2 = box[0], box[1], box[2], box[3]
+
+            if i == 0:
+                if y1 &gt; cuty or x1 &gt; cutx:
+                    continue
+                if y2 &gt;= cuty and y1 &lt;= cuty:
+                    y2 = cuty
+                    if y2-y1 &lt; 5:
+                        continue
+                if x2 &gt;= cutx and x1 &lt;= cutx:
+                    x2 = cutx
+                    if x2-x1 &lt; 5:
+                        continue
+                
+            if i == 1:
+                if y2 &lt; cuty or x1 &gt; cutx:
+                    continue
+
+                if y2 &gt;= cuty and y1 &lt;= cuty:
+                    y1 = cuty
+                    if y2-y1 &lt; 5:
+                        continue
+                
+                if x2 &gt;= cutx and x1 &lt;= cutx:
+                    x2 = cutx
+                    if x2-x1 &lt; 5:
+                        continue
+
+            if i == 2:
+                if y2 &lt; cuty or x2 &lt; cutx:
+                    continue
+
+                if y2 &gt;= cuty and y1 &lt;= cuty:
+                    y1 = cuty
+                    if y2-y1 &lt; 5:
+                        continue
+
+                if x2 &gt;= cutx and x1 &lt;= cutx:
+                    x1 = cutx
+                    if x2-x1 &lt; 5:
+                        continue
+
+            if i == 3:
+                if y1 &gt; cuty or x2 &lt; cutx:
+                    continue
+
+                if y2 &gt;= cuty and y1 &lt;= cuty:
+                    y2 = cuty
+                    if y2-y1 &lt; 5:
+                        continue
+
+                if x2 &gt;= cutx and x1 &lt;= cutx:
+                    x1 = cutx
+                    if x2-x1 &lt; 5:
+                        continue
+
+            tmp_box.append(x1)
+            tmp_box.append(y1)
+            tmp_box.append(x2)
+            tmp_box.append(y2)
+            tmp_box.append(box[-1])
+            merge_bbox.append(tmp_box)
+    return merge_bbox
+</code></pre> 
+<hr> 
+<h3></h3>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/b030e27c4c66b68f1edcff90bc7b68de/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">Java限流策略与算法</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/08906e77c0cf861f273b6a1ab6c4564a/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">昇腾modelzoo复现yolov4_v1（模型训练&#43;网络定义）</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

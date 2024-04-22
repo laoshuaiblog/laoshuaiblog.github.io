@@ -1,0 +1,1057 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>java利用切面（aspect）记录日志实现性能跟踪以及用户行为分析 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/5c2f00e934e29e8bf6f5f72433181b2c/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="java利用切面（aspect）记录日志实现性能跟踪以及用户行为分析">
+  <meta property="og:description" content="记录日志的目的是多种多样的，这里主要以性能跟踪和用户行为分析为目的讨论如何记录日志。
+1. 概述 一个有一定规模的应用系统，都会存在大量的功能，这些功能通过菜单，链接，按钮和页面进行展示，在系统建设初期，为了尽早将系统投入生产，对于系统性能优化方面可能考虑不够。当然，系统初期的用户量和数据量都相对较小，系统性能也不会是有明显的问题。但是，随着系统的持续运行，用户量和数据量的不断增加，性能性能的优化就变得越来越重要了。
+一个请求的响应速度直接影响到用户的使用体验，只有用户系统的响应时间在正常的接受范围内时，用户才会感觉到系统是正常的，一旦超过这个时间，就会感觉系统很慢。但是系统慢，只是一个大概的描述，是个别的特定操作响应慢，还是所有的操作都慢，是个别用户觉得慢，还是所有用户都觉得慢，这就不容易描述清楚。所以，系统最好有自身处理时间的一个记录和统计，包括各种操作，各种条件下的操作，包括不同的用户，不同的时间，不同的输入条件等。
+另一方面，系统在不断的增加功能和完善过程中，增加了各种各样的功能，这些功能有哪些使用得多，哪些使用得少，都是什么用户在使用，下一步的发展方向在什么地方。最好的方法就是系统能够提供针对性的统计，这是最直接的，也是最客观的，不受主观判断的影响。通过日志记录，可以分析出系统提供的功能中，哪些功能使用最频繁，哪些功能使用最少，这样有利于在后续的版本升级中，把重心放在用户关心的功能上。用户使用少的功能，可以进一步分析用户使用少的原因，比如是用户不了解，还是用户的确不需要等。
+2. 主要代码 总体技术思路，采用切面方式拦截请求，记录每个请求的信息，包括请求用户，请求时间，请求参数以及执行结果等，有了这些请求数据，就可以进行统计分析，得出系统是否存在性能瓶颈。也可以统计出什么用户对什么功能的使用最频繁，什么功能几乎没有人使用。
+2.1 注解代码 切面采用根据注解判断是否需要拦截方法的调用，所以首先需要创建一个自定义注解。
+package com.ruoyi.common.annotation; import com.ruoyi.common.enums.BusinessType; import com.ruoyi.common.enums.OperatorType; import org.springframework.web.bind.annotation.ResponseBody; import java.lang.annotation.Documented; import java.lang.annotation.ElementType; import java.lang.annotation.Retention; import java.lang.annotation.RetentionPolicy; import java.lang.annotation.Target; // 事件埋点 @Target({ElementType.PARAMETER, ElementType.METHOD})//作用在参数和方法上 @Retention(RetentionPolicy.RUNTIME)//运行时注解 @Documented//表明这个注解应该被 javadoc工具记录 // @ResponseBody//响应时转JSON格式 public @interface EventTrack { /** * 模块 */ public String title() default &#34;&#34;; /** * 功能 */ public BusinessType businessType() default BusinessType.OTHER; /** * 操作人类别 */ public OperatorType operatorType() default OperatorType.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2022-06-13T17:17:05+08:00">
+    <meta property="article:modified_time" content="2022-06-13T17:17:05+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">java利用切面（aspect）记录日志实现性能跟踪以及用户行为分析</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <p></p> 
+<p>记录日志的目的是多种多样的，这里主要以性能跟踪和用户行为分析为目的讨论如何记录日志。</p> 
+<h3>1. 概述</h3> 
+<p>一个有一定规模的应用系统，都会存在大量的功能，这些功能通过菜单，链接，按钮和页面进行展示，在系统建设初期，为了尽早将系统投入生产，对于系统性能优化方面可能考虑不够。当然，系统初期的用户量和数据量都相对较小，系统性能也不会是有明显的问题。但是，随着系统的持续运行，用户量和数据量的不断增加，性能性能的优化就变得越来越重要了。</p> 
+<p>一个请求的响应速度直接影响到用户的使用体验，只有用户系统的响应时间在正常的接受范围内时，用户才会感觉到系统是正常的，一旦超过这个时间，就会感觉系统很慢。但是系统慢，只是一个大概的描述，是个别的特定操作响应慢，还是所有的操作都慢，是个别用户觉得慢，还是所有用户都觉得慢，这就不容易描述清楚。所以，系统最好有自身处理时间的一个记录和统计，包括各种操作，各种条件下的操作，包括不同的用户，不同的时间，不同的输入条件等。</p> 
+<p>另一方面，系统在不断的增加功能和完善过程中，增加了各种各样的功能，这些功能有哪些使用得多，哪些使用得少，都是什么用户在使用，下一步的发展方向在什么地方。最好的方法就是系统能够提供针对性的统计，这是最直接的，也是最客观的，不受主观判断的影响。通过日志记录，可以分析出系统提供的功能中，哪些功能使用最频繁，哪些功能使用最少，这样有利于在后续的版本升级中，把重心放在用户关心的功能上。用户使用少的功能，可以进一步分析用户使用少的原因，比如是用户不了解，还是用户的确不需要等。</p> 
+<h3>2. 主要代码</h3> 
+<p>总体技术思路，采用切面方式拦截请求，记录每个请求的信息，包括请求用户，请求时间，请求参数以及执行结果等，有了这些请求数据，就可以进行统计分析，得出系统是否存在性能瓶颈。也可以统计出什么用户对什么功能的使用最频繁，什么功能几乎没有人使用。</p> 
+<h4>2.1 注解代码</h4> 
+<p>切面采用根据注解判断是否需要拦截方法的调用，所以首先需要创建一个自定义注解。</p> 
+<pre><code>package com.ruoyi.common.annotation;
+
+
+import com.ruoyi.common.enums.BusinessType;
+import com.ruoyi.common.enums.OperatorType;
+import org.springframework.web.bind.annotation.ResponseBody;
+
+import java.lang.annotation.Documented;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+
+// 事件埋点
+@Target({ElementType.PARAMETER, ElementType.METHOD})//作用在参数和方法上
+@Retention(RetentionPolicy.RUNTIME)//运行时注解
+@Documented//表明这个注解应该被 javadoc工具记录
+// @ResponseBody//响应时转JSON格式
+public @interface EventTrack {
+
+    /**
+     * 模块
+     */
+    public String title() default "";
+
+    /**
+     * 功能
+     */
+    public BusinessType businessType() default BusinessType.OTHER;
+
+    /**
+     * 操作人类别
+     */
+    public OperatorType operatorType() default OperatorType.MANAGE;
+
+    /**
+     * 是否保存请求的参数
+     */
+    public boolean isSaveRequestData() default true;
+
+    /**
+     * 是否保存响应的参数
+     */
+    public boolean isSaveResponseData() default true;
+
+    /**
+     * 业务描述
+     * @return
+     */
+    String description() default "";
+
+    /**
+     * 是否打日志 默认打
+     */
+    boolean isLog() default true;
+
+}
+</code></pre> 
+<p>在需要记录日志的方法上，添加该注解，切面会根据该注解进行拦截并日志记录。 在注解中，可以添加相关的参数，这些参数可以记录到日志中，用于区分不同的方法。</p> 
+<h4>2.2 日志类代码</h4> 
+<pre><code>package com.ruoyi.system.domain;
+
+import java.util.Date;
+import com.fasterxml.jackson.annotation.JsonFormat;
+import org.apache.commons.lang3.builder.ToStringBuilder;
+import org.apache.commons.lang3.builder.ToStringStyle;
+import com.ruoyi.common.annotation.Excel;
+import com.ruoyi.common.core.domain.BaseEntity;
+
+/**
+ * 事件跟踪对象 event_track_log
+ * 
+ * @author 
+ * @date 2022-06-08
+ */
+public class EventTrackLog extends BaseEntity
+{
+    private static final long serialVersionUID = 1L;
+
+    /** 跟踪编号 */
+    private Long traceId;
+
+    /** 应用名称 */
+    @Excel(name = "应用名称")
+    private String systemName;
+
+    /** 模块名称 */
+    @Excel(name = "模块名称")
+    private String moduleTitle;
+
+    /** 业务类型 */
+    @Excel(name = "业务类型")
+    private String businessType;
+
+    /** 请求方式 */
+    @Excel(name = "请求方式")
+    private String requestMethod;
+
+    /** 操作人员 */
+    @Excel(name = "操作人员")
+    private String userName;
+
+    /** 部门名称 */
+    @Excel(name = "部门名称")
+    private String deptName;
+
+    /** 用户类型 */
+    @Excel(name = "用户类型")
+    private String userType;
+
+    /** 商户编号 */
+    @Excel(name = "商户编号")
+    private String merchantNo;
+
+    /** 操作状态 */
+    @Excel(name = "操作状态")
+    private Long status;
+
+    /** 错误消息 */
+    @Excel(name = "错误消息")
+    private String errorMsg;
+
+    /** 开始时间 */
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    @Excel(name = "开始时间", width = 30, dateFormat = "yyyy-MM-dd HH:mm:ss")
+    private Date startTime;
+
+    /** 结束时间 */
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    @Excel(name = "结束时间", width = 30, dateFormat = "yyyy-MM-dd HH:mm:ss")
+    private Date endTime;
+
+    /** 方法名 */
+    @Excel(name = "方法名")
+    private String method;
+
+    /** 描述信息 */
+    @Excel(name = "描述信息")
+    private String description;
+
+    /** 客户端ip地址 */
+    @Excel(name = "客户端ip地址")
+    private String ipAddress;
+
+    /** 户端主机名 */
+    @Excel(name = "户端主机名")
+    private String hostName;
+
+    /** 请求参数 */
+    @Excel(name = "请求参数")
+    private String reqParams;
+
+    /** 访问url */
+    @Excel(name = "访问url")
+    private String url;
+
+    /** 异常信息 */
+    @Excel(name = "异常信息")
+    private String exceptMsg;
+
+    /** 返回结果 */
+    @Excel(name = "返回结果")
+    private String result;
+
+    /** 时间长度 */
+    @Excel(name = "时间长度")
+    private Long timeSpend;
+
+    /** 调用次数 */
+    @Excel(name = "调用次数")
+    private Long number;
+
+    /** 访问渠道 */
+    @Excel(name = "访问渠道")
+    private String channel;
+
+    public void setTraceId(Long traceId) 
+    {
+        this.traceId = traceId;
+    }
+
+    public Long getTraceId() 
+    {
+        return traceId;
+    }
+    public void setSystemName(String systemName) 
+    {
+        this.systemName = systemName;
+    }
+
+    public String getSystemName() 
+    {
+        return systemName;
+    }
+    public void setModuleTitle(String moduleTitle) 
+    {
+        this.moduleTitle = moduleTitle;
+    }
+
+    public String getModuleTitle() 
+    {
+        return moduleTitle;
+    }
+    public void setBusinessType(String businessType) 
+    {
+        this.businessType = businessType;
+    }
+
+    public String getBusinessType() 
+    {
+        return businessType;
+    }
+    public void setRequestMethod(String requestMethod) 
+    {
+        this.requestMethod = requestMethod;
+    }
+
+    public String getRequestMethod() 
+    {
+        return requestMethod;
+    }
+    public void setUserName(String userName) 
+    {
+        this.userName = userName;
+    }
+
+    public String getUserName() 
+    {
+        return userName;
+    }
+    public void setDeptName(String deptName) 
+    {
+        this.deptName = deptName;
+    }
+
+    public String getDeptName() 
+    {
+        return deptName;
+    }
+    public void setUserType(String userType) 
+    {
+        this.userType = userType;
+    }
+
+    public String getUserType() 
+    {
+        return userType;
+    }
+    public void setMerchantNo(String merchantNo) 
+    {
+        this.merchantNo = merchantNo;
+    }
+
+    public String getMerchantNo() 
+    {
+        return merchantNo;
+    }
+    public void setStatus(Long status) 
+    {
+        this.status = status;
+    }
+
+    public Long getStatus() 
+    {
+        return status;
+    }
+    public void setErrorMsg(String errorMsg) 
+    {
+        this.errorMsg = errorMsg;
+    }
+
+    public String getErrorMsg() 
+    {
+        return errorMsg;
+    }
+    public void setStartTime(Date startTime) 
+    {
+        this.startTime = startTime;
+    }
+
+    public Date getStartTime() 
+    {
+        return startTime;
+    }
+    public void setEndTime(Date endTime) 
+    {
+        this.endTime = endTime;
+    }
+
+    public Date getEndTime() 
+    {
+        return endTime;
+    }
+    public void setMethod(String method) 
+    {
+        this.method = method;
+    }
+
+    public String getMethod() 
+    {
+        return method;
+    }
+    public void setDescription(String description) 
+    {
+        this.description = description;
+    }
+
+    public String getDescription() 
+    {
+        return description;
+    }
+    public void setIpAddress(String ipAddress) 
+    {
+        this.ipAddress = ipAddress;
+    }
+
+    public String getIpAddress() 
+    {
+        return ipAddress;
+    }
+    public void setHostName(String hostName) 
+    {
+        this.hostName = hostName;
+    }
+
+    public String getHostName() 
+    {
+        return hostName;
+    }
+
+    public String getReqParams() {
+        return reqParams;
+    }
+
+    public void setReqParams(String reqParams) {
+        this.reqParams = reqParams;
+    }
+
+    public void setUrl(String url)
+    {
+        this.url = url;
+    }
+
+    public String getUrl() 
+    {
+        return url;
+    }
+    public void setExceptMsg(String exceptMsg) 
+    {
+        this.exceptMsg = exceptMsg;
+    }
+
+    public String getExceptMsg() 
+    {
+        return exceptMsg;
+    }
+    public void setResult(String result) 
+    {
+        this.result = result;
+    }
+
+    public String getResult() 
+    {
+        return result;
+    }
+    public void setTimeSpend(Long timeSpend) 
+    {
+        this.timeSpend = timeSpend;
+    }
+
+    public Long getTimeSpend() 
+    {
+        return timeSpend;
+    }
+    public void setNumber(Long number) 
+    {
+        this.number = number;
+    }
+
+    public Long getNumber() 
+    {
+        return number;
+    }
+    public void setChannel(String channel) 
+    {
+        this.channel = channel;
+    }
+
+    public String getChannel() 
+    {
+        return channel;
+    }
+
+    @Override
+    public String toString() {
+        return new ToStringBuilder(this,ToStringStyle.MULTI_LINE_STYLE)
+            .append("traceId", getTraceId())
+            .append("systemName", getSystemName())
+            .append("moduleTitle", getModuleTitle())
+            .append("businessType", getBusinessType())
+            .append("requestMethod", getRequestMethod())
+            .append("userName", getUserName())
+            .append("deptName", getDeptName())
+            .append("userType", getUserType())
+            .append("merchantNo", getMerchantNo())
+            .append("status", getStatus())
+            .append("errorMsg", getErrorMsg())
+            .append("startTime", getStartTime())
+            .append("endTime", getEndTime())
+            .append("method", getMethod())
+            .append("description", getDescription())
+            .append("ipAddress", getIpAddress())
+            .append("hostName", getHostName())
+            .append("reqParams", getReqParams())
+            .append("url", getUrl())
+            .append("exceptMsg", getExceptMsg())
+            .append("result", getResult())
+            .append("timeSpend", getTimeSpend())
+            .append("number", getNumber())
+            .append("channel", getChannel())
+            .toString();
+    }
+}
+</code></pre> 
+<p>事件日志信息记录类，与对应的数据库表脚本一一对应。事件日志记录的信息，可以根据业务需要进行扩展，比如有的业务场景中需要用户编号，客户编号或者用户手机号等进行关联标识。</p> 
+<pre><code>CREATE TABLE `event_track_log` (
+  `trace_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '跟踪编号',
+  `system_name` varchar(32) DEFAULT NULL COMMENT '应用名称',
+  `module_title` varchar(32) DEFAULT NULL COMMENT '模块名称',
+  `business_type` varchar(20) DEFAULT NULL COMMENT '业务类型',
+  `request_method` varchar(10) DEFAULT NULL COMMENT '请求方式',
+  `user_name` varchar(64) DEFAULT NULL COMMENT '操作人员',
+  `dept_name` varchar(64) DEFAULT NULL COMMENT '部门名称',
+  `user_type` varchar(20) DEFAULT NULL COMMENT '用户类型',
+  `merchant_no` varchar(255) DEFAULT NULL COMMENT '商户编号',
+  `status` int(11) DEFAULT NULL COMMENT '操作状态',
+  `error_msg` varchar(255) DEFAULT NULL COMMENT '错误消息',
+  `start_time` datetime DEFAULT NULL COMMENT '开始时间',
+  `end_time` datetime DEFAULT NULL COMMENT '结束时间',
+  `method` varchar(64) DEFAULT NULL COMMENT '方法名',
+  `description` varchar(255) DEFAULT NULL COMMENT '描述信息',
+  `ip_address` varchar(32)  DEFAULT NULL COMMENT '客户端ip地址',
+  `host_name` varchar(32)  DEFAULT NULL COMMENT '户端主机名',
+  `req_params` varchar(255)  DEFAULT NULL COMMENT '请求参数',
+  `url` varchar(255) DEFAULT NULL COMMENT '访问url',
+  `except_msg` varchar(255) DEFAULT NULL COMMENT '异常信息',
+  `result` varchar(255) DEFAULT NULL COMMENT '返回结果',
+  `time_spend` bigint(20) DEFAULT NULL COMMENT '时间长度',
+  `number` int(11) DEFAULT NULL COMMENT '调用次数',
+  `channel` varchar(20) DEFAULT NULL COMMENT '访问渠道',
+  `create_by` varchar(32) DEFAULT NULL COMMENT '创建者',
+  `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+  PRIMARY KEY (`trace_id`)
+) ENGINE=InnoDB AUTO_INCREMENT=481 DEFAULT CHARSET=utf8 COMMENT='事件跟踪';</code></pre> 
+<h4>2.3 切面类代码</h4> 
+<pre><code>package com.ruoyi.framework.aspectj;
+
+import com.alibaba.fastjson.JSON;
+import com.ruoyi.common.annotation.EventTrack;
+import com.ruoyi.common.config.RuoYiConfig;
+import com.ruoyi.common.core.domain.entity.SysUser;
+import com.ruoyi.common.utils.DateUtils;
+import com.ruoyi.common.utils.ServletUtils;
+import com.ruoyi.common.utils.ShiroUtils;
+import com.ruoyi.system.domain.EventTrackLog;
+import com.ruoyi.system.service.IEventTrackLogService;
+import org.aspectj.lang.JoinPoint;
+import org.aspectj.lang.ProceedingJoinPoint;
+import org.aspectj.lang.annotation.AfterReturning;
+import org.aspectj.lang.annotation.AfterThrowing;
+import org.aspectj.lang.annotation.Around;
+import org.aspectj.lang.annotation.Aspect;
+import org.aspectj.lang.annotation.Before;
+import org.aspectj.lang.annotation.Pointcut;
+import org.aspectj.lang.reflect.MethodSignature;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
+
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpSession;
+import java.lang.reflect.Method;
+import java.net.InetAddress;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
+
+/**
+ * author:
+ * 埋点切面
+ */
+@Aspect
+@Component
+public class EventTrackAspect {
+
+    //日志工厂获取日志对象
+    static Logger logger = LoggerFactory.getLogger(EventTrackAspect.class);
+
+    /** 排除敏感属性字段 */
+    public static final String[] EXCLUDE_PROPERTIES = { "password", "oldPassword", "newPassword", "confirmPassword" };
+
+    @Autowired
+    private IEventTrackLogService eventTrackLogService;
+
+    //startTime存放开始时间
+    private ThreadLocal&lt;Map&lt;String, Long &gt;&gt; startTime = new ThreadLocal&lt;&gt;();
+
+    //eventTrackLog日志访问对象
+    private ThreadLocal&lt;EventTrackLog&gt; eventTrackLog = new ThreadLocal&lt;&gt;();
+
+    //Controller层切点
+    @Pointcut("@annotation(com.ruoyi.common.annotation.EventTrack)")
+    public void controllerAspectse() {
+    }
+
+    //前置通知  用于拦截Controller层记录用户的操作
+    @Before("controllerAspectse()")
+    public void before(JoinPoint pjp) {
+        //方法调用之前初始化
+        EventTrackLog eventTrackLog = this.eventTrackLog.get();
+        eventTrackLog = new EventTrackLog();
+
+        Map&lt;String, Long&gt; map = new HashMap&lt;&gt;();
+        map.put("startTime",System.currentTimeMillis());
+        this.startTime.set(map);
+
+        logger.info("==============前置通知开始:记录用户的操作==============");
+        String currentTime = DateUtils.getTime();
+
+        logger.info("请求开始时间:" + currentTime);
+        eventTrackLog.setStartTime(new Date());
+        String resultString = "";
+
+        // 是否打日志 默认打
+        boolean isLog = true;
+        try {
+            MethodSignature signature = (MethodSignature) pjp.getSignature();
+            EventTrack eventTrack = signature.getMethod().getAnnotation(EventTrack.class);
+            //是否开启日志打印
+            isLog = eventTrack.isLog();
+            if(isLog){
+                //开始打印日志
+                HttpServletRequest request = ((ServletRequestAttributes) RequestContextHolder.getRequestAttributes()).getRequest();
+                HttpSession session = request.getSession();
+                String api = pjp.getTarget().getClass().getName() + "." + pjp.getSignature().getName();
+                logger.info("请求API：" + api);
+                eventTrackLog.setMethod(api);
+
+                String methodDescription = getControllerMethodDescription(pjp);
+                logger.info("方法描述：" + methodDescription);
+                eventTrackLog.setDescription(methodDescription);
+
+                String ipAddress = InetAddress.getLocalHost().toString().substring(InetAddress.getLocalHost().toString().lastIndexOf("/") + 1);
+                logger.info("请求ip："+ ipAddress);
+                eventTrackLog.setIpAddress(ipAddress);
+
+                String hostName = InetAddress.getLocalHost().getHostName();
+                logger.info("机器名：" + hostName);
+                eventTrackLog.setHostName(hostName);
+
+                Enumeration&lt;?&gt; enu = request.getParameterNames();
+                String params = "{";
+                while (enu.hasMoreElements()) {
+                    String paraName = (String) enu.nextElement();
+                    List&lt;String&gt; list = Arrays.asList(EXCLUDE_PROPERTIES);
+                    if(list.contains(paraName)) {
+                        continue;
+                    }
+
+                    params += "\"" + paraName + "\":\"" + request.getParameter(paraName) + "\",";
+                }
+                String methodParams = params + "}";
+                String substring = methodParams.substring(0, methodParams.length() - 2);
+                substring = substring + "}";
+                logger.info("方法参数：" + substring);
+                eventTrackLog.setReqParams(substring);
+
+                StringBuffer url = request.getRequestURL();
+                logger.info("URL：" + url);
+                eventTrackLog.setUrl(String.valueOf(url));
+            }
+        } catch (Exception e) {
+            StackTraceElement stackTraceElement2 = e.getStackTrace()[2];
+            String reason = "异常：【"+
+                    "类名："+stackTraceElement2.getClassName()+";"+
+                    "文件："+stackTraceElement2.getFileName()+";"+"行："+
+                    stackTraceElement2.getLineNumber()+";"+"方法："
+                    +stackTraceElement2.getMethodName() + "】";
+            //记录本地异常日志
+            logger.error("==============前置通知异常:记录访问异常信息==============");
+            String message = e.getMessage() + "|" + reason;
+            logger.error("异常信息：",message);
+            eventTrackLog.setErrorMsg(message);
+            eventTrackLog.setResult("请求发生异常，异常信息：" + message);
+        }finally {
+            this.eventTrackLog.set(eventTrackLog);
+        }
+    }
+
+    @Around("controllerAspectse()")
+    public Object around(ProceedingJoinPoint pjp) throws Throwable {
+
+        // 获取方法签名
+        MethodSignature signature = (MethodSignature) pjp.getSignature();
+        EventTrack eventTrack = signature.getMethod().getAnnotation(EventTrack.class);
+        //是否开启日志打印
+        Boolean isLog = eventTrack.isLog();
+
+        EventTrackLog eventTrackLog = new EventTrackLog();
+
+        Long startTime = System.currentTimeMillis();
+
+        eventTrackLog.setStartTime(new Date());
+
+        try {
+
+            //开始打印日志
+            HttpServletRequest request = ((ServletRequestAttributes) RequestContextHolder.getRequestAttributes()).getRequest();
+            HttpSession session = request.getSession();
+            String api = pjp.getTarget().getClass().getName() + "." + pjp.getSignature().getName();
+            logger.info("请求API：" + api);
+            eventTrackLog.setMethod(api);
+
+            String methodDescription = getControllerMethodDescription(pjp);
+            logger.info("方法描述：" + methodDescription);
+            eventTrackLog.setDescription(methodDescription);
+
+            String ipAddress = InetAddress.getLocalHost().toString().substring(InetAddress.getLocalHost().toString().lastIndexOf("/") + 1);
+            logger.info("请求ip："+ ipAddress);
+            eventTrackLog.setIpAddress(ipAddress);
+
+            String hostName = InetAddress.getLocalHost().getHostName();
+            logger.info("机器名：" + hostName);
+            eventTrackLog.setHostName(hostName);
+
+            Enumeration&lt;?&gt; enu = request.getParameterNames();
+            String params = "{";
+            while (enu.hasMoreElements()) {
+                String paraName = (String) enu.nextElement();
+
+                List&lt;String&gt; list = Arrays.asList(EXCLUDE_PROPERTIES);
+                if(list.contains(paraName)) {
+                    continue;
+                }
+
+                params += "\"" + paraName + "\":\"" + request.getParameter(paraName) + "\",";
+            }
+            String methodParams = params + "}";
+            String substring = methodParams.substring(0, methodParams.length() - 2);
+            substring = substring + "}";
+            logger.info("方法参数：" + substring);
+            eventTrackLog.setReqParams(substring);
+
+            StringBuffer url = request.getRequestURL();
+            logger.info("URL：" + url);
+            eventTrackLog.setUrl(String.valueOf(url));
+
+        }catch (Exception e) {
+
+        }
+
+        Object proceed = pjp.proceed();
+        String result = JSON.toJSONString(proceed);
+        logger.info("==============环切方法执行完成==============");
+        logger.info("请求结果：" + result);
+
+        try {
+
+            Long endTime = System.currentTimeMillis();
+
+            Long timeSpan = endTime - startTime;
+            logger.info("timeSpan = " + timeSpan);
+
+            eventTrackLog.setTimeSpend(timeSpan);
+
+            eventTrackLog.setEndTime(new Date());
+
+            // 获取当前的用户
+            SysUser currentUser = ShiroUtils.getSysUser();
+
+            if(currentUser != null)
+            {
+                eventTrackLog.setUserName(currentUser.getLoginName());
+                eventTrackLog.setDeptName(currentUser.getDept().getDeptName());
+            }
+
+            // eventTrackLog.setSystemName("平台管理系统");
+            eventTrackLog.setSystemName(RuoYiConfig.getName());
+            // eventTrackLog.setModuleTitle("后台管理");
+
+
+
+            eventTrackLog.setStatus(0l);
+            eventTrackLog.setNumber(1L);
+
+            eventTrackLog.setModuleTitle(eventTrack.title());
+            eventTrackLog.setBusinessType(eventTrack.businessType().toString());
+
+            if(ServletUtils.checkAgentIsMobile(ServletUtils.getRequest().getHeader("User-Agent")))
+            {
+                eventTrackLog.setChannel("Mobile");
+            }
+            else {
+                eventTrackLog.setChannel("PC");
+            }
+
+            eventTrackLog.setCreateBy("around");
+            eventTrackLog.setCreateTime(new Date());
+
+
+        } catch (Exception e) {
+
+
+        } finally {
+
+            // 添加日志信息入库
+            eventTrackLogService.insertEventTrackLog(eventTrackLog);
+        }
+
+
+
+        return proceed;
+    }
+
+    /**
+     * 拦截异常操作
+     *
+     * @param joinPoint 切点
+     * @param ex 异常
+     */
+    @AfterThrowing(value = "@annotation(eventTrack)", throwing = "ex")
+    public void doAfterThrowing(JoinPoint joinPoint, EventTrack eventTrack, Exception ex)
+    {
+        logger.info("==============异常方法执行==============");
+        EventTrackLog eventTrackLog = this.eventTrackLog.get();
+
+        try {
+            //获取方法名
+            String methodName = joinPoint.getSignature().getName();
+
+            Long end = System.currentTimeMillis();
+            Long total =  end - startTime.get().get("startTime");
+            logger.info("执行总耗时为：" +total);
+
+            eventTrackLog = this.eventTrackLog.get();
+            eventTrackLog.setTimeSpend(total);
+            String endTime = DateUtils.getTime();
+            logger.info("请求结束时间:" + endTime);
+            eventTrackLog.setEndTime(new Date());
+
+            // 获取当前的用户
+            SysUser currentUser = ShiroUtils.getSysUser();
+
+            if(currentUser != null)
+            {
+                eventTrackLog.setUserName(currentUser.getLoginName());
+                eventTrackLog.setDeptName(currentUser.getDept().getDeptName());
+            }
+
+            // eventTrackLog.setSystemName("平台管理系统");
+            eventTrackLog.setSystemName(RuoYiConfig.getName());
+
+            // eventTrackLog.setModuleTitle("后台管理");
+
+            eventTrackLog.setStatus(2l);
+            eventTrackLog.setNumber(1L);
+
+            eventTrackLog.setExceptMsg(ex.getMessage());
+
+            eventTrackLog.setModuleTitle(eventTrack.title());
+            eventTrackLog.setBusinessType(eventTrack.businessType().toString());
+
+            if(ServletUtils.checkAgentIsMobile(ServletUtils.getRequest().getHeader("User-Agent")))
+            {
+                eventTrackLog.setChannel("Mobile");
+            }
+            else {
+                eventTrackLog.setChannel("PC");
+            }
+
+            eventTrackLog.setCreateBy("except");
+            eventTrackLog.setCreateTime(new Date());
+
+        } catch (Exception e) {
+            StackTraceElement stackTraceElement2 = e.getStackTrace()[2];
+            String reason = "异常：【"+
+                    "类名："+stackTraceElement2.getClassName()+";"+
+                    "文件："+stackTraceElement2.getFileName()+";"+"行："+
+                    stackTraceElement2.getLineNumber()+";"+"方法："
+                    +stackTraceElement2.getMethodName() + "】";
+            //记录本地异常日志
+            logger.error("==============通知异常:记录访问异常信息==============");
+            String message = e.getMessage() + "|" + reason;
+            logger.error("异常信息：",message);
+            eventTrackLog.setExceptMsg(message);
+            eventTrackLog.setResult("请求发生异常！！！");
+        } finally {
+            // 添加日志信息入库
+            eventTrackLogService.insertEventTrackLog(eventTrackLog);
+
+            // 处理使用结束，清理变量
+            this.eventTrackLog.remove();
+        }
+
+    }
+
+
+    /**
+     *
+     * @param jp
+     */
+
+    @AfterReturning(pointcut = "@annotation(eventTrack)", returning = "jsonResult")
+    public void afterMethod(JoinPoint jp, EventTrack eventTrack, Object jsonResult) {
+        logger.info("==============方法执行完成==============");
+        EventTrackLog eventTrackLog = this.eventTrackLog.get();
+        try {
+            //获取方法名
+            String methodName = jp.getSignature().getName();
+
+            Long end = System.currentTimeMillis();
+            Long total =  end - startTime.get().get("startTime");
+            logger.info("执行总耗时为：" +total);
+
+            eventTrackLog = this.eventTrackLog.get();
+            eventTrackLog.setTimeSpend(total);
+            String endTime = DateUtils.getTime();
+            logger.info("请求结束时间:" + endTime);
+            eventTrackLog.setEndTime(new Date());
+
+            // 获取当前的用户
+            SysUser currentUser = ShiroUtils.getSysUser();
+
+            if(currentUser != null)
+            {
+                eventTrackLog.setUserName(currentUser.getLoginName());
+                eventTrackLog.setDeptName(currentUser.getDept().getDeptName());
+            }
+
+            // eventTrackLog.setSystemName("平台管理系统");
+            eventTrackLog.setSystemName(RuoYiConfig.getName());
+            // eventTrackLog.setModuleTitle("后台管理");
+
+            eventTrackLog.setStatus(0l);
+            eventTrackLog.setNumber(1L);
+
+            eventTrackLog.setModuleTitle(eventTrack.title());
+            eventTrackLog.setBusinessType(eventTrack.businessType().toString());
+
+            if(ServletUtils.checkAgentIsMobile(ServletUtils.getRequest().getHeader("User-Agent")))
+            {
+                eventTrackLog.setChannel("Mobile");
+            }
+            else {
+                eventTrackLog.setChannel("PC");
+            }
+
+            eventTrackLog.setCreateBy("return");
+            eventTrackLog.setCreateTime(new Date());
+
+        } catch (Exception e) {
+            StackTraceElement stackTraceElement2 = e.getStackTrace()[2];
+            String reason = "异常：【"+
+                    "类名："+stackTraceElement2.getClassName()+";"+
+                    "文件："+stackTraceElement2.getFileName()+";"+"行："+
+                    stackTraceElement2.getLineNumber()+";"+"方法："
+                    +stackTraceElement2.getMethodName() + "】";
+            //记录本地异常日志
+            logger.error("==============通知异常:记录访问异常信息==============");
+            String message = e.getMessage() + "|" + reason;
+            logger.error("异常信息：",message);
+            eventTrackLog.setExceptMsg(message);
+            eventTrackLog.setResult("请求发生异常！！！");
+
+        } finally {
+            // this.eventTrackLog.set(eventTrackLog);
+            // 添加日志信息入库
+            eventTrackLogService.insertEventTrackLog(eventTrackLog);
+
+            // 处理使用结束，清理变量
+            this.eventTrackLog.remove();
+        }
+    }
+
+    /**
+     * 获取注解中对方法的描述信息 用于Controller层注解
+     */
+    public static String getControllerMethodDescription(JoinPoint joinPoint) throws Exception {
+        String targetName = joinPoint.getTarget().getClass().getName();
+        String methodName = joinPoint.getSignature().getName();//目标方法名
+        Object[] arguments = joinPoint.getArgs();
+        Class targetClass = Class.forName(targetName);
+        Method[] methods = targetClass.getMethods();
+        String description = "";
+        for (Method method:methods) {
+            if (method.getName().equals(methodName)){
+                Class[] clazzs = method.getParameterTypes();
+                if (clazzs.length==arguments.length){
+                    description = method.getAnnotation(EventTrack.class).description();
+                    break;
+                }
+            }
+        }
+        return description;
+    }
+
+}
+</code></pre> 
+<p>在切面类中，定义了前置通知和后置通知，前置通知记录方法调用的开始时间，后置通知包括正常返回和抛出异常两种情况，后置通知记录方法的结束时间，通过两个时间，就可以计算出方法的执行时间。另外一种方法是采用环切通知，执行前记录一次时间，执行后记录一次时间，因为在同一个方法内，不需要定义线程本地变量了。 </p> 
+<p>根据需要，两种方式选择一种就可以了。</p> 
+<h4>2.4 添加切面注解</h4> 
+<pre><code>@RequiresPermissions("system:user:list")
+@PostMapping("/list")
+@EventTrack(title = "用户管理", businessType = BusinessType.QUERY, description="查询用户")
+@ResponseBody
+public TableDataInfo list(SysUser user)
+{
+    startPage();
+    List&lt;SysUser&gt; list = userService.selectUserList(user);
+    return getDataTable(list);
+}</code></pre> 
+<p>在方法上添加注释：</p> 
+<blockquote> 
+ <p> @EventTrack(title = "用户管理", businessType = BusinessType.QUERY, description="查询用户")</p> 
+ <p>相关参数根据场景进行设置。</p> 
+</blockquote> 
+<h4>2.5 日志信息</h4> 
+<p><img alt="" height="188" src="https://images2.imgbox.com/8b/36/EAiJDSoA_o.png" width="1200"></p> 
+<p> 通过日志信息，可以看出每个操作所花费的时间，单位是毫秒。通过日志时间，也可以看出是什么时间进行的操作，通过操作人员，可以知道是谁操作的。还可以关联其它的业务信息，比如用户类型，用户所属机构等。</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/3df7298e0db012b1ec902b376f290923/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">对齐填充@Contended</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/b136d2367c52a11794f00cf390cf71b8/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">vue项目中统一格式的方法</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

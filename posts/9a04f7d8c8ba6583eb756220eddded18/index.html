@@ -1,0 +1,1174 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>索引红黑树的插入和删除实现 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/9a04f7d8c8ba6583eb756220eddded18/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="索引红黑树的插入和删除实现">
+  <meta property="og:description" content="思路：
+（1）插入： 根节点设置为黑色 插入节点初始为红色，先确定插入位置，当父节点为红色时需要调整。 由于需要保证root指向树的唯一入口，并且调整中的旋转会对root产生影响，所以调整时，需要分为： 1.插入节点的祖父节点是根节点 2.插入节点的祖父节点不是根节点 区别：是否需要回溯（将插入节点的祖父节点看做插入节点进行调整） 旋转调整： （1）兄弟节点是黑色或者为空时：需要旋转（参考AVL的LL型、RR型、LR型、RL型） （2）兄弟节点是红色时：变色不旋转 （2）查询： 根据关键字查询：直接比对数据即可 根据索引查询：利用leftsize计算节点在有序序列中的位置索引 （3）删除： 根据关键字删除，根据索引删除 先根据删除条件找到要删除的节点，删除之后进行调整。 如果删除节点是红色节点，则该节点要么是叶节点，要么度为2。 （原因：根据红黑树的性质：不会出现度为1的情况，因为如果度为1，不能出现连续红， 则唯一子节点一定是黑色，因为黑色路径长度相同的性质，所以不可能出现度为1的情况） 如果是叶节点，直接删除（设置为null即可） 否则寻找前驱节点（左子树中最右边的节点）进行替换 如果前驱节点是红色，直接删除 否则需要回溯 如果删除的是黑色节点，根据度进行调整： 1.度为2：找前驱节点进行替换，思路同上 2.度为1：则只可能有一个红色的子节点，直接替换删除即可 3.度为0，分情况： （1）兄弟节点为红色： 将父节点变红，兄弟节点变黑，旋转，继续回溯 （2）兄弟节点是黑色，远房侄子为红色： 将父节点和兄弟节点交换颜色，将远房侄子变成黑色，删除节点，旋转调整，不用回溯。 （3）兄弟节点是黑色，近邻侄子为红色： 将兄弟节点和近邻侄子节点交换颜色，旋转，调整，删除即可，不用回溯 （4）父节点为红色，兄弟节点为黑色，且兄弟节点是叶节点： 将父节点和兄弟节点交换颜色，直接删除，不用回溯 （5）除以上情况的情况：将兄弟节点变成红色，并回溯到父节点 总结：删除时看颜色的顺序：先看自己（真实删的节点），再看孩子，再看兄弟，再看侄子，最后看父亲 代码实现：
+1.节点类和索引红黑树类的声明：
+#include&amp;lt;iostream&amp;gt; #include&amp;lt;time.h&amp;gt; #include&amp;lt;queue&amp;gt; using namespace std; template&amp;lt;class k,class t&amp;gt; class note { public: pair&amp;lt;k, t&amp;gt;data; char color = &#39;r&#39;; int leftsize = 0;//用来标识该节点的左子树的节点数，也是该节点在以其为根节点的子树的索引 note&amp;lt;k, t&amp;gt;* leftchild = NULL; note&amp;lt;k, t&amp;gt;* rightchild = NULL; note&amp;lt;k, t&amp;gt;* parent = NULL;//增加一个父节点，替换搜索父节点的开销 note&amp;lt;k, t&amp;gt;() = default; note&amp;lt;k, t&amp;gt;(pair&amp;lt;k, t&amp;gt;d); }; template&amp;lt;class k,class t&amp;gt; note&amp;lt;k, t&amp;gt;::note(pair&amp;lt;k, t&amp;gt;d) { data = d; } template&amp;lt;class k,class t&amp;gt; class indexedRedBlackTree {/*也是搜索树的性质（和第一题一样），只是每一个节点还有一个leftsize域*/ public: note&amp;lt;k, t&amp;gt;* root = NULL; //函数根据测试顺序排序： void insert(pair&amp;lt;k, t&amp;gt;p);//插入数对p void RR(bool isroot, note&amp;lt;k, t&amp;gt;* n, note&amp;lt;k, t&amp;gt;* temp, note&amp;lt;k, t&amp;gt;* tempfu, note&amp;lt;k, t&amp;gt;* tempfufu); void LL(bool isroot, note&amp;lt;k, t&amp;gt;* n, note&amp;lt;k, t&amp;gt;* temp, note&amp;lt;k, t&amp;gt;* tempfu,note&amp;lt;k, t&amp;gt;* tempfufu);//只负责旋转，不负责着色 void insertadjust(bool isroot, note&amp;lt;k, t&amp;gt;* n, note&amp;lt;k, t&amp;gt;* temp, note&amp;lt;k, t&amp;gt;* tempfu, note&amp;lt;k, t&amp;gt;* tempfufu); void ascend(note&amp;lt;k, t&amp;gt;* p);//按关键字升序输出所有数对 t find(k key);//返回关键字对应的数据 pair&amp;lt;k, t&amp;gt;get(int index);//返回第index个数对 void deleteindex(int index,pair&amp;lt;k,t&amp;gt;&amp;amp;x);//根据给定的索引，删除其数对 void deletekey(k key, t&amp;amp; x);//删除关键字为key的数对 void deletecommon(note&amp;lt;k,t&amp;gt;*temp,note&amp;lt;k,t&amp;gt;*tempfu); note&amp;lt;k, t&amp;gt;* case5(note&amp;lt;k, t&amp;gt;* d); }; 2.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2022-03-14T20:19:31+08:00">
+    <meta property="article:modified_time" content="2022-03-14T20:19:31+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">索引红黑树的插入和删除实现</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <p>思路：</p> 
+<pre><code>（1）插入：
+				根节点设置为黑色
+				插入节点初始为红色，先确定插入位置，当父节点为红色时需要调整。
+					由于需要保证root指向树的唯一入口，并且调整中的旋转会对root产生影响，所以调整时，需要分为：
+						1.插入节点的祖父节点是根节点
+						2.插入节点的祖父节点不是根节点
+						区别：是否需要回溯（将插入节点的祖父节点看做插入节点进行调整）
+					旋转调整：
+						（1）兄弟节点是黑色或者为空时：需要旋转（参考AVL的LL型、RR型、LR型、RL型）
+						（2）兄弟节点是红色时：变色不旋转
+（2）查询：
+			根据关键字查询：直接比对数据即可
+			根据索引查询：利用leftsize计算节点在有序序列中的位置索引
+（3）删除：
+				根据关键字删除，根据索引删除
+				先根据删除条件找到要删除的节点，删除之后进行调整。
+					如果删除节点是红色节点，则该节点要么是叶节点，要么度为2。
+						（原因：根据红黑树的性质：不会出现度为1的情况，因为如果度为1，不能出现连续红，
+						则唯一子节点一定是黑色，因为黑色路径长度相同的性质，所以不可能出现度为1的情况）
+						如果是叶节点，直接删除（设置为null即可）
+						否则寻找前驱节点（左子树中最右边的节点）进行替换
+							如果前驱节点是红色，直接删除
+							否则需要回溯
+					如果删除的是黑色节点，根据度进行调整：
+						1.度为2：找前驱节点进行替换，思路同上
+						2.度为1：则只可能有一个红色的子节点，直接替换删除即可
+						3.度为0，分情况：
+							（1）兄弟节点为红色：
+									将父节点变红，兄弟节点变黑，旋转，继续回溯
+							（2）兄弟节点是黑色，远房侄子为红色：
+									将父节点和兄弟节点交换颜色，将远房侄子变成黑色，删除节点，旋转调整，不用回溯。
+							（3）兄弟节点是黑色，近邻侄子为红色：
+									将兄弟节点和近邻侄子节点交换颜色，旋转，调整，删除即可，不用回溯
+							（4）父节点为红色，兄弟节点为黑色，且兄弟节点是叶节点：
+									将父节点和兄弟节点交换颜色，直接删除，不用回溯
+							（5）除以上情况的情况：将兄弟节点变成红色，并回溯到父节点
+				总结：删除时看颜色的顺序：先看自己（真实删的节点），再看孩子，再看兄弟，再看侄子，最后看父亲</code></pre> 
+<p>代码实现：</p> 
+<p>1.节点类和索引红黑树类的声明：</p> 
+<pre><code>#include&lt;iostream&gt;
+#include&lt;time.h&gt;
+#include&lt;queue&gt;
+using namespace std;
+template&lt;class k,class t&gt;
+class note
+{
+public:
+	pair&lt;k, t&gt;data;
+	char color = 'r';
+	int leftsize = 0;//用来标识该节点的左子树的节点数，也是该节点在以其为根节点的子树的索引
+	note&lt;k, t&gt;* leftchild = NULL;
+	note&lt;k, t&gt;* rightchild = NULL;
+	note&lt;k, t&gt;* parent = NULL;//增加一个父节点，替换搜索父节点的开销
+	note&lt;k, t&gt;() = default;
+	note&lt;k, t&gt;(pair&lt;k, t&gt;d);
+};
+template&lt;class k,class t&gt;
+note&lt;k, t&gt;::note(pair&lt;k, t&gt;d) {
+	data = d;
+}
+template&lt;class k,class t&gt;
+class indexedRedBlackTree
+{/*也是搜索树的性质（和第一题一样），只是每一个节点还有一个leftsize域*/
+public:
+	note&lt;k, t&gt;* root = NULL;
+	//函数根据测试顺序排序：
+	void insert(pair&lt;k, t&gt;p);//插入数对p
+	void RR(bool isroot, note&lt;k, t&gt;* n, note&lt;k, t&gt;* temp, note&lt;k, t&gt;* tempfu, note&lt;k, t&gt;* tempfufu);
+	void LL(bool isroot, note&lt;k, t&gt;* n, note&lt;k, t&gt;* temp, note&lt;k, t&gt;* tempfu,note&lt;k, t&gt;* tempfufu);//只负责旋转，不负责着色
+	void insertadjust(bool isroot, note&lt;k, t&gt;* n, note&lt;k, t&gt;* temp, note&lt;k, t&gt;* tempfu, note&lt;k, t&gt;* tempfufu);
+	void ascend(note&lt;k, t&gt;* p);//按关键字升序输出所有数对
+	t find(k key);//返回关键字对应的数据
+	pair&lt;k, t&gt;get(int index);//返回第index个数对
+	void deleteindex(int index,pair&lt;k,t&gt;&amp;x);//根据给定的索引，删除其数对
+	void deletekey(k key, t&amp; x);//删除关键字为key的数对
+	void deletecommon(note&lt;k,t&gt;*temp,note&lt;k,t&gt;*tempfu);
+	note&lt;k, t&gt;* case5(note&lt;k, t&gt;* d);
+};</code></pre> 
+<p>2.插入和旋转实现：</p> 
+<pre><code>template&lt;class k,class t&gt;
+void indexedRedBlackTree&lt;k, t&gt;::insert(pair&lt;k, t&gt;p) //参数：要插入节点的data
+{
+	if (root == NULL) //根节点颜色为黑色：
+	{
+		note&lt;k, t&gt;* n = new note&lt;k, t&gt;(p);/*n-&gt;data = p;*/
+		root = n;
+		root-&gt;color = 'b';
+	}
+	else//注：搜索树都是插入到叶节点处，所以刚开始的leftsize都是0，旋转之后再进行调整
+	{
+		//寻找要进行插入的位置，以及父节点，祖父节点，祖先节点：
+		queue&lt;note&lt;k, t&gt;*&gt;q; //保存插入节点在其的左子树中的路径节点，维护leftsize
+		note&lt;k, t&gt;* temp = root; //插入节点的父节点
+		note&lt;k, t&gt;* tempfu = root;//temp的父节点
+		note&lt;k, t&gt;* tempfufu = root;//temp的祖父节点
+		while (true)
+		{
+			if (p.first == temp-&gt;data.first)
+			{
+				cout &lt;&lt; p.first&lt;&lt;"节点已存在" &lt;&lt; endl;
+				return;
+			}
+			if (p.first &lt; temp-&gt;data.first)
+			{
+				q.push(temp);
+				if (temp-&gt;leftchild == NULL)
+				{
+					note&lt;k, t&gt;* n = new note&lt;k, t&gt;(p);
+					temp-&gt;leftchild = n;
+					n-&gt;parent = temp;
+					if (temp-&gt;color == 'r') //当出现连续红时，才需要调整
+					{
+						if (tempfu-&gt;data.first == root-&gt;data.first) //父节点是根节点
+						{
+							insertadjust(true, n, temp, tempfu, tempfufu);
+						}
+						else
+						{
+							insertadjust(false, n, temp, tempfu, tempfufu);
+						}
+					}
+					break;
+				}
+				else
+				{
+					tempfufu = tempfu;
+					tempfu = temp;
+					temp = temp-&gt;leftchild;
+				}
+			}
+			else
+			{
+				if (temp-&gt;rightchild==NULL)
+				{
+					note&lt;k, t&gt;* n = new note&lt;k, t&gt;(p);
+					temp-&gt;rightchild = n;
+					n-&gt;parent = temp;
+					if (temp-&gt;color == 'r')
+					{
+						if (tempfu-&gt;data.first == root-&gt;data.first)
+						{
+							insertadjust(true, n, temp, tempfu, tempfufu);
+						}
+						else
+						{
+							insertadjust(false, n, temp, tempfu, tempfufu);
+						}
+					}
+					break;
+				}
+				else
+				{
+					tempfufu = tempfu;
+					tempfu = temp;
+					temp = temp-&gt;rightchild;
+				}
+			}
+		}
+		//更新队列中保存节点的leftsize值：
+		while (!q.empty())
+		{
+			temp= q.front();
+			q.pop();
+			temp-&gt;leftsize++;
+		}
+	}
+}
+template&lt;class k, class t&gt;
+void indexedRedBlackTree&lt;k, t&gt;::insertadjust(bool isroot, note&lt;k, t&gt;* n, note&lt;k, t&gt;* temp, note&lt;k, t&gt;* tempfu, note&lt;k, t&gt;* tempfufu)
+{	/*
+	函数作用：调整出现的连续红
+	参数：tempfu是否是根节点，插入节点，插入节点的父节点A，A的父节点，A的祖父节点（要考虑四代）
+	*/
+	if (isroot)//表示tempfu是根节点，即插入节点的祖父节点是根节点
+	{
+		//左子树：
+		if (temp-&gt;data.first &lt; root-&gt;data.first)
+		{
+			//兄弟节点是黑色或者为空时：旋转，调色
+			if (root-&gt;rightchild == NULL || root-&gt;rightchild-&gt;color == 'b')
+			{	
+				//LL型：对tempfu进行LL旋转
+				if (n-&gt;data.first &lt; temp-&gt;data.first)
+				{
+					LL(true, n, temp, tempfu,tempfufu);//旋转后需要自己进行调色
+					root-&gt;rightchild-&gt;leftsize -= root-&gt;leftsize + 1;//因为是原本的根节点被放到了右子树，且因为LL，根节点被放入了队列中，要把后续对leftsize的调整也减去。
+				}
+				//LR型：先对temp进行RR旋转，再对tempfu进行LL旋转（参数顺序可画图理解）：
+				else
+				{
+					RR(false, NULL, n, temp, tempfu);
+					LL(true, temp, n, tempfu,tempfufu);
+					root-&gt;leftsize += root-&gt;leftchild-&gt;leftsize + 1;
+					root-&gt;rightchild-&gt;leftsize -= root-&gt;leftsize + 1;
+				}
+				root-&gt;color = 'b';
+				root-&gt;leftchild-&gt;color = root-&gt;rightchild-&gt;color = 'r'; 
+			}
+			//兄弟节点是红色时：变色不旋转,不旋转则leftsize可以不用变:
+			else
+			{
+				root-&gt;leftchild-&gt;color = root-&gt;rightchild-&gt;color = 'b';
+			}
+		}
+		//右子树：
+		else
+		{
+			//兄弟节点是黑色或者为空时：需要旋转
+			if (root-&gt;leftchild == NULL || root-&gt;leftchild-&gt;color == 'b') 
+			{
+				//RR型：
+				if (n-&gt;data.first &gt; temp-&gt;data.first)
+				{
+					RR(true, n, temp, tempfu, tempfufu);
+				}
+				//RL型：
+				else
+				{
+					LL(false, NULL, n, temp,tempfu);
+					RR(true, temp, n, tempfu, tempfufu);
+				}
+				root-&gt;leftsize += root-&gt;leftchild-&gt;leftsize+1;
+				root-&gt;color = 'b';
+				root-&gt;leftchild-&gt;color = root-&gt;rightchild-&gt;color = 'r';
+			}
+			//兄弟节点是红色时：变色不旋转,不旋转则leftsize可以不用变：
+			else
+			{
+				root-&gt;leftchild-&gt;color = root-&gt;rightchild-&gt;color = 'b';
+			}
+		}
+	}
+	else
+	{
+		//判断哪一边是兄弟：
+		if (temp-&gt;data.first &lt; tempfu-&gt;data.first)
+		{
+			//对于兄弟节点为空或是黑色：需要旋转：
+			if (tempfu-&gt;rightchild == NULL || tempfu-&gt;rightchild-&gt;color == 'b')
+			{	
+				//LL型：
+				if (n-&gt;data.first &lt; temp-&gt;data.first)
+				{
+					LL(false, n, temp, tempfu,tempfufu);
+					if (tempfu-&gt;data.first &gt; tempfufu-&gt;data.first)
+					{
+						tempfufu-&gt;rightchild-&gt;rightchild-&gt;leftsize -= tempfufu-&gt;rightchild-&gt;leftsize + 2;
+					}
+					else
+					{
+						tempfufu-&gt;leftchild-&gt;rightchild-&gt;leftsize -= tempfufu-&gt;leftchild-&gt;leftsize + 2;
+					}
+				}
+				//LR型：
+				else
+				{
+					RR(false, NULL, n, temp, tempfu);
+					LL(false, temp, n, tempfu,tempfufu);
+					if (n-&gt;data.first &gt; tempfufu-&gt;data.first)
+					{
+						tempfufu-&gt;rightchild-&gt;leftsize += tempfufu-&gt;rightchild-&gt;leftchild-&gt;leftsize + 1;
+						tempfufu-&gt;rightchild-&gt;rightchild-&gt;leftsize-= tempfufu-&gt;rightchild-&gt;leftchild-&gt;leftsize + 2;
+					}
+					else
+					{
+						tempfufu-&gt;leftchild-&gt;leftsize += tempfufu-&gt;leftchild-&gt;leftchild-&gt;leftsize + 1;
+						tempfufu-&gt;leftchild-&gt;rightchild-&gt;leftsize -= tempfufu-&gt;leftchild-&gt;leftchild-&gt;leftsize + 2;//这些等式不要随意改，因为都是想好才写的
+					}
+				}
+				if (tempfu-&gt;data.first &lt; tempfufu-&gt;data.first) 
+				{
+					tempfufu-&gt;leftchild-&gt;color = 'b';
+				}
+				else 
+				{
+					tempfufu-&gt;rightchild-&gt;color = 'b';
+				}
+				tempfufu-&gt;rightchild-&gt;leftchild-&gt;color = tempfufu-&gt;rightchild-&gt;rightchild-&gt;color = 'r';
+			}
+			//对于兄弟节点是红色的：变色不旋转，但需要回溯，注leftsize的调整只跟在旋转之后
+			else
+			{
+				tempfu-&gt;color = 'r';
+				tempfu-&gt;leftchild-&gt;color = tempfu-&gt;rightchild-&gt;color = 'b';
+				if (tempfufu-&gt;color == 'r')//表示其一定不是根节点,因为根节点是黑色的，所以可以寻找其父节点
+				{
+					note&lt;k, t&gt;* p = tempfufu-&gt;parent; 
+					note&lt;k, t&gt;* pfu = p-&gt;parent;
+					if(pfu==NULL){
+						insertadjust(true, tempfu, tempfufu, p, pfu);
+					}
+					else {
+						insertadjust(false, tempfu, tempfufu, p, pfu);
+					}
+				}
+			}
+		}
+		else
+		{
+			//对于兄弟节点为空或是黑色：需要旋转：
+			if (tempfu-&gt;leftchild == NULL || tempfu-&gt;leftchild-&gt;color == 'b')
+			{
+				//RR型:对tempfu进行RR旋转
+				if (n-&gt;data.first &gt; temp-&gt;data.first)
+				{
+					RR(false, n, temp, tempfu, tempfufu);
+				}
+				//RL型:对temp进行LL旋转，对tempfu进行RR旋转
+				else
+				{
+					LL(false, NULL, n, temp,tempfu);
+					RR(false, temp, n, tempfu, tempfufu);
+					if (tempfu-&gt;data.first &lt; tempfufu-&gt;data.first)
+					{
+						tempfufu-&gt;leftchild-&gt;rightchild-&gt;leftsize--;
+					}
+					else
+					{
+						tempfufu-&gt;rightchild-&gt;rightchild-&gt;leftsize--;
+					}
+				}
+				if (tempfu-&gt;data.first &lt; tempfufu-&gt;data.first)
+				{
+					tempfufu-&gt;leftchild-&gt;leftsize += tempfufu-&gt;leftchild-&gt;leftchild-&gt;leftsize + 1;
+					tempfufu-&gt;leftchild-&gt;color = 'b';
+					tempfufu-&gt;leftchild-&gt;leftchild-&gt;color = tempfufu-&gt;leftchild-&gt;rightchild-&gt;color = 'r';
+				}
+				else
+				{
+					tempfufu-&gt;rightchild-&gt;color = 'b';
+					tempfufu-&gt;rightchild-&gt;leftchild-&gt;color = tempfufu-&gt;rightchild-&gt;rightchild-&gt;color = 'r';
+					tempfufu-&gt;rightchild-&gt;leftsize += tempfufu-&gt;rightchild-&gt;leftchild-&gt;leftsize + 1;
+				}
+			}
+			//对于兄弟节点是红色的：变色不旋转，但需要递归回溯，注leftsize的调整只跟在旋转之后
+			else
+			{
+				tempfu-&gt;color = 'r';
+				tempfu-&gt;leftchild-&gt;color = tempfu-&gt;rightchild-&gt;color = 'b';
+				if (tempfufu-&gt;color == 'r')//表示其一定不是根节点,因为根节点是黑色的，所以可以寻找其父节点
+				{
+					note&lt;k, t&gt;* p = tempfufu-&gt;parent;
+					note&lt;k, t&gt;* pfu = p-&gt;parent;
+					if (pfu == NULL) {
+						insertadjust(true, tempfu, tempfufu, p, pfu);
+					}
+					else {
+						insertadjust(false, tempfu, tempfufu, p, pfu);
+					}
+				}
+			}
+		}
+	}
+}
+template&lt;class k, class t&gt;
+void indexedRedBlackTree&lt;k, t&gt;::LL(bool isroot, note&lt;k, t&gt;* n, note&lt;k, t&gt;* temp,  note&lt;k, t&gt;* tempfu,note&lt;k, t&gt;* tempfufu)
+{	/*
+		函数作用：调整LL型，只负责旋转，不负责着色
+		参数：tempfu是否是根节点，插入的节点，插入节点的父节点temp，temp的父节点，temp的祖父节点
+	*/
+	if (isroot)
+	{
+		root = temp;
+		root-&gt;parent = NULL;//根节点的父节点为null，否则会陷入死循环
+	}
+	else
+	{
+		if (tempfu-&gt;data.first &lt; tempfufu-&gt;data.first)//在左子树上
+		{
+			tempfufu-&gt;leftchild = temp;
+		}
+		else
+		{
+			tempfufu-&gt;rightchild = temp;
+		}
+		temp-&gt;parent = tempfufu;
+	}
+	if (temp-&gt;rightchild != NULL)
+	{
+		tempfu-&gt;leftchild = temp-&gt;rightchild;
+		tempfu-&gt;leftchild-&gt;parent = tempfu;
+	}
+	else {
+		tempfu-&gt;leftchild = NULL;
+	}
+	temp-&gt;rightchild = tempfu;
+	tempfu-&gt;parent = temp;
+}
+template&lt;class k, class t&gt;
+void indexedRedBlackTree&lt;k, t&gt;::RR(bool isroot, note&lt;k, t&gt;* n, note&lt;k, t&gt;* temp, note&lt;k, t&gt;* tempfu,note&lt;k, t&gt;* tempfufu)
+{	/*
+	函数作用：调整RR型，只负责旋转，不负责着色
+	参数：tempfu是否是根节点，插入的节点，插入节点的父节点temp，temp的父节点，temp的祖父节点
+	*/
+	if (isroot)
+	{
+		root = temp;
+		root-&gt;parent = NULL;
+	}
+	else
+	{
+		if (tempfu-&gt;data.first &lt; tempfufu-&gt;data.first)
+		{
+			tempfufu-&gt;leftchild = temp;
+		}
+		else
+		{
+			tempfufu-&gt;rightchild = temp;
+		}
+		temp-&gt;parent = tempfufu;
+	}
+	if (temp-&gt;leftchild != NULL)
+	{
+		tempfu-&gt;rightchild = temp-&gt;leftchild;
+		tempfu-&gt;rightchild-&gt;parent = tempfu;
+	}
+	else {
+		tempfu-&gt;rightchild = NULL;
+	}
+	temp-&gt;leftchild = tempfu;
+	tempfu-&gt;parent = temp;
+}</code></pre> 
+<p>3.中序遍历输出：</p> 
+<pre><code>template&lt;class k, class t&gt;
+void indexedRedBlackTree&lt;k, t&gt;::ascend(note&lt;k, t&gt;* p)//递归中序输出：注递归的基础：基础条件，递归条件，不要写循环，因为递归本身就有循环的性质
+{
+	if (p == NULL)
+	{
+		return;
+	}
+	ascend(p-&gt;leftchild);
+	cout &lt;&lt; "(" &lt;&lt; p-&gt;data.first &lt;&lt; "," &lt;&lt; p-&gt;data.second &lt;&lt; "),颜色为" &lt;&lt; p-&gt;color &lt;&lt;"索引为："&lt;&lt;p-&gt;leftsize&lt;&lt; endl;
+	ascend(p-&gt;rightchild);
+}</code></pre> 
+<p>4.查询实现：</p> 
+<pre><code>template&lt;class k, class t&gt;
+t indexedRedBlackTree&lt;k, t&gt;::find(k key)
+{
+	note&lt;k, t&gt;* temp = root;
+	while (temp != NULL)
+	{
+		if (key == temp-&gt;data.first)
+		{
+			return temp-&gt;data.second;
+		}
+		if (key &lt; temp-&gt;data.first)
+		{
+			if (temp-&gt;leftchild == NULL)
+			{
+				cout &lt;&lt; "对应节点不存在" &lt;&lt; endl;
+				return NULL;
+			}
+			temp = temp-&gt;leftchild;
+		}
+		else
+		{
+			if (temp-&gt;rightchild == NULL)
+			{
+				cout &lt;&lt; "对应节点不存在" &lt;&lt; endl;
+				return NULL;
+			}
+			temp = temp-&gt;rightchild;
+		}
+	}
+	return NULL;
+}
+template&lt;class k,class t&gt;
+pair&lt;k,t&gt;indexedRedBlackTree&lt;k, t&gt;::get(int index)//返回第index个数对
+{
+	if (index &lt; 0)
+	{
+		cout &lt;&lt; "索引不可为负数" &lt;&lt; endl;
+		throw _invalid_parameter;
+	}
+	note&lt;k, t&gt;* temp = root;
+	while (true)
+	{
+		if (index == temp-&gt;leftsize) //由此处判定从0开始计数
+		{
+			return temp-&gt;data;
+		}
+		if (index &lt; temp-&gt;leftsize)
+		{
+			temp = temp-&gt;leftchild;
+		}
+		else
+		{
+			index -= temp-&gt;leftsize + 1;
+			if (temp-&gt;rightchild == NULL)//在左边的一定可以找到，右边的不一定
+			{
+				cout &lt;&lt; "索引超出可查找范围" &lt;&lt; endl;
+				throw _invalid_parameter;
+			}
+			temp = temp-&gt;rightchild;
+		}
+	}
+}</code></pre> 
+<p>5.删除实现：</p> 
+<pre><code>template&lt;class k,class t&gt;
+void indexedRedBlackTree&lt;k, t&gt;::deletekey(k key, t&amp; x)
+{
+	note&lt;k, t&gt;* temp = root;
+	note&lt;k, t&gt;* tempfu = root;
+	queue&lt;note&lt;k, t&gt;*&gt;q;
+	//寻找要删除的节点以及其父节点：
+	while (temp != NULL)
+	{
+		if (temp-&gt;data.first == key)
+		{
+			x = temp-&gt;data.second;
+			break;
+		}
+		else if (key &lt; temp-&gt;data.first)
+		{
+			if (temp-&gt;leftchild == NULL)
+			{
+				cout &lt;&lt; "未找到要删除的节点" &lt;&lt; endl;
+				return;
+			}
+			q.push(temp); //因为删除需要维护leftsize
+			tempfu = temp;
+			temp = temp-&gt;leftchild;
+		}
+		else
+		{
+			if (temp-&gt;rightchild == NULL)
+			{
+				cout &lt;&lt; "未找到要删除的节点" &lt;&lt; endl;
+				return;
+			}
+			tempfu = temp;
+			temp = temp-&gt;rightchild;
+		}
+	}
+	deletecommon(temp, tempfu);
+	while (!q.empty())
+	{
+		note&lt;k, t&gt;* pp = q.front();
+		q.pop();
+		pp-&gt;leftsize--;
+	}
+}
+template&lt;class k,class t&gt;
+void indexedRedBlackTree&lt;k, t&gt;::deletecommon(note&lt;k, t&gt;* temp,note&lt;k, t&gt;* tempfu)//此函数中有关旋转的后面需要进行调整
+{	/*
+	函数作用：删除节点
+	参数：要删除的节点temp，删除节点的父节点
+	*///只有黑色叶节点的情况中跳出循环的情况需要调整左子域？？
+	pair&lt;k, t&gt;w = temp-&gt;data;//用w保存真实删除节点的值
+	if (temp-&gt;color == 'r')
+	{
+		//删除红色叶节点：
+		if (temp-&gt;leftchild == NULL &amp;&amp; temp-&gt;rightchild == NULL)
+		{
+			if (temp-&gt;data.first &lt; tempfu-&gt;data.first)
+			{
+				tempfu-&gt;leftchild = NULL;
+			}
+			else
+			{
+				tempfu-&gt;rightchild = NULL;
+			}
+		}
+		//删除有两个孩子节点的红节点,要看替换节点的颜色：找到前驱节点进行替换
+		else if (temp-&gt;leftchild != NULL &amp;&amp; temp-&gt;rightchild != NULL)
+		{	//对于左孩子节点的右子树为空的情况
+			if (temp-&gt;leftchild-&gt;rightchild == NULL)
+			{
+				if (temp-&gt;leftchild-&gt;leftchild != NULL) //直接把左孩子替换掉
+				{
+						temp-&gt;data = temp-&gt;leftchild-&gt;data;
+						temp-&gt;leftchild = temp-&gt;leftchild-&gt;leftchild;
+						temp-&gt;leftchild-&gt;color = 'b'; 
+						return;
+				}
+				else//即实际删除的是黑色的叶节点：需要回溯调整
+				{
+					w = temp-&gt;leftchild-&gt;data; 
+					tempfu = temp;
+					temp = temp-&gt;leftchild;//需要进行后面的调整
+				}
+			}
+			//寻找左孩子的右子树中最右边的孩子节点：
+			else
+			{
+				note&lt;k, t&gt;* p2 = temp-&gt;leftchild;
+				note&lt;k, t&gt;* pfu = temp;
+				while (p2-&gt;rightchild != NULL)
+				{
+					pfu = p2;
+					p2 = p2-&gt;rightchild;
+				}
+				//替换：
+				temp-&gt;data = p2-&gt;data;
+				if (p2-&gt;color == 'r') 
+				{
+					pfu-&gt;rightchild = NULL;
+					return;
+				}
+				else
+				{
+					if (p2-&gt;leftchild != NULL)
+					{
+						pfu-&gt;rightchild = p2-&gt;leftchild;
+						pfu-&gt;rightchild-&gt;color = 'b';
+						return;
+					}
+					else
+					{
+						tempfu = pfu;
+						temp = p2;//即实际删除的是黑色的叶节点
+					}
+				}
+			}
+		}
+	}
+	if (temp-&gt;color == 'b')//删除的是黑节点,此处不可改为else，因为前一个if如果没有return，则此处还可进行一次调整
+	{
+		//有两个子节点的：
+		if (temp-&gt;leftchild != NULL &amp;&amp; temp-&gt;rightchild != NULL)
+		{
+			//是要找到替换节点，根据替换节点的颜色来判断是否需要继续调整
+			if (temp-&gt;leftchild-&gt;rightchild == NULL)
+			{
+				//红色节点：删了之后不用回溯
+				if (temp-&gt;leftchild-&gt;color == 'r')
+				{
+					temp-&gt;data = temp-&gt;leftchild-&gt;data;
+					if (temp-&gt;leftchild-&gt;leftchild != NULL)
+					{
+						temp-&gt;leftchild = temp-&gt;leftchild-&gt;leftchild;
+					}
+					else
+					{
+						temp-&gt;leftsize--;
+						temp-&gt;leftchild = NULL;
+					}
+					return;
+				}
+				//需要调整：结合此处的情况该删除的黑节点要么有一个左孩子（并且是红色），要么是一个叶节点
+				else
+				{
+					if (temp-&gt;leftchild-&gt;leftchild != NULL)
+					{
+						temp-&gt;data = temp-&gt;leftchild-&gt;data;
+						temp-&gt;leftchild = temp-&gt;leftchild-&gt;leftchild;
+						temp-&gt;leftchild-&gt;color = 'b';
+						return;
+					}
+					else
+					{
+						tempfu = temp;
+						w = temp-&gt;leftchild-&gt;data;//即实际删除的是黑色的叶节点
+						temp = temp-&gt;leftchild;//转移temp为真实要删除的目标，进行后面的调整
+					}
+				}
+			}
+			else
+			{
+				note&lt;k, t&gt;* p2 = temp-&gt;leftchild;
+				note&lt;k, t&gt;* pfu = temp;
+				while (p2-&gt;rightchild != NULL)
+				{
+					pfu = p2;
+					p2 = p2-&gt;rightchild;
+				}
+				temp-&gt;data = p2-&gt;data;
+				if (p2-&gt;color == 'r')//直接删了即可
+				{
+                    temp-&gt;leftsize--;//此处做了修改
+					if (p2-&gt;leftchild != NULL)
+					{
+						pfu-&gt;rightchild = p2-&gt;leftchild;
+					}
+					else
+					{
+						pfu-&gt;rightchild = NULL;
+					}
+					return;
+				}
+				else
+				{
+					if (p2-&gt;leftchild != NULL)
+					{
+						pfu-&gt;rightchild = p2-&gt;leftchild;
+						pfu-&gt;rightchild-&gt;color = 'b';
+						return;
+					}
+					else
+					{
+						tempfu = pfu;
+						w = p2-&gt;data;
+						temp = p2;
+					}
+				}
+			}
+		}
+		//度=1：
+		if (temp-&gt;leftchild != NULL &amp;&amp; temp-&gt;rightchild == NULL || temp-&gt;leftchild == NULL &amp;&amp; temp-&gt;rightchild != NULL)
+		{//根据红黑树的性质，其有的那个子节点只可能是红色的
+			if (temp-&gt;data.first &lt; tempfu-&gt;data.first)
+			{
+				if (temp-&gt;leftchild != NULL)
+				{
+					tempfu-&gt;leftchild = temp-&gt;leftchild;
+				}
+				else
+				{
+					tempfu-&gt;leftchild = temp-&gt;rightchild;
+				}
+				tempfu-&gt;leftchild-&gt;color = 'b';
+			}
+			else
+			{
+				if (temp-&gt;leftchild != NULL)
+				{
+					tempfu-&gt;rightchild = temp-&gt;leftchild;
+				}
+				else
+				{
+					tempfu-&gt;rightchild = temp-&gt;rightchild;
+				}
+				tempfu-&gt;rightchild-&gt;color = 'b';
+			}
+		}
+		//删除叶节点：
+		else if (temp-&gt;leftchild == NULL &amp;&amp; temp-&gt;rightchild == NULL)
+		{
+			note&lt;k, t&gt;* begin = temp;
+			int change = 0;//用来记录进入下面的循环之后tempfu的是否发生了变化
+			//回溯：
+			while (begin-&gt;data.first != root-&gt;data.first)
+			{
+				if (begin-&gt;data.first &lt;tempfu-&gt;data.first)//d为左节点
+				{
+					//情况1：兄弟节点为红色：
+					if (tempfu-&gt;rightchild-&gt;color == 'r')
+					{
+						tempfu-&gt;color = 'r';
+						tempfu-&gt;rightchild-&gt;color = 'b';
+						if (tempfu-&gt;data.first == root-&gt;data.first)
+						{
+							RR(true, tempfu-&gt;rightchild-&gt;rightchild, tempfu-&gt;rightchild, tempfu, tempfu);
+						}																																											
+						else
+						{
+							note&lt;k, t&gt;* p = tempfu-&gt;parent;
+							RR(false, tempfu-&gt;rightchild-&gt;rightchild, tempfu-&gt;rightchild, tempfu, p);
+						}
+						continue;
+					}
+					//情况2：兄弟节点是黑色，远房侄子为红色：
+					else if (tempfu-&gt;rightchild-&gt;color == 'b' &amp;&amp; tempfu-&gt;rightchild-&gt;rightchild != NULL &amp;&amp; tempfu-&gt;rightchild-&gt;rightchild-&gt;color == 'r')
+					{
+						tempfu-&gt;rightchild-&gt;color = tempfu-&gt;color;
+						tempfu-&gt;color = 'b';
+						tempfu-&gt;rightchild-&gt;rightchild-&gt;color = 'b';
+						tempfu-&gt;leftchild = NULL;
+						if (tempfu-&gt;data.first == root-&gt;data.first)
+						{
+							RR(true, tempfu-&gt;rightchild-&gt;rightchild, tempfu-&gt;rightchild, tempfu, tempfu);
+							root-&gt;leftsize += root-&gt;leftchild-&gt;leftsize;//因为删除了一个节点就不加1了
+							root-&gt;leftchild-&gt;leftsize--;//因为删除了一个节点
+						}
+						else
+						{
+							note&lt;k, t&gt;* p = tempfu-&gt;parent;
+							RR(false, tempfu-&gt;rightchild-&gt;rightchild, tempfu-&gt;rightchild, tempfu, p);
+							note&lt;k, t&gt;* pp = tempfu-&gt;parent;
+							pp-&gt;leftsize += pp-&gt;leftchild-&gt;leftsize;
+							pp-&gt;leftchild-&gt;leftsize--;//因为删除了左边的一个节点
+						}
+						if (!change)
+						{
+							tempfu-&gt;data = w;
+						}
+						break;
+					}
+					//情况3：兄弟节点是黑色，近邻侄子为红色：
+					else if(tempfu-&gt;rightchild-&gt;color == 'b' &amp;&amp; tempfu-&gt;rightchild-&gt;leftchild != NULL &amp;&amp; tempfu-&gt;rightchild-&gt;leftchild-&gt;color == 'r')
+					{
+						//相当于RL型:
+						tempfu-&gt;rightchild-&gt;color = 'r';
+						tempfu-&gt;rightchild-&gt;leftchild-&gt;color = 'b';
+						LL(false, NULL, tempfu-&gt;rightchild-&gt;leftchild,tempfu-&gt;rightchild,tempfu );
+						tempfu-&gt;rightchild-&gt;color = tempfu-&gt;color;
+						tempfu-&gt;color = 'b';
+						tempfu-&gt;rightchild-&gt;rightchild-&gt;color = 'b';
+						tempfu-&gt;leftchild = NULL;
+						if (tempfu-&gt;data.first == root-&gt;data.first)
+						{
+							RR(true, tempfu-&gt;rightchild-&gt;rightchild, tempfu-&gt;rightchild, tempfu, tempfu);
+						}
+						else
+						{
+							note&lt;k, t&gt;* p = tempfu-&gt;parent;
+							RR(false, tempfu-&gt;rightchild-&gt;rightchild, tempfu-&gt;rightchild, tempfu, p);
+						}
+						//continue;
+						if (!change)
+						{
+							tempfu-&gt;data = w;
+						}//此处还需测试一下因为continue不用赋值，但break需要
+						break;
+					}
+					//情况4：父节点为红色，兄弟节点为黑色，且兄弟节点是叶节点：
+					else if (tempfu-&gt;color == 'r' &amp;&amp; tempfu-&gt;rightchild-&gt;color == 'b' &amp;&amp; tempfu-&gt;rightchild-&gt;leftchild == NULL &amp;&amp; tempfu-&gt;rightchild-&gt;rightchild == NULL)
+					{
+						tempfu-&gt;leftchild = NULL;
+						tempfu-&gt;color = 'b';
+						tempfu-&gt;rightchild-&gt;color = 'r';
+						if (!change)
+						{
+							tempfu-&gt;data = w;
+						}
+						break;
+					}
+					if (!change)
+					{
+						tempfu-&gt;data = w;
+					}
+					change = 1;
+					begin = case5(begin); //前4种情况都不是，则调用第五种情况
+					tempfu = begin-&gt;parent;
+					continue;
+				}
+				else //右节点
+				{
+					//情况1：兄弟节点为红色：
+					if (tempfu-&gt;leftchild-&gt;color == 'r')
+					{
+						tempfu-&gt;color = 'r';
+						tempfu-&gt;leftchild-&gt;color = 'b';
+						if (tempfu-&gt;data.first == root-&gt;data.first)
+						{
+							LL(true, tempfu-&gt;leftchild-&gt;leftchild, tempfu-&gt;leftchild, tempfu, tempfu);
+						}
+						else
+						{
+							note&lt;k, t&gt;* p = tempfu-&gt;parent;
+							LL(false, tempfu-&gt;leftchild-&gt;leftchild, tempfu-&gt;leftchild,tempfu,p );
+						}
+						continue;
+					}
+					//情况2：兄弟节点是黑色，远房侄子为红色：
+					else if (tempfu-&gt;leftchild-&gt;color == 'b' &amp;&amp; tempfu-&gt;leftchild-&gt;leftchild != NULL &amp;&amp; tempfu-&gt;leftchild-&gt;leftchild-&gt;color == 'r')
+					{
+						tempfu-&gt;leftchild-&gt;color = tempfu-&gt;color;
+						tempfu-&gt;rightchild = NULL;
+						tempfu-&gt;leftchild-&gt;leftchild-&gt;color = 'b';
+						tempfu-&gt;color = 'b';
+						if (tempfu-&gt;data.first == root-&gt;data.first)
+						{
+							LL(true, tempfu-&gt;leftchild-&gt;leftchild, tempfu-&gt;leftchild, tempfu, tempfu);
+							root-&gt;leftchild-&gt;leftsize -= root-&gt;leftsize + 1;
+						}
+						else
+						{
+							note&lt;k, t&gt;* p = tempfu-&gt;parent;
+							LL(false, tempfu-&gt;leftchild-&gt;leftchild, tempfu-&gt;leftchild, tempfu,p );
+							note&lt;k, t&gt;* ofu = tempfu-&gt;parent;
+							tempfu-&gt;leftsize -= ofu-&gt;leftsize + 1;
+						}
+						if (!change)
+						{
+							tempfu-&gt;data = w;
+						}
+						break;
+					}
+					//情况3：兄弟节点是黑色，近邻侄子为红色：
+					else if (tempfu-&gt;leftchild-&gt;color == 'b' &amp;&amp; tempfu-&gt;leftchild-&gt;rightchild != NULL &amp;&amp; tempfu-&gt;leftchild-&gt;rightchild-&gt;color == 'r')
+					{
+						//相当于LR型，但可能和插入时一样，后一步操作需要把n和temp的位置交换
+						tempfu-&gt;leftchild-&gt;color = 'r';
+						tempfu-&gt;leftchild-&gt;rightchild-&gt;color = 'b';
+						RR(false, NULL, tempfu-&gt;leftchild-&gt;rightchild, tempfu-&gt;leftchild, tempfu);
+						tempfu-&gt;leftchild-&gt;color = tempfu-&gt;color;
+						tempfu-&gt;rightchild = NULL;
+						tempfu-&gt;leftchild-&gt;leftchild-&gt;color = 'b';
+						tempfu-&gt;color = 'b';
+						if (tempfu-&gt;data.first == root-&gt;data.first)
+						{
+							LL(true, tempfu-&gt;leftchild-&gt;leftchild, tempfu-&gt;leftchild, tempfu, tempfu);
+						}
+						else
+						{
+							note&lt;k, t&gt;* p = tempfu-&gt;parent;
+							LL(false, tempfu-&gt;leftchild-&gt;leftchild, tempfu-&gt;leftchild, tempfu,p );
+						}
+						if (!change)
+						{
+							tempfu-&gt;data = w;
+						}
+						break;
+					}
+					//情况4：父节点为红色，兄弟节点为黑色，且兄弟节点是叶节点：
+					else if (tempfu-&gt;color == 'r')
+					{
+						tempfu-&gt;rightchild = NULL;
+						tempfu-&gt;color = 'b';
+						tempfu-&gt;leftchild-&gt;color = 'r';
+						if (!change)
+						{
+							tempfu-&gt;data = w;
+						}
+						break;
+					}
+					//情况5：
+					if (!change)
+					{
+						tempfu-&gt;data = w;
+					}
+					change = 1;
+					begin = case5(begin);
+					tempfu = begin-&gt;parent;
+					continue;
+				}
+			}
+		}
+	}
+}
+template&lt;class k, class t&gt;
+note&lt;k, t&gt;* indexedRedBlackTree&lt;k, t&gt;::case5(note&lt;k, t&gt;* d) //情况5：
+{
+	note&lt;k, t&gt;* p = d-&gt;parent;
+	if (p-&gt;leftchild-&gt;data.first == d-&gt;data.first)
+	{
+		p-&gt;rightchild-&gt;color = 'r';
+	}
+	else
+	{
+		p-&gt;leftchild-&gt;color = 'r';
+	}
+	return p;
+}
+template&lt;class k, class t&gt;
+void indexedRedBlackTree&lt;k, t&gt;::deleteindex(int index,pair&lt;k,t&gt;&amp;x)
+{
+	note&lt;k, t&gt;* temp = root;
+	note&lt;k, t&gt;* tempfu = root;
+	queue&lt;note&lt;k, t&gt;*&gt;q;
+	while (true)
+	{
+		if (temp-&gt;leftsize == index)
+		{
+			x = temp-&gt;data;
+			break;
+		}
+		if (index &lt; temp-&gt;leftsize)
+		{
+			q.push(temp);
+			tempfu = temp;
+			temp = temp-&gt;leftchild;
+		}
+		else
+		{
+			index -= temp-&gt;leftsize + 1;
+			tempfu = temp;
+			if (temp-&gt;rightchild == NULL)
+			{
+				cout &lt;&lt; "要删除的节点索引超出范围,删除失败" &lt;&lt; endl;
+				return;
+			}
+			temp = temp-&gt;rightchild;
+		}
+	}
+	deletecommon(temp, tempfu);//参数为删除节点及其父节点
+	while (!q.empty())//对路径上的节点的左子域进行调整
+	{
+		note&lt;k, t&gt;* pp = q.front();
+		q.pop();
+		pp-&gt;leftsize--;
+	}
+}</code></pre> 
+<p>6.主函数测试：</p> 
+<pre><code>int main()
+{	
+	int m,n,a,b,c; //c是用来输入操作序号的
+	cout &lt;&lt; "此程序会根据输入整数n产生长度为n的随机序列并形成红黑树，请输入测试次数:";
+	cin &gt;&gt; m;
+	for (int q = 0; q &lt; m; q++) {
+		cout&lt;&lt;"请输入n:";
+		cin &gt;&gt; n;
+		srand((unsigned int)time(0));
+		indexedRedBlackTree&lt;int, char&gt;rbt;
+		cout &lt;&lt; "生成的随机序列如下：" &lt;&lt; endl;
+		for (int i = 0; i &lt; n; i++)
+		{
+			a= rand() % 100;
+			b = rand() % 123;
+			while (!(b &gt;= 65 &amp;&amp; b &lt;= 90) &amp;&amp; !(b &gt;= 97 &amp;&amp; b &lt;= 122))
+			{
+				b = rand() % 123;
+			}
+			cout &lt;&lt;"("&lt;&lt; a &lt;&lt; ',' &lt;&lt; (char)b &lt;&lt;");";
+			pair&lt;int, char&gt;p(a, (char)b);
+			rbt.insert(p);
+		}
+		cout &lt;&lt; "中序遍历生成的红黑树如下" &lt;&lt; endl;
+		rbt.ascend(rbt.root);
+		while (true) {
+			cout &lt;&lt; "查询操作输入1，删除操作输入2，停止此次测试输入-1：";
+			cin &gt;&gt; c;
+			if (c == -1) {
+				break;
+			}
+			else if (c == 1) {
+				while (true)
+				{
+					cout &lt;&lt; "根据索引查询输入1；根据关键字查询输入2，停止查询输入-1:";
+					cin &gt;&gt; c;
+					if (c == -1) {
+						break;
+					}
+					else if (c == 1) {
+						cout &lt;&lt; "请输入索引(整数序号，从0开始计数)：";
+						cin &gt;&gt; c;
+						pair&lt;int, char&gt;k = rbt.get(c);
+						cout &lt;&lt; "索引对应数对为" &lt;&lt; k.first &lt;&lt; ',' &lt;&lt; k.second &lt;&lt; endl;
+					}
+					else if (c == 2) {
+						cout &lt;&lt; "请输入关键字（整数）:";
+						cin &gt;&gt; c;
+						char a = rbt.find(c);
+						cout &lt;&lt; "关键字对应的数据是:" &lt;&lt; a &lt;&lt; endl;
+					}
+					c = 0;//因为可能要查询的是-1；
+				}
+			}
+			else if (c == 2) {
+				char x;
+				pair&lt;int, char&gt; y;
+				while (c != -1)
+				{
+					cout &lt;&lt; "根据关键字删除节点输入1；根据索引删除节点输入2；停止删除输入-1：";
+					cin &gt;&gt; c;
+					if (c == -1) {
+						break;
+					}
+					else if (c == 1)
+					{
+						cout &lt;&lt; "请输入想删除的节点的关键字（整数）:";
+						cin &gt;&gt; c;
+						rbt.deletekey(c, x);
+						cout &lt;&lt; "所删除的关键字对应的数据是：" &lt;&lt; x &lt;&lt; endl;
+						cout &lt;&lt; "删除后树的形态是：" &lt;&lt; endl;
+						rbt.ascend(rbt.root);
+					}
+					else if (c == 2)
+					{
+						cout &lt;&lt; "请输入想删除的节点的索引:";
+						cin &gt;&gt; c;
+						rbt.deleteindex(c, y);
+						cout &lt;&lt; "所删除的索引对应的数据是：" &lt;&lt; y.first &lt;&lt; "," &lt;&lt; y.second &lt;&lt; endl;
+						cout &lt;&lt; "删除后树的形态是：" &lt;&lt; endl;
+						rbt.ascend(rbt.root);
+					}
+					c = 0;//因为可能要删除的是-1；
+				}
+			}
+		}
+	}
+	return 0;
+}</code></pre> 
+<p></p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/ea9fd23802b61cc2ed61f7f4ec06d761/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">ES elasticsearch 7.10安装部署</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/3addeb246812bfd47912c889b8f889f7/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">【Mysql索引】二叉树、红黑树、B树、B&#43;树</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

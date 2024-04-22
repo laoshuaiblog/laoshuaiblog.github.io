@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Spring Security 登录获取用户信息流程分析 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/276360d59512d3c32c8a2e6c1d30e075/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="Spring Security 登录获取用户信息流程分析">
+  <meta property="og:description" content="Spring Security 登录获取用户信息流程分析 Spring Security 登录获取用户信息方式SecurityContextHolder 简介 流程分析SecurityContextPersistenceFilter 核心源码HttpSessionSecurityContextRepository从 session 中获取 认证信息 SecurityContext将认证信息 SecurityContext 保存到 session 中 SecurityConfigurer 配置项configure(HttpSecurity http)configure(WebSecurity web) 参考 Spring Security 登录获取用户信息方式 如果使用了 Spring Security，当我们登录成功后，可以通过如下方式获取到当前登录用户信息：
+SecurityContextHolder.getContext().getAuthentication()
+在 Controller 的方法中，加入 Authentication 参数
+这两种办法，都可以获取到当前登录用户信息。
+SecurityContextHolder 简介 SecurityContextHolder 中的数据，本质上是保存在 ThreadLocal 中，ThreadLocal 的特点是存在它里边的数据，哪个线程存的，哪个线程才能访问到。
+流程分析 无论是 Spring Security 还是 Shiro，它的一系列功能其实都是由过滤器来完成的，在 Spring Security 中，有一些重要的过滤器比如 UsernamePasswordAuthenticationFilter 过滤器，在这个过滤器之前，还有一个过滤器就是 SecurityContextPersistenceFilter，请求在到达 UsernamePasswordAuthenticationFilter 之前都会先经过SecurityContextPersistenceFilter。
+我们在成功进行登录了之后，AbstractAuthenticationProcessingFilter#successfulAuthentication 中有这么一段代码，SecurityContextHolder.getContext().setAuthentication(authResult); 会将 Authentication 设置到 SecurityContext 中，后续 SecurityContextPersistenceFilter 会将 SecurityContext 保存到 session 中。">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2022-09-28T11:09:53+08:00">
+    <meta property="article:modified_time" content="2022-09-28T11:09:53+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">Spring Security 登录获取用户信息流程分析</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-github-gist">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <p></p> 
+<div class="toc"> 
+ <h4>Spring Security 登录获取用户信息流程分析</h4> 
+ <ul><li><ul><li><a href="#Spring_Security__1" rel="nofollow">Spring Security 登录获取用户信息方式</a></li><li><ul><li><a href="#SecurityContextHolder__10" rel="nofollow">SecurityContextHolder 简介</a></li></ul> 
+   </li><li><a href="#_14" rel="nofollow">流程分析</a></li><li><ul><li><a href="#SecurityContextPersistenceFilter__18" rel="nofollow">SecurityContextPersistenceFilter 核心源码</a></li><li><a href="#HttpSessionSecurityContextRepository_68" rel="nofollow">HttpSessionSecurityContextRepository</a></li><li><ul><li><a href="#_session___SecurityContext_69" rel="nofollow">从 session 中获取 认证信息 SecurityContext</a></li><li><a href="#_SecurityContext__session__130" rel="nofollow">将认证信息 SecurityContext 保存到 session 中</a></li></ul> 
+   </li></ul> 
+   </li><li><a href="#SecurityConfigurer__202" rel="nofollow">SecurityConfigurer 配置项</a></li><li><ul><li><a href="#configureHttpSecurity_http_207" rel="nofollow">configure(HttpSecurity http)</a></li><li><a href="#configureWebSecurity_web_211" rel="nofollow">configure(WebSecurity web)</a></li></ul> 
+   </li><li><a href="#_215" rel="nofollow">参考</a></li></ul> 
+ </li></ul> 
+</div> 
+<p></p> 
+<h3><a id="Spring_Security__1"></a>Spring Security 登录获取用户信息方式</h3> 
+<blockquote> 
+ <p>如果使用了 Spring Security，当我们登录成功后，可以通过如下方式获取到当前登录用户信息：</p> 
+</blockquote> 
+<ol><li> <p>SecurityContextHolder.getContext().getAuthentication()</p> </li><li> <p>在 Controller 的方法中，加入 Authentication 参数</p> </li></ol> 
+<blockquote> 
+ <p>这两种办法，都可以获取到当前登录用户信息。</p> 
+</blockquote> 
+<h4><a id="SecurityContextHolder__10"></a>SecurityContextHolder 简介</h4> 
+<p>SecurityContextHolder 中的数据，本质上是保存在 ThreadLocal 中，ThreadLocal 的特点是存在它里边的数据，哪个线程存的，哪个线程才能访问到。</p> 
+<h3><a id="_14"></a>流程分析</h3> 
+<p>无论是 Spring Security 还是 Shiro，它的一系列功能其实都是由过滤器来完成的，在 Spring Security 中，有一些重要的过滤器比如 UsernamePasswordAuthenticationFilter 过滤器，在这个过滤器之前，还有一个过滤器就是 SecurityContextPersistenceFilter，请求在到达 UsernamePasswordAuthenticationFilter 之前都会先经过SecurityContextPersistenceFilter。</p> 
+<blockquote> 
+ <p>我们在成功进行登录了之后，AbstractAuthenticationProcessingFilter#successfulAuthentication 中有这么一段代码，<code>SecurityContextHolder.getContext().setAuthentication(authResult);</code> 会将 Authentication 设置到 SecurityContext 中，后续 SecurityContextPersistenceFilter 会将 SecurityContext 保存到 session 中。</p> 
+</blockquote> 
+<h4><a id="SecurityContextPersistenceFilter__18"></a>SecurityContextPersistenceFilter 核心源码</h4> 
+<pre><code class="prism language-java"><span class="token keyword">static</span> <span class="token keyword">final</span> <span class="token class-name">String</span> FILTER_APPLIED <span class="token operator">=</span> <span class="token string">"__spring_security_scpf_applied"</span><span class="token punctuation">;</span>
+
+<span class="token comment">// 两个子类，这里我们看 HttpSessionSecurityContextRepository 实现类</span>
+<span class="token keyword">private</span> <span class="token class-name">SecurityContextRepository</span> repo<span class="token punctuation">;</span>
+
+<span class="token keyword">private</span> <span class="token keyword">void</span> <span class="token function">doFilter</span><span class="token punctuation">(</span><span class="token class-name">HttpServletRequest</span> request<span class="token punctuation">,</span> <span class="token class-name">HttpServletResponse</span> response<span class="token punctuation">,</span> <span class="token class-name">FilterChain</span> chain<span class="token punctuation">)</span>
+			<span class="token keyword">throws</span> <span class="token class-name">IOException</span><span class="token punctuation">,</span> <span class="token class-name">ServletException</span> <span class="token punctuation">{<!-- --></span>
+		<span class="token comment">// ensure that filter is only applied once per request</span>
+		<span class="token keyword">if</span> <span class="token punctuation">(</span>request<span class="token punctuation">.</span><span class="token function">getAttribute</span><span class="token punctuation">(</span>FILTER_APPLIED<span class="token punctuation">)</span> <span class="token operator">!=</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+			chain<span class="token punctuation">.</span><span class="token function">doFilter</span><span class="token punctuation">(</span>request<span class="token punctuation">,</span> response<span class="token punctuation">)</span><span class="token punctuation">;</span>
+			<span class="token keyword">return</span><span class="token punctuation">;</span>
+		<span class="token punctuation">}</span>
+		request<span class="token punctuation">.</span><span class="token function">setAttribute</span><span class="token punctuation">(</span>FILTER_APPLIED<span class="token punctuation">,</span> <span class="token class-name">Boolean</span><span class="token punctuation">.</span>TRUE<span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">.</span>forceEagerSessionCreation<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+			<span class="token class-name">HttpSession</span> session <span class="token operator">=</span> request<span class="token punctuation">.</span><span class="token function">getSession</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+			<span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">.</span>logger<span class="token punctuation">.</span><span class="token function">isDebugEnabled</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">&amp;&amp;</span> session<span class="token punctuation">.</span><span class="token function">isNew</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+				<span class="token keyword">this</span><span class="token punctuation">.</span>logger<span class="token punctuation">.</span><span class="token function">debug</span><span class="token punctuation">(</span><span class="token class-name">LogMessage</span><span class="token punctuation">.</span><span class="token function">format</span><span class="token punctuation">(</span><span class="token string">"Created session %s eagerly"</span><span class="token punctuation">,</span> session<span class="token punctuation">.</span><span class="token function">getId</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+			<span class="token punctuation">}</span>
+		<span class="token punctuation">}</span>
+		<span class="token class-name">HttpRequestResponseHolder</span> holder <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">HttpRequestResponseHolder</span><span class="token punctuation">(</span>request<span class="token punctuation">,</span> response<span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token comment">// 核心-从 session 中获取用户认证信息</span>
+		<span class="token class-name">SecurityContext</span> contextBeforeChainExecution <span class="token operator">=</span> <span class="token keyword">this</span><span class="token punctuation">.</span>repo<span class="token punctuation">.</span><span class="token function">loadContext</span><span class="token punctuation">(</span>holder<span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token keyword">try</span> <span class="token punctuation">{<!-- --></span>
+			<span class="token comment">// 保存到线程上线文中[SecurityContextHolder 内部的 SecurityContextHolderStrategy 有三种实现，默认使用的是 ThreadLocalSecurityContextHolderStrategy，而 ThreadLocalSecurityContextHolderStrategy 内部就是 ThreadLocal ]，所以后续就可以获取到用户认证信息了</span>
+			<span class="token class-name">SecurityContextHolder</span><span class="token punctuation">.</span><span class="token function">setContext</span><span class="token punctuation">(</span>contextBeforeChainExecution<span class="token punctuation">)</span><span class="token punctuation">;</span>
+			<span class="token keyword">if</span> <span class="token punctuation">(</span>contextBeforeChainExecution<span class="token punctuation">.</span><span class="token function">getAuthentication</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">==</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+				logger<span class="token punctuation">.</span><span class="token function">debug</span><span class="token punctuation">(</span><span class="token string">"Set SecurityContextHolder to empty SecurityContext"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+			<span class="token punctuation">}</span>
+			<span class="token keyword">else</span> <span class="token punctuation">{<!-- --></span>
+				<span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">.</span>logger<span class="token punctuation">.</span><span class="token function">isDebugEnabled</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+					<span class="token keyword">this</span><span class="token punctuation">.</span>logger
+							<span class="token punctuation">.</span><span class="token function">debug</span><span class="token punctuation">(</span><span class="token class-name">LogMessage</span><span class="token punctuation">.</span><span class="token function">format</span><span class="token punctuation">(</span><span class="token string">"Set SecurityContextHolder to %s"</span><span class="token punctuation">,</span> contextBeforeChainExecution<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+				<span class="token punctuation">}</span>
+			<span class="token punctuation">}</span>
+			chain<span class="token punctuation">.</span><span class="token function">doFilter</span><span class="token punctuation">(</span>holder<span class="token punctuation">.</span><span class="token function">getRequest</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> holder<span class="token punctuation">.</span><span class="token function">getResponse</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token punctuation">}</span>
+		<span class="token keyword">finally</span> <span class="token punctuation">{<!-- --></span>
+			<span class="token class-name">SecurityContext</span> contextAfterChainExecution <span class="token operator">=</span> <span class="token class-name">SecurityContextHolder</span><span class="token punctuation">.</span><span class="token function">getContext</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+			<span class="token comment">// Crucial removal of SecurityContextHolder contents before anything else.</span>
+			<span class="token class-name">SecurityContextHolder</span><span class="token punctuation">.</span><span class="token function">clearContext</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+			<span class="token comment">// 重新保存到 session 中</span>
+			<span class="token keyword">this</span><span class="token punctuation">.</span>repo<span class="token punctuation">.</span><span class="token function">saveContext</span><span class="token punctuation">(</span>contextAfterChainExecution<span class="token punctuation">,</span> holder<span class="token punctuation">.</span><span class="token function">getRequest</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> holder<span class="token punctuation">.</span><span class="token function">getResponse</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+			request<span class="token punctuation">.</span><span class="token function">removeAttribute</span><span class="token punctuation">(</span>FILTER_APPLIED<span class="token punctuation">)</span><span class="token punctuation">;</span>
+			<span class="token keyword">this</span><span class="token punctuation">.</span>logger<span class="token punctuation">.</span><span class="token function">debug</span><span class="token punctuation">(</span><span class="token string">"Cleared SecurityContextHolder to complete request"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token punctuation">}</span>
+	<span class="token punctuation">}</span>
+</code></pre> 
+<h4><a id="HttpSessionSecurityContextRepository_68"></a>HttpSessionSecurityContextRepository</h4> 
+<h5><a id="_session___SecurityContext_69"></a>从 session 中获取 认证信息 SecurityContext</h5> 
+<ol><li>获取 SecurityContext - 步骤1</li></ol> 
+<pre><code class="prism language-java"><span class="token annotation punctuation">@Override</span>
+<span class="token keyword">public</span> <span class="token class-name">SecurityContext</span> <span class="token function">loadContext</span><span class="token punctuation">(</span><span class="token class-name">HttpRequestResponseHolder</span> requestResponseHolder<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token class-name">HttpServletRequest</span> request <span class="token operator">=</span> requestResponseHolder<span class="token punctuation">.</span><span class="token function">getRequest</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token class-name">HttpServletResponse</span> response <span class="token operator">=</span> requestResponseHolder<span class="token punctuation">.</span><span class="token function">getResponse</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token class-name">HttpSession</span> httpSession <span class="token operator">=</span> request<span class="token punctuation">.</span><span class="token function">getSession</span><span class="token punctuation">(</span><span class="token boolean">false</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token comment">// 从 session 中获取 securityContext 实例，该接口只有一个实现就是 SecurityContextImpl，仅仅是保存和获取 Authentication 实例</span>
+    <span class="token class-name">SecurityContext</span> context <span class="token operator">=</span> <span class="token function">readSecurityContextFromSession</span><span class="token punctuation">(</span>httpSession<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>context <span class="token operator">==</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        context <span class="token operator">=</span> <span class="token function">generateNewContext</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">.</span>logger<span class="token punctuation">.</span><span class="token function">isTraceEnabled</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token keyword">this</span><span class="token punctuation">.</span>logger<span class="token punctuation">.</span><span class="token function">trace</span><span class="token punctuation">(</span><span class="token class-name">LogMessage</span><span class="token punctuation">.</span><span class="token function">format</span><span class="token punctuation">(</span><span class="token string">"Created %s"</span><span class="token punctuation">,</span> context<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+    <span class="token class-name">SaveToSessionResponseWrapper</span> wrappedResponse <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">SaveToSessionResponseWrapper</span><span class="token punctuation">(</span>response<span class="token punctuation">,</span> request<span class="token punctuation">,</span>
+            httpSession <span class="token operator">!=</span> <span class="token keyword">null</span><span class="token punctuation">,</span> context<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    requestResponseHolder<span class="token punctuation">.</span><span class="token function">setResponse</span><span class="token punctuation">(</span>wrappedResponse<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    requestResponseHolder<span class="token punctuation">.</span><span class="token function">setRequest</span><span class="token punctuation">(</span><span class="token keyword">new</span> <span class="token class-name">SaveToSessionRequestWrapper</span><span class="token punctuation">(</span>request<span class="token punctuation">,</span> wrappedResponse<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">return</span> context<span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<ol start="2"><li>获取 SecurityContext - 步骤2</li></ol> 
+<pre><code class="prism language-java"><span class="token keyword">private</span> <span class="token class-name">SecurityContext</span> <span class="token function">readSecurityContextFromSession</span><span class="token punctuation">(</span><span class="token class-name">HttpSession</span> httpSession<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>httpSession <span class="token operator">==</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">this</span><span class="token punctuation">.</span>logger<span class="token punctuation">.</span><span class="token function">trace</span><span class="token punctuation">(</span><span class="token string">"No HttpSession currently exists"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">return</span> <span class="token keyword">null</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token comment">// Session exists, so try to obtain a context from it.</span>
+    <span class="token class-name">Object</span> contextFromSession <span class="token operator">=</span> httpSession<span class="token punctuation">.</span><span class="token function">getAttribute</span><span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">.</span>springSecurityContextKey<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>contextFromSession <span class="token operator">==</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">.</span>logger<span class="token punctuation">.</span><span class="token function">isTraceEnabled</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token keyword">this</span><span class="token punctuation">.</span>logger<span class="token punctuation">.</span><span class="token function">trace</span><span class="token punctuation">(</span><span class="token class-name">LogMessage</span><span class="token punctuation">.</span><span class="token function">format</span><span class="token punctuation">(</span><span class="token string">"Did not find SecurityContext in HttpSession %s "</span>
+                    <span class="token operator">+</span> <span class="token string">"using the SPRING_SECURITY_CONTEXT session attribute"</span><span class="token punctuation">,</span> httpSession<span class="token punctuation">.</span><span class="token function">getId</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        <span class="token keyword">return</span> <span class="token keyword">null</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token comment">// We now have the security context object from the session.</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span><span class="token punctuation">(</span>contextFromSession <span class="token keyword">instanceof</span> <span class="token class-name">SecurityContext</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">this</span><span class="token punctuation">.</span>logger<span class="token punctuation">.</span><span class="token function">warn</span><span class="token punctuation">(</span><span class="token class-name">LogMessage</span><span class="token punctuation">.</span><span class="token function">format</span><span class="token punctuation">(</span>
+                <span class="token string">"%s did not contain a SecurityContext but contained: '%s'; are you improperly "</span>
+                        <span class="token operator">+</span> <span class="token string">"modifying the HttpSession directly (you should always use SecurityContextHolder) "</span>
+                        <span class="token operator">+</span> <span class="token string">"or using the HttpSession attribute reserved for this class?"</span><span class="token punctuation">,</span>
+                <span class="token keyword">this</span><span class="token punctuation">.</span>springSecurityContextKey<span class="token punctuation">,</span> contextFromSession<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">return</span> <span class="token keyword">null</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">.</span>logger<span class="token punctuation">.</span><span class="token function">isTraceEnabled</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">this</span><span class="token punctuation">.</span>logger<span class="token punctuation">.</span><span class="token function">trace</span><span class="token punctuation">(</span>
+                <span class="token class-name">LogMessage</span><span class="token punctuation">.</span><span class="token function">format</span><span class="token punctuation">(</span><span class="token string">"Retrieved %s from %s"</span><span class="token punctuation">,</span> contextFromSession<span class="token punctuation">,</span> <span class="token keyword">this</span><span class="token punctuation">.</span>springSecurityContextKey<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token keyword">else</span> <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">.</span>logger<span class="token punctuation">.</span><span class="token function">isDebugEnabled</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">this</span><span class="token punctuation">.</span>logger<span class="token punctuation">.</span><span class="token function">debug</span><span class="token punctuation">(</span><span class="token class-name">LogMessage</span><span class="token punctuation">.</span><span class="token function">format</span><span class="token punctuation">(</span><span class="token string">"Retrieved %s"</span><span class="token punctuation">,</span> contextFromSession<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token comment">// Everything OK. The only non-null return from this method.</span>
+    <span class="token keyword">return</span> <span class="token punctuation">(</span><span class="token class-name">SecurityContext</span><span class="token punctuation">)</span> contextFromSession<span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<h5><a id="_SecurityContext__session__130"></a>将认证信息 SecurityContext 保存到 session 中</h5> 
+<ol><li>保存 SecurityContext 到 session 中 - 1</li></ol> 
+<pre><code class="prism language-java"><span class="token annotation punctuation">@Override</span>
+<span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">saveContext</span><span class="token punctuation">(</span><span class="token class-name">SecurityContext</span> context<span class="token punctuation">,</span> <span class="token class-name">HttpServletRequest</span> request<span class="token punctuation">,</span> <span class="token class-name">HttpServletResponse</span> response<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token class-name">SaveContextOnUpdateOrErrorResponseWrapper</span> responseWrapper <span class="token operator">=</span> <span class="token class-name">WebUtils</span><span class="token punctuation">.</span><span class="token function">getNativeResponse</span><span class="token punctuation">(</span>response<span class="token punctuation">,</span>
+            <span class="token class-name">SaveContextOnUpdateOrErrorResponseWrapper</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token class-name">Assert</span><span class="token punctuation">.</span><span class="token function">state</span><span class="token punctuation">(</span>responseWrapper <span class="token operator">!=</span> <span class="token keyword">null</span><span class="token punctuation">,</span> <span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">-&gt;</span> <span class="token string">"Cannot invoke saveContext on response "</span> <span class="token operator">+</span> response
+            <span class="token operator">+</span> <span class="token string">". You must use the HttpRequestResponseHolder.response after invoking loadContext"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    responseWrapper<span class="token punctuation">.</span><span class="token function">saveContext</span><span class="token punctuation">(</span>context<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<ol start="2"><li>保存 SecurityContext 到 session 中 - 2</li></ol> 
+<pre><code class="prism language-java"><span class="token annotation punctuation">@Override</span>
+<span class="token keyword">protected</span> <span class="token keyword">void</span> <span class="token function">saveContext</span><span class="token punctuation">(</span><span class="token class-name">SecurityContext</span> context<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">final</span> <span class="token class-name">Authentication</span> authentication <span class="token operator">=</span> context<span class="token punctuation">.</span><span class="token function">getAuthentication</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token class-name">HttpSession</span> httpSession <span class="token operator">=</span> <span class="token keyword">this</span><span class="token punctuation">.</span>request<span class="token punctuation">.</span><span class="token function">getSession</span><span class="token punctuation">(</span><span class="token boolean">false</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token class-name">String</span> springSecurityContextKey <span class="token operator">=</span> <span class="token class-name">HttpSessionSecurityContextRepository</span><span class="token punctuation">.</span><span class="token keyword">this</span><span class="token punctuation">.</span>springSecurityContextKey<span class="token punctuation">;</span>
+    <span class="token comment">// See SEC-776</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>authentication <span class="token operator">==</span> <span class="token keyword">null</span>
+            <span class="token operator">||</span> <span class="token class-name">HttpSessionSecurityContextRepository</span><span class="token punctuation">.</span><span class="token keyword">this</span><span class="token punctuation">.</span>trustResolver<span class="token punctuation">.</span><span class="token function">isAnonymous</span><span class="token punctuation">(</span>authentication<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>httpSession <span class="token operator">!=</span> <span class="token keyword">null</span> <span class="token operator">&amp;&amp;</span> <span class="token keyword">this</span><span class="token punctuation">.</span>authBeforeExecution <span class="token operator">!=</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token comment">// SEC-1587 A non-anonymous context may still be in the session</span>
+            <span class="token comment">// SEC-1735 remove if the contextBeforeExecution was not anonymous</span>
+            httpSession<span class="token punctuation">.</span><span class="token function">removeAttribute</span><span class="token punctuation">(</span>springSecurityContextKey<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token keyword">this</span><span class="token punctuation">.</span>isSaveContextInvoked <span class="token operator">=</span> <span class="token boolean">true</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">.</span>logger<span class="token punctuation">.</span><span class="token function">isDebugEnabled</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span>authentication <span class="token operator">==</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                <span class="token keyword">this</span><span class="token punctuation">.</span>logger<span class="token punctuation">.</span><span class="token function">debug</span><span class="token punctuation">(</span><span class="token string">"Did not store empty SecurityContext"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+            <span class="token keyword">else</span> <span class="token punctuation">{<!-- --></span>
+                <span class="token keyword">this</span><span class="token punctuation">.</span>logger<span class="token punctuation">.</span><span class="token function">debug</span><span class="token punctuation">(</span><span class="token string">"Did not store anonymous SecurityContext"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+        <span class="token punctuation">}</span>
+        <span class="token keyword">return</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    httpSession <span class="token operator">=</span> <span class="token punctuation">(</span>httpSession <span class="token operator">!=</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token operator">?</span> httpSession <span class="token operator">:</span> <span class="token function">createNewSessionIfAllowed</span><span class="token punctuation">(</span>context<span class="token punctuation">,</span> authentication<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token comment">// If HttpSession exists, store current SecurityContext but only if it has</span>
+    <span class="token comment">// actually changed in this thread (see SEC-37, SEC-1307, SEC-1528)</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>httpSession <span class="token operator">!=</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token comment">// We may have a new session, so check also whether the context attribute</span>
+        <span class="token comment">// is set SEC-1561</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">contextChanged</span><span class="token punctuation">(</span>context<span class="token punctuation">)</span> <span class="token operator">||</span> httpSession<span class="token punctuation">.</span><span class="token function">getAttribute</span><span class="token punctuation">(</span>springSecurityContextKey<span class="token punctuation">)</span> <span class="token operator">==</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        	<span class="token comment">// 将 SecurityContext  保存到 session 中</span>
+            httpSession<span class="token punctuation">.</span><span class="token function">setAttribute</span><span class="token punctuation">(</span>springSecurityContextKey<span class="token punctuation">,</span> context<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token keyword">this</span><span class="token punctuation">.</span>isSaveContextInvoked <span class="token operator">=</span> <span class="token boolean">true</span><span class="token punctuation">;</span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token keyword">this</span><span class="token punctuation">.</span>logger<span class="token punctuation">.</span><span class="token function">isDebugEnabled</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                <span class="token keyword">this</span><span class="token punctuation">.</span>logger<span class="token punctuation">.</span><span class="token function">debug</span><span class="token punctuation">(</span><span class="token class-name">LogMessage</span><span class="token punctuation">.</span><span class="token function">format</span><span class="token punctuation">(</span><span class="token string">"Stored %s to HttpSession [%s]"</span><span class="token punctuation">,</span> context<span class="token punctuation">,</span> httpSession<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>详细步骤（原本的方法很长，这里列出来比较关键的几个部分）：</p> 
+<ol><li> <p>SecurityContextPersistenceFilter 继承自 GenericFilterBean，而 GenericFilterBean 则是 Filter 的实现，所以 SecurityContextPersistenceFilter 作为一个过滤器，它里边最重要的方法就是 doFilter 了。</p> </li><li> <p>在 doFilter 方法中，它首先会从 repo 中读取一个 SecurityContext 出来，这里的 repo 实际上就是 HttpSessionSecurityContextRepository，读取 SecurityContext 的操作会进入到 readSecurityContextFromSession 方法中，在这里我们看到了读取的核心方法 Object contextFromSession = httpSession.getAttribute(springSecurityContextKey);，这里的 springSecurityContextKey 对象的值就是 SPRING_SECURITY_CONTEXT，读取出来的对象最终会被转为一个 SecurityContext 对象。</p> </li><li> <p>SecurityContext 是一个接口，它有一个唯一的实现类 SecurityContextImpl，这个实现类其实就是用户信息在 session 中保存的 value。</p> </li><li> <p>在拿到 SecurityContext 之后，通过 SecurityContextHolder.setContext 方法将这个 SecurityContext 设置到 ThreadLocal 中去，这样，在当前请求中，Spring Security 的后续操作，我们都可以直接从 SecurityContextHolder 中获取到用户信息了。</p> </li><li> <p>接下来，通过 chain.doFilter 让请求继续向下走（这个时候就会进入到 UsernamePasswordAuthenticationFilter 过滤器中了）。</p> </li><li> <p>在过滤器链走完之后，数据响应给前端之后，finally 中还有一步收尾操作，这一步很关键。这里从 SecurityContextHolder 中获取到 SecurityContext，获取到之后，会把 SecurityContextHolder 清空，然后调用 repo.saveContext 方法将获取到的 SecurityContext 存入 session 中。</p> </li></ol> 
+<p>每一个请求到达服务端的时候，首先从 session 中找出来 SecurityContext ，然后设置到 SecurityContextHolder 中去，方便后续使用，当这个请求离开的时候，SecurityContextHolder 会被清空，SecurityContext 会被放回 session 中，方便下一个请求来的时候获取。</p> 
+<h3><a id="SecurityConfigurer__202"></a>SecurityConfigurer 配置项</h3> 
+<ol><li>configure(HttpSecurity http)</li><li>configure(WebSecurity web)</li></ol> 
+<h4><a id="configureHttpSecurity_http_207"></a>configure(HttpSecurity http)</h4> 
+<ol><li>经过过滤器链</li><li>通常放行登录接口放在这里，因为要将登录信息存入 session 中</li></ol> 
+<h4><a id="configureWebSecurity_web_211"></a>configure(WebSecurity web)</h4> 
+<ol><li>不经过过滤器链，不会将登录信息存入 session 中</li><li>通常用于放行静态资源，css、html 等</li></ol> 
+<h3><a id="_215"></a>参考</h3> 
+<ol><li><a href="https://mp.weixin.qq.com/s?__biz=MzI1NDY0MTkzNQ==&amp;mid=2247488150&amp;idx=1&amp;sn=7ce078ecccb42871d70f90d19beaa1a0&amp;scene=21#wechat_redirect" rel="nofollow">Spring Security 登录成功后总是获取不到登录用户信息</a></li></ol>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/c28d40ccffee9b93c1707978dccc983c/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">Java设计模式简介、设计模式原则及分类</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/73eee65473226cfe1de9e96f4ff732b5/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">JWT 做 token 签发</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

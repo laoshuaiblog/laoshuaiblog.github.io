@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>redis对象编码源码阅读——有序集合编码和转码 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/f895cac4a2bcd4826ecc6959fd04d4db/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="redis对象编码源码阅读——有序集合编码和转码">
+  <meta property="og:description" content="redis对象编码源码阅读——有序集合编码和转码 1. 有序集合对象的编码类型 类型编码对象REDIS_ZSETREDIS_ENCODING_ZIPLIST使用压缩列表对象实现的有序集合对象REDIS_ZSETREDIS_ENCODING_SKIPLIST使用跳跃表和字典实现的有序集合对象 2. 两种编码的转换 void zsetConvert(robj *zobj, int encoding) { zset *zs; zskiplistNode *node, *next; robj *ele; double score; if (zobj-&amp;gt;encoding == encoding) return; 2.1 压缩列表转跳表 if (zobj-&amp;gt;encoding == REDIS_ENCODING_ZIPLIST) { unsigned char *zl = zobj-&amp;gt;ptr; unsigned char *eptr, *sptr; unsigned char *vstr; unsigned int vlen; long long vlong; if (encoding != REDIS_ENCODING_SKIPLIST) redisPanic(&#34;Unknown target encoding&#34;); 重新申请空间 zs = zmalloc(sizeof(*zs)); zs-&amp;gt;dict = dictCreate(&amp;amp;zsetDictType,NULL); zs-&amp;gt;zsl = zslCreate(); 得到 eptr = ziplist[0] 和 sptr = ziplist[1] = ziplist[0]-&amp;gt;next 指针 eptr = ziplistIndex(zl,0); redisAssertWithInfo(NULL,zobj,eptr !">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2020-12-06T15:52:40+08:00">
+    <meta property="article:modified_time" content="2020-12-06T15:52:40+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">redis对象编码源码阅读——有序集合编码和转码</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-dark">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <h2><a id="redis_0"></a>redis对象编码源码阅读——有序集合编码和转码</h2> 
+<h3><a id="1__2"></a>1. 有序集合对象的编码类型</h3> 
+<table><thead><tr><th>类型</th><th>编码</th><th>对象</th></tr></thead><tbody><tr><td>REDIS_ZSET</td><td>REDIS_ENCODING_ZIPLIST</td><td>使用压缩列表对象实现的有序集合对象</td></tr><tr><td>REDIS_ZSET</td><td>REDIS_ENCODING_SKIPLIST</td><td>使用跳跃表和字典实现的有序集合对象</td></tr></tbody></table> 
+<h3><a id="2__9"></a>2. 两种编码的转换</h3> 
+<pre><code class="prism language-cpp"><span class="token keyword">void</span> <span class="token function">zsetConvert</span><span class="token punctuation">(</span>robj <span class="token operator">*</span>zobj<span class="token punctuation">,</span> <span class="token keyword">int</span> encoding<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    zset <span class="token operator">*</span>zs<span class="token punctuation">;</span>
+    zskiplistNode <span class="token operator">*</span>node<span class="token punctuation">,</span> <span class="token operator">*</span>next<span class="token punctuation">;</span>
+    robj <span class="token operator">*</span>ele<span class="token punctuation">;</span>
+    <span class="token keyword">double</span> score<span class="token punctuation">;</span>
+
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>zobj<span class="token operator">-</span><span class="token operator">&gt;</span>encoding <span class="token operator">==</span> encoding<span class="token punctuation">)</span> <span class="token keyword">return</span><span class="token punctuation">;</span>
+</code></pre> 
+<h4><a id="21__21"></a>2.1 压缩列表转跳表</h4> 
+<pre><code class="prism language-cpp">    <span class="token keyword">if</span> <span class="token punctuation">(</span>zobj<span class="token operator">-</span><span class="token operator">&gt;</span>encoding <span class="token operator">==</span> REDIS_ENCODING_ZIPLIST<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">unsigned</span> <span class="token keyword">char</span> <span class="token operator">*</span>zl <span class="token operator">=</span> zobj<span class="token operator">-</span><span class="token operator">&gt;</span>ptr<span class="token punctuation">;</span>
+        <span class="token keyword">unsigned</span> <span class="token keyword">char</span> <span class="token operator">*</span>eptr<span class="token punctuation">,</span> <span class="token operator">*</span>sptr<span class="token punctuation">;</span>
+        <span class="token keyword">unsigned</span> <span class="token keyword">char</span> <span class="token operator">*</span>vstr<span class="token punctuation">;</span>
+        <span class="token keyword">unsigned</span> <span class="token keyword">int</span> vlen<span class="token punctuation">;</span>
+        <span class="token keyword">long</span> <span class="token keyword">long</span> vlong<span class="token punctuation">;</span>
+
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>encoding <span class="token operator">!=</span> REDIS_ENCODING_SKIPLIST<span class="token punctuation">)</span>
+            <span class="token function">redisPanic</span><span class="token punctuation">(</span><span class="token string">"Unknown target encoding"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre> 
+<ol><li>重新申请空间</li></ol> 
+<pre><code class="prism language-cpp">        zs <span class="token operator">=</span> <span class="token function">zmalloc</span><span class="token punctuation">(</span><span class="token keyword">sizeof</span><span class="token punctuation">(</span><span class="token operator">*</span>zs<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        zs<span class="token operator">-</span><span class="token operator">&gt;</span>dict <span class="token operator">=</span> <span class="token function">dictCreate</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>zsetDictType<span class="token punctuation">,</span><span class="token constant">NULL</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        zs<span class="token operator">-</span><span class="token operator">&gt;</span>zsl <span class="token operator">=</span> <span class="token function">zslCreate</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre> 
+<ol start="2"><li>得到 <code>eptr = ziplist[0]</code> 和 <code>sptr = ziplist[1] = ziplist[0]-&gt;next</code> 指针</li></ol> 
+<pre><code class="prism language-cpp">        eptr <span class="token operator">=</span> <span class="token function">ziplistIndex</span><span class="token punctuation">(</span>zl<span class="token punctuation">,</span><span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">redisAssertWithInfo</span><span class="token punctuation">(</span><span class="token constant">NULL</span><span class="token punctuation">,</span>zobj<span class="token punctuation">,</span>eptr <span class="token operator">!=</span> <span class="token constant">NULL</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        sptr <span class="token operator">=</span> <span class="token function">ziplistNext</span><span class="token punctuation">(</span>zl<span class="token punctuation">,</span>eptr<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">redisAssertWithInfo</span><span class="token punctuation">(</span><span class="token constant">NULL</span><span class="token punctuation">,</span>zobj<span class="token punctuation">,</span>sptr <span class="token operator">!=</span> <span class="token constant">NULL</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre> 
+<ul><li><code>ziplistIndex</code>: 通过下标<code>index</code>，得到<code>ziplist[index]</code></li></ul> 
+<pre><code class="prism language-cpp"><span class="token comment">/* Returns an offset to use for iterating with ziplistNext. When the given
+ * index is negative, the list is traversed back to front. When the list
+ * doesn't contain an element at the provided index, NULL is returned. */</span>
+<span class="token keyword">unsigned</span> <span class="token keyword">char</span> <span class="token operator">*</span><span class="token function">ziplistIndex</span><span class="token punctuation">(</span><span class="token keyword">unsigned</span> <span class="token keyword">char</span> <span class="token operator">*</span>zl<span class="token punctuation">,</span> <span class="token keyword">int</span> index<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">unsigned</span> <span class="token keyword">char</span> <span class="token operator">*</span>p<span class="token punctuation">;</span>
+    <span class="token keyword">unsigned</span> <span class="token keyword">int</span> prevlensize<span class="token punctuation">,</span> prevlen <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+    <span class="token comment">// 当 index &lt; 0 的时候，反向遍历找到对应位置</span>
+    <span class="token comment">// 比如 index = -2， 就是倒数第二个节点</span>
+    <span class="token comment">// 注意：倒数第一个节点是 ZIP_END</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>index <span class="token operator">&lt;</span> <span class="token number">0</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        index <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token operator">-</span>index<span class="token punctuation">)</span><span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">;</span>
+        <span class="token comment">// 得到压缩列表的尾节点</span>
+        p <span class="token operator">=</span> <span class="token function">ZIPLIST_ENTRY_TAIL</span><span class="token punctuation">(</span>zl<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>p<span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span> <span class="token operator">!=</span> ZIP_END<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token comment">// 得到前一个节点的长度</span>
+            <span class="token function">ZIP_DECODE_PREVLEN</span><span class="token punctuation">(</span>p<span class="token punctuation">,</span> prevlensize<span class="token punctuation">,</span> prevlen<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token keyword">while</span> <span class="token punctuation">(</span>prevlen <span class="token operator">&gt;</span> <span class="token number">0</span> <span class="token operator">&amp;&amp;</span> index<span class="token operator">--</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                p <span class="token operator">-</span><span class="token operator">=</span> prevlen<span class="token punctuation">;</span>
+                <span class="token function">ZIP_DECODE_PREVLEN</span><span class="token punctuation">(</span>p<span class="token punctuation">,</span> prevlensize<span class="token punctuation">,</span> prevlen<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+        <span class="token punctuation">}</span>
+    <span class="token comment">// 正向遍历</span>
+    <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token comment">// 得到压缩列表的头节点</span>
+        p <span class="token operator">=</span> <span class="token function">ZIPLIST_ENTRY_HEAD</span><span class="token punctuation">(</span>zl<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">while</span> <span class="token punctuation">(</span>p<span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span> <span class="token operator">!=</span> ZIP_END <span class="token operator">&amp;&amp;</span> index<span class="token operator">--</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            p <span class="token operator">+</span><span class="token operator">=</span> <span class="token function">zipRawEntryLength</span><span class="token punctuation">(</span>p<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+    <span class="token keyword">return</span> <span class="token punctuation">(</span>p<span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span> <span class="token operator">==</span> ZIP_END <span class="token operator">||</span> index <span class="token operator">&gt;</span> <span class="token number">0</span><span class="token punctuation">)</span> <span class="token operator">?</span> <span class="token constant">NULL</span> <span class="token operator">:</span> p<span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>下面部分内容请结合《redis的设计与实现》第53-56页阅读</p> 
+<ul><li> <p>宏<code>ZIPLIST_ENTRY_TAIL</code>: 这里是用<code>zl</code>首地址加上<code>zltail</code>，直接指向了尾节点。（第53页）</p> </li><li> <p>宏<code>ZIPLIST_ENTRY_HEAD</code>: 直接用<code>zl</code>首地址加上<code>zlbytes</code>, <code>zltail</code>, <code>zllen</code>的长度。（第53页）</p> </li></ul> 
+<pre><code class="prism language-cpp"><span class="token macro property">#<span class="token directive keyword">define</span> ZIPLIST_ENTRY_TAIL(zl)  ((zl)+intrev32ifbe(ZIPLIST_TAIL_OFFSET(zl)))</span>
+<span class="token macro property">#<span class="token directive keyword">define</span> ZIPLIST_ENTRY_HEAD(zl)  ((zl)+ZIPLIST_HEADER_SIZE)</span>
+<span class="token macro property">#<span class="token directive keyword">define</span> ZIPLIST_HEADER_SIZE     (sizeof(uint32_t)*2+sizeof(uint16_t))</span>
+</code></pre> 
+<ul><li>宏<code>ZIP_DECODE_PREVLENSIZE</code>, <code>ZIP_DECODE_PREVLEN</code>: 先看节点的第一个字节<code>(ptr)[0]</code>，当它小于<code>ZIP_BIGLEN: 254</code>时，则<code>(ptr)[0]</code>直接表示前一个节点的长度<code>previous_entry_length</code>。否则，后面的四个字节<code>(ptr)[1-4]</code>来表示前一个节点的长度<code>previous_entry_length</code>。所以先用<code>ZIP_DECODE_PREVLENSIZE</code>来得到实际的<code>previous_entry_length</code>。（第54页）</li><li>这里的<code>previous_entry_length</code>主要就是用来反向遍历用的。</li><li>不同的<code>previous_entry_length</code>编码是为了<strong>节省空间</strong></li></ul> 
+<pre><code class="prism language-cpp"><span class="token comment">/* Decode the number of bytes required to store the length of the previous
+ * element, from the perspective of the entry pointed to by 'ptr'. */</span>
+<span class="token macro property">#<span class="token directive keyword">define</span> ZIP_DECODE_PREVLENSIZE(ptr, prevlensize) do {                          \
+    if ((ptr)[0] &lt; ZIP_BIGLEN) {                                               \
+        (prevlensize) = 1;                                                     \
+    } else {                                                                   \
+        (prevlensize) = 5;                                                     \
+    }                                                                          \
+} while(0);</span>
+
+<span class="token comment">/* Decode the length of the previous element, from the perspective of the entry
+ * pointed to by 'ptr'. */</span>
+<span class="token macro property">#<span class="token directive keyword">define</span> ZIP_DECODE_PREVLEN(ptr, prevlensize, prevlen) do {                     \
+    ZIP_DECODE_PREVLENSIZE(ptr, prevlensize);                                  \
+    if ((prevlensize) == 1) {                                                  \
+        (prevlen) = (ptr)[0];                                                  \
+    } else if ((prevlensize) == 5) {                                           \
+        assert(sizeof((prevlensize)) == 4);                                    \
+        memcpy(&amp;(prevlen), ((char*)(ptr)) + 1, 4);                             \
+        memrev32ifbe(&amp;prevlen);                                                \
+    }                                                                          \
+} while(0);</span>
+</code></pre> 
+<ul><li><code>zipRawEntryLength</code>: 得到当前节点的长度</li></ul> 
+<pre><code class="prism language-cpp"><span class="token comment">/* Return the total number of bytes used by the entry pointed to by 'p'. */</span>
+<span class="token keyword">static</span> <span class="token keyword">unsigned</span> <span class="token keyword">int</span> <span class="token function">zipRawEntryLength</span><span class="token punctuation">(</span><span class="token keyword">unsigned</span> <span class="token keyword">char</span> <span class="token operator">*</span>p<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">unsigned</span> <span class="token keyword">int</span> prevlensize<span class="token punctuation">,</span> encoding<span class="token punctuation">,</span> lensize<span class="token punctuation">,</span> len<span class="token punctuation">;</span>
+    <span class="token function">ZIP_DECODE_PREVLENSIZE</span><span class="token punctuation">(</span>p<span class="token punctuation">,</span> prevlensize<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">ZIP_DECODE_LENGTH</span><span class="token punctuation">(</span>p <span class="token operator">+</span> prevlensize<span class="token punctuation">,</span> encoding<span class="token punctuation">,</span> lensize<span class="token punctuation">,</span> len<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">return</span> prevlensize <span class="token operator">+</span> lensize <span class="token operator">+</span> len<span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<ul><li>宏<code>ZIP_ENTRY_ENCODING</code>: 得到<code>content</code>的编码<code>encoding</code>。（第56页）</li><li>宏<code>ZIP_DECODE_LENGTH</code>:</li></ul> 
+<pre><code class="prism language-cpp"><span class="token comment">/* Extract the encoding from the byte pointed by 'ptr' and set it into
+ * 'encoding'. */</span>
+<span class="token macro property">#<span class="token directive keyword">define</span> ZIP_ENTRY_ENCODING(ptr, encoding) do {  \
+    (encoding) = (ptr[0]); \
+    if ((encoding) &lt; ZIP_STR_MASK) (encoding) &amp;= ZIP_STR_MASK; \
+} while(0)</span>
+
+<span class="token comment">/* Decode the length encoded in 'ptr'. The 'encoding' variable will hold the
+ * entries encoding, the 'lensize' variable will hold the number of bytes
+ * required to encode the entries length, and the 'len' variable will hold the
+ * entries length. */</span>
+<span class="token macro property">#<span class="token directive keyword">define</span> ZIP_DECODE_LENGTH(ptr, encoding, lensize, len) do {                    \
+    ZIP_ENTRY_ENCODING((ptr), (encoding));                                     \
+    </span><span class="token comment">// 字节数组编码</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token punctuation">(</span>encoding<span class="token punctuation">)</span> <span class="token operator">&lt;</span> ZIP_STR_MASK<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>                                           \
+        <span class="token comment">// 00bbbbbb</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token punctuation">(</span>encoding<span class="token punctuation">)</span> <span class="token operator">==</span> ZIP_STR_06B<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>                                       \
+            <span class="token punctuation">(</span>lensize<span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">1</span><span class="token punctuation">;</span>                                                     \
+            <span class="token punctuation">(</span>len<span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token punctuation">(</span>ptr<span class="token punctuation">)</span><span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span> <span class="token operator">&amp;</span> <span class="token number">0x3f</span><span class="token punctuation">;</span>                                           \
+        <span class="token comment">// 01bbbbbb xxxxxxxx</span>
+        <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token punctuation">(</span>encoding<span class="token punctuation">)</span> <span class="token operator">==</span> ZIP_STR_14B<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>                                \
+            <span class="token punctuation">(</span>lensize<span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">2</span><span class="token punctuation">;</span>                                                     \
+            <span class="token punctuation">(</span>len<span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token punctuation">(</span><span class="token punctuation">(</span>ptr<span class="token punctuation">)</span><span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span> <span class="token operator">&amp;</span> <span class="token number">0x3f</span><span class="token punctuation">)</span> <span class="token operator">&lt;&lt;</span> <span class="token number">8</span><span class="token punctuation">)</span> <span class="token operator">|</span> <span class="token punctuation">(</span>ptr<span class="token punctuation">)</span><span class="token punctuation">[</span><span class="token number">1</span><span class="token punctuation">]</span><span class="token punctuation">;</span>                       \
+        <span class="token comment">// 10______ aaaaaaaa bbbbbbbb cccccccc dddddddd</span>
+        <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token keyword">if</span> <span class="token punctuation">(</span>encoding <span class="token operator">==</span> ZIP_STR_32B<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>                                  \
+            <span class="token punctuation">(</span>lensize<span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">5</span><span class="token punctuation">;</span>                                                     \
+            <span class="token punctuation">(</span>len<span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token punctuation">(</span>ptr<span class="token punctuation">)</span><span class="token punctuation">[</span><span class="token number">1</span><span class="token punctuation">]</span> <span class="token operator">&lt;&lt;</span> <span class="token number">24</span><span class="token punctuation">)</span> <span class="token operator">|</span>                                         \
+                    <span class="token punctuation">(</span><span class="token punctuation">(</span>ptr<span class="token punctuation">)</span><span class="token punctuation">[</span><span class="token number">2</span><span class="token punctuation">]</span> <span class="token operator">&lt;&lt;</span> <span class="token number">16</span><span class="token punctuation">)</span> <span class="token operator">|</span>                                         \
+                    <span class="token punctuation">(</span><span class="token punctuation">(</span>ptr<span class="token punctuation">)</span><span class="token punctuation">[</span><span class="token number">3</span><span class="token punctuation">]</span> <span class="token operator">&lt;&lt;</span>  <span class="token number">8</span><span class="token punctuation">)</span> <span class="token operator">|</span>                                         \
+                    <span class="token punctuation">(</span><span class="token punctuation">(</span>ptr<span class="token punctuation">)</span><span class="token punctuation">[</span><span class="token number">4</span><span class="token punctuation">]</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                                \
+        <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{<!-- --></span>                                                               \
+            <span class="token function">assert</span><span class="token punctuation">(</span><span class="token constant">NULL</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                                      \
+        <span class="token punctuation">}</span>                                                                      \
+    <span class="token comment">// 整数编码</span>
+    <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{<!-- --></span>                                                                   \
+        <span class="token punctuation">(</span>lensize<span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">1</span><span class="token punctuation">;</span>                                                         \
+        <span class="token punctuation">(</span>len<span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token function">zipIntSize</span><span class="token punctuation">(</span>encoding<span class="token punctuation">)</span><span class="token punctuation">;</span>                                          \
+    <span class="token punctuation">}</span>                                                                          \
+<span class="token punctuation">}</span> <span class="token keyword">while</span><span class="token punctuation">(</span><span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+<span class="token comment">/* Return bytes needed to store integer encoded by 'encoding' */</span>
+<span class="token keyword">static</span> <span class="token keyword">unsigned</span> <span class="token keyword">int</span> <span class="token function">zipIntSize</span><span class="token punctuation">(</span><span class="token keyword">unsigned</span> <span class="token keyword">char</span> encoding<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">switch</span><span class="token punctuation">(</span>encoding<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">case</span> ZIP_INT_8B<span class="token operator">:</span>  <span class="token keyword">return</span> <span class="token number">1</span><span class="token punctuation">;</span>
+    <span class="token keyword">case</span> ZIP_INT_16B<span class="token operator">:</span> <span class="token keyword">return</span> <span class="token number">2</span><span class="token punctuation">;</span>
+    <span class="token keyword">case</span> ZIP_INT_24B<span class="token operator">:</span> <span class="token keyword">return</span> <span class="token number">3</span><span class="token punctuation">;</span>
+    <span class="token keyword">case</span> ZIP_INT_32B<span class="token operator">:</span> <span class="token keyword">return</span> <span class="token number">4</span><span class="token punctuation">;</span>
+    <span class="token keyword">case</span> ZIP_INT_64B<span class="token operator">:</span> <span class="token keyword">return</span> <span class="token number">8</span><span class="token punctuation">;</span>
+    <span class="token keyword">default</span><span class="token operator">:</span> <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span> <span class="token comment">/* 4 bit immediate */</span>
+    <span class="token punctuation">}</span>
+    <span class="token function">assert</span><span class="token punctuation">(</span><span class="token constant">NULL</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<ul><li><code>ziplistNext</code>: 把指针指向下一个节点</li></ul> 
+<pre><code class="prism language-cpp"><span class="token comment">/* Return pointer to next entry in ziplist.
+ *
+ * zl is the pointer to the ziplist
+ * p is the pointer to the current element
+ *
+ * The element after 'p' is returned, otherwise NULL if we are at the end. */</span>
+<span class="token keyword">unsigned</span> <span class="token keyword">char</span> <span class="token operator">*</span><span class="token function">ziplistNext</span><span class="token punctuation">(</span><span class="token keyword">unsigned</span> <span class="token keyword">char</span> <span class="token operator">*</span>zl<span class="token punctuation">,</span> <span class="token keyword">unsigned</span> <span class="token keyword">char</span> <span class="token operator">*</span>p<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token punctuation">(</span><span class="token punctuation">(</span><span class="token keyword">void</span><span class="token punctuation">)</span> zl<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token comment">/* "p" could be equal to ZIP_END, caused by ziplistDelete,
+     * and we should return NULL. Otherwise, we should return NULL
+     * when the *next* element is ZIP_END (there is no next entry). */</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>p<span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span> <span class="token operator">==</span> ZIP_END<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">return</span> <span class="token constant">NULL</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    p <span class="token operator">+</span><span class="token operator">=</span> <span class="token function">zipRawEntryLength</span><span class="token punctuation">(</span>p<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>p<span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span> <span class="token operator">==</span> ZIP_END<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">return</span> <span class="token constant">NULL</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token keyword">return</span> p<span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<ol start="3"><li>取出<code>score</code>和节点的值<code>ele</code></li></ol> 
+<p><code>score</code>的位置在<code>ele</code>的后面。所以<code>zzlGetScore</code>传递的是后面的节点<code>sptr</code>。</p> 
+<pre><code class="prism language-cpp">        <span class="token keyword">while</span> <span class="token punctuation">(</span>eptr <span class="token operator">!=</span> <span class="token constant">NULL</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            score <span class="token operator">=</span> <span class="token function">zzlGetScore</span><span class="token punctuation">(</span>sptr<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token function">redisAssertWithInfo</span><span class="token punctuation">(</span><span class="token constant">NULL</span><span class="token punctuation">,</span>zobj<span class="token punctuation">,</span><span class="token function">ziplistGet</span><span class="token punctuation">(</span>eptr<span class="token punctuation">,</span><span class="token operator">&amp;</span>vstr<span class="token punctuation">,</span><span class="token operator">&amp;</span>vlen<span class="token punctuation">,</span><span class="token operator">&amp;</span>vlong<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre> 
+<p><code>zzlGetScore</code>其实也是直接调用的<code>ziplistGet</code>。只不过调用了之后针对<code>score</code>的<code>double</code>类型进行了一些处理。</p> 
+<pre><code class="prism language-cpp"><span class="token keyword">double</span> <span class="token function">zzlGetScore</span><span class="token punctuation">(</span><span class="token keyword">unsigned</span> <span class="token keyword">char</span> <span class="token operator">*</span>sptr<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">unsigned</span> <span class="token keyword">char</span> <span class="token operator">*</span>vstr<span class="token punctuation">;</span>
+    <span class="token keyword">unsigned</span> <span class="token keyword">int</span> vlen<span class="token punctuation">;</span>
+    <span class="token keyword">long</span> <span class="token keyword">long</span> vlong<span class="token punctuation">;</span>
+    <span class="token keyword">char</span> buf<span class="token punctuation">[</span><span class="token number">128</span><span class="token punctuation">]</span><span class="token punctuation">;</span>
+    <span class="token keyword">double</span> score<span class="token punctuation">;</span>
+
+    <span class="token function">redisAssert</span><span class="token punctuation">(</span>sptr <span class="token operator">!=</span> <span class="token constant">NULL</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">redisAssert</span><span class="token punctuation">(</span><span class="token function">ziplistGet</span><span class="token punctuation">(</span>sptr<span class="token punctuation">,</span><span class="token operator">&amp;</span>vstr<span class="token punctuation">,</span><span class="token operator">&amp;</span>vlen<span class="token punctuation">,</span><span class="token operator">&amp;</span>vlong<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>vstr<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token function">memcpy</span><span class="token punctuation">(</span>buf<span class="token punctuation">,</span>vstr<span class="token punctuation">,</span>vlen<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        buf<span class="token punctuation">[</span>vlen<span class="token punctuation">]</span> <span class="token operator">=</span> <span class="token string">'\0'</span><span class="token punctuation">;</span>
+        score <span class="token operator">=</span> <span class="token function">strtod</span><span class="token punctuation">(</span>buf<span class="token punctuation">,</span><span class="token constant">NULL</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{<!-- --></span>
+        score <span class="token operator">=</span> vlong<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token keyword">return</span> score<span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>而<code>ziplistGet</code>就是把一个节点中的值（可能是字符串，也可能是整数）取出来，如果是字符串则把字符串存在<code>sstr</code>中，字符串长度存在<code>slen</code>中；如果是整数则把值存在<code>sval</code>中。</p> 
+<pre><code class="prism language-cpp"><span class="token comment">/* Get entry pointed to by 'p' and store in either '*sstr' or 'sval' depending
+ * on the encoding of the entry. '*sstr' is always set to NULL to be able
+ * to find out whether the string pointer or the integer value was set.
+ * Return 0 if 'p' points to the end of the ziplist, 1 otherwise. */</span>
+<span class="token keyword">unsigned</span> <span class="token keyword">int</span> <span class="token function">ziplistGet</span><span class="token punctuation">(</span><span class="token keyword">unsigned</span> <span class="token keyword">char</span> <span class="token operator">*</span>p<span class="token punctuation">,</span> <span class="token keyword">unsigned</span> <span class="token keyword">char</span> <span class="token operator">*</span><span class="token operator">*</span>sstr<span class="token punctuation">,</span> <span class="token keyword">unsigned</span> <span class="token keyword">int</span> <span class="token operator">*</span>slen<span class="token punctuation">,</span> <span class="token keyword">long</span> <span class="token keyword">long</span> <span class="token operator">*</span>sval<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    zlentry entry<span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>p <span class="token operator">==</span> <span class="token constant">NULL</span> <span class="token operator">||</span> p<span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span> <span class="token operator">==</span> ZIP_END<span class="token punctuation">)</span> <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>sstr<span class="token punctuation">)</span> <span class="token operator">*</span>sstr <span class="token operator">=</span> <span class="token constant">NULL</span><span class="token punctuation">;</span>
+
+    <span class="token comment">// 把节点相关的数据提取到 zlentry 数据结构中，方便操作</span>
+    <span class="token comment">// 其中有 encoding, 各种长度</span>
+    entry <span class="token operator">=</span> <span class="token function">zipEntry</span><span class="token punctuation">(</span>p<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">ZIP_IS_STR</span><span class="token punctuation">(</span>entry<span class="token punctuation">.</span>encoding<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>sstr<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token operator">*</span>slen <span class="token operator">=</span> entry<span class="token punctuation">.</span>len<span class="token punctuation">;</span>
+            <span class="token operator">*</span>sstr <span class="token operator">=</span> p<span class="token operator">+</span>entry<span class="token punctuation">.</span>headersize<span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>sval<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            <span class="token operator">*</span>sval <span class="token operator">=</span> <span class="token function">zipLoadInteger</span><span class="token punctuation">(</span>p<span class="token operator">+</span>entry<span class="token punctuation">.</span>headersize<span class="token punctuation">,</span>entry<span class="token punctuation">.</span>encoding<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+    <span class="token keyword">return</span> <span class="token number">1</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>把取出来的值，重新再转换成 <code>sds</code>类型的 <code>ele</code></p> 
+<pre><code class="prism language-cpp">            <span class="token keyword">if</span> <span class="token punctuation">(</span>vstr <span class="token operator">==</span> <span class="token constant">NULL</span><span class="token punctuation">)</span>
+                ele <span class="token operator">=</span> <span class="token function">createStringObjectFromLongLong</span><span class="token punctuation">(</span>vlong<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token keyword">else</span>
+                ele <span class="token operator">=</span> <span class="token function">createStringObject</span><span class="token punctuation">(</span><span class="token punctuation">(</span><span class="token keyword">char</span><span class="token operator">*</span><span class="token punctuation">)</span>vstr<span class="token punctuation">,</span>vlen<span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre> 
+<ol start="4"><li>插入到跳表中</li></ol> 
+<p>跳表的具体内容可参考<a href="https://www.cnblogs.com/wmyskxz/p/12383175.html" rel="nofollow">Redis(2)——跳跃表</a></p> 
+<pre><code class="prism language-cpp">            <span class="token comment">/* Has incremented refcount since it was just created. */</span>
+            node <span class="token operator">=</span> <span class="token function">zslInsert</span><span class="token punctuation">(</span>zs<span class="token operator">-</span><span class="token operator">&gt;</span>zsl<span class="token punctuation">,</span>score<span class="token punctuation">,</span>ele<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token function">redisAssertWithInfo</span><span class="token punctuation">(</span><span class="token constant">NULL</span><span class="token punctuation">,</span>zobj<span class="token punctuation">,</span><span class="token function">dictAdd</span><span class="token punctuation">(</span>zs<span class="token operator">-</span><span class="token operator">&gt;</span>dict<span class="token punctuation">,</span>ele<span class="token punctuation">,</span><span class="token operator">&amp;</span>node<span class="token operator">-</span><span class="token operator">&gt;</span>score<span class="token punctuation">)</span> <span class="token operator">==</span> DICT_OK<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token function">incrRefCount</span><span class="token punctuation">(</span>ele<span class="token punctuation">)</span><span class="token punctuation">;</span> <span class="token comment">/* Added to dictionary. */</span>
+            <span class="token comment">// 注意这里的 zzlNext 和 ziplistNext 是不同的</span>
+            <span class="token comment">// zzlNext 是给有序集合用的，因为有序集合每一个值都伴随一个 score</span>
+            <span class="token comment">// 相当于两个压缩列表节点才是一个有序集合的节点</span>
+            <span class="token function">zzlNext</span><span class="token punctuation">(</span>zl<span class="token punctuation">,</span><span class="token operator">&amp;</span>eptr<span class="token punctuation">,</span><span class="token operator">&amp;</span>sptr<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+</code></pre> 
+<ol start="5"><li>释放空间，调整编码</li></ol> 
+<pre><code class="prism language-cpp">        <span class="token function">zfree</span><span class="token punctuation">(</span>zobj<span class="token operator">-</span><span class="token operator">&gt;</span>ptr<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        zobj<span class="token operator">-</span><span class="token operator">&gt;</span>ptr <span class="token operator">=</span> zs<span class="token punctuation">;</span>
+        zobj<span class="token operator">-</span><span class="token operator">&gt;</span>encoding <span class="token operator">=</span> REDIS_ENCODING_SKIPLIST<span class="token punctuation">;</span>
+</code></pre> 
+<h4><a id="22__325"></a>2.2 跳表转压缩列表</h4> 
+<pre><code class="prism language-cpp">    <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token keyword">if</span> <span class="token punctuation">(</span>zobj<span class="token operator">-</span><span class="token operator">&gt;</span>encoding <span class="token operator">==</span> REDIS_ENCODING_SKIPLIST<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">unsigned</span> <span class="token keyword">char</span> <span class="token operator">*</span>zl <span class="token operator">=</span> <span class="token function">ziplistNew</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>encoding <span class="token operator">!=</span> REDIS_ENCODING_ZIPLIST<span class="token punctuation">)</span>
+            <span class="token function">redisPanic</span><span class="token punctuation">(</span><span class="token string">"Unknown target encoding"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre> 
+<p>释放掉部分跳表的空间</p> 
+<pre><code class="prism language-cpp">        <span class="token comment">/* Approach similar to zslFree(), since we want to free the skiplist at
+         * the same time as creating the ziplist. */</span>
+        zs <span class="token operator">=</span> zobj<span class="token operator">-</span><span class="token operator">&gt;</span>ptr<span class="token punctuation">;</span>
+        <span class="token function">dictRelease</span><span class="token punctuation">(</span>zs<span class="token operator">-</span><span class="token operator">&gt;</span>dict<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        node <span class="token operator">=</span> zs<span class="token operator">-</span><span class="token operator">&gt;</span>zsl<span class="token operator">-</span><span class="token operator">&gt;</span>header<span class="token operator">-</span><span class="token operator">&gt;</span>level<span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span><span class="token punctuation">.</span>forward<span class="token punctuation">;</span>
+        <span class="token function">zfree</span><span class="token punctuation">(</span>zs<span class="token operator">-</span><span class="token operator">&gt;</span>zsl<span class="token operator">-</span><span class="token operator">&gt;</span>header<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">zfree</span><span class="token punctuation">(</span>zs<span class="token operator">-</span><span class="token operator">&gt;</span>zsl<span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre> 
+<p>循环把节点插入到压缩列表中</p> 
+<pre><code class="prism language-cpp">        <span class="token keyword">while</span> <span class="token punctuation">(</span>node<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+            ele <span class="token operator">=</span> <span class="token function">getDecodedObject</span><span class="token punctuation">(</span>node<span class="token operator">-</span><span class="token operator">&gt;</span>obj<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token comment">// 第二个参数为 NULL 时表示压入表尾</span>
+            <span class="token comment">// 因为之前跳表中的数据已经是有序的了</span>
+            zl <span class="token operator">=</span> <span class="token function">zzlInsertAt</span><span class="token punctuation">(</span>zl<span class="token punctuation">,</span><span class="token constant">NULL</span><span class="token punctuation">,</span>ele<span class="token punctuation">,</span>node<span class="token operator">-</span><span class="token operator">&gt;</span>score<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token function">decrRefCount</span><span class="token punctuation">(</span>ele<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+            next <span class="token operator">=</span> node<span class="token operator">-</span><span class="token operator">&gt;</span>level<span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span><span class="token punctuation">.</span>forward<span class="token punctuation">;</span>
+            <span class="token function">zslFreeNode</span><span class="token punctuation">(</span>node<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            node <span class="token operator">=</span> next<span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+
+        <span class="token function">zfree</span><span class="token punctuation">(</span>zs<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        zobj<span class="token operator">-</span><span class="token operator">&gt;</span>ptr <span class="token operator">=</span> zl<span class="token punctuation">;</span>
+        zobj<span class="token operator">-</span><span class="token operator">&gt;</span>encoding <span class="token operator">=</span> REDIS_ENCODING_ZIPLIST<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{<!-- --></span>
+        <span class="token function">redisPanic</span><span class="token punctuation">(</span><span class="token string">"Unknown sorted set encoding"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<blockquote> 
+ <p>TODO: 最后这里压缩列表的<code>insert</code>也挺复杂的，以后再补吧。。。</p> 
+</blockquote> 
+<h3><a id="3_ziplistIndexziplistNext_373"></a>3. 为什么有了<code>ziplistIndex</code>还需要<code>ziplistNext</code></h3> 
+<p>因为<code>ziplistIndex</code>每次都需要从头开始循环，一直循环到<code>ziplist[index]</code>。<code>ziplistNext</code>可以避免这种情况。</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/0d0518904d0b0451071cea1a5893fe39/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">bic准则 python实现_python机器学习---时间序列算法 0117-2020</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/2ea74810ceb14183fa880040f161e748/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">python format函数_如何用format函数保留小数？</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

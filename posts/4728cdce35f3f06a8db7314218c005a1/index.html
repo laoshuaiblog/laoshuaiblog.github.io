@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>[问题记录]按url context path设置nginx反向代理禅道和Jenkins - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/4728cdce35f3f06a8db7314218c005a1/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="[问题记录]按url context path设置nginx反向代理禅道和Jenkins">
+  <meta property="og:description" content="问题： 在公司同一台服务器上分别装了禅道的开源版（linux一键安装）和Jenkins（docker），觉得带端口号的链接给上头leader等使用有点难看……就想改成用二级url区别的方法，即目标是：
+由 dev.server.com:8001 改成用 dev.server.com/zentao 访问禅道 由 dev.server.com:8002 改成用 dev.server.com/jenkins 访问Jenkins 然后简单搜索了下、写出了下面的（有错误的）nginx配置：
+server { listen 80; server_name dev.server.com; location /zentao { proxy_pass http://localhost:8001; } location /jenkins { proxy_pass http://localhost:8002; } } 按上面/zentao、/jenkins这样的新路径，禅道一下子就打开了用户登录界面，但是Jenkins却是404。
+原因： 原本以为Jenkins不能用很奇怪，最后发现禅道能用只是碰巧……
+为什么打不开Jenkins？ 首先发现如果使用端口号访问的方式、浏览器会自动跳转至Jenkins登录界面、url发生了变化，于是联想到比较下不同的url访问，整理下是：
+(1) GET http://dev.server.com/jenkins 跳转至 http://dev.server.com/login?from=%2Fjenkins 404 NOT FOUND (2) GET http://dev.server.com:8002 跳转至 http://dev.server.com:8002/login?from=%2F 200 OK 显示登录界面 (3) GET http://dev.server.com:8002/login 直接 200 OK 显示登录界面 (4) GET http://dev.server.com:8002/jenkins 跳转至 http://dev.server.com:8002/login?from=%2Fjenkins 200 OK 显示登录界面 于是可以知道Jenkins登录界面的访问url是ip:port/login，后面的from query string只是将请求url中的path贴在了后面（%2F即/）。所以nginx配置不能用的原因也很明显，Jenkins监听的是8002端口，加了nginx proxy_pass后变成了请求默认的80端口，自然是找不到/找不对的。">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2017-05-27T14:38:54+08:00">
+    <meta property="article:modified_time" content="2017-05-27T14:38:54+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">[问题记录]按url context path设置nginx反向代理禅道和Jenkins</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-dark">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <p><strong>问题</strong>： <br> 在公司同一台服务器上分别装了禅道的开源版（linux一键安装）和Jenkins（docker），觉得带端口号的链接给上头leader等使用有点难看……就想改成用二级url区别的方法，即目标是：</p> 
+<pre class="prettyprint"><code class=" hljs avrasm">由 dev<span class="hljs-preprocessor">.server</span><span class="hljs-preprocessor">.com</span>:<span class="hljs-number">8001</span> 改成用 dev<span class="hljs-preprocessor">.server</span><span class="hljs-preprocessor">.com</span>/zentao   访问禅道
+由 dev<span class="hljs-preprocessor">.server</span><span class="hljs-preprocessor">.com</span>:<span class="hljs-number">8002</span> 改成用 dev<span class="hljs-preprocessor">.server</span><span class="hljs-preprocessor">.com</span>/jenkins  访问Jenkins</code></pre> 
+<p>然后简单搜索了下、写出了下面的（<strong>有错误的</strong>）nginx配置：</p> 
+<pre class="prettyprint"><code class=" hljs axapta"> <span class="hljs-keyword">server</span> {
+    listen <span class="hljs-number">80</span>;
+    server_name dev.<span class="hljs-keyword">server</span>.com;  
+    location /zentao {
+        proxy_pass http:<span class="hljs-comment">//localhost:8001;</span>
+    }
+    location /jenkins {
+        proxy_pass http:<span class="hljs-comment">//localhost:8002;</span>
+    }
+}</code></pre> 
+<p>按上面/zentao、/jenkins这样的新路径，禅道一下子就打开了用户登录界面，但是Jenkins却是404。</p> 
+<hr> 
+<p><strong>原因</strong>： <br> 原本以为Jenkins不能用很奇怪，最后发现禅道能用只是碰巧……</p> 
+<p><strong>为什么打不开Jenkins？</strong> <br> 首先发现如果使用端口号访问的方式、浏览器会自动跳转至Jenkins登录界面、url发生了变化，于是联想到比较下不同的url访问，整理下是：</p> 
+<pre class="prettyprint"><code class=" hljs avrasm">(<span class="hljs-number">1</span>) GET http://dev<span class="hljs-preprocessor">.server</span><span class="hljs-preprocessor">.com</span>/jenkins 跳转至 http://dev<span class="hljs-preprocessor">.server</span><span class="hljs-preprocessor">.com</span>/login?from=%<span class="hljs-number">2</span>Fjenkins <span class="hljs-number">404</span> NOT FOUND
+(<span class="hljs-number">2</span>) GET http://dev<span class="hljs-preprocessor">.server</span><span class="hljs-preprocessor">.com</span>:<span class="hljs-number">8002</span> 跳转至 http://dev<span class="hljs-preprocessor">.server</span><span class="hljs-preprocessor">.com</span>:<span class="hljs-number">8002</span>/login?from=%<span class="hljs-number">2</span>F <span class="hljs-number">200</span> OK 显示登录界面
+(<span class="hljs-number">3</span>) GET http://dev<span class="hljs-preprocessor">.server</span><span class="hljs-preprocessor">.com</span>:<span class="hljs-number">8002</span>/login 直接 <span class="hljs-number">200</span> OK 显示登录界面
+(<span class="hljs-number">4</span>) GET http://dev<span class="hljs-preprocessor">.server</span><span class="hljs-preprocessor">.com</span>:<span class="hljs-number">8002</span>/jenkins 跳转至 http://dev<span class="hljs-preprocessor">.server</span><span class="hljs-preprocessor">.com</span>:<span class="hljs-number">8002</span>/login?from=%<span class="hljs-number">2</span>Fjenkins <span class="hljs-number">200</span> OK 显示登录界面</code></pre> 
+<p>于是可以知道Jenkins登录界面的访问url是<code>ip:port/login</code>，后面的<code>from</code> query string只是将请求url中的path贴在了后面（<code>%2F</code>即<code>/</code>）。所以nginx配置不能用的原因也很明显，Jenkins监听的是8002端口，加了nginx proxy_pass后变成了请求默认的80端口，自然是找不到/找不对的。</p> 
+<p><strong>为什么能打开禅道？</strong> <br> 这个是几方面的巧合： <br> 首先如果用最上面的请求链接<code>http://dev.server.com/zentao</code>、没有以<code>/</code>结尾，按前面的配置nginx会<a href="http://nginx.org/en/docs/http/ngx_http_core_module.html#location" rel="nofollow">返回301重定向</a>至<code>http://dev.server.com/zentao/</code>：</p> 
+<blockquote> 
+ <p>In response to a request with URI equal to this string, but without the trailing slash, a permanent redirect with the code 301 will be returned to the requested URI with the slash appended</p> 
+</blockquote> 
+<p>然后proxy_pass的目标url <code>http://localhost:8001</code>也没有以<code>/</code>结尾，nginx会<a href="http://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_pass" rel="nofollow">将请求路径path拼至目标url的后面</a>、即变成请求<code>http://localhost:8001/zentao/</code>： </p> 
+<blockquote> 
+ <p>If proxy_pass is specified without a URI, the request URI is passed to the server in the same form as sent by a client when the original request is processed, or the full normalized request URI is passed when processing the changed URI</p> 
+</blockquote> 
+<p>然而使用<code>dev.server.com:8001</code>访问时、其实显示的是禅道的欢迎界面、可以选“开源版”或“专业版 试用”；选开源版、用户登陆界面的url样子是：<code>http://dev.server.com:8001/zentao/user-login.html</code>；登录之后、所有的页面操作也都在<code>http://dev.server.com:8001/zentao/</code>的子级url下。</p> 
+<p>所以这个似乎上来就能用的nginx配置、其实是经过一些默认转换后、恰好符合了禅道开源版的url mapping规则。如果将nginx的map规则改成<code>location /zbox</code>，以<code>http://dev.server.com/zbox</code>访问时、转换出来的路径应该是<code>http://localhost:8001/zbox/</code>，那结果就应该是404（这里有问题、测试下来以<code>http://dev.server.com/zbox</code>访问并不会自动重定向、而是直接404=&gt;其他1）。</p> 
+<hr> 
+<p><strong>解决方法：</strong> <br> 比较一下正常使用时的jenkins页面和禅道页面，禅道自身的url、a标签href、script src、image src等都是在<code>/zentao</code>目录下，但jenkins/docker就没有这样的设计。所以禅道可以很方便的达到<code>dev.server.com/zentao</code>这样的反向代理，但Jenkins就需要另外的考虑。</p> 
+<p><strong>Jenkins：</strong> <br> 一种思路是使用nginx在jenkins返回的所有资源链接前面都加上<code>/jenkins</code>字段，这样用户接下来产生的GET请求都可以map到<code>location /jenkins</code>区块。要实现这个功能需要用到nginx的<a href="http://nginx.org/en/docs/http/ngx_http_sub_module.html" rel="nofollow">ngx_http_sub_module</a>。参考Example，可以写出类似配置：</p> 
+<pre class="prettyprint"><code class=" hljs nginx"><span class="hljs-title">location</span> /jenkins {
+    <span class="hljs-title">sub_filter</span> <span class="hljs-string">'&lt;a href="/'</span>  <span class="hljs-string">'&lt;a href="/jenkins/'</span>;
+    <span class="hljs-title">sub_filter</span> <span class="hljs-string">'&lt;img src="/'</span> <span class="hljs-string">'&lt;img src="/jenkins/'</span>;
+    <span class="hljs-comment"># ...其他替换规则...</span>
+    <span class="hljs-title">sub_filter_once</span> <span class="hljs-built_in">off</span>;  <span class="hljs-comment"># 查找并替换多次</span>
+    <span class="hljs-title">proxy_pass</span> <span class="hljs-url">http://localhost:8002</span>;
+}</code></pre> 
+<p>但是这样做效率很低、且filter遗漏和出错可能性大（比如=&gt;其他2），所以最后还是妥协、使用了重定向：</p> 
+<pre class="prettyprint"><code class=" hljs cs">location /jenkins {
+    <span class="hljs-keyword">return</span> <span class="hljs-number">302</span> http:<span class="hljs-comment">//dev.server.com:8002; </span>
+}</code></pre> 
+<p>这样至少使<code>http://dev.server.com/jenkins</code>这个（间接）访问链接可用。</p> 
+<p>如果条件允许的话，应该是分配一个子域名比如<code>jenkins.server.com</code>会更合理和方便，这时nginx设置可以参考jenkins官方的wiki：<a href="https://wiki.jenkins-ci.org/display/JENKINS/Jenkins+behind+an+NGinX+reverse+proxy" rel="nofollow">Jenkins behind an NGinX reverse proxy</a>。 <br> 再或者按官方wiki的提醒、直接使用jenkins.war放到web容器里跑，这样也就能保证有<code>/jenkins</code> context path。</p> 
+<p><strong>禅道：</strong> <br> 虽然开头写成那样也可以用、考虑了下还是写的更明确一点：</p> 
+<pre class="prettyprint"><code class=" hljs cs">location /zentao/ {
+    proxy_pass http:<span class="hljs-comment">//localhost:8001/zentao/;</span>
+}</code></pre> 
+<hr> 
+<p><strong>其他：</strong></p> 
+<ol><li><p>nginx location的匹配string最后要不要加斜杠<code>/</code>？ <br> 这里还是很搞不清楚。 <br> 实测下来，Jenkins使用重定向时，nginx location的匹配字段如果是<code>/jenkins/</code>，则<code>http://dev.server.com/jenkins</code>的请求结果是404；然而禅道配置这边，nginx location和http请求里、似乎<code>/zentao</code>和<code>/zentao/</code>任意组合使用都是可以的，但是换成<code>/zbox</code>、<code>/aaa</code>等其他不存在的path、则连301重定向都没有、而是直接报404…有点混乱就先不管了，有空看看文档再说吧。</p></li><li><p>Jenkins的“跳转”显示登录页面是怎么发生的？ <br> 同时用postman GET jenkins测试例子里(3)以外的url，可以看到返回的http状态是403 FORBIDDEN，消息体html里有类似的：</p> <pre class="prettyprint"><code class=" hljs xml"><span class="hljs-tag">&lt;<span class="hljs-title">head</span>&gt;</span>
+    <span class="hljs-tag">&lt;<span class="hljs-title">meta</span> <span class="hljs-attribute">http-equiv</span>=<span class="hljs-value">'refresh'</span> <span class="hljs-attribute">content</span>=<span class="hljs-value">'1;url=/login?from=%2F'</span>/&gt;</span>
+    <span class="hljs-tag">&lt;<span class="hljs-title">script</span>&gt;</span><span class="javascript">window.location.replace(<span class="hljs-string">'/login?from=%2F'</span>);</span><span class="hljs-tag">&lt;/<span class="hljs-title">script</span>&gt;</span>
+<span class="hljs-tag">&lt;/<span class="hljs-title">head</span>&gt;</span></code></pre> <p><code>location.replace</code>引用<a href="https://developer.mozilla.org/en-US/docs/Web/API/Location/replace" rel="nofollow">MDN</a>：</p> 
+  <blockquote> 
+   <p>The Location.replace() method replaces the current resource with the one at the provided URL. The difference from the assign() method is that after using replace() the current page will not be saved in session History, meaning the user won’t be able to use the back button to navigate to it.</p> 
+  </blockquote> <p>Chrome console的话要勾选<code>preserve log</code>才能抓到403的返回状态，但html还是看不到…</p></li><li><p>context path？ <br> contextPath是java servlet的说法，一般就是指<code>http://example.com/aaa/bbb/ccc.html</code>里<code>/aaa</code>这个字段。</p></li></ol>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/232e2c3d7c594ce854f816c50ab4e7f8/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">Ip地址校验</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/9325d96e2b2a1e624a0072e85e30f604/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">Kotlin-13.数据类(data class)</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>【Linux取经路】文件系统之缓冲区 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/ad8b7e0067df48ca6c1d748b6d04dedb/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="【Linux取经路】文件系统之缓冲区">
+  <meta property="og:description" content="文章目录 一、先看现象二、用户缓冲区的引入三、用户缓冲区的刷新策略四、为什么要有用户缓冲区五、现象解释六、结语 一、先看现象 #include &amp;lt;stdio.h&amp;gt; #include &amp;lt;string.h&amp;gt; #include &amp;lt;unistd.h&amp;gt; int main() { const char* fstr = &#34;Hello fwrite\n&#34;; const char* str = &#34;Hello write\n&#34;; printf(&#34;Hello printf\n&#34;); fprintf(stdout, &#34;Hello fprintf\n&#34;); fwrite(fstr, strlen(fstr), 1, stdout); // 返回值是写入成功的快数 write(1, str, strlen(str)); // 返回值是写入成功的字节数 // fork(); return 0; } 结构分析：带 fork 的输出重定向最终把有一些内容向 log.txt 文件中写入了多次，并且打印顺序也有所不同。
+int main() { const char* fstr = &#34;Hello fwrite&#34;; const char* str = &#34;Hello write&#34;; printf(&#34;Hello printf&#34;); fprintf(stdout, &#34;Hello fprintf&#34;">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2024-02-23T10:00:25+08:00">
+    <meta property="article:modified_time" content="2024-02-23T10:00:25+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">【Linux取经路】文件系统之缓冲区</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-light">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <p><img src="https://images2.imgbox.com/c5/e7/hiZtDSx3_o.gif" alt="在这里插入图片描述"></p> 
+<p></p> 
+<div class="toc"> 
+ <h4><b>文章目录</b></h4> 
+ <ul><li><a href="#bb_3" rel="nofollow"><b>一、先看现象</b></a></li><li><a href="#bb_63" rel="nofollow"><b>二、用户缓冲区的引入</b></a></li><li><a href="#bb_77" rel="nofollow"><b>三、用户缓冲区的刷新策略</b></a></li><li><a href="#bb_86" rel="nofollow"><b>四、为什么要有用户缓冲区</b></a></li><li><a href="#bb_96" rel="nofollow"><b>五、现象解释</b></a></li><li><a href="#bb_124" rel="nofollow"><b>六、结语</b></a></li></ul> 
+</div> 
+<p></p> 
+<h2><a id="bb_3"></a><b>一、先看现象</b></h2> 
+<pre><code class="prism language-c"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdio.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;string.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;unistd.h&gt;</span></span>
+
+<span class="token keyword">int</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">const</span> <span class="token keyword">char</span><span class="token operator">*</span> fstr <span class="token operator">=</span> <span class="token string">"Hello fwrite\n"</span><span class="token punctuation">;</span>
+    <span class="token keyword">const</span> <span class="token keyword">char</span><span class="token operator">*</span> str <span class="token operator">=</span> <span class="token string">"Hello write\n"</span><span class="token punctuation">;</span>
+
+    <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"Hello printf\n"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">fprintf</span><span class="token punctuation">(</span><span class="token constant">stdout</span><span class="token punctuation">,</span> <span class="token string">"Hello fprintf\n"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">fwrite</span><span class="token punctuation">(</span>fstr<span class="token punctuation">,</span> <span class="token function">strlen</span><span class="token punctuation">(</span>fstr<span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token number">1</span><span class="token punctuation">,</span> <span class="token constant">stdout</span><span class="token punctuation">)</span><span class="token punctuation">;</span> <span class="token comment">// 返回值是写入成功的快数</span>
+
+    <span class="token function">write</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">,</span> str<span class="token punctuation">,</span> <span class="token function">strlen</span><span class="token punctuation">(</span>str<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span> <span class="token comment">// 返回值是写入成功的字节数</span>
+
+    <span class="token comment">// fork();</span>
+    <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p><img src="https://images2.imgbox.com/d0/83/8GMj6TQB_o.png" alt="在这里插入图片描述"><br> <strong>结构分析</strong>：带 fork 的输出重定向最终把有一些内容向 log.txt 文件中写入了多次，并且打印顺序也有所不同。</p> 
+<pre><code class="prism language-c"><span class="token keyword">int</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">const</span> <span class="token keyword">char</span><span class="token operator">*</span> fstr <span class="token operator">=</span> <span class="token string">"Hello fwrite"</span><span class="token punctuation">;</span>
+    <span class="token keyword">const</span> <span class="token keyword">char</span><span class="token operator">*</span> str <span class="token operator">=</span> <span class="token string">"Hello write"</span><span class="token punctuation">;</span>
+
+    <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"Hello printf"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">fprintf</span><span class="token punctuation">(</span><span class="token constant">stdout</span><span class="token punctuation">,</span> <span class="token string">"Hello fprintf"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">fwrite</span><span class="token punctuation">(</span>fstr<span class="token punctuation">,</span> <span class="token function">strlen</span><span class="token punctuation">(</span>fstr<span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token number">1</span><span class="token punctuation">,</span> <span class="token constant">stdout</span><span class="token punctuation">)</span><span class="token punctuation">;</span> <span class="token comment">// 返回值是写入成功的快数</span>
+
+    <span class="token function">close</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token comment">// write(1, str, strlen(str)); // 返回值是写入成功的字节数</span>
+
+    <span class="token comment">// fork();</span>
+    <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p><img src="https://images2.imgbox.com/c5/0e/APr8rIRD_o.png" alt="在这里插入图片描述"><br> <strong>结果分析</strong>：代码中只使用了库函数向显示器中进行写入，并且在字符串的结尾没有加 <code>\n</code>，在最后面将标准输出对应的文件描述符进行了关闭，最终显示器上什么也没有。上一段代码在字符串的结尾加上了 <code>\n</code> 最终字符串被成功的打印到了屏幕上。</p> 
+<pre><code class="prism language-c"><span class="token keyword">int</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">const</span> <span class="token keyword">char</span><span class="token operator">*</span> str <span class="token operator">=</span> <span class="token string">"Hello write"</span><span class="token punctuation">;</span>
+
+    <span class="token function">write</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">,</span> str<span class="token punctuation">,</span> <span class="token function">strlen</span><span class="token punctuation">(</span>str<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span> <span class="token comment">// 返回值是写入成功的字节数</span>
+    <span class="token function">close</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    
+    <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p><img src="https://images2.imgbox.com/61/eb/hGhJC0Nj_o.png" alt="在这里插入图片描述"><br> <strong>结果分析</strong>：字符串的结尾依然不加 <code>\n</code>，但是这一次采用系统调用接口，最后仍然将标准输出对应的文件描述符进行关闭，这一次字符串被成功的打印了出来。</p> 
+<h2><a id="bb_63"></a><b>二、用户缓冲区的引入</b></h2> 
+<p><code>write</code> 为什么能将不带 <code>\n</code> 的字符串写入到显示器文件中。首先我们需要明确一点进程打开的每一个文件都有一个属于自己的<strong>操作系统级别的文件缓冲区</strong>，该缓冲区的存在，可以减少对外设的读写操作以提高计算机的效率。举个栗子，在一个进程中向磁盘里的同一个文件进多次行写入，文件缓冲区的存在，可以将每次写入的内容先存储在文件缓冲区中，最后在程序退出或者调用 <code>close</code> 的时候，一次性将文件缓冲区中的所有内容刷新到磁盘。如果没有该文件缓冲区，那在进程里对文件进行 n 次写操做，就要对应 n 次向磁盘的写操作，CPU 和外设之间是存在非常大的速度差的，这样效率会非常低。</p> 
+<p><code>write</code> 作为系统调用接口，它就是直接向文件缓冲区中写入，最后在调用 <code>close</code> 接口或者程序退出的时候，会将文件缓冲区的内容刷新到对应的外设中。</p> 
+<p><code>printf</code>、<code>fprintf</code>、<code>fwrite</code> 底层一定是封装了 <code>write</code> 系统调用接口，那为什么使用 <code>write</code> 系统调用接口就可以将字符串写入到显示器，使用 C 库函数没能把字符串写入到显示器文件？原因在进度条的那篇文章中讲过，我们使用的这些 C 库函数，是把字符串写入到了<strong>缓冲区</strong>中，这个缓冲区和上面的文件缓冲区有所不同，这里说的缓冲区是 C 语言给我们提供的<strong>语言层面的缓冲区</strong>，也叫做<strong>用户级缓冲区</strong>，<code>\n</code> 具有刷新用户级缓冲区的作用，因此不加 <code>\n</code> 并且在程序结束前将显示器对应的文件描述符进行了关闭，最终就导致字符串在用户级缓冲区中，没有被刷新到文件缓冲区，所以屏幕上就什么也没有。这里我们可以肯定，在这些 C 库函数中，并不是立即调用 <code>write</code> 接口，而是在遇到 <code>\n</code> 后才去调用 <code>write</code> 接口将用户缓冲区的内容刷新到文件缓冲区中。</p> 
+<p><img src="https://images2.imgbox.com/9c/5f/knd2AXrQ_o.png" alt="在这里插入图片描述"></p> 
+<p><strong>总结</strong>：使用 C 系统调用接口向文件中写入，写入的内容先被存储在用户缓冲区中，在合适的时候（遇到 <code>\n</code>）才会进行刷新，这里刷新的本质是调用 <code>write</code> 将数据从用户缓冲区写入内核。</p> 
+<p>之前说的 <code>exit</code> 会刷新缓冲区，其实就是刷新用户缓冲区，因为 <code>exit</code> 作为 C 库函数，可以看见用户缓冲区，而 <code>_exit</code> 作为系统调用接口，无法看到语言层面的用户缓冲区，因此也就无法刷新用户缓冲区。</p> 
+<h2><a id="bb_77"></a><b>三、用户缓冲区的刷新策略</b></h2> 
+<ul><li> <p><strong>无缓冲</strong>：直接刷新，数据不在用户缓冲区中停留。</p> </li><li> <p><strong>行缓冲</strong>：不刷新，直到碰到 <code>\n</code>。</p> </li><li> <p><strong>全缓冲</strong>：缓冲区满了才刷新。</p> </li></ul> 
+<p>所谓刷新就是调用 <code>write</code> 接口将数据写入操作系统中的文件缓冲区。显示器文件对应采用的就是行缓冲，向磁盘文件中写入采用的是全缓冲。进程在退出的时候也会刷新用户缓冲区，还可以调用 <code>fflush</code> 进行刷新。</p> 
+<h2><a id="bb_86"></a><b>四、为什么要有用户缓冲区</b></h2> 
+<ul><li> <p>解决效率问题，缓冲区就像菜鸟驿站，不需要我们自己坐火车坐飞机去送东西，而是直接交给菜鸟驿站，然后就可以干自己的事情了，菜鸟驿站可以选择攒上一大批快递然后统一寄送出去。<strong>用户缓冲区的存在本质上提高了 C 语言的效率，也就是提高了用户的效率</strong>，因为 C 语言是程序员在使用，在使用 C 库函数进行文件写入时，大部分情况只需要把数据交给缓冲区，然后就可以快速的返回，不需要每一次都亲力亲为的去和操作系统打交道。</p> </li><li> <p>配合格式化，有些和文件写入相关的 C 库函数是格式化输出函数，在我们看来，它可以写入整形、符点型，但是最终都是以字符串的形式进行写入。格式化就是将类型全都转化成字符串，先写入到用户缓冲区，用户缓冲区中存的一定都是字符串。</p> </li></ul> 
+<p>用户缓冲区，有进也有出，将数据写入到用户缓冲区中就就叫做进，将用户缓冲区中的数据刷新到内核中的文件缓冲区中，被刷新的数据就可以从用户缓冲区中删掉，这就叫做出。用户缓冲就像就像水流一样源源不断，流的概念就是因此而来。</p> 
+<p><strong>小Tips</strong>：<code>FILE</code> 里面就有对应打开文件的缓冲区字段和维护信息。每个被进程打开文件都有自己对应的文件缓冲区。<code>FILE</code> 对象属于用户，用户缓冲区可以看作是在堆上申请的一块空间。</p> 
+<h2><a id="bb_96"></a><b>五、现象解释</b></h2> 
+<p>这下再来解释上面代码中有 fork 然后重定向，写入了多次的原因。首先重定向后，将本来向显示器文件写入的内容，写到了磁盘文件，显示器文件的缓冲区采用行缓冲，即遇到 <code>\n</code> 就会刷新，而磁盘文件采用的是全缓冲，当缓冲区满了才刷新。因此在重定向后，会把三条 C 库函数写入的内容全部保存到缓冲区中，然后调用 <code>fork</code> 创建子进程，此时父子进程代码共享，数据写时拷贝，在程序退出的时候回去刷新用户缓冲区，上面说过，刷新就是将用户缓冲区中的数据写入到内核，然后将用户缓冲区中的内容清空，上面还说过，缓冲区就是在堆上申请的一段空间，可以看作数据部分，因为要删除数据，所以就会进行写时拷贝，此时之前父进程用户缓冲区中的内容就会给子进程拷贝一份，然后父子进程都执行刷新动作，各自刷新自己的缓冲区数据，这就是为什么最终出现多份的原因。没有重定向，只向显示器打印四条消息，是因为显示器采用的是行刷新策略，在调用 <code>fork</code> 前，对应的字符串就已经被刷新出去了。在 <code>fork</code> 的时候，父进程的用户缓冲区中是空的，什么也没有。</p> 
+<p><strong>磁盘文件全缓冲验证</strong>：</p> 
+<pre><code class="prism language-c"><span class="token keyword">int</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">const</span> <span class="token keyword">char</span><span class="token operator">*</span> fstr <span class="token operator">=</span> <span class="token string">"Hello fwrite\n"</span><span class="token punctuation">;</span>
+    <span class="token keyword">const</span> <span class="token keyword">char</span><span class="token operator">*</span> str <span class="token operator">=</span> <span class="token string">"Hello write\n"</span><span class="token punctuation">;</span>
+
+    <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"Hello printf\n"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">sleep</span><span class="token punctuation">(</span><span class="token number">2</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">fprintf</span><span class="token punctuation">(</span><span class="token constant">stdout</span><span class="token punctuation">,</span> <span class="token string">"Hello fprintf\n"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">sleep</span><span class="token punctuation">(</span><span class="token number">2</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">fwrite</span><span class="token punctuation">(</span>fstr<span class="token punctuation">,</span> <span class="token function">strlen</span><span class="token punctuation">(</span>fstr<span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token number">1</span><span class="token punctuation">,</span> <span class="token constant">stdout</span><span class="token punctuation">)</span><span class="token punctuation">;</span> <span class="token comment">// 返回值是写入成功的快数</span>
+    <span class="token function">sleep</span><span class="token punctuation">(</span><span class="token number">2</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token function">write</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">,</span> str<span class="token punctuation">,</span> <span class="token function">strlen</span><span class="token punctuation">(</span>str<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span> <span class="token comment">// 返回值是写入成功的字节数</span>
+
+    <span class="token function">sleep</span><span class="token punctuation">(</span><span class="token number">5</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token function">fork</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p><img src="https://images2.imgbox.com/f8/6e/z5zv1XE1_o.gif" alt="在这里插入图片描述"><br> <strong>分析</strong>：最先将 <code>write</code> 内容写入到文件中，因为它是直接写入到文件缓冲区，而剩下的 C 库函数对应的内容是统一一次全部刷新到内核，即使每个字符串后面都有 <code>\n</code>，但最后还是统一全部刷新，这就证明了磁盘文件采用的是全刷新策略。</p> 
+<h2><a id="bb_124"></a><b>六、结语</b></h2> 
+<p>今天的分享到这里就结束啦！如果觉得文章还不错的话，可以<font color="pink">三连</font>支持一下，<a href="https://blog.csdn.net/weixin_63115236?spm=1000.2115.3001.5343">春人的主页</a>还有很多有趣的文章，欢迎小伙伴们前去点评，您的支持就是春人前进的动力！</p> 
+<p><img src="https://images2.imgbox.com/c1/19/EILZxXfD_o.gif" alt="在这里插入图片描述"></p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/6b874c8aa1d07a264e8ce0e0dd5b1667/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">【PostgreSQL】PostgreSQL详细介绍</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/2e995ddc1341d5f4bf126f0050b565f1/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">Linux下netstat查看服务及监听端口详解</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

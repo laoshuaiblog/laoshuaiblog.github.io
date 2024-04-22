@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>【virtio-networking 和 vhost-net 简介】 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/d0f334b47e6e9ae8cb0bf4bc8abba1b7/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="【virtio-networking 和 vhost-net 简介】">
+  <meta property="og:description" content="文章目录 Virtio 基本构建块Virtio spec 和 vhost 协议Vhost-net/virtio-net architectureVirtio-networking and OVS总结参考链接 Virtio 是作为虚拟机 (VM)访问简化device（如块设备和网络适配器）的 标准化开放接口而开发的。Virtio-net是一种虚拟以太网卡，是virtio迄今为止支持的最复杂的device。 在这篇文章中，我们将基于在host内核和 VM guest内核之间建立接口，提供 virtio 网络架构的高级解决方案概述。我们将介绍基本的构建块，包括KVM，qemu和libvirt。我们将介绍virtio规范和vhost协议，以及用于连接不同VM和连接外部世界的Open vSwitch（OVS）。本文中描述的基于vhost-net/virtio-net的架构是许多virtio-networking架构中的第一个，这些架构将在一系列帖子中介绍，这些架构因其性能，应用程序的易用性和实际部署而有所不同。
+在阅读完这篇文章后，你应该对所提到的术语有一个清晰的了解，以及在虚拟机中运行的应用程序如何将数据包传输到在其他虚拟机上运行的应用程序和外部世界。这些术语将是下一篇文章的基础。
+Virtio 基本构建块 guest VM 或guest是在物理计算机上安装、执行和托管的 VM。托管guest VM 的计算机称为host，它为guest提供资源。客户机具有通过虚拟机管理程序在host操作系统上运行的单独操作系统。例如，host将为guest提供虚拟 NIC，以便guest计算机感觉好像它使用的是真正的 NIC，而实际上它使用的是虚拟 NIC。
+以下构建基块创建了 virtio 稍后连接到的环境：
+KVM - 基于内核的虚拟机，允许 Linux 作为管理程序运行，因此主机可以运行多个隔离的虚拟环境，称为Guest。KVM 基本上为 Linux 提供管理程序功能。这意味着管理程序组件，如内存管理器、调度器、网络堆栈等，作为 Linux 内核的一部分提供。VMs 是由标准 Linux 调度器与专用虚拟硬件（如网络适配器）调度的常规 Linux 进程。QEMU - 一个托管的虚拟机监视器，通过仿真为guest计算机提供一组不同的硬件和device型号。QEMU 可与 KVM 配合使用，利用硬件扩展以接近本机的速度运行虚拟机。guest通过 qemu 命令行界面 （CLI） 执行。CLI 提供了为 QEMU 指定所有必要配置选项的功能。Libvirt - 一个将XML格式的配置转换为qemu CLI调用的接口。它还提供了一个管理守护进程来配置子进程（如 qemu），因此 qemu 不需要 root 权限。例如，当Openstack Nova想要启动一个VM时，它使用libvirt为每个VM调用一个qemu进程来启动每个VM的qemu进程。 下图显示了这三个构建基块如何组合在一起：">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2024-03-19T15:44:45+08:00">
+    <meta property="article:modified_time" content="2024-03-19T15:44:45+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">【virtio-networking 和 vhost-net 简介】</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-dark">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <p></p> 
+<div class="toc"> 
+ <h4>文章目录</h4> 
+ <ul><li><a href="#Virtio__7" rel="nofollow">Virtio 基本构建块</a></li><li><a href="#Virtio_spec__vhost__25" rel="nofollow">Virtio spec 和 vhost 协议</a></li><li><a href="#Vhostnetvirtionet_architecture_50" rel="nofollow">Vhost-net/virtio-net architecture</a></li><li><a href="#Virtionetworking_and_OVS_73" rel="nofollow">Virtio-networking and OVS</a></li><li><a href="#_88" rel="nofollow">总结</a></li><li><a href="#_102" rel="nofollow">参考链接</a></li></ul> 
+</div> 
+<br> Virtio 是作为虚拟机 (VM)访问简化device（如块设备和网络适配器）的 
+<strong>标准化开放接口</strong>而开发的。Virtio-net是一种虚拟以太网卡，是virtio迄今为止支持的最复杂的device。 
+<p></p> 
+<p>在这篇文章中，我们将基于在host内核和 VM guest内核之间建立接口，提供 virtio 网络架构的高级解决方案概述。我们将介绍基本的构建块，包括KVM，qemu和libvirt。我们将介绍virtio规范和vhost协议，以及用于连接不同VM和连接外部世界的Open vSwitch（OVS）。本文中描述的基于vhost-net/virtio-net的架构是<strong>许多virtio-networking架构</strong>中的第一个，这些架构将在一系列帖子中介绍，这些架构因其性能，应用程序的易用性和实际部署而有所不同。</p> 
+<p>在阅读完这篇文章后，你应该对所提到的术语有一个清晰的了解，以及在虚拟机中运行的应用程序如何将数据包传输到在其他虚拟机上运行的应用程序和外部世界。这些术语将是下一篇文章的基础。</p> 
+<h2><a id="Virtio__7"></a>Virtio 基本构建块</h2> 
+<p>guest VM 或guest是在物理计算机上安装、执行和托管的 VM。托管guest VM 的计算机称为host，它为guest提供资源。客户机具有通过虚拟机管理程序在host操作系统上运行的单独操作系统。例如，host将为guest提供虚拟 NIC，以便guest计算机感觉好像它使用的是真正的 NIC，而实际上它使用的是虚拟 NIC。</p> 
+<p>以下构建基块创建了 virtio 稍后连接到的环境：</p> 
+<ol><li><strong>KVM - 基于内核的虚拟机</strong>，允许 Linux 作为管理程序运行，因此主机可以运行多个隔离的虚拟环境，称为Guest。KVM 基本上为 Linux 提供管理程序功能。这意味着管理程序组件，如内存管理器、调度器、网络堆栈等，作为 Linux 内核的一部分提供。VMs 是由标准 Linux 调度器与专用虚拟硬件（如网络适配器）调度的常规 Linux 进程。</li><li><strong>QEMU - 一个托管的虚拟机监视器</strong>，通过仿真为guest计算机提供一组不同的硬件和device型号。QEMU 可与 KVM 配合使用，利用硬件扩展以接近本机的速度运行虚拟机。guest通过 qemu 命令行界面 （CLI） 执行。CLI 提供了为 QEMU 指定所有必要配置选项的功能。</li><li><strong>Libvirt - 一个将XML格式的配置转换为qemu CLI调用的接口</strong>。它还提供了一个管理守护进程来配置子进程（如 qemu），因此 qemu 不需要 root 权限。例如，当Openstack Nova想要启动一个VM时，它使用libvirt为每个VM调用一个qemu进程来启动每个VM的qemu进程。</li></ol> 
+<p>下图显示了这三个构建基块如何组合在一起：<br> <img src="https://images2.imgbox.com/54/58/MEtOjOvm_o.png" alt="在这里插入图片描述"></p> 
+<p>Host和Guest都包含内核空间和用户空间。如图所示，KVM在Host内核空间中运行，而libvirt在Host用户空间中运行。</p> 
+<p>Guest虚拟机在 qemu 进程内部运行，qemu 进程只是在host用户空间上运行的进程，并与 libvirt（用户空间应用程序）和 KVM（host内核）进行通信。</p> 
+<p>将为每个guest VM 创建一个 qemu 进程，因此，如果创建 N 个 VM，则将具有 N 个 qemu 进程，libvirt 将与每个进程进行通信。</p> 
+<h2><a id="Virtio_spec__vhost__25"></a>Virtio spec 和 vhost 协议</h2> 
+<p>在谈论 virtio-networking 时，我们可以将讨论分为两层：</p> 
+<ol><li><strong>控制平面</strong> - 用于host和guest之间的capability交换协商，以建立和终止数据平面。</li><li><strong>数据平面</strong> - 用于在host和guest之间传输实际数据（数据包）。</li></ol> 
+<p>区分这些层很重要，因为它们具有不同的要求（例如性能）和不同的实现，如本文和后续帖子所示。</p> 
+<p>从根本上说，数据平面需要尽可能高效地快速移动数据包，而控制平面需要尽可能灵活地支持未来架构中的不同device和vendor。</p> 
+<p>如引言中所述，virtio被开发为guest访问host上device的接口。我们可以将 virito 分为两部分：</p> 
+<ol><li>virtio spec - 由 OASIS 维护的 virtio 规范定义了如何在guest和host之间创建控制平面和数据平面。例如，数据平面由规范中详细介绍的缓冲区和环布局组成。</li><li>vhost 协议 - 一种协议，允许**将 virtio 数据平面实现卸载到另一个元素（用户进程或内核模块）**以增强性能。</li></ol> 
+<p>virtio 的控制平面是在基于 virtio 规范的 qemu 进程中实现的，但数据平面不是。因此，问题是为什么数据平面没有在qemu进程中以基于virtio规范的类似方式实现？<br> 答案是<strong>性能</strong>。</p> 
+<p>如果我们简单地在qemu中实现virtio规范数据平面，我们将为从内核到guest的<strong>每个数据包提供一个上下文切换</strong>，反之亦然。这是一个代价高昂的操作，会增加延迟并需要更多的处理时间（请记住，qemu是另一个Linux进程），因此如果可能的话，我们希望避免它。<br> 这就是vhost协议发挥作用的地方，使我们能够实现一个数据平面，直接从内核（host）到guest，绕过qemu进程。</p> 
+<p>但是，vhost协议本身仅描述如何建立数据平面。无论谁实现它，还需要实现用于描述数据缓冲区（host和guest）和实际发送/接收数据包的<strong>环形布局</strong>。</p> 
+<p>如后面各节所述，<strong>vhost协议可以在内核（vhost-net）或用户空间（vhost-user）中实现</strong>。本文中描述的 vhost-net/virtio-net 体系结构侧重于内核实现，也称为 vhost-net。</p> 
+<h2><a id="Vhostnetvirtionet_architecture_50"></a>Vhost-net/virtio-net architecture</h2> 
+<p>当我们谈论virtio接口时，我们有一个后端组件和一个前端组件：</p> 
+<ul><li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" disabled> 后端组件是 virtio 接口的host端</li><li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" disabled> 前端组件是 virtio 接口的guest端</li></ul> 
+<p>在 vhost-net/virtio-net 体系结构中，组件如下所示：</p> 
+<ul><li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" disabled> <strong>vhost-net</strong> 是在<strong>host</strong>内核空间中运行的<strong>后端</strong></li><li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" disabled> <strong>virtio-net</strong> 是在<strong>guest</strong>内核空间中运行的<strong>前端</strong></li></ul> 
+<p>下图显示了如何将virtio后端和前端映射到大图：<br> <img src="https://images2.imgbox.com/2f/60/7RmSDSw2_o.png" alt="在这里插入图片描述"></p> 
+<p>需要澄清的几点：</p> 
+<ul><li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" disabled> 由于vhost-net和virtio-net都在运行host和guest内核空间，我们也称它们为driver，所以如果有人写“vhost-net driver”（同样的事情），请不要混淆。</li><li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" disabled> 我们在后端和前端之间有一个单独的控制平面和数据平面。如前所述，<strong>控制平面只是为vhost-net内核模块和qemu进程实现virtio规范</strong>，以进行通信，然后将其传递给guest并最终到达virtio-net。vhost-net使用vhost协议来建立框架，然后用于数据平面，以<strong>使用共享内存区域</strong>直接转发host和guest内核之间的数据包。</li></ul> 
+<p>实际上，数据平面通信，即接收（RX）和传输（TX），是通过专用队列完成的。<br> 对于每个guest，我们可以关联多个虚拟 CPU （vCPU），并且 <strong>RX/TX 队列是按 CPU 创建的</strong>，因此具有 4 个 vCPU 的更详细的示例如下所示（为简单起见，删除了控制平面）：<br> <img src="https://images2.imgbox.com/10/e6/j2gxix8Y_o.png" alt="在这里插入图片描述"><br> 注：一个vCPU对应一组RX和TX。</p> 
+<h2><a id="Virtionetworking_and_OVS_73"></a>Virtio-networking and OVS</h2> 
+<p>到目前为止，我们已经描述了guest如何使用 virtio 网络接口将数据包传递到host内核。为了将这些数据包转发给在同一host上或host外部（例如 Internet）上运行的其他guest，我们使用 OVS。</p> 
+<p>OVS 是一种软件交换机，可在内核内部启用数据包转发。它由一个用户空间部分和一个内核部分组成：</p> 
+<ul><li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" disabled> 用户空间 - 包括数据库（ovsdb-server）和用于管理和控制交换机的OVS守护程序（ovs-vswitchd）。</li><li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" disabled> 内核空间 - 包括负责数据路径或转发平面的 ovs 内核模块。</li></ul> 
+<p>OVS 控制器与数据库服务器和内核转发平面进行通信。要将数据包推入和推送出 OVS，我们使用 Linux 端口。在我们的例子中，我们有一个端口将OVS内核转发平面连接到物理NIC，而另一个端口连接到vhost-net后端。<br> 请注意，我们正试图简化事情，因为在实践中，将有多个NIC通过多个端口连接到OVS，并且运行多个VM，因此多个端口连接到多个vhost-net后端。<br> 回到 virtio-networking，下图显示了 OVS 如何连接到 virtio：<br> <img src="https://images2.imgbox.com/3b/3e/582UpNkf_o.png" alt="在这里插入图片描述"></p> 
+<p>请注意所提到的用于将host外部的 OVS 连接到 vhost-net 以及从那里连接到 virtio-net 和 VM 中运行的应用的端口。</p> 
+<p>vhost-net/virtio-net 架构概述到此结束，该架构基于host内核、guest内核和<strong>内核中运行的 OVS</strong>。</p> 
+<h2><a id="_88"></a>总结</h2> 
+<p>在这篇文章中，我们触及了virtio网络生态系统的表面，向您介绍了virtio网络使用的虚拟化和网络的基本构建块。我们已经简要介绍了 virtio 规范和 vhost 协议，回顾了用于实现 virtio 接口的前端和后端架构，并带您了解了 vhost-net（host内核）与 virtio-net（guest内核）通信的 vhost-net/virtio-net 架构。</p> 
+<p>在试图解释事物时，我们遇到的一个根本性挑战是历史上术语的超载。例如，virtio-net 既指 virtio 规范中的 virtio 网络device实现，也指 vhost-net/virtio-net 体系结构中描述的guest内核前端。我们试图通过解释术语的上下文并<strong>使用virtio-net仅描述guest内核前端</strong>来解决这个问题。</p> 
+<p>正如将在后面的文章中解释的那样，virtio规范网络device还有其他基于DPDK和<strong>不同硬件卸载技术的实现</strong>，这些技术都在virtio网络的涵盖范围下。</p> 
+<p>接下来的两篇文章旨在更深入地了解 vhost-net/virtio-net 体系结构。一篇文章将面向架构师，提供对vhost-net/virtio-net的技术深入研究，并解释如何在实践中实现数据平面和控制平面。另一篇面向开发人员的帖子将是一个实践会话，包括<strong>Ansible脚本</strong>，以便能够尝试vhost-net/virtio-net架构。</p> 
+<p>如果您更喜欢高级概述，我们建议您留意即将在未来几周内发布的virtio网络和DPDK介绍。</p> 
+<p>为了跟上virtio网络社区的步伐，我们邀请您注册virtio网络邮件列表。这是一个公共邮件列表，您可以通过<a href="https://listman.redhat.com/mailman/listinfo/virtio-networking" rel="nofollow">Mailman页面</a>注册。</p> 
+<h2><a id="_102"></a>参考链接</h2> 
+<p><a href="https://www.redhat.com/en/blog/introduction-virtio-networking-and-vhost-net" rel="nofollow">https://www.redhat.com/en/blog/introduction-virtio-networking-and-vhost-net</a></p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/0123e63124ebfa8be7b01c754fc546e6/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">java8中 synchronized与ReentrantLock区别</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/82f824717053a6c637ed78e0de57a6f3/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">大数据面试题 —— Flume</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

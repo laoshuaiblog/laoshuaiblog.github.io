@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>rust引用-借用机制扩展 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/02b6bff446e37d48fc807919f8f24177/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="rust引用-借用机制扩展">
+  <meta property="og:description" content="rust引用-借用机制还是有限制的，比如我们要在多次函数调用中修改参数、跨线程传递参数并发修改的场景，单纯使用引用-借用机制就不灵了（这种场景和引用-借用设计思想是冲突的）。这时需要借助rust提供的Rc、Arc、Cell、RefCell对机制来扩展默认的引用借用机制。
+慢慢品味，std库里提供的很多实现，都是围绕引用-借用机制展开的；默认的引用-借用机制适合80%的场景，20%的场景还是需要额外的机制来扩展的（引入额外的性能开销，可能其中的15%可以通过优化设计避免）。
+1、线程内 use std::rc::Rc; use std::cell::RefCell; fn main() { println!(&#34;Hello, world!&#34;); let mut param = Param::default(); param.name = &#34;xiao ming&#34;.to_string(); let rc_param = Rc::new(param); //Rc自带引用计数，可clone多个实例传给给函数作为参数，超出作用域引用计数减一至零时自动销毁 //Rc不能跨线程，要跨线程使用需要改为Arc&#43;Mutex let rc1 = rc_param.clone(); let rc2 = rc_param.clone(); let rc3 = rc_param.clone(); println!(&#34;{}&#34;, rc1.name); new_value_fn1(rc2); new_value_fn2(rc3); //如果要在函数中修改参数的值，需要使用Rc&#43;RecCell let mut param2 = Param::default(); param2.name = &#34;小红&#34;.to_string(); let rc_refcell_param = Rc::new(RefCell::new(param2)); let rc_rec_p1 = rc_refcell_param.clone(); let rc_rec_p2 = rc_refcell_param.clone(); new_value_refcell_fn1(rc_rec_p1); new_value_refcell_fn2(rc_rec_p2); println!(&#34;{}&#34;, rc_refcell_param.borrow().name); //小红-fn1-fn2 } fn new_value_fn1(param: Rc&amp;lt;Param&amp;gt;){ println!">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2024-03-16T12:24:41+08:00">
+    <meta property="article:modified_time" content="2024-03-16T12:24:41+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">rust引用-借用机制扩展</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <p>    rust引用-借用机制还是有限制的，比如我们要在多次函数调用中修改参数、跨线程传递参数并发修改的场景，单纯使用引用-借用机制就不灵了（这种场景和引用-借用设计思想是冲突的）。这时需要借助rust提供的Rc、Arc、Cell、RefCell对机制来扩展默认的引用借用机制。</p> 
+<p>  慢慢品味，std库里提供的很多实现，都是围绕引用-借用机制展开的；默认的引用-借用机制适合80%的场景，20%的场景还是需要额外的机制来扩展的（引入额外的性能开销，可能其中的15%可以通过优化设计避免）。</p> 
+<h4>1、线程内</h4> 
+<pre><code class="language-rust">use std::rc::Rc;
+use std::cell::RefCell;
+
+fn main() {
+    println!("Hello, world!");
+    let mut param = Param::default();
+    param.name = "xiao ming".to_string();
+    let rc_param = Rc::new(param);
+    //Rc自带引用计数，可clone多个实例传给给函数作为参数，超出作用域引用计数减一至零时自动销毁
+    //Rc不能跨线程，要跨线程使用需要改为Arc+Mutex
+    let rc1 = rc_param.clone();
+    let rc2 = rc_param.clone();
+    let rc3 = rc_param.clone();
+    println!("{}", rc1.name);
+    new_value_fn1(rc2);
+    new_value_fn2(rc3);
+    //如果要在函数中修改参数的值，需要使用Rc+RecCell
+    let mut param2 = Param::default();
+    param2.name = "小红".to_string();
+    let rc_refcell_param = Rc::new(RefCell::new(param2));
+    let rc_rec_p1 = rc_refcell_param.clone();
+    let rc_rec_p2 = rc_refcell_param.clone();
+    new_value_refcell_fn1(rc_rec_p1);
+    new_value_refcell_fn2(rc_rec_p2);
+    println!("{}", rc_refcell_param.borrow().name); //小红-fn1-fn2
+}
+
+fn new_value_fn1(param: Rc&lt;Param&gt;){
+    println!("from fn1: {}", param.name);
+    //不让修改，只能只读引用
+    //param.is_valid = false;
+}
+fn new_value_fn2(param: Rc&lt;Param&gt;){
+    println!("from fn2: {}", param.name);
+}
+
+fn new_value_refcell_fn1(param: Rc&lt;RefCell&lt;Param&gt;&gt;){
+    let mut p = param.borrow_mut();
+    let new_name = p.name.clone() + "-fn1";
+    p.name = new_name;
+    p.is_valid = true;
+}
+
+fn new_value_refcell_fn2(param: Rc&lt;RefCell&lt;Param&gt;&gt;){
+    let mut p = param.borrow_mut();
+    let new_name = p.name.clone() + "-fn2";
+    p.name = new_name;
+}
+
+struct Param{
+    name: String,
+    age: i32,
+    is_valid: bool,
+}
+
+impl Default for Param{
+    fn default () -&gt; Self{
+        Self{
+            name: "".to_string(),
+            age: 20,
+            is_valid: true,
+        }
+    }
+}</code></pre> 
+<h4>2、跨线程</h4> 
+<pre><code class="language-rust">use std::thread::spawn;
+use std::sync::Arc;
+
+    let mut thread_p1 = Param::default();
+    thread_p1.name = String::from("thread param");
+    let t1 = spawn(move ||{
+        println!("in sub thread t1:{}", thread_p1.name);
+    });
+    //变量thread_p1因为有非Copy类型String，只能在一个线程闭包内使用，如果开启线程2编译报错
+    //let t2 = spawn(move ||{
+    //    println!("in sub thread t2:{}", thread_p1.name);
+    //});
+    t1.join().unwrap();
+    //t2.join().unwrap();</code></pre> 
+<p>我们定义一个变量，要在多个线程闭包内使用，需要借助Arc：</p> 
+<pre><code class="language-rust">    let mut thread_p1 = Param::default();
+    thread_p1.name = String::from("thread param");
+    let thread_param = Arc::new(thread_p1);
+    let thread1_param = thread_param.clone();//clone一个跨线程的引用计数变量给线程1用
+    let thread2_param = thread_param.clone();//clone一个跨线程的引用计数变量给线程2用
+    let t1 = spawn(move ||{
+        println!("in sub thread t1:{}", thread1_param.name);
+    });
+    let t2 = spawn(move ||{
+        println!("in sub thread t2:{}", thread2_param.name);
+    });
+    t1.join().unwrap();
+    t2.join().unwrap();</code></pre> 
+<p>如果我们还要在线程内修改变量，则需要借助Mutex：</p> 
+<pre><code class="language-rust">    let mut thread_p1 = Param::default();
+    thread_p1.name = String::from("thread param");
+    let thread_param = Arc::new(Mutex::new(thread_p1));//创建跨线程传递的可读性对象
+    let thread1_param = thread_param.clone();//clone一个给线程1用
+    let thread2_param = thread_param.clone();//clone一个给线程2用
+    let t1 = spawn(move ||{
+        let mut v1 = thread1_param.lock().unwrap();//线程1使用thread1_param，先调用lock获取对象，在作用域内是独占的，其他线程不能并行使用
+        v1.name = v1.name.clone() + "__" + "t1";
+        println!("in sub thread t1:{}", v1.name);
+    });
+    let t2 = spawn(move ||{
+        let mut v2 = thread2_param.lock().unwrap();//线程2使用thread2_param，先调用lock获取对象，在作用域内是独占的，其他线程不能并行使用
+        v2.name = v2.name.clone() + "__" + "t2";
+        println!("in sub thread t2:{}", v2.name);
+    });
+    t1.join().unwrap();
+    t2.join().unwrap();
+    let v3 = thread_param.lock().unwrap();//验证两个子线程执行情况  p.name is thread param__t2__t1
+    println!("p.name is {}", v3.name);</code></pre> 
+<p>抛开执行开销，至少其他语言可做的事情，rust也可做到了，理论上可以平行翻译其他语言实现的模块实现。</p> 
+<h4>3、Cell和RefCell</h4> 
+<p>Cell和RefCell都可以避免过于死板的引用、借用机制限制。让编程更灵活，同时还能保证程序的一致性。</p> 
+<p>区别在于它们如何处理内部可变性，以及它们适用的数据类型不同。</p> 
+<ul><li>Cell：Cell是一个简单的类型，可以存储一个单一的值。它可以在不使用可变引用的情况下，对其内部的值进行修改。但是，<strong>Cell只能存储实现了Copy trait的类型</strong>。</li></ul> 
+<ul><li>RefCell：RefCell是一个更复杂的类型，可以在运行时进行借用检查。与Cell不同，<strong>RefCell可以存储不可复制的类型</strong>。但是，RefCell在运行时检查借用规则，如果违反了规则，就会导致程序崩溃。</li></ul> 
+<p>Cell和RefCell都适用于单线程场景。可以避免变量存在引用就不能再被修改的尴尬境地，避开编译期检查在运行期确保程序正确。</p> 
+<pre><code class="language-rust">    // let mut a = 128;
+    // let b = &amp;a;
+    // let c=&amp;a;
+    // a = a + 1;
+    // println!("a={}, b={}, c={}",a, b, c);
+    // if a == 128 {
+    //     return Ok(());
+    // }
+
+    //注释部分因为a被b和c引用，再去修改a的值编译报错；但改为Cell是允许的，Cell对象也可传参。
+    let a = Cell::new(128);
+    let b = &amp;a;
+    let c = &amp;a;
+    a.set(a.get() + 1);
+    //b.set(b.get() + 1);  b引用a，改b会间接改a的值，和上一行效果一致
+    println!("a={}, b={}, c={}",a.get(), b.get(), c.get()); //a,b,c都是129
+    a.set(a.get() + 1);
+    cell_fn(a.clone(), b.clone(), c.clone());//传递对象的clone，函数里对参数修改不影响a,b,c
+    println!("a={}, b={}, c={}",a.get(), b.get(), c.get());//a,b,c变为了130
+    if a.get() == 130 {
+        return Ok(());
+    }
+
+fn cell_fn(a: Cell&lt;i32&gt;, b: Cell&lt;i32&gt;, c: Cell&lt;i32&gt;){
+    b.set(b.get() + 1);  //因为参数b是clone过来的，修改b不影响a和c,也不会影响实参
+    println!("from cell_fn:  a={}, b={}, c={}",a.get(), b.get(), c.get());
+}
+
+//输出
+//a=129, b=129, c=129
+//from cell_fn:  a=130, b=131, c=130
+//a=130, b=130, c=130
+
+fn cell_fn2(a: Cell&lt;i32&gt;, b: Cell&lt;i32&gt;, c: &amp;Cell&lt;i32&gt;){
+    b.set(b.get() + 1);
+    c.set(c.get() + 1);
+    println!("from cell_fn:  a={}, b={}, c={}",a.get(), b.get(), c.get());
+}
+
+注意：如果我们调用cell_fn2，因为c是传引用的，在函数中修改c的值，会同时影响a,b,c实参值。</code></pre> 
+<p></p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/07b0d5535d6433c5ddaeb016e49f9a52/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">taskflow：多线程并行任务</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/afc01e95f033e1451cda1e320068e5a9/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">leetcode每日一题--矩阵中移动的最大次数</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

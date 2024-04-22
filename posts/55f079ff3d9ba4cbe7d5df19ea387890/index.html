@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>[Halcon] detect_indent_fft.hdev - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/55f079ff3d9ba4cbe7d5df19ea387890/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="[Halcon] detect_indent_fft.hdev">
+  <meta property="og:description" content="* This program demonstrates how to detect small texture * defects on the surface of plastic items by using the fast * fourier transform (FFT). * First, we construct a suitable filter using Gaussian * filters. Then, the images and the filter are convolved * by using fast fourier transforms. Finally, the defects * are detected in the filtered images by using * morphology operators. * * Initializations dev_update_off () dev_close_window () read_image (Image, &#39;plastics/plastics_01&#39;) get_image_size (Image, Width, Height) dev_open_window (0, 0, Width, Height, &#39;black&#39;, WindowHandle) set_display_font (WindowHandle, 14, &#39;mono&#39;, &#39;true&#39;, &#39;false&#39;) dev_set_draw (&#39;margin&#39;) dev_set_line_width (3) dev_set_color (&#39;red&#39;) * * Optimize the fft speed for the specific image size optimize_rft_speed (Width, Height, &#39;standard&#39;) * * Construct a suitable filter by combining two gaussian * filters Sigma1 := 10.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2019-04-22T22:01:27+08:00">
+    <meta property="article:modified_time" content="2019-04-22T22:01:27+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">[Halcon] detect_indent_fft.hdev</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <pre class="has"><code>* This program demonstrates how to detect small texture
+* defects on the surface of plastic items by using the fast
+* fourier transform (FFT).
+* First, we construct a suitable filter using Gaussian
+* filters. Then, the images and the filter are convolved
+* by using fast fourier transforms. Finally, the defects
+* are detected in the filtered images by using
+* morphology operators.
+* 
+* Initializations
+dev_update_off ()
+dev_close_window ()
+read_image (Image, 'plastics/plastics_01')
+get_image_size (Image, Width, Height)
+dev_open_window (0, 0, Width, Height, 'black', WindowHandle)
+set_display_font (WindowHandle, 14, 'mono', 'true', 'false')
+dev_set_draw ('margin')
+dev_set_line_width (3)
+dev_set_color ('red')
+* 
+* Optimize the fft speed for the specific image size
+optimize_rft_speed (Width, Height, 'standard')
+* 
+* Construct a suitable filter by combining two gaussian
+* filters
+Sigma1 := 10.0
+Sigma2 := 3.0
+gen_gauss_filter (GaussFilter1, Sigma1, Sigma1, 0.0, 'none', 'rft', Width, Height)
+gen_gauss_filter (GaussFilter2, Sigma2, Sigma2, 0.0, 'none', 'rft', Width, Height)
+sub_image (GaussFilter1, GaussFilter2, Filter, 1, 0)
+* 
+* Process the images iteratively
+NumImages := 11
+for Index := 1 to NumImages by 1
+    * 
+    * Read an image and convert it to gray values
+    read_image (Image, 'plastics/plastics_' + Index$'02')
+    rgb1_to_gray (Image, Image)
+    * Perform the convolution in the frequency domain
+    rft_generic (Image, ImageFFT, 'to_freq', 'none', 'complex', Width)
+    convol_fft (ImageFFT, Filter, ImageConvol)
+    rft_generic (ImageConvol, ImageFiltered, 'from_freq', 'n', 'real', Width)
+    * 
+    * Process the filtered image
+    gray_range_rect (ImageFiltered, ImageResult, 10, 10)
+    min_max_gray (ImageResult, ImageResult, 0, Min, Max, Range)
+    threshold (ImageResult, RegionDynThresh, max([5.55,Max * 0.8]), 255)
+    connection (RegionDynThresh, ConnectedRegions)
+    select_shape (ConnectedRegions, SelectedRegions, 'area', 'and', 4, 99999)
+    union1 (SelectedRegions, RegionUnion)
+    closing_circle (RegionUnion, RegionClosing, 10)
+    connection (RegionClosing, ConnectedRegions1)
+    select_shape (ConnectedRegions1, SelectedRegions1, 'area', 'and', 10, 99999)
+    area_center (SelectedRegions1, Area, Row, Column)
+    * 
+    * Display the results
+    dev_display (Image)
+    Number := |Area|
+    if (Number)
+        gen_circle_contour_xld (ContCircle, Row, Column, gen_tuple_const(Number,30), gen_tuple_const(Number,0), gen_tuple_const(Number,rad(360)), 'positive', 1)
+        ResultMessage := ['Not OK',Number + ' defect(s) found']
+        Color := ['red','black']
+        dev_display (ContCircle)
+    else
+        ResultMessage := 'OK'
+        Color := 'forest green'
+    endif
+    disp_message (WindowHandle, ResultMessage, 'window', 12, 12, Color, 'true')
+    if (Index != NumImages)
+        disp_continue_message (WindowHandle, 'black', 'true')
+        stop ()
+    endif
+endfor</code></pre> 
+<p> </p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/4c6888b7b49b4aa45c4286deb75ebcd5/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">Virtual Box实现ubuntu虚拟机和windows双向拖拽</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/b0bd8bae36d15801aa44a1985e51204f/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">spring boot 返回jsp页面添加依赖</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

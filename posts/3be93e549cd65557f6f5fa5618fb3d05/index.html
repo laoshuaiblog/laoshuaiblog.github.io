@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>【Logback】Logback 日志框架的架构 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/3be93e549cd65557f6f5fa5618fb3d05/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="【Logback】Logback 日志框架的架构">
+  <meta property="og:description" content="目录
+1、Logger（记录器）
+（1）有效级别和级别继承
+（2）日志打印和日志筛选
+（3）记录器命名
+2、Appenders（追加器）
+3、Layouts（布局）
+4、如何避免日志参数构建成本？
+5、日志打印步骤的源码分析
+（1）获取过滤器链的决策结果
+（2）比较 Logger 有效级别与日志打印请求的级别
+（3）创建 LoggingEvent 对象
+（4）调用 Appender
+（5）格式化 LoggingEvent （6）发送 LoggingEvent
+目前，logback 分为三个模块，logback-core、logback-classic 和 logback-access。
+logback-core (核心)模块为其他两个模块奠定了基础。
+logback-classic 模块扩展了 logback-core。logback-classic 模块是 log4j 日志的改进版本。logback-classic 模块实现了 slf4j API，因此使用 slf4j API 时，可以轻松地在 logback 和其他日志框架之间来回切换(例如 JDK 1.4 中引入的 log4j 或 java.util.logging(JUL))。//核心&#43;核心拓展
+logback-access 模块用于与 Servlet 容器集成，用来提供 HTTP-access 日志功能。logback-access 不能安装在 Web 应用程序级别，而是必须安装在容器级别。在 Web 应用程序级别捆绑 logback-access.jar 没有任何意义。//logback-access 模块内容暂时不进行过多深入，后续有时间再探讨
+在这篇文章中，介绍的 logback 指的都是 logback-classic 模块的内容。
+logback 有三个主要的类：Logger、Appender 和 Layout。">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2024-02-23T15:08:07+08:00">
+    <meta property="article:modified_time" content="2024-02-23T15:08:07+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">【Logback】Logback 日志框架的架构</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <p id="main-toc"><strong>目录</strong></p> 
+<p id="1%E3%80%81Logger%EF%BC%88%E8%AE%B0%E5%BD%95%E5%99%A8%EF%BC%89-toc" style="margin-left:40px;"><a href="#1%E3%80%81Logger%EF%BC%88%E8%AE%B0%E5%BD%95%E5%99%A8%EF%BC%89" rel="nofollow">1、Logger（记录器）</a></p> 
+<p id="%EF%BC%881%EF%BC%89%E6%9C%89%E6%95%88%E7%BA%A7%E5%88%AB%E5%92%8C%E7%BA%A7%E5%88%AB%E7%BB%A7%E6%89%BF-toc" style="margin-left:80px;"><a href="#%EF%BC%881%EF%BC%89%E6%9C%89%E6%95%88%E7%BA%A7%E5%88%AB%E5%92%8C%E7%BA%A7%E5%88%AB%E7%BB%A7%E6%89%BF" rel="nofollow">（1）有效级别和级别继承</a></p> 
+<p id="%EF%BC%882%EF%BC%89%E6%97%A5%E5%BF%97%E6%89%93%E5%8D%B0%E5%92%8C%E6%97%A5%E5%BF%97%E7%AD%9B%E9%80%89-toc" style="margin-left:80px;"><a href="#%EF%BC%882%EF%BC%89%E6%97%A5%E5%BF%97%E6%89%93%E5%8D%B0%E5%92%8C%E6%97%A5%E5%BF%97%E7%AD%9B%E9%80%89" rel="nofollow">（2）日志打印和日志筛选</a></p> 
+<p id="%EF%BC%883%EF%BC%89%E8%AE%B0%E5%BD%95%E5%99%A8%E5%91%BD%E5%90%8D-toc" style="margin-left:80px;"><a href="#%EF%BC%883%EF%BC%89%E8%AE%B0%E5%BD%95%E5%99%A8%E5%91%BD%E5%90%8D" rel="nofollow">（3）记录器命名</a></p> 
+<p id="2%E3%80%81Appenders%EF%BC%88%E8%BF%BD%E5%8A%A0%E5%99%A8%EF%BC%89-toc" style="margin-left:40px;"><a href="#2%E3%80%81Appenders%EF%BC%88%E8%BF%BD%E5%8A%A0%E5%99%A8%EF%BC%89" rel="nofollow">2、Appenders（追加器）</a></p> 
+<p id="3%E3%80%81Layouts%EF%BC%88%E5%B8%83%E5%B1%80%EF%BC%89-toc" style="margin-left:40px;"><a href="#3%E3%80%81Layouts%EF%BC%88%E5%B8%83%E5%B1%80%EF%BC%89" rel="nofollow">3、Layouts（布局）</a></p> 
+<p id="4%E3%80%81%E5%A6%82%E4%BD%95%E9%81%BF%E5%85%8D%E6%97%A5%E5%BF%97%E5%8F%82%E6%95%B0%E6%9E%84%E5%BB%BA%E6%88%90%E6%9C%AC%EF%BC%9F-toc" style="margin-left:40px;"><a href="#4%E3%80%81%E5%A6%82%E4%BD%95%E9%81%BF%E5%85%8D%E6%97%A5%E5%BF%97%E5%8F%82%E6%95%B0%E6%9E%84%E5%BB%BA%E6%88%90%E6%9C%AC%EF%BC%9F" rel="nofollow">4、如何避免日志参数构建成本？</a></p> 
+<p id="5%E3%80%81%E6%97%A5%E5%BF%97%E6%89%93%E5%8D%B0%E6%AD%A5%E9%AA%A4%E7%9A%84%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90-toc" style="margin-left:40px;"><a href="#5%E3%80%81%E6%97%A5%E5%BF%97%E6%89%93%E5%8D%B0%E6%AD%A5%E9%AA%A4%E7%9A%84%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90" rel="nofollow">5、日志打印步骤的源码分析</a></p> 
+<p id="%EF%BC%881%EF%BC%89%E8%8E%B7%E5%8F%96%E8%BF%87%E6%BB%A4%E5%99%A8%E9%93%BE%E7%9A%84%E5%86%B3%E7%AD%96%E7%BB%93%E6%9E%9C-toc" style="margin-left:80px;"><a href="#%EF%BC%881%EF%BC%89%E8%8E%B7%E5%8F%96%E8%BF%87%E6%BB%A4%E5%99%A8%E9%93%BE%E7%9A%84%E5%86%B3%E7%AD%96%E7%BB%93%E6%9E%9C" rel="nofollow">（1）获取过滤器链的决策结果</a></p> 
+<p id="%EF%BC%882%EF%BC%89%E6%AF%94%E8%BE%83%C2%A0Logger%20%E6%9C%89%E6%95%88%E7%BA%A7%E5%88%AB%E4%B8%8E%E6%97%A5%E5%BF%97%E6%89%93%E5%8D%B0%E8%AF%B7%E6%B1%82%E7%9A%84%E7%BA%A7%E5%88%AB-toc" style="margin-left:80px;"><a href="#%EF%BC%882%EF%BC%89%E6%AF%94%E8%BE%83%C2%A0Logger%20%E6%9C%89%E6%95%88%E7%BA%A7%E5%88%AB%E4%B8%8E%E6%97%A5%E5%BF%97%E6%89%93%E5%8D%B0%E8%AF%B7%E6%B1%82%E7%9A%84%E7%BA%A7%E5%88%AB" rel="nofollow">（2）比较 Logger 有效级别与日志打印请求的级别</a></p> 
+<p id="%EF%BC%883%EF%BC%89%E5%88%9B%E5%BB%BA%20LoggingEvent%20%E5%AF%B9%E8%B1%A1-toc" style="margin-left:80px;"><a href="#%EF%BC%883%EF%BC%89%E5%88%9B%E5%BB%BA%20LoggingEvent%20%E5%AF%B9%E8%B1%A1" rel="nofollow">（3）创建 LoggingEvent 对象</a></p> 
+<p id="%EF%BC%884%EF%BC%89%E8%B0%83%E7%94%A8%20Appender-toc" style="margin-left:80px;"><a href="#%EF%BC%884%EF%BC%89%E8%B0%83%E7%94%A8%20Appender" rel="nofollow">（4）调用 Appender</a></p> 
+<p id="%EF%BC%885%EF%BC%89%E6%A0%BC%E5%BC%8F%E5%8C%96%C2%A0LoggingEvent%C2%A0-toc" style="margin-left:80px;"><a href="#%EF%BC%885%EF%BC%89%E6%A0%BC%E5%BC%8F%E5%8C%96%C2%A0LoggingEvent%C2%A0" rel="nofollow">（5）格式化 LoggingEvent </a></p> 
+<p id="%EF%BC%886%EF%BC%89%E5%8F%91%E9%80%81%20LoggingEvent-toc" style="margin-left:80px;"><a href="#%EF%BC%886%EF%BC%89%E5%8F%91%E9%80%81%20LoggingEvent" rel="nofollow">（6）发送 LoggingEvent</a></p> 
+<hr id="hr-toc"> 
+<p></p> 
+<p>        目前，logback 分为三个模块，<span style="color:#fe2c24;"><em>logback-core、logback-classic</em></span> 和 <em>logback-access</em>。</p> 
+<p><em>        logback-core (核心)</em>模块为其他两个模块奠定了基础。</p> 
+<p><em>        logback-classic </em>模块扩展了 <em>logback-core</em>。<em>logback-classic </em>模块是 log4j 日志的改进版本。<em><span style="color:#fe2c24;">logback-classic 模块实现了 slf4j API</span></em>，因此<span style="color:#fe2c24;"><em>使用 slf4j API 时，可以轻松地在 logback 和其他日志框架之间来回切换</em></span>(<em>例如 JDK 1.4 中引入的 log4j 或 java.util.logging(JUL)</em>)。<em><span style="color:#4da8ee;">//核心+核心拓展</span></em></p> 
+<p><em>        logback-access </em>模块用于与 Servlet 容器集成，用来提供 <em>HTTP-access</em> 日志功能。<em>logback-access</em> 不能安装在<em> Web </em>应用程序级别，而是必须安装在容器级别。在<em> Web</em> 应用程序级别捆绑 <em>logback-access.jar </em>没有任何意义。<em><span style="color:#4da8ee;">//logback-access 模块内容暂时不进行过多深入，后续有时间再探讨</span></em></p> 
+<p>        在这篇文章中，介绍的<em> logback </em>指的都是 <em>logback-classic </em>模块的内容。</p> 
+<p>        <u><em>logback 有三个主要的类：<span style="color:#fe2c24;">Logger、Appender</span> 和 <span style="color:#fe2c24;">Layout</span>。</em></u></p> 
+<p>        这三中类型的组件协同工作，可以使开发人员能够<em>根据日志级别记录日志(<span style="color:#fe2c24;">Logger</span>)</em>，并在运行时<em>控制这些日志的输出位置(<span style="color:#fe2c24;">Appender</span>)</em>和<em>输出格式(</em><span style="color:#fe2c24;"><em>Layout</em></span><em>)</em>。</p> 
+<p>        Logger 类是<em> logback-classic </em>模块的一部分。Appender 和 Layout 接口是<em> logback-core </em>的一部分。<span style="color:#fe2c24;"><em>logback-core 作为一个通用模块，并没有记录器(Logger)的概念</em></span>。<span style="color:#4da8ee;"><em>//需要明确各个组件之间的包关系，核心只有通用功能，ogback-classic 是对核心的拓展</em></span></p> 
+<h3 id="1%E3%80%81Logger%EF%BC%88%E8%AE%B0%E5%BD%95%E5%99%A8%EF%BC%89">1、Logger（记录器）</h3> 
+<p>        与普通 <em>System.out.println </em>相比，Logger(记录器) 的优势在于它能够禁用某些日志语句，同时还不阻碍其他日志语句地打印。<span style="color:#4da8ee;"><em>//简单的来说，就是Logger可以对日志消息进行分类打印，即日志分级</em></span></p> 
+<p>        所有的 <em>Logger</em>(记录器) ，都统一放置在记录器容器(<em>LoggerContext</em>)中，<span style="color:#fe2c24;"><em>LoggerContext 负责生成 Logger 并对这些 Logger 按一定的层次进行树状排列</em></span>。</p> 
+<p>        <u><em>什么？记录器是有层次(顺序)的吗？</em></u></p> 
+<p>        是的，你没有看错，<span style="color:#fe2c24;"><em>记录器的层次与记录器的命名有关，它的层次划分的标识用的是 “.”</em></span>。比如，名为<em> “com.foo” </em>的 <em>Logger </em>是名为<em> “com.foo.Bar” </em>的 <em>Logger </em>的父级 <em>Logger</em>。这就像命名为 <em>“java”</em> 的包既是 <em>“java.util”</em> 的父级包，也是<em> “java.util.Vector” </em>的父级包一样。</p> 
+<p>        <u><em>为什么要对记录器进行分层呢？</em></u></p> 
+<p>        这个是有好处的，可以<em><span style="color:#fe2c24;">非常方便的支持 Logger 的日志级别和附加器的继承</span></em>，这部分内容将在后边详细说明。</p> 
+<p>         对于按层次进行树状排列，我们可以第一时间想到的就是 Linux 的目录结构，在 Linux 中所有目录都是从根目录开始的。类似的，那么在 <em>LoggerContext </em>中也一定有一个根记录器。</p> 
+<p>        没错，<em>logback </em>中的根记录器就是位于所有记录器层次结构的顶层，它是所有记录器的父级记录器，我们可以通过名称来获取这个根记录器，代码如下所示：</p> 
+<pre><code>Logger rootLogger = LoggerFactory.getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME);</code></pre> 
+<h4 id="%EF%BC%881%EF%BC%89%E6%9C%89%E6%95%88%E7%BA%A7%E5%88%AB%E5%92%8C%E7%BA%A7%E5%88%AB%E7%BB%A7%E6%89%BF">（1）有效级别和级别继承</h4> 
+<p>        记录器可以被分配级别，比如在 <em>ch.qos.logback.classic.Level </em>类中就定义了 <em>TRACE、DEBUG、INFO、WARN 和 ERROR </em>这五种级别。</p> 
+<p>        此外，在<em> logback </em>中，还有一种用于对日志事件进行标记或分类的机制：<em>Marker</em>。它允许你对特定的日志事件添加额外的信息，以便在日志输出时更好地组织和过滤日志。<em><span style="color:#4da8ee;">//简单提一下，日常开发用得不多</span></em></p> 
+<p>        刚才说到，<em>logback </em>中的记录器是分层的。所以，<em><span style="color:#fe2c24;">如果给定的记录器没有分配级别，那么它就会从其最接近的父级记录器那里继承它的级别</span></em>。<em><span style="color:#4da8ee;">//级别继承规则</span></em></p> 
+<p>        因此，为了确保所有记录器最终都能指定继承级别，根记录器始终具有指定的级别。默认情况下，该级别为<em> DEBUG</em>。<span style="color:#4da8ee;"><em>//现在知道了吧，logback 的</em></span><span style="color:#4da8ee;"><em>默认日志级别debug就是从这里来的</em></span></p> 
+<p>        指定级别以及根据级别继承规则生成的有效级别的示例如下：</p> 
+<p class="img-center"><img alt="" height="140" src="https://images2.imgbox.com/03/e3/fMEbsln5_o.png" width="800"></p> 
+<p>        在上面的示例中，记录器<em> root、X </em>和<em> X.Y.Z </em>分别被分配级别<em> DEBUG、INFO 和 ERROR</em>。 <em>Logger X.Y </em>从其父级记录器<em> X </em>继承其级别值。</p> 
+<h4 id="%EF%BC%882%EF%BC%89%E6%97%A5%E5%BF%97%E6%89%93%E5%8D%B0%E5%92%8C%E6%97%A5%E5%BF%97%E7%AD%9B%E9%80%89">（2）日志打印和日志筛选</h4> 
+<p>        打印方法决定了请求进行日志记录的级别。例如，如果 <em>Logger </em>是记录器实例，则语句 <em>Logger.info("..") </em>就是<em> INFO </em>级别的日志记录语句。</p> 
+<p>        如果日志请求的级别高于或等于该记录器的有效级别，那么该日志请求就是有效的(已启用)。否则，该请求被认为是无效的(被禁用)。<em><span style="color:#4da8ee;">//级别启用的规则</span></em></p> 
+<p>        这条规则是<em> logback </em>的核心。它假定的级别顺序如下：<span style="color:#4da8ee;"><em>//ERROR为最高级别</em></span></p> 
+<blockquote> 
+ <p><span style="color:#fe2c24;"><em>TRACE &lt; DEBUG &lt; INFO &lt; WARN &lt; ERROR</em></span></p> 
+</blockquote> 
+<p>        在下表中，根据日志的筛选规则，产生的行（级别请求）和列（有效级别）的交集对应的布尔值如下：<span style="color:#4da8ee;"><em>//注意，这张表是竖着对比</em></span></p> 
+<p class="img-center"><img alt="" height="188" src="https://images2.imgbox.com/9c/ec/62tUCqQi_o.png" width="800"></p> 
+<p>        如上表，当 <em>有效级别(q) </em>为 <em>TRACE </em>时，所有的 <em>请求打印级别(p)</em> 都是支持的，当 <em>有效级别(q) </em>为 <em>INFO </em>时，<em>请求打印级别(p)</em> 为只支持 <em>INFO、WARN 和 ERROR </em>三个级别，<em>TRACE、DEBUG </em>级别是不支持的。</p> 
+<h4 id="%EF%BC%883%EF%BC%89%E8%AE%B0%E5%BD%95%E5%99%A8%E5%91%BD%E5%90%8D">（3）记录器命名</h4> 
+<p>        <span style="color:#fe2c24;"><em>使用相同名称调用 LoggerFactory.getLogger 方法，将始终返回完全相同的 Logger 对象的引用</em></span>。<span style="color:#4da8ee;"><em>//记录器实例是单例</em></span></p> 
+<pre><code>Logger x = LoggerFactory.getLogger("log"); 
+Logger y = LoggerFactory.getLogger("log");</code></pre> 
+<p>        也就是说，上述 x 和 y 引用的是完全相同的记录器对象。因此，当配置一个记录器时，可以在代码中的其他位置获取到相同的实例，而无需传递该记录器的引用。<em><span style="color:#4da8ee;">//就好比Spring中可以通过Bean名称从容器中获取Bean实例，该容器是全局可访问的</span></em></p> 
+<p>        <span style="color:#fe2c24;"><em>logback 中的记录器可以随意命名，一般推荐使用类的完全限定名称</em></span>，因为日志输出带有生成该日志的记录器的名称，所以这种命名策略可以轻松识别到日志消息的来源。示例如下：</p> 
+<pre><code>//类的限定名
+private static final Logger loggerByName
+            = LoggerFactory.getLogger("self4.Example");
+
+//类.class
+private static final Logger loggerByClass
+            = LoggerFactory.getLogger(Example.class);</code></pre> 
+<h3 id="2%E3%80%81Appenders%EF%BC%88%E8%BF%BD%E5%8A%A0%E5%99%A8%EF%BC%89">2、Appenders（追加器）</h3> 
+<p>        根据<em> Logger </em>的日志级别对日志的记录请求进行筛选，只是 <em>logback </em>功能中的一部分，除此之外， <em>logback </em>还允许将日志记录请求打印到多个目的地。</p> 
+<p>        <span style="color:#fe2c24;"><em>在 logback 中，输出目标称为追加器(Appenders)</em></span>。目前，控制台、文件、远程套接字服务器、<em>MySQL、PostgreSQL、Oracle </em>和其他数据库、<em>JMS </em>和 <em>远程 UNIX Syslog 守护进程 </em>都存在附加器。<span style="color:#4da8ee;"><em>//在logback中，有很多的附加器可以提供给我们选择，常用的有控制台和文件</em></span></p> 
+<p>        <em>一个 Logger 可以添加多个追加器(Appenders)。</em></p> 
+<p>        使用 <em>ch.qos.logback.classic.Logger</em> 中的 <em>addAppender </em>方法可以将 <em>Appender </em>添加到指定的 <em>Logger</em>。所有有效的日志打印请求都会被转发到该<em> Logger</em> 的 <em>Appender </em>上，以及从其父级 <em>Logger </em>中追加的所有的 <em>Appender 上。</em><span style="color:#fe2c24;"><em>换句话说，追加器也是可以从父级记录器中追加继承的</em></span>。<span style="color:#4da8ee;"><em>//记录器分层的好处</em></span></p> 
+<p>        例如，如果将 <em>控制台附追加器(ConsoleAppender) </em>添加到根记录器，那么所有的子级记录器都会拥有 <em>控制台附追加器(ConsoleAppender) </em>，而无需额外添加。<span style="color:#4da8ee;"><em>//默认开启追加器继承行为</em></span></p> 
+<p>        如果将记录器的继承性标志设置为 false，那么可以覆盖此默认行为，使该 <em>Appender </em>不再追加父类记录器的 <em>Appender </em>。<span style="color:#4da8ee;"><em>//禁用追加器的继承行为</em></span></p> 
+<p>        对 <em>Appender </em>可继承的规则总结如下：</p> 
+<table><tbody><tr><th> <p>记录器名称</p> </th><th> <p>Attached Appenders</p> <p>已经附加的追加器</p> </th><th> <p>Additivity Flag</p> <p>继承性标志</p> </th><th> <p>Output Targets</p> <p>输出目标</p> </th><th> <p>Comment</p> <p>备注</p> </th></tr><tr><td>root</td><td>A1</td><td>不可用</td><td>A1</td><td> <p>根记录器位于层结构的顶层，因此可继承性标志不可用</p> </td></tr><tr><td>x</td><td>A-x1, A-x2</td><td>true</td><td>A1, A-x1, A-x2</td><td>Appenders of "x" and of root.</td></tr><tr><td>x.y</td><td>none</td><td>true</td><td>A1, A-x1, A-x2</td><td>Appenders of "x" and of root.</td></tr><tr><td>x.y.z</td><td>A-xyz1</td><td>true</td><td>A1, A-x1, A-x2, A-xyz1</td><td>Appenders of "x.y.z", "x" and of root.</td></tr><tr><td>security</td><td>A-sec</td><td>false</td><td>A-sec</td><td> <p>可继承标志为false，所以不会继承Appender root.A1，只有Appender A-sec</p> </td></tr><tr><td>security.access</td><td>none</td><td>true</td><td>A-sec</td><td> <p>因为父类的继承标志为 flase，所以其子类只会继承 Appender security.A-sec，</p> </td></tr></tbody></table> 
+<h3 id="3%E3%80%81Layouts%EF%BC%88%E5%B8%83%E5%B1%80%EF%BC%89">3、Layouts（布局）</h3> 
+<p>        通常，开发人员不仅希望自定义输出目的地，还希望能够自定义输出格式。在 <em>logback </em>中自定义输出格式是由 <em>Appender </em>和 <em>Layouts</em> 进行关联来实现的，这种关联关系在配置中的体现如下：</p> 
+<pre><code>&lt;!--Appender--&gt;
+&lt;appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender"&gt;
+   &lt;encoder&gt;
+      &lt;!--Layouts 格式化日志请求--&gt;
+      &lt;pattern&gt;%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n&lt;/pattern&gt;
+   &lt;/encoder&gt;
+&lt;/appender&gt;</code></pre> 
+<p>        <span style="color:#fe2c24;"><em>Layouts 负责根据用户的意愿格式化日志请求</em></span>，而 <em>Appender </em>负责将格式化的输出发送到其目的地。 <em>PatternLayout </em>是标准 logback 发行版的一部分，允许用户根据类似于 C 语言 printf 函数的转换模式指定输出格式。</p> 
+<h3 id="4%E3%80%81%E5%A6%82%E4%BD%95%E9%81%BF%E5%85%8D%E6%97%A5%E5%BF%97%E5%8F%82%E6%95%B0%E6%9E%84%E5%BB%BA%E6%88%90%E6%9C%AC%EF%BC%9F">4、如何避免日志参数构建成本？</h3> 
+<p>       <em> logback-classic</em> 中的 <em>Logger </em>实现了<em> SLF4J</em> 的 <em>Logger </em>接口，因此在一个打印方法中，也允许传入多个打印参数。需要注意的是，<span style="color:#fe2c24;"><em>构造消息参数是有构造成本的</em></span>，比如下边的代码：</p> 
+<pre><code>logger.debug("Entry number: " + i + " is " + String.valueOf(entry[i]));</code></pre> 
+<p>        这段代码会将整数 i 和 entry[i] 转换为字符串，并连接中间字符串。不管这条消息是不是会被 <em>Logger </em>记录，都会执行这条消息的参数构造。<span style="color:#4da8ee;"><em>//试想，如果这样的日志非常多，无疑会影响程序的性能</em></span></p> 
+<p>        <u><em>那么，怎样避免不必要的消息构造成本呢？</em></u></p> 
+<p>        一种可取的方法是添加一个 <em>Logger </em>生效级别的判断，相信你在不少代码中看到过这样的表述：</p> 
+<pre><code>if(logger.isDebugEnabled()) { 
+  logger.debug("Entry number: " + i + " is " + String.valueOf(entry[i]));
+}</code></pre> 
+<p>        这样，如果 <em>Logger </em> 禁用了<em> DEBUG </em>级别的日志，上述代码将不会产生参数构造的成本。虽然需要两次判断 <em>Logger </em>是否支持 <em>DEBUG </em>级别的日志：一次在 debugEnabled() 中，一次在 debug() 中，但是这种开销是微不足道的，因为判断 <em>Logger </em>所花费的时间不到实际记录请求所需时间的 1%。<em><span style="color:#4da8ee;">//多次判断的性能开销非常小</span></em></p> 
+<p>        此外，<em>logback </em>还存在一种基于消息格式的便捷替代方案，示例代码如下：<em><span style="color:#4da8ee;">//推荐使用{}</span></em></p> 
+<pre><code>logger.debug("The new entry is {}. It replaces {}.", entry, oldEntry);</code></pre> 
+<p>        只有当判断 <em>Logger </em>开启了 <em>DEBUG </em>级别的日志后(<em>debug()方法中</em>)， <em>Logger </em>才会格式化消息并将 “{}” 替换为指定的字符串值。换句话说，这种形式下消息不被 <em>Logger </em>记录时不会产生参数构造的成本。<em><span style="color:#4da8ee;">//如果Logger不支持DEBUG级别的日志打印，程序就不会去构造参数</span></em></p> 
+<h3 id="5%E3%80%81%E6%97%A5%E5%BF%97%E6%89%93%E5%8D%B0%E6%AD%A5%E9%AA%A4%E7%9A%84%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90">5、日志打印步骤的源码分析</h3> 
+<p>        如下代码，当我们调用 <em>Logger </em>的<em> info() </em>方法时，<em>logback </em>又会有哪些执行的步骤呢？</p> 
+<pre><code>logger.info("Example log from {}", Example.class.getSimpleName());</code></pre> 
+<p>        下边，让我们进入源码简单分析一下：</p> 
+<h4 id="%EF%BC%881%EF%BC%89%E8%8E%B7%E5%8F%96%E8%BF%87%E6%BB%A4%E5%99%A8%E9%93%BE%E7%9A%84%E5%86%B3%E7%AD%96%E7%BB%93%E6%9E%9C"><u><em>（1）获取过滤器链的决策结果</em></u></h4> 
+<p>        首先，<em>TurboFilter </em>过滤器链会被调用。<em>Turbo</em><em>Filter </em>可以设置上下文范围的阈值，还可以根据每个日志记录请求的信息(<em>Marker, Level, Logger, message, or the Throwable</em>)过滤掉某些事件。</p> 
+<p>        如果过滤器链的回复是<em> FilterReply.DENY(否认)</em>，则日志记录请求将被丢弃。如果是 <em>FilterReply.NEUTRAL(中性)</em>，则会继续进行下一步判断(步骤 2)，如果回复是 <em>FilterReply.ACCEPT</em>，那么将会去创建<em> LoggingEvent </em>对象(步骤 3)，部分源码如下所示：</p> 
+<pre><code># Logger.class
+private void filterAndLog_1(String localFQCN, Marker marker, Level level, String msg, Object param, Throwable t) {
+        //1、获取过滤器链的决策结果
+        FilterReply decision = this.loggerContext.getTurboFilterChainDecision_1(marker, this, level, msg, param, t);
+        //2、根据决策结果进行判断
+        if (decision == FilterReply.NEUTRAL) {
+            if (this.effectiveLevelInt &gt; level.levelInt) {
+                return;
+            }
+        } else if (decision == FilterReply.DENY) {
+            return;
+        }
+        //3、创建LoggingEvent对象
+        this.buildLoggingEventAndAppend(localFQCN, marker, level, msg, new Object[]{param}, t);
+    }
+
+# TurboFilterList.class 
+public FilterReply getTurboFilterChainDecision(Marker marker, Logger logger, Level level, String format, Object[] params, Throwable t) {
+        //决策逻辑
+        int size = this.size();
+        if (size == 1) {
+            try {
+                TurboFilter tf = (TurboFilter)this.get(0);
+                return tf.decide(marker, logger, level, format, params, t);
+            } catch (IndexOutOfBoundsException var13) {
+                return FilterReply.NEUTRAL;
+            }
+        } else {
+            Object[] tfa = this.toArray();
+            int len = tfa.length;
+
+            for(int i = 0; i &lt; len; ++i) {
+                TurboFilter tf = (TurboFilter)tfa[i];
+                FilterReply r = tf.decide(marker, logger, level, format, params, t);
+                if (r == FilterReply.DENY || r == FilterReply.ACCEPT) {
+                    return r;
+                }
+            }
+
+            return FilterReply.NEUTRAL;
+        }
+    }</code></pre> 
+<h4 id="%EF%BC%882%EF%BC%89%E6%AF%94%E8%BE%83%C2%A0Logger%20%E6%9C%89%E6%95%88%E7%BA%A7%E5%88%AB%E4%B8%8E%E6%97%A5%E5%BF%97%E6%89%93%E5%8D%B0%E8%AF%B7%E6%B1%82%E7%9A%84%E7%BA%A7%E5%88%AB"><u><em>（2）比较 Logger 有效级别与日志打印请求的级别</em></u></h4> 
+<p>        在这一步，<em>logback </em>将 <em>Logger </em>的有效级别与请求的级别进行比较。如果请求的级别低于 <em>Logger </em>的有效级别，则<em> logback </em>将丢弃该请求。否则，将会去创建<em> LoggingEvent </em>对象(步骤 3)。</p> 
+<h4 id="%EF%BC%883%EF%BC%89%E5%88%9B%E5%BB%BA%20LoggingEvent%20%E5%AF%B9%E8%B1%A1"><u><em>（3）创建 LoggingEvent 对象</em></u></h4> 
+<p>        如果日志打印请求经过过滤器链的筛选，执行到此步骤，<em><span style="color:#fe2c24;">logback 将创建一个 LoggingEvent 对象，其中包含请求的所有相关参数</span></em>，例如请求的 <em>Logger</em>、请求的级别、消息本身、可能与请求一起传递的异常、当前时间、当前线程、有关发出日志记录请求的类和 <em>MDC</em> 的各种数据(<em>MDC </em>即 <em>Mapped Diagnostic Context：映射诊断上下文</em>)。</p> 
+<pre><code># Logger.class
+private void buildLoggingEventAndAppend(String localFQCN, Marker marker, Level level, String msg, Object[] params, Throwable t) {
+        //创建LoggingEvent对象
+        LoggingEvent le = new LoggingEvent(localFQCN, this, level, msg, t, params);
+        le.addMarker(marker);
+        //调用Appender
+        this.callAppenders(le);
+    }</code></pre> 
+<h4 id="%EF%BC%884%EF%BC%89%E8%B0%83%E7%94%A8%20Appender"><u><em>（4）调用 Appender</em></u></h4> 
+<p>        创建 <em>LoggingEvent</em> 对象后，<em>logback </em>将调用所有生效的 <em>Appender </em>的 <em>doAppend()</em> 方法。部分源码如下所示：</p> 
+<pre><code># AppenderAttachableImpl.class
+public int appendLoopOnAppenders(E e) {
+        int size = 0;
+        Appender&lt;E&gt;[] appenderArray = (Appender[])this.appenderList.asTypedArray();
+        int len = appenderArray.length;
+
+        for(int i = 0; i &lt; len; ++i) {
+            // 调用每一个Appender的doAppend()方法
+            appenderArray[i].doAppend(e);
+            ++size;
+        }
+
+        return size;
+    }</code></pre> 
+<p>       <em> logback </em>中所有<em> Appender </em>都扩展了 <em>AppenderBase </em>抽象类，该类在同步块中实现 <em>doAppend() </em>方法，确保了线程安全。<em>AppenderBase</em> 的 <em>doAppend()</em> 方法还会调用添加到 <em>Appender </em>的自定义过滤器(如果存在任何此类过滤器)。<em><span style="color:#4da8ee;">//有关自定义过滤器将在后续再讨论</span></em></p> 
+<pre><code># AppenderBase.class
+public synchronized void doAppend(E eventObject) {
+        if (!this.guard) {
+            try {
+                this.guard = true;
+                if (!this.started) {
+                    if (this.statusRepeatCount++ &lt; 5) {
+                        this.addStatus(new WarnStatus("Attempted to append to non started appender [" + this.name + "].", this));
+                    }
+
+                    return;
+                }
+                // 调用添加的自定义过滤器
+                if (this.getFilterChainDecision(eventObject) == FilterReply.DENY) {
+                    return;
+                }
+                // 调用具体的Appender进行日志输出
+                this.append(eventObject);
+            } catch (Exception var6) {
+                if (this.exceptionCount++ &lt; 5) {
+                    this.addError("Appender [" + this.name + "] failed to append.", var6);
+                }
+            } finally {
+                this.guard = false;
+            }
+
+        }
+    }</code></pre> 
+<h4 id="%EF%BC%885%EF%BC%89%E6%A0%BC%E5%BC%8F%E5%8C%96%C2%A0LoggingEvent%C2%A0"><u><em>（5）格式化 LoggingEvent </em></u></h4> 
+<p>        被调用的具体的 <em>Appender </em>负责格式化 <em>LoggingEvent </em>。不同的 <em>Appender </em>具有不同的实现，有一些 <em>Appender </em>将格式化 <em>LoggingEvent </em>的任务委托给<em> layout</em>。<em>layout </em>格式化<em> LoggingEvent </em>实例并将结果作为字符串返回。比如 <em>SyslogAppenderBase(SyslogAppender)，</em>它的实现源码如下：</p> 
+<pre><code># SyslogAppenderBase.class 
+protected void append(E eventObject) {
+        if (this.isStarted()) {
+            try {
+                // 1、将格式化LoggingEvent的任务委托给layout，将返回字符串
+                String msg = this.layout.doLayout(eventObject);
+                if (msg == null) {
+                    return;
+                }
+
+                if (msg.length() &gt; this.maxMessageSize) {
+                    msg = msg.substring(0, this.maxMessageSize);
+                }
+                // 2、输出到目的地
+                this.sos.write(msg.getBytes(this.charset));
+                this.sos.flush();
+                this.postProcess(eventObject, this.sos);
+            } catch (IOException var3) {
+                this.addError("Failed to send diagram to " + this.syslogHost, var3);
+            }
+
+        }
+    }</code></pre> 
+<p>        不过，还有一些 <em>Appender </em>(例如<em> SocketAppender</em>) 不会将 <em>LoggingEvent </em>转换为字符串，而是将其序列化。所以，这些 <em>Appender </em>没有 <em>layout，</em>也不需要 <em>layout</em>。</p> 
+<h4 id="%EF%BC%886%EF%BC%89%E5%8F%91%E9%80%81%20LoggingEvent"><u><em>（6）发送 LoggingEvent</em></u></h4> 
+<p>        <em>LoggingEvent </em>被完全格式化后，每个 <em>Appender </em>会将其发送到其目的地。换句话说，就是通过 I/O 流把日志消息输出到特定的目的地。</p> 
+<p>        至此，<em>logback </em>日志打印步骤的源码分析结束。</p> 
+<p>        最后，<em>logback </em>日志框架的架构探讨也至此结束。</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/1d20b01aad2654ae7cb8c9425eb16d55/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">R语言ggplot2柱状图箱线图怎么快速添加显著性？R语言简单易懂一条代码绘制出图？R语言帮助去除异常值？——一网打尽R语言简单绘图（easyplot包）使用说明</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/45461e1c538c03d9af6c89d96de1417b/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">perf与ftrace区别</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

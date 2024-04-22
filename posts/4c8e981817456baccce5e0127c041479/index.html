@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Spring JDBC Template使用小记 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/4c8e981817456baccce5e0127c041479/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="Spring JDBC Template使用小记">
+  <meta property="og:description" content="文章目录 Spring JDBC Template表结构主要方法查询queryForObject 返回单个基本类型、字符串queryForObject 返回单个实体类queryForMap 返回单个Map结果集为空或多条时的解决方案queryForList 返回基本类型、字符串的Listquery 返回对象的List批量查询 IN 插入、更新、删除插入插入并返回自增的主键使用PreparedStatement，且插入的基本类型的字段为null报错批量插入更新、删除 Spring JDBC Template 表结构 CREATE TABLE `user` ( `id` int NOT NULL AUTO_INCREMENT, `name` varchar(20) CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL, `age` int NOT NULL, `sex` tinyint DEFAULT NULL, `email` varchar(255) DEFAULT NULL, PRIMARY KEY (`id`) ) ENGINE=InnoDB DEFAULT CHARSET=utf8; 主要方法 查询 queryqueryForListqueryForObjectqueryForMapqueryForRowSet queryForObject 返回单个基本类型、字符串 queryForObject()方法可直接返回对象，但只能是基本类型及其包装类，以及 String，不能返回自定义对象，比如 jdbcTemplate.queryForObject(sql, User.class, id)。结果集必须为一条，否则报错
+public String getName(Integer id) { String sql = &#34;">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2020-05-23T11:15:05+08:00">
+    <meta property="article:modified_time" content="2020-05-23T11:15:05+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">Spring JDBC Template使用小记</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-dracula">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <p></p> 
+<div class="toc"> 
+ <h4>文章目录</h4> 
+ <ul><li><a href="#Spring_JDBC_Template_1" rel="nofollow">Spring JDBC Template</a></li><li><ul><li><a href="#_3" rel="nofollow">表结构</a></li><li><a href="#_15" rel="nofollow">主要方法</a></li><li><ul><li><a href="#_16" rel="nofollow">查询</a></li><li><ul><li><a href="#queryForObject__22" rel="nofollow">queryForObject 返回单个基本类型、字符串</a></li><li><a href="#queryForObject__31" rel="nofollow">queryForObject 返回单个实体类</a></li><li><a href="#queryForMap_Map_40" rel="nofollow">queryForMap 返回单个Map</a></li><li><a href="#_48" rel="nofollow">结果集为空或多条时的解决方案</a></li><li><a href="#queryForList_List_64" rel="nofollow">queryForList 返回基本类型、字符串的List</a></li><li><a href="#query_List_72" rel="nofollow">query 返回对象的List</a></li><li><a href="#_IN_81" rel="nofollow">批量查询 IN</a></li></ul> 
+    </li><li><a href="#_112" rel="nofollow">插入、更新、删除</a></li><li><ul><li><a href="#_115" rel="nofollow">插入</a></li><li><a href="#_122" rel="nofollow">插入并返回自增的主键</a></li><li><a href="#PreparedStatementnull_140" rel="nofollow">使用PreparedStatement，且插入的基本类型的字段为null报错</a></li><li><a href="#_173" rel="nofollow">批量插入</a></li><li><a href="#_199" rel="nofollow">更新、删除</a></li></ul> 
+   </li></ul> 
+  </li></ul> 
+ </li></ul> 
+</div> 
+<p></p> 
+<h2><a id="Spring_JDBC_Template_1"></a>Spring JDBC Template</h2> 
+<h3><a id="_3"></a>表结构</h3> 
+<pre><code class="prism language-sql"><span class="token keyword">CREATE</span> <span class="token keyword">TABLE</span> <span class="token punctuation">`</span><span class="token keyword">user</span><span class="token punctuation">`</span> <span class="token punctuation">(</span>
+  <span class="token punctuation">`</span>id<span class="token punctuation">`</span> <span class="token keyword">int</span> <span class="token operator">NOT</span> <span class="token boolean">NULL</span> <span class="token keyword">AUTO_INCREMENT</span><span class="token punctuation">,</span>
+  <span class="token punctuation">`</span>name<span class="token punctuation">`</span> <span class="token keyword">varchar</span><span class="token punctuation">(</span><span class="token number">20</span><span class="token punctuation">)</span> <span class="token keyword">CHARACTER</span> <span class="token keyword">SET</span> utf8 <span class="token keyword">COLLATE</span> utf8_general_ci <span class="token operator">NOT</span> <span class="token boolean">NULL</span><span class="token punctuation">,</span>
+  <span class="token punctuation">`</span>age<span class="token punctuation">`</span> <span class="token keyword">int</span> <span class="token operator">NOT</span> <span class="token boolean">NULL</span><span class="token punctuation">,</span>
+  <span class="token punctuation">`</span>sex<span class="token punctuation">`</span> <span class="token keyword">tinyint</span> <span class="token keyword">DEFAULT</span> <span class="token boolean">NULL</span><span class="token punctuation">,</span>
+  <span class="token punctuation">`</span>email<span class="token punctuation">`</span> <span class="token keyword">varchar</span><span class="token punctuation">(</span><span class="token number">255</span><span class="token punctuation">)</span> <span class="token keyword">DEFAULT</span> <span class="token boolean">NULL</span><span class="token punctuation">,</span>
+  <span class="token keyword">PRIMARY</span> <span class="token keyword">KEY</span> <span class="token punctuation">(</span><span class="token punctuation">`</span>id<span class="token punctuation">`</span><span class="token punctuation">)</span>
+<span class="token punctuation">)</span> <span class="token keyword">ENGINE</span><span class="token operator">=</span><span class="token keyword">InnoDB</span> <span class="token keyword">DEFAULT</span> <span class="token keyword">CHARSET</span><span class="token operator">=</span>utf8<span class="token punctuation">;</span>
+</code></pre> 
+<h3><a id="_15"></a>主要方法</h3> 
+<h4><a id="_16"></a>查询</h4> 
+<ul><li>query</li><li>queryForList</li><li>queryForObject</li><li>queryForMap</li><li>queryForRowSet</li></ul> 
+<h5><a id="queryForObject__22"></a>queryForObject 返回单个基本类型、字符串</h5> 
+<p><code>queryForObject()</code>方法可直接返回对象，但只能是基本类型及其包装类，以及 <code>String</code>，不能返回自定义对象，比如 <code>jdbcTemplate.queryForObject(sql, User.class, id)</code>。<mark>结果集必须为一条，否则报错</mark></p> 
+<pre><code class="prism language-java"><span class="token keyword">public</span> <span class="token class-name">String</span> <span class="token function">getName</span><span class="token punctuation">(</span><span class="token class-name">Integer</span> id<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+	<span class="token class-name">String</span> sql <span class="token operator">=</span> <span class="token string">"SELECT name FROM `user` where id = ?"</span><span class="token punctuation">;</span>
+	<span class="token keyword">return</span> jdbcTemplate<span class="token punctuation">.</span><span class="token function">queryForObject</span><span class="token punctuation">(</span>sql<span class="token punctuation">,</span> <span class="token class-name">String</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">,</span> id<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<h5><a id="queryForObject__31"></a>queryForObject 返回单个实体类</h5> 
+<p><code>BeanPropertyRowMapper</code> 可以自动映射实体类的字段与数据库的列，实体类的驼峰 &lt;-&gt; 数据库的下划线。<mark>结果集必须为一条，否则报错</mark></p> 
+<pre><code class="prism language-java"><span class="token keyword">public</span> <span class="token class-name">User</span> <span class="token function">getUser</span><span class="token punctuation">(</span><span class="token class-name">Integer</span> id<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+   <span class="token class-name">String</span> sql <span class="token operator">=</span> <span class="token string">"SELECT * FROM `user` where id = ?"</span><span class="token punctuation">;</span>
+   <span class="token keyword">return</span> jdbcTemplate<span class="token punctuation">.</span><span class="token function">queryForObject</span><span class="token punctuation">(</span>sql<span class="token punctuation">,</span> <span class="token keyword">new</span> <span class="token class-name">BeanPropertyRowMapper</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token punctuation">&gt;</span></span><span class="token punctuation">(</span><span class="token class-name">User</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">)</span><span class="token punctuation">,</span> id<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<h5><a id="queryForMap_Map_40"></a>queryForMap 返回单个Map</h5> 
+<p>键为数据库的列名。<mark>结果集必须为一条，否则报错</mark></p> 
+<pre><code class="prism language-java"><span class="token keyword">public</span> <span class="token class-name">Map</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">String</span><span class="token punctuation">,</span> <span class="token class-name">Object</span><span class="token punctuation">&gt;</span></span> <span class="token function">getUserForMap</span><span class="token punctuation">(</span><span class="token class-name">Integer</span> id<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+   <span class="token class-name">String</span> sql <span class="token operator">=</span> <span class="token string">"SELECT * FROM `user` where  id = ?"</span><span class="token punctuation">;</span>
+   <span class="token keyword">return</span> jdbcTemplate<span class="token punctuation">.</span><span class="token function">queryForMap</span><span class="token punctuation">(</span>sql<span class="token punctuation">,</span> id<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<h5><a id="_48"></a>结果集为空或多条时的解决方案</h5> 
+<p><code>queryForObject</code>、<code>queryForMap</code>都要求结果集有且仅有一条数据，当结果集为空时，抛出异常<code>EmptyResultDataAccessException</code>；当返回多条时，抛出异常<code>IncorrectResultSizeDataAccessException</code>，当为空时可以采用捕获异常的方式处理，但当返回多条数据时，不建议使用此方法，应该使用唯一索引查询，或者使用<code>limit 1</code>。</p> 
+<pre><code class="prism language-java"><span class="token comment">/**
+ * 为空时的解决办法
+ */</span>
+<span class="token keyword">public</span> <span class="token class-name">String</span> <span class="token function">getName</span><span class="token punctuation">(</span><span class="token class-name">Integer</span> id<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+	<span class="token keyword">try</span> <span class="token punctuation">{<!-- --></span>
+		<span class="token class-name">String</span> sql <span class="token operator">=</span> <span class="token string">"SELECT name FROM `user` where id = ?"</span><span class="token punctuation">;</span>
+		<span class="token keyword">return</span> jdbcTemplate<span class="token punctuation">.</span><span class="token function">queryForObject</span><span class="token punctuation">(</span>sql<span class="token punctuation">,</span> <span class="token class-name">String</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">,</span> id<span class="token punctuation">)</span><span class="token punctuation">;</span>
+	<span class="token punctuation">}</span> <span class="token keyword">catch</span> <span class="token punctuation">(</span><span class="token class-name">EmptyResultDataAccessException</span> e<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+		<span class="token keyword">return</span> <span class="token keyword">null</span><span class="token punctuation">;</span>
+	<span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<h5><a id="queryForList_List_64"></a>queryForList 返回基本类型、字符串的List</h5> 
+<pre><code class="prism language-java"><span class="token keyword">public</span> <span class="token class-name">List</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Integer</span><span class="token punctuation">&gt;</span></span> <span class="token function">listAge</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+   <span class="token class-name">String</span> sql <span class="token operator">=</span> <span class="token string">"SELECT age FROM `user`"</span><span class="token punctuation">;</span>
+   <span class="token keyword">return</span> jdbcTemplate<span class="token punctuation">.</span><span class="token function">queryForList</span><span class="token punctuation">(</span>sql<span class="token punctuation">,</span> <span class="token class-name">Integer</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<h5><a id="query_List_72"></a>query 返回对象的List</h5> 
+<p><code>BeanPropertyRowMapper</code>除了可以用于单个实体类，也可以作用于List。<br> 以下方式， 若结果集为空不会抛出异常。</p> 
+<pre><code class="prism language-java"><span class="token keyword">public</span> <span class="token class-name">List</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">User</span><span class="token punctuation">&gt;</span></span> <span class="token function">listUser</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+   <span class="token class-name">String</span> sql <span class="token operator">=</span> <span class="token string">"SELECT * FROM `user`"</span><span class="token punctuation">;</span>
+   <span class="token keyword">return</span> jdbcTemplate<span class="token punctuation">.</span><span class="token function">query</span><span class="token punctuation">(</span>sql<span class="token punctuation">,</span> <span class="token keyword">new</span> <span class="token class-name">BeanPropertyRowMapper</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token punctuation">&gt;</span></span><span class="token punctuation">(</span><span class="token class-name">User</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<h5><a id="_IN_81"></a>批量查询 IN</h5> 
+<p>可以使用 <code>NamedParameterJdbcTemplate</code> 完成 <code>IN</code> 查询。传统的 <code>JdbcTemplate</code> 的占位符是 <code>?</code>，而 <code>NamedParameterJdbcTemplate</code> 可以给参数命名，<mark>同时还能将参数自动展开为适当数量的占位符</mark>。支持两种形式的参数：<code>SqlParameterSource</code>、<code>Map</code>：</p> 
+<pre><code class="prism language-java"><span class="token comment">// 参数为 SqlParameterSource</span>
+<span class="token keyword">public</span> <span class="token class-name">List</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">User</span><span class="token punctuation">&gt;</span></span> <span class="token function">listUser2</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token class-name">Set</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Integer</span><span class="token punctuation">&gt;</span></span> ids <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">HashSet</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token punctuation">&gt;</span></span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    ids<span class="token punctuation">.</span><span class="token function">add</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    ids<span class="token punctuation">.</span><span class="token function">add</span><span class="token punctuation">(</span><span class="token number">2</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token class-name">String</span> sql <span class="token operator">=</span> <span class="token string">"SELECT * FROM `user` where id in (:ids)"</span><span class="token punctuation">;</span>
+    <span class="token class-name">MapSqlParameterSource</span> mapSqlParameterSource <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">MapSqlParameterSource</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    mapSqlParameterSource<span class="token punctuation">.</span><span class="token function">addValue</span><span class="token punctuation">(</span><span class="token string">"ids"</span><span class="token punctuation">,</span> ids<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    
+    <span class="token keyword">return</span> namedParameterJdbcTemplate<span class="token punctuation">.</span><span class="token function">query</span><span class="token punctuation">(</span>sql<span class="token punctuation">,</span> mapSqlParameterSource<span class="token punctuation">,</span> <span class="token keyword">new</span> <span class="token class-name">BeanPropertyRowMapper</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token punctuation">&gt;</span></span><span class="token punctuation">(</span><span class="token class-name">User</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token comment">// 参数为 Map</span>
+<span class="token keyword">public</span> <span class="token class-name">List</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">User</span><span class="token punctuation">&gt;</span></span> <span class="token function">listUser3</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token class-name">Set</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Integer</span><span class="token punctuation">&gt;</span></span> ids <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">HashSet</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token punctuation">&gt;</span></span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    ids<span class="token punctuation">.</span><span class="token function">add</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    ids<span class="token punctuation">.</span><span class="token function">add</span><span class="token punctuation">(</span><span class="token number">2</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token class-name">String</span> sql <span class="token operator">=</span> <span class="token string">"SELECT * FROM `user` where id in (:ids)"</span><span class="token punctuation">;</span>
+    <span class="token class-name">Map</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">String</span><span class="token punctuation">,</span> <span class="token class-name">Object</span><span class="token punctuation">&gt;</span></span> params <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">HashMap</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token punctuation">&gt;</span></span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    params<span class="token punctuation">.</span><span class="token function">put</span><span class="token punctuation">(</span><span class="token string">"ids"</span><span class="token punctuation">,</span> ids<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">return</span> namedParameterJdbcTemplate<span class="token punctuation">.</span><span class="token function">query</span><span class="token punctuation">(</span>sql<span class="token punctuation">,</span> params<span class="token punctuation">,</span> <span class="token keyword">new</span> <span class="token class-name">BeanPropertyRowMapper</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token punctuation">&gt;</span></span><span class="token punctuation">(</span><span class="token class-name">User</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<h4><a id="_112"></a>插入、更新、删除</h4> 
+<ul><li>update</li><li>batchUpdate</li></ul> 
+<h5><a id="_115"></a>插入</h5> 
+<pre><code class="prism language-java"><span class="token keyword">public</span> <span class="token keyword">int</span> <span class="token function">insert</span><span class="token punctuation">(</span><span class="token class-name">User</span> user<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+	<span class="token class-name">String</span> sql <span class="token operator">=</span> <span class="token string">"INSERT INTO `user`(name, age, sex, email) VALUE (?, ?, ?, ?)"</span><span class="token punctuation">;</span>
+	<span class="token keyword">return</span> jdbcTemplate<span class="token punctuation">.</span><span class="token function">update</span><span class="token punctuation">(</span>sql<span class="token punctuation">,</span> user<span class="token punctuation">.</span><span class="token function">getName</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> user<span class="token punctuation">.</span><span class="token function">getAge</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> user<span class="token punctuation">.</span><span class="token function">getSex</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> user<span class="token punctuation">.</span><span class="token function">getEmail</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<h5><a id="_122"></a>插入并返回自增的主键</h5> 
+<p>用 <code>KeyHolder</code> 保存自增的主键，且 <code>con.prepareStatement(sql, PreparedStatement.RETURN_GENERATED_KEYS)</code> 第二个参数是必须的。</p> 
+<pre><code class="prism language-java"><span class="token keyword">public</span> <span class="token class-name">Integer</span> <span class="token function">insertReturnId</span><span class="token punctuation">(</span><span class="token class-name">User</span> user<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+	<span class="token class-name">KeyHolder</span> keyHolder <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">GeneratedKeyHolder</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+	<span class="token class-name">String</span> sql <span class="token operator">=</span> <span class="token string">"INSERT INTO `user`(name, age, sex, email) VALUE (?, ?, ?, ?)"</span><span class="token punctuation">;</span>
+	jdbcTemplate<span class="token punctuation">.</span><span class="token function">update</span><span class="token punctuation">(</span>con <span class="token operator">-&gt;</span> <span class="token punctuation">{<!-- --></span>
+		<span class="token class-name">PreparedStatement</span> ps <span class="token operator">=</span> con<span class="token punctuation">.</span><span class="token function">prepareStatement</span><span class="token punctuation">(</span>sql<span class="token punctuation">,</span> <span class="token class-name">PreparedStatement</span><span class="token punctuation">.</span>RETURN_GENERATED_KEYS<span class="token punctuation">)</span><span class="token punctuation">;</span>
+		ps<span class="token punctuation">.</span><span class="token function">setString</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">,</span> user<span class="token punctuation">.</span><span class="token function">getName</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+		ps<span class="token punctuation">.</span><span class="token function">setInt</span><span class="token punctuation">(</span><span class="token number">2</span><span class="token punctuation">,</span> user<span class="token punctuation">.</span><span class="token function">getAge</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+		ps<span class="token punctuation">.</span><span class="token function">setByte</span><span class="token punctuation">(</span><span class="token number">3</span><span class="token punctuation">,</span> user<span class="token punctuation">.</span><span class="token function">getSex</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+		ps<span class="token punctuation">.</span><span class="token function">setString</span><span class="token punctuation">(</span><span class="token number">4</span><span class="token punctuation">,</span> user<span class="token punctuation">.</span><span class="token function">getEmail</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token keyword">return</span> ps<span class="token punctuation">;</span>
+	<span class="token punctuation">}</span><span class="token punctuation">,</span> keyHolder<span class="token punctuation">)</span><span class="token punctuation">;</span>
+	<span class="token class-name">Number</span> key <span class="token operator">=</span> keyHolder<span class="token punctuation">.</span><span class="token function">getKey</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+	<span class="token keyword">return</span> key<span class="token punctuation">.</span><span class="token function">intValue</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<h5><a id="PreparedStatementnull_140"></a>使用PreparedStatement，且插入的基本类型的字段为null报错</h5> 
+<p>比如说上面的 <code>insertReturnId()</code> 方法，当 <code>age</code> 或<code>sex</code> 为空时会抛出 <code>NullPointerException</code>，解决办法如下，使用 <code>setNull()</code>方法。</p> 
+<pre><code class="prism language-java"><span class="token keyword">public</span> <span class="token class-name">Integer</span> <span class="token function">insertReturnId</span><span class="token punctuation">(</span><span class="token class-name">User</span> user<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+	<span class="token class-name">KeyHolder</span> keyHolder <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">GeneratedKeyHolder</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+	<span class="token class-name">String</span> sql <span class="token operator">=</span> <span class="token string">"INSERT INTO `user`(name, age, sex, email) VALUE (?, ?, ?, ?)"</span><span class="token punctuation">;</span>
+	jdbcTemplate<span class="token punctuation">.</span><span class="token function">update</span><span class="token punctuation">(</span>con <span class="token operator">-&gt;</span> <span class="token punctuation">{<!-- --></span>
+		<span class="token class-name">PreparedStatement</span> ps <span class="token operator">=</span> con<span class="token punctuation">.</span><span class="token function">prepareStatement</span><span class="token punctuation">(</span>sql<span class="token punctuation">,</span> <span class="token class-name">PreparedStatement</span><span class="token punctuation">.</span>RETURN_GENERATED_KEYS<span class="token punctuation">)</span><span class="token punctuation">;</span>
+		ps<span class="token punctuation">.</span><span class="token function">setString</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">,</span> user<span class="token punctuation">.</span><span class="token function">getName</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token class-name">Integer</span> age <span class="token operator">=</span> user<span class="token punctuation">.</span><span class="token function">getAge</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token keyword">if</span> <span class="token punctuation">(</span>age <span class="token operator">==</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+			<span class="token comment">// setNull</span>
+			ps<span class="token punctuation">.</span><span class="token function">setNull</span><span class="token punctuation">(</span><span class="token number">2</span><span class="token punctuation">,</span> <span class="token class-name">Types</span><span class="token punctuation">.</span>INTEGER<span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{<!-- --></span>
+			ps<span class="token punctuation">.</span><span class="token function">setInt</span><span class="token punctuation">(</span><span class="token number">2</span><span class="token punctuation">,</span> age<span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token punctuation">}</span>
+
+		<span class="token class-name">Byte</span> sex <span class="token operator">=</span> user<span class="token punctuation">.</span><span class="token function">getSex</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token keyword">if</span> <span class="token punctuation">(</span>sex <span class="token operator">==</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+			<span class="token comment">// setNull</span>
+			ps<span class="token punctuation">.</span><span class="token function">setNull</span><span class="token punctuation">(</span><span class="token number">3</span><span class="token punctuation">,</span> <span class="token class-name">Types</span><span class="token punctuation">.</span>TINYINT<span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{<!-- --></span>
+			ps<span class="token punctuation">.</span><span class="token function">setInt</span><span class="token punctuation">(</span><span class="token number">3</span><span class="token punctuation">,</span> sex<span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token punctuation">}</span>
+
+		ps<span class="token punctuation">.</span><span class="token function">setString</span><span class="token punctuation">(</span><span class="token number">4</span><span class="token punctuation">,</span> user<span class="token punctuation">.</span><span class="token function">getEmail</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token keyword">return</span> ps<span class="token punctuation">;</span>
+	<span class="token punctuation">}</span><span class="token punctuation">,</span> keyHolder<span class="token punctuation">)</span><span class="token punctuation">;</span>
+	<span class="token class-name">Number</span> key <span class="token operator">=</span> keyHolder<span class="token punctuation">.</span><span class="token function">getKey</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+	<span class="token keyword">return</span> key<span class="token punctuation">.</span><span class="token function">intValue</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<h5><a id="_173"></a>批量插入</h5> 
+<pre><code class="prism language-java"><span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">batchInsert</span><span class="token punctuation">(</span><span class="token class-name">List</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">User</span><span class="token punctuation">&gt;</span></span> users<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+	<span class="token class-name">String</span> sql <span class="token operator">=</span> <span class="token string">"INSERT INTO `user`(name, age, sex, email) VALUE (?, ?, ?, ?)"</span><span class="token punctuation">;</span>
+	<span class="token comment">// sql, 集合 一批处理多少条, ...</span>
+	jdbcTemplate<span class="token punctuation">.</span><span class="token function">batchUpdate</span><span class="token punctuation">(</span>sql<span class="token punctuation">,</span> users<span class="token punctuation">,</span> <span class="token number">10</span><span class="token punctuation">,</span> <span class="token punctuation">(</span>ps<span class="token punctuation">,</span> user<span class="token punctuation">)</span> <span class="token operator">-&gt;</span> <span class="token punctuation">{<!-- --></span>
+		ps<span class="token punctuation">.</span><span class="token function">setString</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">,</span> user<span class="token punctuation">.</span><span class="token function">getName</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token class-name">Integer</span> age <span class="token operator">=</span> user<span class="token punctuation">.</span><span class="token function">getAge</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token keyword">if</span> <span class="token punctuation">(</span>age <span class="token operator">==</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+			ps<span class="token punctuation">.</span><span class="token function">setNull</span><span class="token punctuation">(</span><span class="token number">2</span><span class="token punctuation">,</span> <span class="token class-name">Types</span><span class="token punctuation">.</span>INTEGER<span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{<!-- --></span>
+			ps<span class="token punctuation">.</span><span class="token function">setInt</span><span class="token punctuation">(</span><span class="token number">2</span><span class="token punctuation">,</span> age<span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token punctuation">}</span>
+
+		<span class="token class-name">Byte</span> sex <span class="token operator">=</span> user<span class="token punctuation">.</span><span class="token function">getSex</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token keyword">if</span> <span class="token punctuation">(</span>sex <span class="token operator">==</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+			ps<span class="token punctuation">.</span><span class="token function">setNull</span><span class="token punctuation">(</span><span class="token number">3</span><span class="token punctuation">,</span> <span class="token class-name">Types</span><span class="token punctuation">.</span>TINYINT<span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{<!-- --></span>
+			ps<span class="token punctuation">.</span><span class="token function">setInt</span><span class="token punctuation">(</span><span class="token number">3</span><span class="token punctuation">,</span> sex<span class="token punctuation">)</span><span class="token punctuation">;</span>
+		<span class="token punctuation">}</span>
+
+		ps<span class="token punctuation">.</span><span class="token function">setString</span><span class="token punctuation">(</span><span class="token number">4</span><span class="token punctuation">,</span> user<span class="token punctuation">.</span><span class="token function">getEmail</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+	<span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<h5><a id="_199"></a>更新、删除</h5> 
+<p>更新、删除的用法与插入一样</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/258c678bd8322f6c583208dbcf483680/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">VMware克隆虚拟机镜像、导入镜像，图文教程</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/9c0bccc1673491de60aee8bbbef7af6d/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">linux kernel中的virt_to_phys代码解读</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

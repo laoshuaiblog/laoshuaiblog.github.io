@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Python：关于数据服务中的Web API的设计 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/ee9cd7d7bbab0c5f66eb401da37ef1f8/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="Python：关于数据服务中的Web API的设计">
+  <meta property="og:description" content="搭建类似joinquant、tushare类似的私有数据服务应用，有以下一些点需要注意：
+需要说明的是，这里讨论的是web api前后端，当然还有其它方案，thrift，grpc等。因为要考虑到一鱼两吃，本文只探讨web api。在web api的基础上，可以提供封装sdk库，供前端函数式调用服务或纯手动写restful api 的方式，自己封装调用函数服务。
+一、性能
+性能主要取决于后端，前端可以考虑性能更好的语言、多线程和异步。
+后端开发上，主要是序列化&#43;压缩。
+1、序列化
+需要考虑跨语言的问题。比如，如果后端用python开发，用pickle序列化，前端用julia,用rust调用就会存在反序列化的问题。
+如果用json序列化，虽然会通用，但效率会差一些。
+阿里的Fury据说是一个跨语言的序列化的库，没有试用过。
+https://furyio.org python:
+pip install pyfury 比如python:
+from typing import Dict import pyfury class SomeClass: f1: &#34;SomeClass&#34; f2: Dict[str, str] f3: Dict[str, str] fury = pyfury.Fury(ref_tracking=True) fury.register_class(SomeClass, &#34;example.SomeClass&#34;) obj = SomeClass() obj.f2 = {&#34;k1&#34;: &#34;v1&#34;, &#34;k2&#34;: &#34;v2&#34;} obj.f1, obj.f3 = obj, obj.f2 data = fury.serialize(obj) # bytes can be data serialized by other languages. print(fury.deserialize(data)) 这个库，正好缓解不少跨语言的痛点。但是并不一定可以解决所有语言的痛点，比如，对于R，或C#呢，就不知道是否可以。">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2024-03-01T18:08:50+08:00">
+    <meta property="article:modified_time" content="2024-03-01T18:08:50+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">Python：关于数据服务中的Web API的设计</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-dark">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <p>搭建类似joinquant、tushare类似的私有数据服务应用，有以下一些点需要注意：</p> 
+<blockquote> 
+ <p>需要说明的是，这里讨论的是web api前后端，当然还有其它方案，thrift，grpc等。因为要考虑到一鱼两吃，本文只探讨web api。在web api的基础上，可以提供封装sdk库，供前端函数式调用服务或纯手动写restful api 的方式，自己封装调用函数服务。</p> 
+</blockquote> 
+<p>一、性能</p> 
+<p>性能主要取决于后端，前端可以考虑性能更好的语言、多线程和异步。<br> 后端开发上，主要是序列化+压缩。<br> 1、序列化</p> 
+<p>需要考虑跨语言的问题。比如，如果后端用python开发，用pickle序列化，前端用julia,用rust调用就会存在反序列化的问题。<br> 如果用json序列化，虽然会通用，但效率会差一些。<br> 阿里的Fury据说是一个跨语言的序列化的库，没有试用过。</p> 
+<pre><code>https://furyio.org
+</code></pre> 
+<p>python:</p> 
+<pre><code>pip install pyfury
+</code></pre> 
+<p><img src="https://images2.imgbox.com/b9/c7/2wFptJRr_o.png" alt="在这里插入图片描述">比如python:</p> 
+<pre><code>from typing import Dict
+import pyfury
+
+class SomeClass:
+    f1: "SomeClass"
+    f2: Dict[str, str]
+    f3: Dict[str, str]
+
+fury = pyfury.Fury(ref_tracking=True)
+fury.register_class(SomeClass, "example.SomeClass")
+obj = SomeClass()
+obj.f2 = {"k1": "v1", "k2": "v2"}
+obj.f1, obj.f3 = obj, obj.f2
+data = fury.serialize(obj)
+# bytes can be data serialized by other languages.
+print(fury.deserialize(data))
+</code></pre> 
+<p>这个库，正好缓解不少跨语言的痛点。但是并不一定可以解决所有语言的痛点，比如，对于R，或C#呢，就不知道是否可以。</p> 
+<p>当然，还是有其它解决办法的。比如，可以在这个基础上进行跨语言ffi封装，不过技术上会复杂一些。</p> 
+<p>2、压缩<br> 不仅需要考虑性能，选择读写高效的库，而且还要考虑跨语言的问题。<br> <img src="https://images2.imgbox.com/d6/c9/Bgri34DY_o.png" alt="在这里插入图片描述"><br> 显然，API是要跨网络的，对压缩比，以及压缩和解压来综合考量比较，需要根据场景来选取。有人喜欢zstd,也有人喜欢别的。</p> 
+<p>3、数据库还是文件系统</p> 
+<p>这个具体还是要看场景（并发、性能、硬件条件等），看应用服务的要求，各有优点。</p> 
+<p>（1）数据库</p> 
+<p>是选择TDengine，还是Clickhouse,还是DolphinDB? 还是采用其它？当然性能（读/写还是读和写）要求高，一般的数据库就不需要考虑了（如mysql之类）。</p> 
+<p>（2）文件系统</p> 
+<p>是选择Hdf5?还是Feather,还是Parquet，还有 Jay？Csv文件格式当源数可以考虑，但是当文件服务的一线服务支持，性能太差了。</p> 
+<p>Parquet压缩比好，但速度略慢于Feather。hdf5对字符串性能要差，需要进行特别处理。最好还是把最常用的数据格式做个比较，还要看看空间占用情况。</p> 
+<p>hdf5文件我还碰到过硬盘空间澎胀（空间占用异常暴涨）的事情，这些都需要自已摸索。</p> 
+<p>4、异步</p> 
+<p>后端如果采用异步的方式，有利于提升并发的效率。这里异步的框架的深度和广度，也需要进一步探讨。是在网络IO层，还是包括数据库的访问？</p> 
+<p>就异步而言，异步支持最好的是rust，特别适合做后端。</p> 
+<p>5、带宽资源</p> 
+<p>这个主要看你有多豪了。没什么说的，上预算。</p> 
+<p>二、前端的灵活性</p> 
+<p>1、关于前端服务模式的适用性</p> 
+<p>可以考虑在前端提供不同的选择，比如，是python sdk模式（提供安装包），还是纯restful模式（手写post,get等），以及不同的语言选择，来指定特定后端的序列化和压缩库的选择，便于前端有更好的适用性和体验。</p> 
+<p>这个可以在前端的headers中，或者post的params参数中，可以带入让后端判断的参数即可以。</p> 
+<p>这个可以通过写比较详细的示例，让大家更易于上手。</p> 
+<p>2、关于前端服务对后端的约束</p> 
+<p>前端如果python用户多，后端用python开发有使用上有一定的优势。前后端数据格式容易对齐（序列化）和Dataframe等。rust也非常适合，可以通过PYO3提供相应的前端适用服务封装。包括polars也是rust封装的，pandas2.x上有很多还赶不上。</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/af6cd3f2e0e859ba2093616bcf5db0f3/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">第三章 软件定义汽车的典型架构</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/12a5e5231503980fe6f0068f60475b99/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">【数据分享】2000~2023年MOD15A2H 061 光合有效辐射分数FPAR数据集</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

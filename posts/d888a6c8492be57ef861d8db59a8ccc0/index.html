@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>【JavaScript 漫游】【043】IndexedDB API 总结 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/d888a6c8492be57ef861d8db59a8ccc0/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="【JavaScript 漫游】【043】IndexedDB API 总结">
+  <meta property="og:description" content="文章简介
+本篇文章为【JavaScript 漫游】专栏的第 043 篇文章，对浏览器模型中的 IndexedDB API 进行了总结。
+概述 随着浏览器的功能不断增强，越来越多的网站开始考虑，将大量数据储存在客户端，这样可以减少从服务器获取数据，直接从本地获取数据。
+现有的浏览器数据储存方案，都不适合储存大量数据：Cookie 的大小不超过 4KB，且每次请求都会发送回服务器；LocalStorage 在 2.5MB 到 10MB 之间（各家浏览器不同），而且不提供搜索功能，不能建立自定义的索引。所以，需要一种新的解决方案，这就是 IndexedDB 诞生的背景。
+通俗地说，IndexedDB 就是浏览器提供的本地数据库，它可以被网页脚本创建和操作。IndexedDB 允许储存大量数据，提供查找接口，还能建立索引。这些都是 LocalStorage 所不具备的。就数据库类型而言，IndexedDB 不属于关系型数据库（不支持 SQL 查询语句），更接近 NoSQL 数据库。
+IndexedDB 具有以下特点。
+键值对储存。IndexedDB 内部采用对象仓库（object store）存放数据。所有类型的数据都可以直接存入，包括 JavaScript 对象。对象仓库中，数据以“键值对”的形式保存，每一个数据记录都有对应的主键，主键是独一无二的，不能有重复，否则会抛出一个错误异步。IndexedDB 操作时不会锁死浏览器，用户依然可以进行其他操作，这与 LocalStorage 形成对比，后者的操作是同步的。异步设计是为了防止大量数据的读写，拖慢网页的表现。支持事务。IndexedDB 支持事务（transaction），这意味着一系列操作步骤之中，只要有一步失败，整个事务就都取消，数据库回滚到事务发生之前的状态，不存在只改写一部分数据的情况。同源限制。IndexedDB 受到同源限制，每一个数据库对应创建它的域名。网页只能访问自身域名下的数据库，而不能访问跨域的数据库。储存空间大。 IndexedDB 的储存空间比 LocalStorage 大得多，一般来说不少于 250MB，甚至没有上限。支持二进制储存。 IndexedDB 不仅可以储存字符串，还可以储存二进制数据（ArrayBuffer 对象和 Blob 对象）。 基本概念 IndexedDB 是一个比较复杂的 API，涉及不少概念。它把不同的实体，抽象成一个个对象接口。学习这个 API，就是学习它的各种对象接口。
+数据库：IDBDatabase 对象对象仓库：IDBObjectStore 对象索引： IDBIndex 对象事务： IDBTransaction 对象操作请求：IDBRequest 对象指针： IDBCursor 对象主键集合：IDBKeyRange 对象 数据库">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2024-03-25T09:56:18+08:00">
+    <meta property="article:modified_time" content="2024-03-25T09:56:18+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">【JavaScript 漫游】【043】IndexedDB API 总结</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-dark">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <p><img src="https://images2.imgbox.com/0e/51/u82cFeHu_o.jpg" alt="水上之都"><br> <strong>文章简介</strong></p> 
+<p>本篇文章为【JavaScript 漫游】专栏的第 043 篇文章，对浏览器模型中的 IndexedDB API 进行了总结。</p> 
+<h4><a id="_5"></a>概述</h4> 
+<p>随着浏览器的功能不断增强，越来越多的网站开始考虑，将大量数据储存在客户端，这样可以减少从服务器获取数据，直接从本地获取数据。</p> 
+<p>现有的浏览器数据储存方案，都不适合储存大量数据：Cookie 的大小不超过 4KB，且每次请求都会发送回服务器；LocalStorage 在 2.5MB 到 10MB 之间（各家浏览器不同），而且不提供搜索功能，不能建立自定义的索引。所以，需要一种新的解决方案，这就是 IndexedDB 诞生的背景。</p> 
+<p>通俗地说，IndexedDB 就是浏览器提供的本地数据库，它可以被网页脚本创建和操作。IndexedDB 允许储存大量数据，提供查找接口，还能建立索引。这些都是 LocalStorage 所不具备的。就数据库类型而言，IndexedDB 不属于关系型数据库（不支持 SQL 查询语句），更接近 NoSQL 数据库。</p> 
+<p>IndexedDB 具有以下特点。</p> 
+<ol><li><strong>键值对储存</strong>。IndexedDB 内部采用对象仓库（object store）存放数据。所有类型的数据都可以直接存入，包括 JavaScript 对象。对象仓库中，数据以“键值对”的形式保存，每一个数据记录都有对应的主键，主键是独一无二的，不能有重复，否则会抛出一个错误</li><li><strong>异步</strong>。IndexedDB 操作时不会锁死浏览器，用户依然可以进行其他操作，这与 LocalStorage 形成对比，后者的操作是同步的。异步设计是为了防止大量数据的读写，拖慢网页的表现。</li><li><strong>支持事务</strong>。IndexedDB 支持事务（transaction），这意味着一系列操作步骤之中，只要有一步失败，整个事务就都取消，数据库回滚到事务发生之前的状态，不存在只改写一部分数据的情况。</li><li><strong>同源限制</strong>。IndexedDB 受到同源限制，每一个数据库对应创建它的域名。网页只能访问自身域名下的数据库，而不能访问跨域的数据库。</li><li><strong>储存空间大</strong>。 IndexedDB 的储存空间比 LocalStorage 大得多，一般来说不少于 250MB，甚至没有上限。</li><li><strong>支持二进制储存</strong>。 IndexedDB 不仅可以储存字符串，还可以储存二进制数据（ArrayBuffer 对象和 Blob 对象）。</li></ol> 
+<h4><a id="_22"></a>基本概念</h4> 
+<p>IndexedDB 是一个比较复杂的 API，涉及不少概念。它把不同的实体，抽象成一个个对象接口。学习这个 API，就是学习它的各种对象接口。</p> 
+<ul><li>数据库：IDBDatabase 对象</li><li>对象仓库：IDBObjectStore 对象</li><li>索引： IDBIndex 对象</li><li>事务： IDBTransaction 对象</li><li>操作请求：IDBRequest 对象</li><li>指针： IDBCursor 对象</li><li>主键集合：IDBKeyRange 对象</li></ul> 
+<p><strong>数据库</strong></p> 
+<p>数据库是一系列相关数据的容器。每个域名（严格的说，是协议 + 域名 + 端口）都可以新建任意多个数据库。</p> 
+<p>IndexedDB 数据库有版本的概念。同一个时刻，只能有一个版本的数据库存在。如果要修改数据库结构（新增或删除表、索引或者主键），只能通过升级数据库版本完成。</p> 
+<p><strong>对象仓库</strong></p> 
+<p>每个数据库包含若干个对象仓库（object store）。它类似于关系型数据库的表格。</p> 
+<p><strong>数据记录</strong></p> 
+<p>对象仓库保存的是数据记录。每条记录类似于关系型数据库的行，但是只有主键和数据体两部分。主键用来建立默认的索引，必须是不同的，否则会报错。主键可以是数据记录里面的一个属性，也可以指定为一个递增的整数编号。</p> 
+<pre><code class="prism language-js"><span class="token punctuation">{<!-- --></span> <span class="token literal-property property">id</span><span class="token operator">:</span> <span class="token number">1</span><span class="token punctuation">,</span> <span class="token literal-property property">text</span><span class="token operator">:</span> <span class="token string">'foo'</span> <span class="token punctuation">}</span>
+</code></pre> 
+<p>上面的对象中，<code>id</code> 属性可以当作主键。</p> 
+<p>数据体可以是任意数据类型，不限于对象。</p> 
+<p><strong>索引</strong></p> 
+<p>为了加速数据的检索，可以在对象仓库里面，为不同的属性建立索引。</p> 
+<p><strong>事务</strong></p> 
+<p>数据记录的读写和删改，都要通过事务完成。事务对象提供 <code>error</code>、<code>abort</code> 和 <code>complete</code> 三个事件，用来监听操作结果。</p> 
+<h4><a id="_64"></a>操作流程</h4> 
+<p><strong>打开数据库</strong></p> 
+<p>使用 <code>IndexedDb.open()</code> 打开数据库。</p> 
+<pre><code class="prism language-js"><span class="token comment">// databaseName: 数据库名；version: 数据库版本，默认 1</span>
+<span class="token keyword">var</span> request <span class="token operator">=</span> window<span class="token punctuation">.</span>indexedDB<span class="token punctuation">.</span><span class="token function">open</span><span class="token punctuation">(</span>databaseName<span class="token punctuation">,</span> version<span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre> 
+<p>该方法返回一个 IDBRequest 对象。这个对象通过三种事件 <code>error</code>、<code>success</code>、<code>upgradeneeded</code>，处理打开数据库的操作结果。它们分别表示失败、成功和数据库升级。</p> 
+<pre><code class="prism language-js"><span class="token keyword">var</span> db<span class="token punctuation">;</span>  <span class="token comment">// 数据库对象</span>
+
+request<span class="token punctuation">.</span><span class="token function-variable function">onerror</span> <span class="token operator">=</span> <span class="token keyword">function</span> <span class="token punctuation">(</span><span class="token parameter">event</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+  console<span class="token punctuation">.</span><span class="token function">log</span><span class="token punctuation">(</span><span class="token string">'数据库打开报错'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span>
+
+request<span class="token punctuation">.</span><span class="token function-variable function">onsuccess</span> <span class="token operator">=</span> <span class="token keyword">function</span> <span class="token punctuation">(</span><span class="token parameter">event</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+  db <span class="token operator">=</span> request<span class="token punctuation">.</span>result<span class="token punctuation">;</span>
+  console<span class="token punctuation">.</span><span class="token function">log</span><span class="token punctuation">(</span><span class="token string">'数据库打开成功'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span>
+
+<span class="token comment">// 如果指定的版本号，大于数据库的实际版本号，就会发生数据库升级事件 `upgradeneeded`</span>
+request<span class="token punctuation">.</span><span class="token function-variable function">onupgradeneeded</span> <span class="token operator">=</span> <span class="token keyword">function</span> <span class="token punctuation">(</span><span class="token parameter">event</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+  db <span class="token operator">=</span> event<span class="token punctuation">.</span>target<span class="token punctuation">.</span>result<span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p><strong>新建数据库</strong></p> 
+<p>新建数据库与打开数据库是同一个操作。如果指定的数据库不存在，就会新建。不同之处在于，后续的操作主要在 <code>upgradeneeded</code> 事件的监听函数里面完成，因为这时版本从无到有，所以会触发这个事件。</p> 
+<p>通常，新建数据库以后，第一件事是新建对象仓库（即新建表）。</p> 
+<pre><code class="prism language-js">request<span class="token punctuation">.</span><span class="token function-variable function">onupgradeneeded</span> <span class="token operator">=</span> <span class="token keyword">function</span> <span class="token punctuation">(</span><span class="token parameter">event</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+  db <span class="token operator">=</span> event<span class="token punctuation">.</span>target<span class="token punctuation">.</span>result<span class="token punctuation">;</span>
+  <span class="token keyword">var</span> objectStore <span class="token operator">=</span> db<span class="token punctuation">.</span><span class="token function">createObjectStore</span><span class="token punctuation">(</span><span class="token string">'person'</span><span class="token punctuation">,</span> <span class="token punctuation">{<!-- --></span> <span class="token literal-property property">keyPath</span><span class="token operator">:</span> <span class="token string">'id'</span> <span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>更好的写法是先判断一下，这张表格是否存在，如果不存在再新建。</p> 
+<pre><code class="prism language-js">request<span class="token punctuation">.</span><span class="token function-variable function">onupgradeneeded</span> <span class="token operator">=</span> <span class="token keyword">function</span> <span class="token punctuation">(</span><span class="token parameter">event</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+  db <span class="token operator">=</span> event<span class="token punctuation">.</span>target<span class="token punctuation">.</span>result<span class="token punctuation">;</span>
+  <span class="token keyword">var</span> objectStore<span class="token punctuation">;</span>
+  <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>db<span class="token punctuation">.</span>objectStoreNames<span class="token punctuation">.</span><span class="token function">contains</span><span class="token punctuation">(</span><span class="token string">'person'</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    objectStore <span class="token operator">=</span> db<span class="token punctuation">.</span><span class="token function">createObjectStore</span><span class="token punctuation">(</span><span class="token string">'person'</span><span class="token punctuation">,</span> <span class="token punctuation">{<!-- --></span> <span class="token literal-property property">keyPath</span><span class="token operator">:</span> <span class="token string">'id'</span> <span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>主键（key）是默认建立索引的属性。比如，数据记录是 <code>{ id: 1, name: '张三'}</code> ，那么 <code>id</code> 属性可以作为主键。主键也可以指定为下一层对象的属性，比如 <code>{ foo: { bar: 'baz' }}</code> 的 <code>foo.bar</code> 也可以指定为主键。</p> 
+<p>如果数据记录里面没有合适作为主键的属性，那么可以让 IndexedDB 自动生成主键。</p> 
+<pre><code class="prism language-js"><span class="token keyword">var</span> objectStore <span class="token operator">=</span> db<span class="token punctuation">.</span><span class="token function">createObjectStore</span><span class="token punctuation">(</span>
+  <span class="token string">'person'</span><span class="token punctuation">,</span>
+  <span class="token punctuation">{<!-- --></span> <span class="token literal-property property">autoIncrement</span><span class="token operator">:</span> <span class="token boolean">true</span> <span class="token punctuation">}</span>
+<span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre> 
+<p>新建对象仓库以后，下一步可以新建索引。</p> 
+<pre><code class="prism language-js">request<span class="token punctuation">.</span><span class="token function-variable function">onupgradeneeded</span> <span class="token operator">=</span> <span class="token keyword">function</span> <span class="token punctuation">(</span><span class="token parameter">event</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+  db <span class="token operator">=</span> event<span class="token punctuation">.</span>target<span class="token punctuation">.</span>result<span class="token punctuation">;</span>
+  <span class="token keyword">var</span> objectStore <span class="token operator">=</span> db<span class="token punctuation">.</span><span class="token function">createObjectStore</span><span class="token punctuation">(</span><span class="token string">'person'</span><span class="token punctuation">,</span> <span class="token punctuation">{<!-- --></span> <span class="token literal-property property">keyPath</span><span class="token operator">:</span> <span class="token string">'id'</span> <span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  objectStore<span class="token punctuation">.</span><span class="token function">createIndex</span><span class="token punctuation">(</span><span class="token string">'name'</span><span class="token punctuation">,</span> <span class="token string">'name'</span><span class="token punctuation">,</span> <span class="token punctuation">{<!-- --></span> <span class="token literal-property property">unique</span><span class="token operator">:</span> <span class="token boolean">false</span> <span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  objectStore<span class="token punctuation">.</span><span class="token function">createIndex</span><span class="token punctuation">(</span><span class="token string">'email'</span><span class="token punctuation">,</span> <span class="token string">'email'</span><span class="token punctuation">,</span> <span class="token punctuation">{<!-- --></span> <span class="token literal-property property">unique</span><span class="token operator">:</span> <span class="token boolean">true</span> <span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p><strong>新增数据</strong></p> 
+<p>新增数据指的是向对象仓库写入数据记录。这需要通过事务完成。</p> 
+<pre><code class="prism language-js"><span class="token keyword">function</span> <span class="token function">add</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+  <span class="token keyword">var</span> request <span class="token operator">=</span> db<span class="token punctuation">.</span><span class="token function">transaction</span><span class="token punctuation">(</span><span class="token punctuation">[</span><span class="token string">'person'</span><span class="token punctuation">]</span><span class="token punctuation">,</span> <span class="token string">'readwrite'</span><span class="token punctuation">)</span>
+    <span class="token punctuation">.</span><span class="token function">objectStore</span><span class="token punctuation">(</span><span class="token string">'person'</span><span class="token punctuation">)</span>
+    <span class="token punctuation">.</span><span class="token function">add</span><span class="token punctuation">(</span><span class="token punctuation">{<!-- --></span> <span class="token literal-property property">id</span><span class="token operator">:</span> <span class="token number">1</span><span class="token punctuation">,</span> <span class="token literal-property property">name</span><span class="token operator">:</span> <span class="token string">'张三'</span><span class="token punctuation">,</span> <span class="token literal-property property">age</span><span class="token operator">:</span> <span class="token number">24</span><span class="token punctuation">,</span> <span class="token literal-property property">email</span><span class="token operator">:</span> <span class="token string">'zhangsan@example.com'</span> <span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    
+  request<span class="token punctuation">.</span><span class="token function-variable function">onsuccess</span> <span class="token operator">=</span> <span class="token keyword">function</span> <span class="token punctuation">(</span><span class="token parameter">event</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    console<span class="token punctuation">.</span><span class="token function">log</span><span class="token punctuation">(</span><span class="token string">'数据写入成功'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token punctuation">}</span><span class="token punctuation">;</span>
+  
+  request<span class="token punctuation">.</span><span class="token function-variable function">onerror</span> <span class="token operator">=</span> <span class="token keyword">function</span> <span class="token punctuation">(</span><span class="token parameter">event</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    console<span class="token punctuation">.</span><span class="token function">log</span><span class="token punctuation">(</span><span class="token string">'数据写入失败'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+
+<span class="token function">add</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre> 
+<p><strong>读取数据</strong></p> 
+<pre><code class="prism language-js"><span class="token keyword">function</span> <span class="token function">read</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+   <span class="token keyword">var</span> transaction <span class="token operator">=</span> db<span class="token punctuation">.</span><span class="token function">transaction</span><span class="token punctuation">(</span><span class="token punctuation">[</span><span class="token string">'person'</span><span class="token punctuation">]</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+   <span class="token keyword">var</span> objectStore <span class="token operator">=</span> transaction<span class="token punctuation">.</span><span class="token function">objectStore</span><span class="token punctuation">(</span><span class="token string">'person'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+   <span class="token keyword">var</span> request <span class="token operator">=</span> objectStore<span class="token punctuation">.</span><span class="token function">get</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+   
+   request<span class="token punctuation">.</span><span class="token function-variable function">onerror</span> <span class="token operator">=</span> <span class="token keyword">function</span><span class="token punctuation">(</span><span class="token parameter">event</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+     console<span class="token punctuation">.</span><span class="token function">log</span><span class="token punctuation">(</span><span class="token string">'事务失败'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+   <span class="token punctuation">}</span><span class="token punctuation">;</span>
+   
+   request<span class="token punctuation">.</span><span class="token function-variable function">onsuccess</span> <span class="token operator">=</span> <span class="token keyword">function</span><span class="token punctuation">(</span> <span class="token parameter">event</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+      <span class="token keyword">if</span> <span class="token punctuation">(</span>request<span class="token punctuation">.</span>result<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        console<span class="token punctuation">.</span><span class="token function">log</span><span class="token punctuation">(</span><span class="token string">'Name: '</span> <span class="token operator">+</span> request<span class="token punctuation">.</span>result<span class="token punctuation">.</span>name<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        console<span class="token punctuation">.</span><span class="token function">log</span><span class="token punctuation">(</span><span class="token string">'Age: '</span> <span class="token operator">+</span> request<span class="token punctuation">.</span>result<span class="token punctuation">.</span>age<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        console<span class="token punctuation">.</span><span class="token function">log</span><span class="token punctuation">(</span><span class="token string">'Email: '</span> <span class="token operator">+</span> request<span class="token punctuation">.</span>result<span class="token punctuation">.</span>email<span class="token punctuation">)</span><span class="token punctuation">;</span>
+      <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{<!-- --></span>
+        console<span class="token punctuation">.</span><span class="token function">log</span><span class="token punctuation">(</span><span class="token string">'未获得数据记录'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+      <span class="token punctuation">}</span>
+   <span class="token punctuation">}</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token function">read</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre> 
+<p><strong>遍历数据</strong></p> 
+<p>遍历数据表格的所有记录，要使用指针对象 IDBCursor。</p> 
+<pre><code class="prism language-js"><span class="token keyword">function</span> <span class="token function">readAll</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+  <span class="token keyword">var</span> objectStore <span class="token operator">=</span> db<span class="token punctuation">.</span><span class="token function">transaction</span><span class="token punctuation">(</span><span class="token string">'person'</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">objectStore</span><span class="token punctuation">(</span><span class="token string">'person'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+  objectStore<span class="token punctuation">.</span><span class="token function">openCursor</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function-variable function">onsuccess</span> <span class="token operator">=</span> <span class="token keyword">function</span> <span class="token punctuation">(</span><span class="token parameter">event</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">var</span> cussor <span class="token operator">=</span> event<span class="token punctuation">.</span>target<span class="token punctuation">.</span>result<span class="token punctuation">;</span>
+
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>cursor<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+      console<span class="token punctuation">.</span><span class="token function">log</span><span class="token punctuation">(</span><span class="token string">'Id: '</span> <span class="token operator">+</span> cursor<span class="token punctuation">.</span>key<span class="token punctuation">)</span><span class="token punctuation">;</span>
+      console<span class="token punctuation">.</span><span class="token function">log</span><span class="token punctuation">(</span><span class="token string">'Name: '</span> <span class="token operator">+</span> cursor<span class="token punctuation">.</span>value<span class="token punctuation">.</span>name<span class="token punctuation">)</span><span class="token punctuation">;</span>
+      console<span class="token punctuation">.</span><span class="token function">log</span><span class="token punctuation">(</span><span class="token string">'Age: '</span> <span class="token operator">+</span> cursor<span class="token punctuation">.</span>value<span class="token punctuation">.</span>age<span class="token punctuation">)</span><span class="token punctuation">;</span>
+      console<span class="token punctuation">.</span><span class="token function">log</span><span class="token punctuation">(</span><span class="token string">'Email: '</span> <span class="token operator">+</span> cursor<span class="token punctuation">.</span>value<span class="token punctuation">.</span>email<span class="token punctuation">)</span><span class="token punctuation">;</span>
+      cursor<span class="token punctuation">.</span><span class="token function">continue</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{<!-- --></span>
+      console<span class="token punctuation">.</span><span class="token function">log</span><span class="token punctuation">(</span><span class="token string">'没有更多数据了!'</span><span class="token punctuation">)</span>
+    <span class="token punctuation">}</span>
+  <span class="token punctuation">}</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token function">readAll</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre> 
+<p><strong>更新数据</strong></p> 
+<p>更新数据要使用 <code>IDBOjbect.put()</code>。</p> 
+<pre><code class="prism language-js">fucntion <span class="token function">update</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+  <span class="token keyword">var</span> request <span class="token operator">=</span> db<span class="token punctuation">.</span><span class="token function">transaction</span><span class="token punctuation">(</span><span class="token punctuation">[</span><span class="token string">'person'</span><span class="token punctuation">]</span><span class="token punctuation">,</span> <span class="token string">'readwrite'</span><span class="token punctuation">)</span>
+  	<span class="token punctuation">.</span><span class="token function">objectStore</span><span class="token punctuation">(</span><span class="token string">'person'</span><span class="token punctuation">)</span>
+  	<span class="token punctuation">.</span><span class="token function">put</span><span class="token punctuation">(</span><span class="token punctuation">{<!-- --></span> <span class="token literal-property property">id</span><span class="token operator">:</span> <span class="token number">1</span><span class="token punctuation">,</span> <span class="token literal-property property">name</span><span class="token operator">:</span> <span class="token string">'李四'</span><span class="token punctuation">,</span> <span class="token literal-property property">age</span><span class="token operator">:</span> <span class="token number">35</span><span class="token punctuation">,</span> <span class="token literal-property property">email</span><span class="token operator">:</span> <span class="token string">'lisi@example.com'</span> <span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+  request<span class="token punctuation">.</span><span class="token function-variable function">onsuccess</span> <span class="token operator">=</span> <span class="token keyword">function</span><span class="token punctuation">(</span><span class="token parameter">event</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    console<span class="token punctuation">.</span><span class="token function">log</span><span class="token punctuation">(</span><span class="token string">'数据更新成功'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token punctuation">}</span><span class="token punctuation">;</span>
+
+  request<span class="token punctuation">.</span><span class="token function-variable function">onerror</span> <span class="token operator">=</span> <span class="token keyword">function</span><span class="token punctuation">(</span><span class="token parameter">event</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    console<span class="token punctuation">.</span><span class="token function">log</span><span class="token punctuation">(</span><span class="token string">'数据更新失败'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+
+<span class="token function">update</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre> 
+<p><strong>删除数据</strong></p> 
+<p><code>IDBObjectStore.delete()</code> 用于删除记录。</p> 
+<pre><code class="prism language-js"><span class="token keyword">function</span> <span class="token function">remove</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+  <span class="token keyword">var</span> request <span class="token operator">=</span> db<span class="token punctuation">.</span><span class="token function">transaction</span><span class="token punctuation">(</span><span class="token punctuation">[</span><span class="token string">'person'</span><span class="token punctuation">]</span><span class="token punctuation">,</span> <span class="token string">'readwrite'</span><span class="token punctuation">)</span>
+    <span class="token punctuation">.</span><span class="token function">objectStore</span><span class="token punctuation">(</span><span class="token string">'person'</span><span class="token punctuation">)</span>
+    <span class="token punctuation">.</span><span class="token function">delete</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+  request<span class="token punctuation">.</span><span class="token function-variable function">onsuccess</span> <span class="token operator">=</span> <span class="token keyword">function</span> <span class="token punctuation">(</span><span class="token parameter">event</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    console<span class="token punctuation">.</span><span class="token function">log</span><span class="token punctuation">(</span><span class="token string">'数据删除成功'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+
+<span class="token function">remove</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre> 
+<p><strong>使用索引</strong></p> 
+<p>索引的意义在于，可以让你搜索任意字段，也就是说从任意字段拿到数据记录。如果不建立索引，默认只能搜索主键（即从主键取值）。</p> 
+<p>假定新建表格的时候，对 <code>name</code> 字段建立了索引。</p> 
+<pre><code class="prism language-js">objectStore<span class="token punctuation">.</span><span class="token function">createIndex</span><span class="token punctuation">(</span><span class="token string">'name'</span><span class="token punctuation">,</span> <span class="token string">'name'</span><span class="token punctuation">,</span> <span class="token punctuation">{<!-- --></span> <span class="token literal-property property">unique</span><span class="token operator">:</span> <span class="token boolean">false</span> <span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre> 
+<p>现在，就可以从 <code>name</code> 找到对应的数据记录了。</p> 
+<pre><code class="prism language-js"><span class="token keyword">var</span> transaction <span class="token operator">=</span> db<span class="token punctuation">.</span><span class="token function">transaction</span><span class="token punctuation">(</span><span class="token punctuation">[</span><span class="token string">'person'</span><span class="token punctuation">]</span><span class="token punctuation">,</span> <span class="token string">'readonly'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token keyword">var</span> store <span class="token operator">=</span> transaction<span class="token punctuation">.</span><span class="token function">objectStore</span><span class="token punctuation">(</span><span class="token string">'person'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token keyword">var</span> index <span class="token operator">=</span> store<span class="token punctuation">.</span><span class="token function">index</span><span class="token punctuation">(</span><span class="token string">'name'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token keyword">var</span> request <span class="token operator">=</span> index<span class="token punctuation">.</span><span class="token function">get</span><span class="token punctuation">(</span><span class="token string">'李四'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+request<span class="token punctuation">.</span><span class="token function-variable function">onsuccess</span> <span class="token operator">=</span> <span class="token keyword">function</span> <span class="token punctuation">(</span><span class="token parameter">e</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+  <span class="token keyword">var</span> result <span class="token operator">=</span> e<span class="token punctuation">.</span>target<span class="token punctuation">.</span>result<span class="token punctuation">;</span>
+  <span class="token keyword">if</span> <span class="token punctuation">(</span>result<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token comment">// ...</span>
+  <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token comment">// ...</span>
+  <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<h4><a id="indexedDB__284"></a>indexedDB 对象</h4> 
+<p>浏览器原生提供 <code>indexedDB</code> 对象，作为开发者的操作接口。</p> 
+<p><strong><code>indexedDB.open()</code></strong></p> 
+<p>用于打开数据库。这是一个异步操作，但是会立刻返回一个 IDBOpenDBRequest 对象。</p> 
+<pre><code class="prism language-js"><span class="token keyword">var</span> openRequest <span class="token operator">=</span> window<span class="token punctuation">.</span>indexedDB<span class="token punctuation">.</span><span class="token function">open</span><span class="token punctuation">(</span><span class="token string">'test'</span><span class="token punctuation">,</span> <span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre> 
+<p>打开数据库是异步操作，通过各种事件通知客户端。下面是有可能触发的 4 种事件。</p> 
+<ul><li>success：打开成功</li><li>error：打开失败</li><li>upgradeneeded：第一次打开该数据库，或者数据库版本发生变化</li><li>blocked：上一次的数据库连接还未关闭</li></ul> 
+<p>第一次打开数据库时，会先触发 <code>upgradeneeded</code> 事件，然后触发 <code>upgradeneeded</code> 事件，然后触发 <code>success</code> 事件。</p> 
+<p>根据不同的需要，对上面 4 种事件监听函数。</p> 
+<pre><code class="prism language-js"><span class="token keyword">var</span> openRequest <span class="token operator">=</span> indexedDB<span class="token punctuation">.</span><span class="token function">open</span><span class="token punctuation">(</span><span class="token string">'test'</span><span class="token punctuation">,</span> <span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token keyword">var</span> db<span class="token punctuation">;</span>
+
+openRequest<span class="token punctuation">.</span><span class="token function-variable function">onupgradeneeded</span> <span class="token operator">=</span> <span class="token keyword">function</span> <span class="token punctuation">(</span><span class="token parameter">e</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+  console<span class="token punctuation">.</span><span class="token function">log</span><span class="token punctuation">(</span><span class="token string">'Upgrading...'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+openRequest<span class="token punctuation">.</span><span class="token function-variable function">onsuccess</span> <span class="token operator">=</span> <span class="token keyword">function</span> <span class="token punctuation">(</span><span class="token parameter">e</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+  console<span class="token punctuation">.</span><span class="token function">log</span><span class="token punctuation">(</span><span class="token string">'Success!'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  db <span class="token operator">=</span> openRequest<span class="token punctuation">.</span>result<span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+openRequest<span class="token punctuation">.</span><span class="token function-variable function">onerror</span> <span class="token operator">=</span> <span class="token keyword">function</span> <span class="token punctuation">(</span><span class="token parameter">e</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+  console<span class="token punctuation">.</span><span class="token function">log</span><span class="token punctuation">(</span><span class="token string">'Error'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  console<span class="token punctuation">.</span><span class="token function">log</span><span class="token punctuation">(</span>e<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>两个注意点。首先，<code>open()</code> 返回的是一个对象（IDBOpenRequest），监听函数就定义在这个对象上面。其次，<code>success</code> 事件发生后，从 <code>openRequest.result</code> 属性可以拿到已经打开的 <code>IndexedDB</code> 数据库对象。</p> 
+<p><strong><code>indexedDB.deleteDatabase()</code></strong></p> 
+<p>用于删除一个数据库，参数为数据库的名字。它会立刻返回一个 <code>IDBOpenDBRequest</code> 对象，然后对数据库执行异步删除。删除操作的结果会通过事件通知，<code>IDBOpenRequest</code> 对象可以监听以下事件。</p> 
+<ul><li><code>success</code>：删除成功</li><li><code>error</code>：删除报错</li></ul> 
+<pre><code class="prism language-js"><span class="token keyword">var</span> DBDeleteRequest <span class="token operator">=</span> window<span class="token punctuation">.</span>indexedDB<span class="token punctuation">.</span><span class="token function">deleteDatabase</span><span class="token punctuation">(</span><span class="token string">'demo'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+DBDeleteRequest<span class="token punctuation">.</span><span class="token function-variable function">onerror</span> <span class="token operator">=</span> <span class="token keyword">function</span> <span class="token punctuation">(</span><span class="token parameter">event</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+  console<span class="token punctuation">.</span><span class="token function">log</span><span class="token punctuation">(</span><span class="token string">'Error'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span>
+
+DBDeleteRequest<span class="token punctuation">.</span><span class="token function-variable function">onsuccess</span> <span class="token operator">=</span> <span class="token keyword">function</span> <span class="token punctuation">(</span><span class="token parameter">event</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+  console<span class="token punctuation">.</span><span class="token function">log</span><span class="token punctuation">(</span><span class="token string">'success'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span>
+</code></pre> 
+<p>调用 <code>deleteDatabase()</code> 以后，当前数据库的其他已经打开的连接都会接收到 <code>versionChange</code> 事件。</p> 
+<p><strong><code>indexedDB.cmp()</code></strong></p> 
+<p>比较两个值是否为 indexedDB 的相同的主键。它返回一个整数，表示比较的结果：<code>0</code> 表示相同，<code>1</code> 表示第一个主键大于第二个主键，<code>-1</code> 表示第一个主键小于第二个主键。</p> 
+<pre><code class="prism language-js">window<span class="token punctuation">.</span>indexedDB<span class="token punctuation">.</span><span class="token function">com</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">,</span> <span class="token number">2</span><span class="token punctuation">)</span><span class="token punctuation">;</span> <span class="token comment">// -1</span>
+</code></pre> 
+<p>注意，这个方法不能用来比较任意的 JavaScript 值。如果参数是布尔值或对象，它会报错。</p> 
+<pre><code class="prism language-js">window<span class="token punctuation">.</span>indexedDB<span class="token punctuation">.</span><span class="token function">cmp</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">,</span> <span class="token boolean">true</span><span class="token punctuation">)</span> <span class="token comment">// 报错</span>
+window<span class="token punctuation">.</span>indexedDB<span class="token punctuation">.</span><span class="token function">cmp</span><span class="token punctuation">(</span><span class="token punctuation">{<!-- --></span><span class="token punctuation">}</span><span class="token punctuation">,</span> <span class="token punctuation">{<!-- --></span><span class="token punctuation">}</span><span class="token punctuation">)</span> <span class="token comment">// 报错</span>
+</code></pre> 
+<h4><a id="IDBRequest__364"></a>IDBRequest 对象</h4> 
+<p>IDBRequest 对象表示打开的数据库连接，<code>indexedDB.open()</code> 和 <code>indexedDB.deleteDatabase()</code> 会返回这个对象。数据库的操作都是通过这个对象完成的。</p> 
+<p>这个对象的所有操作都是异步操作，要通过 <code>readyState</code> 属性判断是否完成，如果为 <code>pending</code> 就表示操作正在进行，如果为<code>done</code> 就表示操作完成，可能成功也可能失败。</p> 
+<p>操作完成以后，触发 <code>success</code> 事件或 <code>error</code> 事件，这时可以通过 <code>result</code> 属性和 <code>error</code> 属性拿到操作结果。如果在 <code>pending</code> 阶段，就去读取这两个属性，是会报错的。</p> 
+<p>IDBRequest 对象有以下属性。</p> 
+<ul><li><code>IDBRequest.readyState</code>：等于 <code>pending</code> 表示操作正在进行，等于 <code>done</code> 表示操作正在完成</li><li><code>IDBRequest.result</code>：返回请求的结果。如果请求失败、结果不可用，读取该属性会报错</li><li><code>IDBRequest.error</code>：请求失败时，返回错误对象</li><li><code>IDBRequest.source</code>：返回请求的来源（比如索引对象或 ObjectStore）</li><li><code>IDBRequest.transaction</code>：返回当前请求正在进行的事务，如果不包含事务，返回 <code>null</code></li><li><code>IDBRequest.onsuccess</code>：指定 <code>success</code> 事件的监听函数</li><li><code>IDBRequest.onerror</code>：指定 <code>error</code> 事件的监听函数</li></ul> 
+<p>IDBOpenDBRequest 对象继承了 IDBRequest 对象，提供了两个额外的事件监听属性。</p> 
+<ul><li><code>IDBOpenDBRequest.onblocked</code>：指定 <code>blocked</code> 事件（<code>upgradeneeded</code> 事件触发时，数据库仍然在使用）的监听函数</li><li><code>IDBOpenDBRequest.onupgradeneeded</code>：<code>upgradeneeded</code> 事件的监听函数</li></ul> 
+<h4><a id="IDBDatabase__387"></a>IDBDatabase 对象</h4> 
+<p>打开数据成功以后，可以从 <code>IDBOpenDBRequest</code> 对象的 <code>result</code> 属性上面，拿到一个 <code>IDBDatabase</code> 对象，它表示连接的数据库。后面对数据库的操作，都通过这个对象完成。</p> 
+<pre><code class="prism language-js"><span class="token keyword">var</span> db<span class="token punctuation">;</span>
+<span class="token keyword">var</span> DBOpenRequest <span class="token operator">=</span> window<span class="token punctuation">.</span>indexedDB<span class="token punctuation">.</span><span class="token function">open</span><span class="token punctuation">(</span><span class="token string">'demo'</span><span class="token punctuation">,</span> <span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+DBOpenRequest<span class="token punctuation">.</span><span class="token function-variable function">onerror</span> <span class="token operator">=</span> <span class="token keyword">function</span> <span class="token punctuation">(</span><span class="token parameter">event</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+  console<span class="token punctuation">.</span><span class="token function">log</span><span class="token punctuation">(</span><span class="token string">'error'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span>
+
+DBOpenRequest<span class="token punctuation">.</span><span class="token function-variable function">onsuccess</span> <span class="token operator">=</span> <span class="token keyword">function</span> <span class="token punctuation">(</span><span class="token parameter">event</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+  db <span class="token operator">=</span> DBOpenRequest<span class="token punctuation">.</span>result<span class="token punctuation">;</span>
+  <span class="token comment">// ...</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span>
+</code></pre> 
+<p>IDBDatabase 对象有以下属性。</p> 
+<ul><li><code>IDBDatabase.name</code>：数据库名</li><li><code>IDBDatabase.version</code>：数据库版本，第一次创建的时候，该属性为空字符串</li><li><code>IDBDatabase.objectStoreNames</code>：DOMStringList 对象（字符串的集合），包含当前数据的所有 object store 的名字</li><li><code>IDBDatabase.onabort</code>：指定 abort 事件（事务中止）的监听函数</li><li><code>IDBDatabase.onclose</code>：指定 clost 事件（数据库意外关闭）的监听函数</li><li><code>IDBDatabase.onerror</code>：指定 error 事件（访问数据库失败）的监听函数</li><li><code>IDBDatabase.onversionchange</code>：数据库版本变化时触发（发生 <code>upgradeneeded</code> 事件，或调用 <code>indexedDB.deleteDatabase()</code>）</li></ul> 
+<pre><code class="prism language-js"><span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>db<span class="token punctuation">.</span>objectStoreNames<span class="token punctuation">.</span><span class="token function">contains</span><span class="token punctuation">(</span><span class="token string">'firstOS'</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+  db<span class="token punctuation">.</span><span class="token function">createObjectStore</span><span class="token punctuation">(</span><span class="token string">'firstOS'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>IDBDatabase 对象有以下方法。</p> 
+<ul><li><code>IDBDatabase.close()</code>：关闭数据库连接，实际会等所有事务完成后再关闭</li><li><code>IDBDatabase.createObjectStore()</code>：创建存放数据的对象仓库，类似于传统关系型数据库的表格，返回一个 IDBObjectStore 对象。该方法只能在 <code>versionchange</code> 事件监听函数中调用</li><li><code>IDBDatabase.deleteObjectStore()</code>：删除指定的对象仓库。该方法只能在 <code>versionchange</code> 事件监听函数中调用</li><li><code>IDBDatabase.transaction()</code>：返回一个 IDBTransaction 事务对象</li></ul> 
+<pre><code class="prism language-js"><span class="token keyword">var</span>  request <span class="token operator">=</span> window<span class="token punctuation">.</span>indexedDB<span class="token punctuation">.</span><span class="token function">open</span><span class="token punctuation">(</span><span class="token string">'demo'</span><span class="token punctuation">,</span> <span class="token number">2</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+request<span class="token punctuation">.</span><span class="token function-variable function">onupgradeneeded</span> <span class="token operator">=</span> <span class="token keyword">function</span> <span class="token punctuation">(</span><span class="token parameter">event</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+  <span class="token keyword">var</span> db <span class="token operator">=</span> event<span class="token punctuation">.</span>target<span class="token punctuation">.</span>result<span class="token punctuation">;</span>
+  
+  db<span class="token punctuation">.</span><span class="token function-variable function">onerror</span> <span class="token operator">=</span> <span class="token keyword">function</span> <span class="token punctuation">(</span><span class="token parameter">event</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    console<span class="token punctuation">.</span><span class="token function">log</span><span class="token punctuation">(</span><span class="token string">'error'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token punctuation">}</span><span class="token punctuation">;</span>
+
+  <span class="token keyword">var</span> objectStore <span class="token operator">=</span> db<span class="token punctuation">.</span><span class="token function">createObjectStore</span><span class="token punctuation">(</span><span class="token string">'items'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+  <span class="token comment">// ...</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span>
+</code></pre> 
+<pre><code class="prism language-js"><span class="token keyword">var</span> dbName <span class="token operator">=</span> <span class="token string">'sampleDB'</span><span class="token punctuation">;</span>
+<span class="token keyword">var</span> dbVersion <span class="token operator">=</span> <span class="token number">2</span><span class="token punctuation">;</span>
+<span class="token keyword">var</span> request <span class="token operator">=</span> indexedDB<span class="token punctuation">.</span><span class="token function">open</span><span class="token punctuation">(</span>dbName<span class="token punctuation">,</span> dbVersion<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+request<span class="token punctuation">.</span><span class="token function-variable function">onupgradeneeded</span> <span class="token operator">=</span> <span class="token keyword">function</span> <span class="token punctuation">(</span><span class="token parameter">e</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+  <span class="token keyword">var</span> db <span class="token operator">=</span> request<span class="token punctuation">.</span>result<span class="token punctuation">;</span>
+  <span class="token keyword">if</span> <span class="token punctuation">(</span>e<span class="token punctuation">.</span>oldVersion <span class="token operator">&lt;</span> <span class="token number">1</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    db<span class="token punctuation">.</span><span class="token function">createObjectStore</span><span class="token punctuation">(</span><span class="token string">'store1'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token punctuation">}</span>
+
+  <span class="token keyword">if</span> <span class="token punctuation">(</span>e<span class="token punctuation">.</span>oldVersion <span class="token operator">&lt;</span> <span class="token number">2</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    db<span class="token punctuation">.</span><span class="token function">deleteObjectStore</span><span class="token punctuation">(</span><span class="token string">'store1'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    db<span class="token punctuation">.</span><span class="token function">createObjectStore</span><span class="token punctuation">(</span><span class="token string">'store2'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token punctuation">}</span>
+
+  <span class="token comment">// ...</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span>
+</code></pre> 
+<pre><code class="prism language-js"><span class="token keyword">var</span> t <span class="token operator">=</span> db<span class="token punctuation">.</span><span class="token function">transaction</span><span class="token punctuation">(</span><span class="token punctuation">[</span><span class="token string">'items'</span><span class="token punctuation">]</span><span class="token punctuation">,</span> <span class="token string">'readwrite'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre> 
+<p>第一个参数是一个数组，里面是所涉及的对象仓库，通常是只有一个；第二个参数是一个表示操作类型的字符串。操作类型只有两种：<code>readonly</code> 和 <code>readwrite</code>。</p> 
+<h4><a id="IDBObjectStore__470"></a>IDBObjectStore 对象</h4> 
+<p>IDBObjectStore 对象对应一个对象仓库（object store）。<code>IDBDatabase.createObjectStore()</code> 返回的就是一个 IDBObjectStore 对象。</p> 
+<p>IDBDatabase 对象的 <code>transaction()</code> 返回 IDBObjectStore 对象，因此可以采用下面的链式写法。</p> 
+<pre><code class="prism language-js">db<span class="token punctuation">.</span><span class="token function">transaction</span><span class="token punctuation">(</span><span class="token punctuation">[</span><span class="token string">'test'</span><span class="token punctuation">]</span><span class="token punctuation">,</span> <span class="token string">'readonly'</span><span class="token punctuation">)</span>
+  <span class="token punctuation">.</span><span class="token function">objectStore</span><span class="token punctuation">(</span><span class="token string">'test'</span><span class="token punctuation">)</span>
+  <span class="token punctuation">.</span><span class="token function">get</span><span class="token punctuation">(</span><span class="token constant">X</span><span class="token punctuation">)</span>
+  <span class="token punctuation">.</span><span class="token function-variable function">onsuccess</span> <span class="token operator">=</span> <span class="token keyword">function</span> <span class="token punctuation">(</span><span class="token parameter">e</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span><span class="token punctuation">}</span><span class="token punctuation">;</span>
+</code></pre> 
+<p>IDBObjectStore 对象有以下属性。</p> 
+<ul><li><code>IDBObjectStore.indexNames</code>：返回一个类似数组的对象（DOMStringList），包含了当前对象仓库的所有索引</li><li><code>IDBObjectStore.keyPath</code>：返回当前对象仓库的主键</li><li><code>IDBObjectStore.name</code>：返回当前对象仓库的名称</li><li><code>IDBObjectStore.transaction</code>：返回当前对象仓库所属的事务对象</li><li><code>IDBObjectStore.autoIncrement</code>：布尔值，表示主键是否会自动递增</li></ul> 
+<p>IDBObjectStore 对象有以下方法。</p> 
+<p><strong><code>IDBObjectStore.add()</code></strong></p> 
+<p>用于向对象仓库添加数据，返回一个 IDBRequest 对象。该方法只用于添加数据，如果主键相同会报错，因此更新数据必须使用 <code>put()</code>。</p> 
+<pre><code class="prism language-js">objectStore<span class="token punctuation">.</span><span class="token function">add</span><span class="token punctuation">(</span>value<span class="token punctuation">,</span> key<span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre> 
+<p>该方法接受两个参数，第一个参数是键值，第二个参数是主键，该参数可选，如果省略默认为 <code>null</code>。</p> 
+<p>创建事务以后，就可以获取对象仓库，然后使用 <code>add()</code> 往里面添加数据了。</p> 
+<pre><code class="prism language-js"><span class="token keyword">var</span> db<span class="token punctuation">;</span>
+<span class="token keyword">var</span> DBOpenRequest <span class="token operator">=</span> window<span class="token punctuation">.</span>indexedDB<span class="token punctuation">.</span><span class="token function">open</span><span class="token punctuation">(</span><span class="token string">'demo'</span><span class="token punctuation">,</span> <span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+DBOpenRequest<span class="token punctuation">.</span><span class="token function-variable function">onsuccess</span> <span class="token operator">=</span> <span class="token keyword">function</span> <span class="token punctuation">(</span><span class="token parameter">event</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+  db <span class="token operator">=</span> DBOpenRequest<span class="token punctuation">.</span>result<span class="token punctuation">;</span>
+  <span class="token keyword">var</span> transaction <span class="token operator">=</span> db<span class="token punctuation">.</span><span class="token function">transaction</span><span class="token punctuation">(</span><span class="token punctuation">[</span><span class="token string">'items'</span><span class="token punctuation">]</span><span class="token punctuation">,</span> <span class="token string">'readwrite'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+  transaction<span class="token punctuation">.</span><span class="token function-variable function">oncomplete</span> <span class="token operator">=</span> <span class="token keyword">function</span><span class="token punctuation">(</span><span class="token parameter">event</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    console<span class="token punctuation">.</span><span class="token function">log</span><span class="token punctuation">(</span><span class="token string">'transaction success'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token punctuation">}</span><span class="token punctuation">;</span>
+
+  transaction<span class="token punctuation">.</span><span class="token function-variable function">onerror</span> <span class="token operator">=</span> <span class="token keyword">function</span><span class="token punctuation">(</span><span class="token parameter">event</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    console<span class="token punctuation">.</span><span class="token function">log</span><span class="token punctuation">(</span><span class="token string">'transaction error: '</span> <span class="token operator">+</span> transaction<span class="token punctuation">.</span>error<span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token punctuation">}</span><span class="token punctuation">;</span>
+
+  <span class="token keyword">var</span> objectStore <span class="token operator">=</span> transaction<span class="token punctuation">.</span><span class="token function">objectStore</span><span class="token punctuation">(</span><span class="token string">'items'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token keyword">var</span> objectStoreRequest <span class="token operator">=</span> objectStore<span class="token punctuation">.</span><span class="token function">add</span><span class="token punctuation">(</span><span class="token punctuation">{<!-- --></span> <span class="token literal-property property">foo</span><span class="token operator">:</span> <span class="token number">1</span> <span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+  objectStoreRequest<span class="token punctuation">.</span><span class="token function-variable function">onsuccess</span> <span class="token operator">=</span> <span class="token keyword">function</span> <span class="token punctuation">(</span><span class="token parameter">event</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    console<span class="token punctuation">.</span><span class="token function">log</span><span class="token punctuation">(</span><span class="token string">'add data success'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token punctuation">}</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span>
+</code></pre> 
+<p><strong><code>IDBObjectStore.put()</code></strong></p> 
+<p>用于更新某个主键对应的数据记录，如果对应的键值不存在，则插入一条新的记录。该方法返回一个 IDBRequest 对象。</p> 
+<pre><code class="prism language-js">objectStore<span class="token punctuation">.</span><span class="token function">put</span><span class="token punctuation">(</span>item<span class="token punctuation">,</span> key<span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre> 
+<p>该方法接受两个参数，第一个参数为新数据，第二个参数为主键，该参数可选，且只在自动递增时才有必要提供，因为那时主键不包含在数据值里面。</p> 
+<p><strong><code>IDBObjectStore.put()</code></strong></p> 
+<p>用于更新某个主键对应的数据记录，如果对应的键值不存在，则插入一条新的记录。该方法返回一个 IDBRequest 对象。</p> 
+<pre><code class="prism language-js">objectStore<span class="token punctuation">.</span><span class="token function">put</span><span class="token punctuation">(</span>item<span class="token punctuation">,</span> key<span class="token punctuation">)</span>
+</code></pre> 
+<p><strong><code>IDBObjectStore.clear()</code></strong></p> 
+<p>删除当前对象仓库的所有记录，并返回一个 IDBRequest 对象。</p> 
+<pre><code class="prism language-js">objectStore<span class="token punctuation">.</span><span class="token function">clear</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+</code></pre> 
+<p><strong><code>IDBObjectStore.delete()</code></strong></p> 
+<p>用于删除指定主键的记录。该方法返回一个 IDBRequest 对象。</p> 
+<pre><code class="prism language-js">objectStore<span class="token punctuation">.</span><span class="token function">delete</span><span class="token punctuation">(</span>Key<span class="token punctuation">)</span>
+</code></pre> 
+<p><strong><code>IDBObjectStore.count()</code></strong></p> 
+<p>用于计算记录的数量。返回一个 IDBRequest 对象。</p> 
+<pre><code class="prism language-js">IDBObjectStore<span class="token punctuation">.</span><span class="token function">count</span><span class="token punctuation">(</span>key<span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre> 
+<p>不带参数时，该方法返回当前对象仓库的所有记录数量。如果主键或 IDBKeyRange 对象作为参数，则返回对应的记录数量。</p> 
+<p><strong><code>IDBObjectStore.getKey()</code></strong></p> 
+<p>用于获取主键，返回一个 IDBRequest 对象。</p> 
+<pre><code class="prism language-js">objectStore<span class="token punctuation">.</span><span class="token function">getKey</span><span class="token punctuation">(</span>key<span class="token punctuation">)</span>
+</code></pre> 
+<p>参数可以是主键值或 IDBKeyRange 对象。</p> 
+<p><strong><code>IDBObjectStore.get()</code></strong></p> 
+<p>用于获取主键对应的数据记录，返回一个 IDBRequest 对象。</p> 
+<pre><code class="prism language-js">objectStore<span class="token punctuation">.</span><span class="token function">get</span><span class="token punctuation">(</span>key<span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre> 
+<p><strong><code>IDBObjectStore.getAll()</code></strong></p> 
+<p>用于获取对象仓库的记录，返回一个 IDBRequest 对象。</p> 
+<pre><code class="prism language-js"><span class="token comment">// 获取所有记录</span>
+objectStore<span class="token punctuation">.</span><span class="token function">getAll</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+<span class="token comment">// 获取所有符合指定主键或 IDBKeyRange 的记录</span>
+objectStore<span class="token punctuation">.</span><span class="token function">getAll</span><span class="token punctuation">(</span>query<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+<span class="token comment">// 指定获取记录的数量</span>
+objectStore<span class="token punctuation">.</span><span class="token function">getAll</span><span class="token punctuation">(</span>query<span class="token punctuation">,</span> count<span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre> 
+<p><strong><code>IDBObjectStore.getAllKeys()</code></strong></p> 
+<p>用于获取所有符合条件的主键，该方法返回一个 IDBRequest 对象。</p> 
+<pre><code class="prism language-js"><span class="token comment">// 获取所有记录的主键</span>
+objectStore<span class="token punctuation">.</span><span class="token function">getAllKeys</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+<span class="token comment">// 获取所有符合条件的主键</span>
+objectStore<span class="token punctuation">.</span><span class="token function">getAllKeys</span><span class="token punctuation">(</span>query<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+<span class="token comment">// 指定获取主键的数量</span>
+objectStore<span class="token punctuation">.</span><span class="token function">getAllKeys</span><span class="token punctuation">(</span>query<span class="token punctuation">,</span> count<span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre> 
+<p><strong><code>IDBObjectStore.index()</code></strong></p> 
+<p>返回指定名称的索引对象 IDBIndex。</p> 
+<pre><code class="prism language-js">objectStore<span class="token punctuation">.</span><span class="token function">index</span><span class="token punctuation">(</span>name<span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre> 
+<p>有了索引以后，就可以针对索引所在的属性读取数据。</p> 
+<pre><code class="prism language-js"><span class="token keyword">var</span> t <span class="token operator">=</span> db<span class="token punctuation">.</span><span class="token function">transaction</span><span class="token punctuation">(</span><span class="token punctuation">[</span><span class="token string">'people'</span><span class="token punctuation">]</span><span class="token punctuation">,</span> <span class="token string">'readonly'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token keyword">var</span> store <span class="token operator">=</span> t<span class="token punctuation">.</span><span class="token function">objectStore</span><span class="token punctuation">(</span><span class="token string">'people'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token keyword">var</span> index <span class="token operator">=</span> store<span class="token punctuation">.</span><span class="token function">index</span><span class="token punctuation">(</span><span class="token string">'name'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+<span class="token keyword">var</span> request <span class="token operator">=</span> index<span class="token punctuation">.</span><span class="token function">get</span><span class="token punctuation">(</span><span class="token string">'foo'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre> 
+<p><strong><code>IDBObjectStore.createIndex()</code></strong></p> 
+<p>用于新建当前数据库的一个索引。该方法只能在 <code>VersionChange</code> 监听函数里面调用。</p> 
+<pre><code class="prism language-js">objectStore<span class="token punctuation">.</span><span class="token function">createIndex</span><span class="token punctuation">(</span>indexName<span class="token punctuation">,</span> keyPath<span class="token punctuation">,</span> objectParameters<span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre> 
+<ul><li>indexName：索引名</li><li>keyPath：主键</li><li>objectParameters：配置对象（可选）</li></ul> 
+<p>第三个参数可以配置以下属性。</p> 
+<ul><li>unique：如果设为 <code>true</code>，将不允许重复的值</li><li>multiEntry：如果设为<code>true</code>，对于有多个值的主键数组，每个值将在索引里面新建一个条目，否则主键数组对应一个条目</li></ul> 
+<p>假定对象仓库中的数据记录都是如下的 <code>person</code> 类型</p> 
+<pre><code class="prism language-js"><span class="token keyword">var</span> person <span class="token operator">=</span> <span class="token punctuation">{<!-- --></span>
+  <span class="token literal-property property">name</span><span class="token operator">:</span> name<span class="token punctuation">,</span>
+  <span class="token literal-property property">email</span><span class="token operator">:</span> email<span class="token punctuation">,</span>
+  <span class="token literal-property property">created</span><span class="token operator">:</span> <span class="token keyword">new</span> <span class="token class-name">Date</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span>
+</code></pre> 
+<p>可以指定这个对象的某个属性来建立索引。</p> 
+<pre><code class="prism language-js"><span class="token keyword">var</span> store <span class="token operator">=</span> db<span class="token punctuation">.</span><span class="token function">createObjectStore</span><span class="token punctuation">(</span><span class="token string">'people'</span><span class="token punctuation">,</span> <span class="token punctuation">{<!-- --></span> <span class="token literal-property property">autoIncrement</span><span class="token operator">:</span> <span class="token boolean">true</span> <span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+store<span class="token punctuation">.</span><span class="token function">createIndex</span><span class="token punctuation">(</span><span class="token string">'name'</span><span class="token punctuation">,</span> <span class="token string">'name'</span><span class="token punctuation">,</span> <span class="token punctuation">{<!-- --></span> <span class="token literal-property property">unique</span><span class="token operator">:</span> <span class="token boolean">false</span> <span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+store<span class="token punctuation">.</span><span class="token function">createIndex</span><span class="token punctuation">(</span><span class="token string">'email'</span><span class="token punctuation">,</span> <span class="token string">'email'</span><span class="token punctuation">,</span> <span class="token punctuation">{<!-- --></span> <span class="token literal-property property">unique</span><span class="token operator">:</span> <span class="token boolean">true</span> <span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre> 
+<p><strong><code>IDBObjectStore.deleteIndex()</code></strong></p> 
+<p>用于删除指定的索引。该方法只能在 <code>VersionChange</code> 监听函数里面调用。</p> 
+<pre><code class="prism language-js">objectStore<span class="token punctuation">.</span><span class="token function">deleteIndex</span><span class="token punctuation">(</span>indexName<span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre> 
+<p><strong><code>IDBObjectStore.openCursor()</code></strong></p> 
+<p>用于获取一个指针对象。</p> 
+<pre><code class="prism language-js">IDBObjectStore<span class="token punctuation">.</span><span class="token function">openCursor</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+</code></pre> 
+<p>指针对象可以用来遍历数据。该对象也是异步的，有自己的 <code>success</code> 和 <code>error</code> 事件，可以对它们指定监听函数。</p> 
+<pre><code class="prism language-js"><span class="token keyword">var</span> t <span class="token operator">=</span> db<span class="token punctuation">.</span><span class="token function">transaction</span><span class="token punctuation">(</span><span class="token punctuation">[</span><span class="token string">'test'</span><span class="token punctuation">]</span><span class="token punctuation">,</span> <span class="token string">'readonly'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token keyword">var</span> store <span class="token operator">=</span> t<span class="token punctuation">.</span><span class="token function">objectStore</span><span class="token punctuation">(</span><span class="token string">'test'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+<span class="token keyword">var</span> cursor <span class="token operator">=</span> store<span class="token punctuation">.</span><span class="token function">openCursor</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+cursor<span class="token punctuation">.</span><span class="token function-variable function">onsuccess</span> <span class="token operator">=</span> <span class="token keyword">function</span> <span class="token punctuation">(</span><span class="token parameter">event</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+  <span class="token keyword">var</span> res <span class="token operator">=</span> event<span class="token punctuation">.</span>target<span class="token punctuation">.</span>result<span class="token punctuation">;</span>
+  <span class="token keyword">if</span> <span class="token punctuation">(</span>res<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    console<span class="token punctuation">.</span><span class="token function">log</span><span class="token punctuation">(</span><span class="token string">'Key'</span><span class="token punctuation">,</span> res<span class="token punctuation">.</span>key<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    console<span class="token punctuation">.</span><span class="token function">log</span><span class="token punctuation">(</span><span class="token string">'Data'</span><span class="token punctuation">,</span> res<span class="token punctuation">.</span>value<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    res<span class="token punctuation">.</span><span class="token function">continue</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p><code>openCursor()</code> 的第一个参数是主键值，或者一个 IDBKeyRange 对象。如果指定该参数，将只处理包含指定主键的记录；如果省略，将处理所有的记录。该方法还可以接受第二个参数，表示遍历方向，默认值为 <code>next</code>，其他可能的值为 <code>prev</code>、<code>nextunique</code> 和 <code>prevunique</code>。后两个值表示如果遇到重复值，会自动跳过。</p> 
+<p><strong><code>IDBObjectStore.openKeyCursor()</code></strong></p> 
+<p>用于获取一个主键指针对象。</p> 
+<pre><code class="prism language-js">IDBObjectStore<span class="token punctuation">.</span><span class="token function">openKeyCursor</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+</code></pre> 
+<h4><a id="IDBTransaction__720"></a>IDBTransaction 对象</h4> 
+<p>IDBTransaction 对象用来异步操作数据库事务，所有的读写操作都要通过这个对象进行。</p> 
+<p><code>IDBDatabase.transaction()</code> 返回的就是一个 IDBTransaction 对象。</p> 
+<pre><code class="prism language-js"><span class="token keyword">var</span> db<span class="token punctuation">;</span>
+<span class="token keyword">var</span> DBOpenRequest <span class="token operator">=</span> window<span class="token punctuation">.</span>indexedDB<span class="token punctuation">.</span><span class="token function">open</span><span class="token punctuation">(</span><span class="token string">'demo'</span><span class="token punctuation">,</span> <span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+DBOpenRequest<span class="token punctuation">.</span><span class="token function-variable function">onsuccess</span> <span class="token operator">=</span> <span class="token keyword">function</span><span class="token punctuation">(</span><span class="token parameter">event</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+  db <span class="token operator">=</span> DBOpenRequest<span class="token punctuation">.</span>result<span class="token punctuation">;</span>
+  <span class="token keyword">var</span> transaction <span class="token operator">=</span> db<span class="token punctuation">.</span><span class="token function">transaction</span><span class="token punctuation">(</span><span class="token punctuation">[</span><span class="token string">'demo'</span><span class="token punctuation">]</span><span class="token punctuation">,</span> <span class="token string">'readwrite'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+  transaction<span class="token punctuation">.</span><span class="token function-variable function">oncomplete</span> <span class="token operator">=</span> <span class="token keyword">function</span><span class="token punctuation">(</span><span class="token parameter">event</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    cnosole<span class="token punctuation">.</span><span class="token function">log</span><span class="token punctuation">(</span><span class="token string">'transaction success'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token punctuation">}</span><span class="token punctuation">;</span>
+
+  transaction<span class="token punctuation">.</span><span class="token function-variable function">onerror</span> <span class="token operator">=</span> <span class="token keyword">function</span><span class="token punctuation">(</span><span class="token parameter">event</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    console<span class="token punctuation">.</span><span class="token function">log</span><span class="token punctuation">(</span><span class="token string">'transaction error: '</span> <span class="token operator">+</span> transaction<span class="token punctuation">.</span>error<span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token punctuation">}</span><span class="token punctuation">;</span>
+
+  <span class="token keyword">var</span> objectStore <span class="token operator">=</span> transaction<span class="token punctuation">.</span><span class="token function">objectStore</span><span class="token punctuation">(</span><span class="token string">'demo'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token keyword">var</span> objectStoreRequest <span class="token operator">=</span> objectStore<span class="token punctuation">.</span><span class="token function">add</span><span class="token punctuation">(</span><span class="token punctuation">{<!-- --></span> <span class="token literal-property property">foo</span><span class="token operator">:</span> <span class="token number">1</span> <span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+  objectStoreRequest<span class="token punctuation">.</span><span class="token function-variable function">onsuccess</span> <span class="token operator">=</span> <span class="token keyword">function</span><span class="token punctuation">(</span><span class="token parameter">event</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    console<span class="token punctuation">.</span><span class="token function">log</span><span class="token punctuation">(</span><span class="token string">'add data success'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token punctuation">}</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span>
+</code></pre> 
+<p>事务的执行顺序是按照创建的顺序，而不是发出请求的顺序。</p> 
+<pre><code class="prism language-js"><span class="token keyword">var</span> trans1 <span class="token operator">=</span> db<span class="token punctuation">.</span><span class="token function">transaction</span><span class="token punctuation">(</span><span class="token string">'foo'</span><span class="token punctuation">,</span> <span class="token string">'readwrite'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token keyword">var</span> trans2 <span class="token operator">=</span> db<span class="token punctuation">.</span><span class="token function">transaction</span><span class="token punctuation">(</span><span class="token string">'foo'</span><span class="token punctuation">,</span> <span class="token string">'readwrite'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token keyword">var</span> objectStore2 <span class="token operator">=</span> trans2<span class="token punctuation">.</span><span class="token function">objectStore</span><span class="token punctuation">(</span><span class="token string">'foo'</span><span class="token punctuation">)</span>
+<span class="token keyword">var</span> objectStore1 <span class="token operator">=</span> trans1<span class="token punctuation">.</span><span class="token function">objectStore</span><span class="token punctuation">(</span><span class="token string">'foo'</span><span class="token punctuation">)</span>
+objectStore2<span class="token punctuation">.</span><span class="token function">put</span><span class="token punctuation">(</span><span class="token string">'2'</span><span class="token punctuation">,</span> <span class="token string">'key'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+objectStore1<span class="token punctuation">.</span><span class="token function">put</span><span class="token punctuation">(</span><span class="token string">'1'</span><span class="token punctuation">,</span> <span class="token string">'key'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre> 
+<p>注意，事务有可能失败，只有监听到事务的 <code>complete</code> 事件，才能保证事务操作成功。</p> 
+<p>IDBTransaction 对象有以下属性。</p> 
+<ul><li><code>IDBTransaction.db</code>：返回当前事务所在的数据库对象 IDBDatabase</li><li><code>IDBTransaction.error</code>：返回当前事务的错误。如果事务么有结束，或者事务成功结束，或者被手动终止，该方法返回 <code>null</code></li><li><code>IDBTransaction.mode</code>：返回当前事务的模式，默认是 <code>readonly</code>（只读），另一个值是 <code>readwrite</code></li><li><code>IDBTransaction.objectStoreNames</code>：返回一个类似数组的对象 DOMStringList，成员是当前事务涉及的对象仓库的名字</li><li><code>IDBTransaction.onabort</code>：指定 <code>abort</code> 事件（事务中断）的监听函数</li><li><code>IDBTransaction.oncomplete</code>：指定 <code>complete</code> 事件（事务成功）的监听函数</li><li><code>IDBTransaction.onerror</code>：指定error事件（事务失败）的监听函数</li></ul> 
+<p>IDBTransaction 对象有以下方法。</p> 
+<ul><li><code>IDBTransaction.abort()</code>：终止当前事务，回滚所有已经进行的变更</li><li><code>IDBTransaction.objectStore(name)</code>：返回指定名称的对象仓库 IDBObjectStore</li></ul> 
+<h4><a id="IDBIndex__779"></a>IDBIndex 对象</h4> 
+<p>IDBIndex 对象代表数据库的索引，通过这个对象可以获取数据库里面的记录。数据记录的主键默认就是带有索引，IDBIndex 对象主要用于通过除主键以外的其他键，建立索引获取对象。</p> 
+<p>IDBIndex 是持久性的键值对存储。只要插入、更新或删除数据记录，引用的对象库中的记录，索引就会自动更新。</p> 
+<p><code>IDBObjectStore.index()</code> 方法可以获取 IDBIndex 对象。</p> 
+<pre><code class="prism language-js"><span class="token keyword">var</span> transaction <span class="token operator">=</span> db<span class="token punctuation">.</span><span class="token function">transaction</span><span class="token punctuation">(</span><span class="token punctuation">[</span><span class="token string">'contactsList'</span><span class="token punctuation">]</span><span class="token punctuation">,</span> <span class="token string">'readonly'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token keyword">var</span> objectStore <span class="token operator">=</span> transaction<span class="token punctuation">.</span><span class="token function">objectStore</span><span class="token punctuation">(</span><span class="token string">'contactsList'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token keyword">var</span> myIndex <span class="token operator">=</span> objectStore<span class="token punctuation">.</span><span class="token function">index</span><span class="token punctuation">(</span><span class="token string">'lName'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+myIndex<span class="token punctuation">.</span><span class="token function">openCursor</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function-variable function">onsuccess</span> <span class="token operator">=</span> <span class="token keyword">function</span> <span class="token punctuation">(</span><span class="token parameter">event</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+  <span class="token keyword">var</span> cursor <span class="token operator">=</span> event<span class="token punctuation">.</span>target<span class="token punctuation">.</span>result<span class="token punctuation">;</span>
+  <span class="token keyword">if</span> <span class="token punctuation">(</span>cursor<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">var</span> tableRow <span class="token operator">=</span> document<span class="token punctuation">.</span><span class="token function">createElement</span><span class="token punctuation">(</span><span class="token string">'tr'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    tableRow<span class="token punctuation">.</span>innerHTML <span class="token operator">=</span>   <span class="token string">'&lt;td&gt;'</span> <span class="token operator">+</span> cursor<span class="token punctuation">.</span>value<span class="token punctuation">.</span>id <span class="token operator">+</span> <span class="token string">'&lt;/td&gt;'</span>
+                         <span class="token operator">+</span> <span class="token string">'&lt;td&gt;'</span> <span class="token operator">+</span> cursor<span class="token punctuation">.</span>value<span class="token punctuation">.</span>lName <span class="token operator">+</span> <span class="token string">'&lt;/td&gt;'</span>
+                         <span class="token operator">+</span> <span class="token string">'&lt;td&gt;'</span> <span class="token operator">+</span> cursor<span class="token punctuation">.</span>value<span class="token punctuation">.</span>fName <span class="token operator">+</span> <span class="token string">'&lt;/td&gt;'</span>
+                         <span class="token operator">+</span> <span class="token string">'&lt;td&gt;'</span> <span class="token operator">+</span> cursor<span class="token punctuation">.</span>value<span class="token punctuation">.</span>jTitle <span class="token operator">+</span> <span class="token string">'&lt;/td&gt;'</span>
+                         <span class="token operator">+</span> <span class="token string">'&lt;td&gt;'</span> <span class="token operator">+</span> cursor<span class="token punctuation">.</span>value<span class="token punctuation">.</span>company <span class="token operator">+</span> <span class="token string">'&lt;/td&gt;'</span>
+                         <span class="token operator">+</span> <span class="token string">'&lt;td&gt;'</span> <span class="token operator">+</span> cursor<span class="token punctuation">.</span>value<span class="token punctuation">.</span>eMail <span class="token operator">+</span> <span class="token string">'&lt;/td&gt;'</span>
+                         <span class="token operator">+</span> <span class="token string">'&lt;td&gt;'</span> <span class="token operator">+</span> cursor<span class="token punctuation">.</span>value<span class="token punctuation">.</span>phone <span class="token operator">+</span> <span class="token string">'&lt;/td&gt;'</span>
+                         <span class="token operator">+</span> <span class="token string">'&lt;td&gt;'</span> <span class="token operator">+</span> cursor<span class="token punctuation">.</span>value<span class="token punctuation">.</span>age <span class="token operator">+</span> <span class="token string">'&lt;/td&gt;'</span><span class="token punctuation">;</span>
+    tableEntry<span class="token punctuation">.</span><span class="token function">appendChild</span><span class="token punctuation">(</span>tableRow<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    
+    cursor<span class="token punctuation">.</span><span class="token function">continue</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{<!-- --></span>
+    console<span class="token punctuation">.</span><span class="token function">log</span><span class="token punctuation">(</span><span class="token string">'Entries all displayed.'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token punctuation">}</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span>
+</code></pre> 
+<p>IDBIndex 对象有以下属性。</p> 
+<ul><li><code>IDBIndex.name</code>：字符串，索引的名称</li><li><code>IDBIndex.objectStore</code>：索引所在的对象仓库</li><li><code>IDBIndex.keyPath</code>：索引的主键</li><li><code>IDBIndex.multiEntry</code>：布尔值，针对 <code>keyPath</code> 为数组的情况，如果设为 <code>true</code>，创建数组时，每个数组成员都会有一个条目，否则每个数组都只有一个条目</li><li><code>IDBIndex.unique</code>：布尔值，表示创建索引时是否允许相同的主键</li></ul> 
+<p>IDBIndex 对象有以下方法，它们都是异步的，立即返回的都是一个 IDBRequest 对象</p> 
+<ul><li><code>IDBIndex.count()</code>：用来获取记录的数量。它可以接受主键或 IDBKeyRange 对象作为参数，这时只返回符合主键的记录数量，否则返回所有记录的数量</li><li><code>IDBIndex.get(key)</code>：用来获取符合指定主键的数据记录</li><li><code>IDBIndex.getKey(key)</code>：用来获取指定的主键</li><li><code>IDBIndex.getAll()</code>：用来获取所有的数据记录。它可以接受两个参数，都是可选的，第一个参数用来指定主键，第二个参数用来指定返回记录的数量。如果省略这两个参数，则返回所有记录。由于获取成功时，浏览器必须生成所有对象，所以对性能有影响。如果数据集比较大，建议使用 IDBCursor 对象</li><li><code>IDBIndex.getAllKeys()</code>：该方法与 <code>IDBIndex.getAll()</code> 方法相似，区别是获取所有主键</li><li><code>IDBIndex.openCursor()</code>：用来获取一个 IDBCursor 对象，用来遍历索引里面的所有条目</li><li><code>IDBIndex.openCursor()</code>：用来获取一个 IDBCursor 对象，用来遍历索引里面的所有条目</li></ul> 
+<h4><a id="IDBCursor__831"></a>IDBCursor 对象</h4> 
+<p>IDBCursor 对象代表指针对象，用来遍历数据仓库（IDBObjectStore）或索引（IDBIndex）的记录。</p> 
+<p>IDBCursor 对象一般通过 <code>IDBObjectStore.openCursor()</code> 方法获得。</p> 
+<pre><code class="prism language-js"><span class="token keyword">var</span> transaction <span class="token operator">=</span> db<span class="token punctuation">.</span><span class="token function">transaction</span><span class="token punctuation">(</span><span class="token punctuation">[</span><span class="token string">'rushAlbumList'</span><span class="token punctuation">]</span><span class="token punctuation">,</span> <span class="token string">'readonly'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token keyword">var</span> objectStore <span class="token operator">=</span> transaction<span class="token punctuation">.</span><span class="token function">objectStore</span><span class="token punctuation">(</span><span class="token string">'rushAlbumList'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+objectStore<span class="token punctuation">.</span><span class="token function">openCursor</span><span class="token punctuation">(</span><span class="token keyword">null</span><span class="token punctuation">,</span> <span class="token string">'next'</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function-variable function">onsuccess</span> <span class="token operator">=</span> <span class="token keyword">function</span><span class="token punctuation">(</span><span class="token parameter">event</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+  <span class="token keyword">var</span> cursor <span class="token operator">=</span> event<span class="token punctuation">.</span>target<span class="token punctuation">.</span>result<span class="token punctuation">;</span>
+  <span class="token keyword">if</span> <span class="token punctuation">(</span>cursor<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">var</span> listItem <span class="token operator">=</span> document<span class="token punctuation">.</span><span class="token function">createElement</span><span class="token punctuation">(</span><span class="token string">'li'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+      listItem<span class="token punctuation">.</span>innerHTML <span class="token operator">=</span> cursor<span class="token punctuation">.</span>value<span class="token punctuation">.</span>albumTitle <span class="token operator">+</span> <span class="token string">', '</span> <span class="token operator">+</span> cursor<span class="token punctuation">.</span>value<span class="token punctuation">.</span>year<span class="token punctuation">;</span>
+      list<span class="token punctuation">.</span><span class="token function">appendChild</span><span class="token punctuation">(</span>listItem<span class="token punctuation">)</span><span class="token punctuation">;</span>
+      console<span class="token punctuation">.</span><span class="token function">log</span><span class="token punctuation">(</span>cursor<span class="token punctuation">.</span>source<span class="token punctuation">)</span><span class="token punctuation">;</span>
+      
+      cursor<span class="token punctuation">.</span><span class="token function">continue</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{<!-- --></span>
+      console<span class="token punctuation">.</span><span class="token function">log</span><span class="token punctuation">(</span><span class="token string">'Entries all displayed.'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+  <span class="token punctuation">}</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span>
+</code></pre> 
+<p>IDBCursor 对象的属性。</p> 
+<ul><li><code>IDBCursor.source</code>：返回正在遍历的对象仓库或索引</li><li><code>IDBCursor.direction</code>：字符串，表示指针遍历的方向。共有四个可能的值：next（从头开始向后遍历）、nextunique（从头开始向后遍历，重复的值只遍历一次）、prev（从尾部开始向前遍历）、prevunique（从尾部开始向前遍历，重复的值只遍历一次）。该属性通过 <code>IDBObjectStore.openCursor()</code> 方法的第二个参数指定，一旦指定就不能改变了</li><li><code>IDBCursor.key</code>：返回当前记录的主键</li><li><code>IDBCursor.value</code>：返回当前记录的数据值</li><li><code>IDBCursor.primaryKey</code>：返回当前记录的主键。对于数据仓库（objectStore）来说，这个属性等同于 IDBCursor.key；对于索引，IDBCursor.key 返回索引的位置值，该属性返回数据记录的主键</li></ul> 
+<p>IDBCursor 对象有如下方法。</p> 
+<ul><li><code>IDBCursor.advance(n)</code>：指针向前移动 n 个位置</li><li><code>IDBCursor.continue()</code>：指针向前移动一个位置。它可以接受一个主键作为参数，这时会跳转到这个主键</li><li><code>IDBCursor.continuePrimaryKey()</code>：该方法需要两个参数，第一个是 <code>key</code>，第二个是 <code>primaryKey</code>，将指针移到符合这两个参数的位置</li><li><code>IDBCursor.delete()</code>：用来删除当前位置的记录，返回一个 IDBRequest 对象。该方法不会改变指针的位置</li><li><code>IDBCursor.update()</code>：用来更新当前位置的记录，返回一个 IDBRequest 对象。它的参数是要写入数据库的新的值</li></ul> 
+<h4><a id="IDBKeyRange__873"></a>IDBKeyRange 对象</h4> 
+<p>IDBKeyRange 对象代表数据仓库（object store）里面的一组主键。根据这组主键，可以获取数据仓库或索引里面的一组记录。</p> 
+<p>IDBKeyRange 可以只包含一个值，也可以指定上限和下限。它有四个静态方法，用来指定主键的范围。</p> 
+<ul><li><code>IDBKeyRange.lowerBound()</code>：指定下限</li><li><code>IDBKeyRange.upperBound()</code>：指定上限</li><li><code>IDBKeyRange.bound()</code>：同时指定上下限</li><li><code>IDBKeyRange.only()</code>：指定只包含一个值</li></ul> 
+<pre><code class="prism language-js"><span class="token comment">// All keys ≤ x</span>
+<span class="token keyword">var</span> r1 <span class="token operator">=</span> IDBKeyRange<span class="token punctuation">.</span><span class="token function">upperBound</span><span class="token punctuation">(</span>x<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+<span class="token comment">// All keys &lt; x</span>
+<span class="token keyword">var</span> r2 <span class="token operator">=</span> IDBKeyRange<span class="token punctuation">.</span><span class="token function">upperBound</span><span class="token punctuation">(</span>x<span class="token punctuation">,</span> <span class="token boolean">true</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+<span class="token comment">// All keys ≥ y</span>
+<span class="token keyword">var</span> r3 <span class="token operator">=</span> IDBKeyRange<span class="token punctuation">.</span><span class="token function">lowerBound</span><span class="token punctuation">(</span>y<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+<span class="token comment">// All keys &gt; y</span>
+<span class="token keyword">var</span> r4 <span class="token operator">=</span> IDBKeyRange<span class="token punctuation">.</span><span class="token function">lowerBound</span><span class="token punctuation">(</span>y<span class="token punctuation">,</span> <span class="token boolean">true</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+<span class="token comment">// All keys ≥ x &amp;&amp; ≤ y</span>
+<span class="token keyword">var</span> r5 <span class="token operator">=</span> IDBKeyRange<span class="token punctuation">.</span><span class="token function">bound</span><span class="token punctuation">(</span>x<span class="token punctuation">,</span> y<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+<span class="token comment">// All keys &gt; x &amp;&amp;&lt; y</span>
+<span class="token keyword">var</span> r6 <span class="token operator">=</span> IDBKeyRange<span class="token punctuation">.</span><span class="token function">bound</span><span class="token punctuation">(</span>x<span class="token punctuation">,</span> y<span class="token punctuation">,</span> <span class="token boolean">true</span><span class="token punctuation">,</span> <span class="token boolean">true</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+<span class="token comment">// All keys &gt; x &amp;&amp; ≤ y</span>
+<span class="token keyword">var</span> r7 <span class="token operator">=</span> IDBKeyRange<span class="token punctuation">.</span><span class="token function">bound</span><span class="token punctuation">(</span>x<span class="token punctuation">,</span> y<span class="token punctuation">,</span> <span class="token boolean">true</span><span class="token punctuation">,</span> <span class="token boolean">false</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+<span class="token comment">// All keys ≥ x &amp;&amp;&lt; y</span>
+<span class="token keyword">var</span> r8 <span class="token operator">=</span> IDBKeyRange<span class="token punctuation">.</span><span class="token function">bound</span><span class="token punctuation">(</span>x<span class="token punctuation">,</span> y<span class="token punctuation">,</span> <span class="token boolean">false</span><span class="token punctuation">,</span> <span class="token boolean">true</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+<span class="token comment">// The key = z</span>
+<span class="token keyword">var</span> r9 <span class="token operator">=</span> IDBKeyRange<span class="token punctuation">.</span><span class="token function">only</span><span class="token punctuation">(</span>z<span class="token punctuation">)</span><span class="token punctuation">;</span>
+</code></pre> 
+<p><code>IDBKeyRange.lowerBound()</code>、<code>IDBKeyRange.upperBound()</code>、<code>IDBKeyRange.bound()</code> 这三个方法默认包括端点值，可以传入一个布尔值，修改这个属性。</p> 
+<p>与之对应，IDBKeyRange 对象有四个只读属性。</p> 
+<ul><li><code>IDBKeyRange.lower</code>：返回下限</li><li><code>IDBKeyRange.lowerOpen</code>：布尔值，表示下限是否为开区间（即下限是否排除在范围之外）</li><li><code>IDBKeyRange.upper</code>：返回上限</li><li><code>IDBKeyRange.upperOpen</code>：布尔值，表示上限是否为开区间（即上限是否排除在范围之外）</li></ul> 
+<p>IDBKeyRange 实例对象生成以后，将它作为参数输入 IDBObjectStore 或 IDBIndex 对象的 <code>openCursor()</code> 方法，就可以在所设定的范围内读取数据。</p> 
+<pre><code class="prism language-js"><span class="token keyword">var</span> t <span class="token operator">=</span> db<span class="token punctuation">.</span><span class="token function">transaction</span><span class="token punctuation">(</span><span class="token punctuation">[</span><span class="token string">'people'</span><span class="token punctuation">]</span><span class="token punctuation">,</span> <span class="token string">'readonly'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token keyword">var</span> store <span class="token operator">=</span> t<span class="token punctuation">.</span><span class="token function">objectStore</span><span class="token punctuation">(</span><span class="token string">'people'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token keyword">var</span> index <span class="token operator">=</span> store<span class="token punctuation">.</span><span class="token function">index</span><span class="token punctuation">(</span><span class="token string">'name'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+<span class="token keyword">var</span> range <span class="token operator">=</span> IDBKeyRange<span class="token punctuation">.</span><span class="token function">bound</span><span class="token punctuation">(</span><span class="token string">'B'</span><span class="token punctuation">,</span> <span class="token string">'D'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+index<span class="token punctuation">.</span><span class="token function">openCursor</span><span class="token punctuation">(</span>range<span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function-variable function">onsuccess</span> <span class="token operator">=</span> <span class="token keyword">function</span> <span class="token punctuation">(</span><span class="token parameter">e</span><span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+  <span class="token keyword">var</span> cursor <span class="token operator">=</span> e<span class="token punctuation">.</span>target<span class="token punctuation">.</span>result<span class="token punctuation">;</span>
+  <span class="token keyword">if</span> <span class="token punctuation">(</span>cursor<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+    console<span class="token punctuation">.</span><span class="token function">log</span><span class="token punctuation">(</span>cursor<span class="token punctuation">.</span>key <span class="token operator">+</span> <span class="token string">':'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    
+    <span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token keyword">var</span> field <span class="token keyword">in</span> cursor<span class="token punctuation">.</span>value<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+      console<span class="token punctuation">.</span><span class="token function">log</span><span class="token punctuation">(</span>cursor<span class="token punctuation">.</span>value<span class="token punctuation">[</span>field<span class="token punctuation">]</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    cursor<span class="token punctuation">.</span><span class="token function">continue</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>IDBKeyRange 有一个实例方法 <code>includes(key)</code>，返回一个布尔值，表示某个主键是否包含在当前这个主键组之内。</p> 
+<pre><code class="prism language-js"><span class="token keyword">var</span> keyRangeValue <span class="token operator">=</span> IDBKeyRange<span class="token punctuation">.</span><span class="token function">bound</span><span class="token punctuation">(</span><span class="token string">'A'</span><span class="token punctuation">,</span> <span class="token string">'K'</span><span class="token punctuation">,</span> <span class="token boolean">false</span><span class="token punctuation">,</span> <span class="token boolean">false</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+keyRangeValue<span class="token punctuation">.</span><span class="token function">includes</span><span class="token punctuation">(</span><span class="token string">'F'</span><span class="token punctuation">)</span> <span class="token comment">// true</span>
+keyRangeValue<span class="token punctuation">.</span><span class="token function">includes</span><span class="token punctuation">(</span><span class="token string">'W'</span><span class="token punctuation">)</span> <span class="token comment">// false</span>
+</code></pre>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/cf3c27382f5ddcc79075f0151ad9c0c1/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">Cisco Firepower 3100 Firewall initialization &amp; config OOB mgmt ip &amp; software upgrading</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/824d6811d9bc29f9719cae2fe8f4c0c7/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">sqlplus格式设置</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

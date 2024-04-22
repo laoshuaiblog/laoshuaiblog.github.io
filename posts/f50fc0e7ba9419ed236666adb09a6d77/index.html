@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>关于oracle表空间不足原因及处理方法 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/f50fc0e7ba9419ed236666adb09a6d77/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="关于oracle表空间不足原因及处理方法">
+  <meta property="og:description" content="oracle表空间不足错误代码：ORA-01688: unable to extend table 等；
+查看剩余表空间的大小： SELECT UPPER(F.TABLESPACE_NAME) &#34;表空间名&#34;,
+D.TOT_GROOTTE_MB &#34;表空间大小(M)&#34;,
+D.TOT_GROOTTE_MB - F.TOTAL_BYTES &#34;已使用空间(M)&#34;,
+TO_CHAR(ROUND((D.TOT_GROOTTE_MB - F.TOTAL_BYTES) / D.TOT_GROOTTE_MB * 100,2),&#39;990.99&#39;) || &#39;%&#39; &#34;使用比&#34;,
+F.TOTAL_BYTES &#34;空闲空间(M)&#34;,
+F.MAX_BYTES &#34;最大块(M)&#34;
+FROM (SELECT TABLESPACE_NAME,
+ROUND(SUM(BYTES) / (1024 * 1024), 2) TOTAL_BYTES,
+ROUND(MAX(BYTES) / (1024 * 1024), 2) MAX_BYTES
+FROM SYS.DBA_FREE_SPACE
+GROUP BY TABLESPACE_NAME) F,
+(SELECT DD.TABLESPACE_NAME,
+ROUND(SUM(DD.BYTES) / (1024 * 1024), 2) TOT_GROOTTE_MB
+FROM SYS.DBA_DATA_FILES DD
+GROUP BY DD.TABLESPACE_NAME) D">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2019-01-03T09:35:35+08:00">
+    <meta property="article:modified_time" content="2019-01-03T09:35:35+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">关于oracle表空间不足原因及处理方法</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <p>oracle表空间不足错误代码：ORA-01688: unable to extend table 等；</p> 
+<h4><span style="color:#e579b6;">查看剩余表空间的大小：</span></h4> 
+<p>SELECT UPPER(F.TABLESPACE_NAME) "表空间名",<br> D.TOT_GROOTTE_MB "表空间大小(M)",<br> D.TOT_GROOTTE_MB - F.TOTAL_BYTES "已使用空间(M)",<br> TO_CHAR(ROUND((D.TOT_GROOTTE_MB - F.TOTAL_BYTES) / D.TOT_GROOTTE_MB * 100,2),'990.99') || '%' "使用比",<br> F.TOTAL_BYTES "空闲空间(M)",<br> F.MAX_BYTES "最大块(M)"<br> FROM (SELECT TABLESPACE_NAME,<br> ROUND(SUM(BYTES) / (1024 * 1024), 2) TOTAL_BYTES,<br> ROUND(MAX(BYTES) / (1024 * 1024), 2) MAX_BYTES<br> FROM SYS.DBA_FREE_SPACE<br> GROUP BY TABLESPACE_NAME) F,<br> (SELECT DD.TABLESPACE_NAME,<br> ROUND(SUM(DD.BYTES) / (1024 * 1024), 2) TOT_GROOTTE_MB<br> FROM SYS.DBA_DATA_FILES DD<br> GROUP BY DD.TABLESPACE_NAME) D<br> WHERE D.TABLESPACE_NAME = F.TABLESPACE_NAME<br> ORDER BY 1</p> 
+<p><strong>增加表空间有两种方法： 修改数据文件大小， 增加数据文件。</strong></p> 
+<p><strong>方法一：修改数据文件大小</strong></p> 
+<p>  alter tablespace 表空间名称</p> 
+<p>  add datafile <strong><span style="color:#f33b45;">表空间存放路径</span></strong>  size 表空间大小 autoextend on next 增长的大小 maxsize 空间最大值(如果不限制空间最大值就用unlimited)</p> 
+<p>例：alter tablespace GENERAL2<br>         add datafile '/oradata1/res189/GENERAL201.dbf'<br>         size 10G ;                                                                 <span style="color:#f33b45;">--这边我用了两分钟，公司的服务器</span></p> 
+<p><strong>  查看表空间详情：</strong></p> 
+<p>select f.* from dba_data_files f where lower(f.tablespace_name)='general2'</p> 
+<p><strong>方法二：增加数据文件</strong></p> 
+<p>  alter database</p> 
+<p>  datafile <span style="color:#f33b45;"><strong>表空间文件路径</strong></span></p> 
+<p>  AUTOEXTEND（自动扩展） ON NEXT 表空间满后增加的大小</p> 
+<p> </p> 
+<p> </p> 
+<p> </p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/75629d8bf96d3e6a5077cdea518795f5/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">android使用DataBinding踩坑记录</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/3feb64579bcfd732357315437dd2bcab/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">介绍几款实用IDEA工具(不断更新)</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

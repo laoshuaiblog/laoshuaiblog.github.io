@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>如何在CentOS使用Docker运行Nacos容器并实现无公网IP远程访问UI界面 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/d70bc7aba7825d03d232417666f02bfb/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="如何在CentOS使用Docker运行Nacos容器并实现无公网IP远程访问UI界面">
+  <meta property="og:description" content="文章目录 1. Docker 运行Nacos2. 本地访问Nacos3. Linux安装Cpolar4. 配置Nacos UI界面公网地址5. 远程访问 Nacos UI界面6. 固定Nacos UI界面公网地址7. 固定地址访问Plik Nacos是阿里开放的一款中间件,也是一款服务注册中心，它主要提供三种功能：持久化节点注册，非持久化节点注册和配置管理。
+本例通过结合Cpolar内网穿透实现远程访问Nacos 提供的UI (控制台)界面,帮助管理所有的服务和应用的配置
+Cpolar内网穿透是一种安全的内网穿透云服务，可以将内网下的本地服务器通过安全隧道暴露至公网，使得公网用户可以正常访问内网服务。它支持HTTP、HTTPS、TCP协议端口映射。
+下面开始介绍在Docker运行Nacos并安装Cpolar 工具实现远程访问.
+1. Docker 运行Nacos 执行Docker一键运行命令,下面是对应的命令参数解释,当然,不一定是docker部署,本例为了方便演示远程访问Nacos UI界面,所以采用docker快速部署方式.
+docker run --name nacos -d -p 8848:8848 -p 9848:9848 -p 9849:9849 --privileged=true --restart=always -e MODE=standalone -e PREFER_HOST_MODE=hostname nacos/nacos-server:2.0.3 --name nacos：指定容器名称为 “nacos”，可根据自己的需要自定义修改名称 -d：在后台模式下运行容器 -p 8848:8848 -p 9848:9848 -p 9849:9849：将容器的端口 8848、9848 和 9849 映射到主机的相应端口，可以根据需要进行端口映射的修改。 --privileged=true：给容器赋予特权模式，以便容器内的进程可以访问主机的部分资源。 --restart=always：设置容器总是在退出后自动重启。 -e MODE=standalone：设置 Nacos 启动模式为单机模式。 -e PREFER_HOST_MODE=hostname：设置容器主机名作为 Nacos 的拓扑节点名称。 nacos/nacos-server:2.0.3：基于 nacos/nacos-server 镜像的 2.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2024-03-28T15:22:45+08:00">
+    <meta property="article:modified_time" content="2024-03-28T15:22:45+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">如何在CentOS使用Docker运行Nacos容器并实现无公网IP远程访问UI界面</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-dark">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <p></p> 
+<div class="toc"> 
+ <h4>文章目录</h4> 
+ <ul><li><ul><li><a href="#1_Docker_Nacos_10" rel="nofollow">1. Docker 运行Nacos</a></li><li><a href="#2_Nacos_44" rel="nofollow">2. 本地访问Nacos</a></li><li><a href="#3_LinuxCpolar_56" rel="nofollow">3. Linux安装Cpolar</a></li><li><a href="#4_Nacos_UI_88" rel="nofollow">4. 配置Nacos UI界面公网地址</a></li><li><a href="#5__Nacos_UI_106" rel="nofollow">5. 远程访问 Nacos UI界面</a></li><li><a href="#6_Nacos_UI_122" rel="nofollow">6. 固定Nacos UI界面公网地址</a></li><li><a href="#7_Plik_153" rel="nofollow">7. 固定地址访问Plik</a></li></ul> 
+ </li></ul> 
+</div> 
+<p></p> 
+<p>Nacos是阿里开放的一款中间件,也是一款服务注册中心，它主要提供三种功能：持久化节点注册，非持久化节点注册和配置管理。</p> 
+<p>本例通过结合Cpolar内网穿透实现远程访问Nacos 提供的UI (控制台)界面,帮助管理所有的服务和应用的配置</p> 
+<p>Cpolar内网穿透是一种安全的内网穿透云服务，可以将内网下的本地服务器通过安全隧道暴露至公网，使得公网用户可以正常访问内网服务。它支持HTTP、HTTPS、TCP协议端口映射。</p> 
+<p>下面开始介绍在Docker运行Nacos并安装Cpolar 工具实现远程访问.</p> 
+<h3><a id="1_Docker_Nacos_10"></a>1. Docker 运行Nacos</h3> 
+<p>执行Docker一键运行命令,下面是对应的命令参数解释,当然,不一定是docker部署,本例为了方便演示远程访问Nacos UI界面,所以采用docker快速部署方式.</p> 
+<pre><code class="prism language-shell"><span class="token function">docker</span> run <span class="token parameter variable">--name</span> nacos <span class="token parameter variable">-d</span> <span class="token parameter variable">-p</span> <span class="token number">8848</span>:8848 <span class="token parameter variable">-p</span> <span class="token number">9848</span>:9848 <span class="token parameter variable">-p</span> <span class="token number">9849</span>:9849 <span class="token parameter variable">--privileged</span><span class="token operator">=</span>true <span class="token parameter variable">--restart</span><span class="token operator">=</span>always <span class="token parameter variable">-e</span> <span class="token assign-left variable">MODE</span><span class="token operator">=</span>standalone <span class="token parameter variable">-e</span> <span class="token assign-left variable">PREFER_HOST_MODE</span><span class="token operator">=</span>hostname nacos/nacos-server:2.0.3
+</code></pre> 
+<pre><code class="prism language-text">--name nacos：指定容器名称为 “nacos”，可根据自己的需要自定义修改名称
+
+-d：在后台模式下运行容器
+
+-p 8848:8848 -p 9848:9848 -p 9849:9849：将容器的端口 8848、9848 和 9849 映射到主机的相应端口，可以根据需要进行端口映射的修改。
+
+--privileged=true：给容器赋予特权模式，以便容器内的进程可以访问主机的部分资源。
+
+--restart=always：设置容器总是在退出后自动重启。
+
+-e MODE=standalone：设置 Nacos 启动模式为单机模式。
+
+-e PREFER_HOST_MODE=hostname：设置容器主机名作为 Nacos 的拓扑节点名称。
+
+nacos/nacos-server:2.0.3：基于 nacos/nacos-server 镜像的 2.0.3 版本启动容器，可以根据需要选择其他适合的版本
+</code></pre> 
+<p>运行后,输入docker ps 即可看到我们运行的Nacos容器,下面我们进行本地访问测试</p> 
+<p><img src="https://images2.imgbox.com/41/38/x68ILqRz_o.png" alt="image-20231215135241694"></p> 
+<h3><a id="2_Nacos_44"></a>2. 本地访问Nacos</h3> 
+<p>上面容器运行后,Nacos的UI管理界面端口在8848端口,打开浏览器,使用<code>Linux局域网IP:8848端口/nacos</code>,即可成功访问到了Nacos管理界面,</p> 
+<p><img src="https://images2.imgbox.com/c1/b2/f6CvJASv_o.png" alt="image-20231215140917391"></p> 
+<p>输入默认账号nacos和默认密码nacos,即可登录成功,本地部署运行就完成了,下面我们安装Cpolar工具,实现远程访问</p> 
+<p><img src="https://images2.imgbox.com/f4/7b/yWk7OXLN_o.png" alt="image-20231215142502302"></p> 
+<h3><a id="3_LinuxCpolar_56"></a>3. Linux安装Cpolar</h3> 
+<p>上面在本地Docker中成功部署了Nacos服务,并局域网访问成功,下面我们在Linux安装Cpolar内网穿透工具,通过cpolar 转发本地端口映射的http公网地址,我们可以很容易实现远程访问,而无需自己注册域名购买云服务器.下面是安装cpolar步骤</p> 
+<blockquote> 
+ <p>cpolar官网地址: <a href="https://www.cpolar.com" rel="nofollow">https://www.cpolar.com</a></p> 
+</blockquote> 
+<ul><li>使用一键脚本安装命令</li></ul> 
+<pre><code class="prism language-shell"><span class="token function">curl</span> <span class="token parameter variable">-L</span> https://www.cpolar.com/static/downloads/install-release-cpolar.sh <span class="token operator">|</span> <span class="token function">sudo</span> <span class="token function">bash</span>
+</code></pre> 
+<ul><li>向系统添加服务</li></ul> 
+<pre><code class="prism language-shell"><span class="token function">sudo</span> systemctl <span class="token builtin class-name">enable</span> cpolar
+</code></pre> 
+<ul><li>启动cpolar服务</li></ul> 
+<pre><code class="prism language-shell"><span class="token function">sudo</span> systemctl start cpolar
+</code></pre> 
+<p>cpolar安装成功后，在外部浏览器上访问Linux 的9200端口 即:【http://局域网ip:9200】，使用cpolar账号登录(如没有账号,可以点击下面免费注册),登录后即可看到cpolar web 配置界面,结下来在web 管理界面配置即可</p> 
+<p><img src="https://images2.imgbox.com/fd/6f/NAp2uTVQ_o.png" alt="image-20231016143741228"></p> 
+<h3><a id="4_Nacos_UI_88"></a>4. 配置Nacos UI界面公网地址</h3> 
+<p>点击左侧仪表盘的隧道管理——创建隧道，创建一个Nacos的公网http地址隧道!</p> 
+<ul><li>隧道名称：可自定义命名，注意不要与已有的隧道名称重复</li><li>协议：选择http</li><li>本地地址：8848(本地访问的地址)</li><li>域名类型：免费选择随机域名</li><li>地区：选择China</li></ul> 
+<p>点击<code>创建</code></p> 
+<p><img src="https://images2.imgbox.com/16/79/a2cd7fXU_o.png" alt="image-20231215143910659"></p> 
+<p>隧道创建成功后，点击左侧的状态——在线隧道列表,查看所生成的公网访问地址，有两种访问方式,一种是http 和https</p> 
+<p><img src="https://images2.imgbox.com/c2/3e/JRQ5wtqv_o.png" alt="image-20231215143947073"></p> 
+<h3><a id="5__Nacos_UI_106"></a>5. 远程访问 Nacos UI界面</h3> 
+<p>使用上面的Cpolar https公网地址加上<code>/nacos</code>资源路径,在任意设备的浏览器进行访问,即可成功看到我们Nacos UI界面,这样一个公网地址且可以远程访问就创建好了,使用了Cpolar的公网域名,无需自己购买云服务器,即可发布到公网进行远程访问 !</p> 
+<p><img src="https://images2.imgbox.com/e3/1b/W1jbPN8u_o.png" alt="image-20231215144200959"></p> 
+<p><strong>小结</strong></p> 
+<p>为了更好地演示，我们在前述过程中使用了cpolar生成的隧道，其公网地址是随机生成的。</p> 
+<p>这种随机地址的优势在于建立速度快，可以立即使用。然而，它的缺点是网址由随机字符生成，不太容易记忆（例如：3ad5da5.r10.cpolar.top）。另外，这个地址在24小时内会发生随机变化，更适合于临时使用。</p> 
+<p>我一般会使用固定二级子域名，原因是我希望将网址发送给同事或客户时，它是一个固定、易记的公网地址（例如：nacos.cpolar.cn），这样更显正式，便于流交协作。</p> 
+<h3><a id="6_Nacos_UI_122"></a>6. 固定Nacos UI界面公网地址</h3> 
+<p>由于以上使用cpolar所创建的隧道使用的是随机公网地址，24小时内会随机变化，不利于长期远程访问。因此我们可以为其配置二级子域名，该地址为固定地址，不会随机变化【ps：cpolar.cn已备案】</p> 
+<blockquote> 
+ <p>注意需要将cpolar套餐升级至基础套餐或以上，且每个套餐对应的带宽不一样。【cpolar.cn已备案】</p> 
+</blockquote> 
+<p><a href="https://dashboard.cpolar.com/" rel="nofollow">登录cpolar官网</a>，点击左侧的预留，选择保留二级子域名，设置一个二级子域名名称，点击保留,保留成功后复制保留的二级子域名名称</p> 
+<p><img src="https://images2.imgbox.com/99/c0/2DzcJXZa_o.png" alt="image-20231215144357423"></p> 
+<p>保留成功后复制保留成功的二级子域名的名称</p> 
+<p><img src="https://images2.imgbox.com/85/a4/XToooHUX_o.png" alt="image-20231215144421743"></p> 
+<p>返回登录Cpolar web UI管理界面，点击左侧仪表盘的隧道管理——隧道列表，找到所要配置的隧道，点击右侧的编辑</p> 
+<p><img src="https://images2.imgbox.com/53/ff/Qjs4ySdU_o.png" alt="image-20231215144448393"></p> 
+<p>修改隧道信息，将保留成功的二级子域名配置到隧道中</p> 
+<ul><li>域名类型：选择二级子域名</li><li>Sub Domain：填写保留成功的二级子域名</li></ul> 
+<p>点击<code>更新</code>(注意,点击一次更新即可,不需要重复提交)</p> 
+<p><img src="https://images2.imgbox.com/6e/0f/RAWPKVjS_o.png" alt="image-20231215144513885"></p> 
+<p>更新完成后,打开在线隧道列表,此时可以看到公网地址已经发生变化,地址名称也变成了固定的二级子域名名称的域名</p> 
+<p><img src="https://images2.imgbox.com/0c/4d/DGmrBkdY_o.png" alt="image-20231215144533009"></p> 
+<h3><a id="7_Plik_153"></a>7. 固定地址访问Plik</h3> 
+<p>最后,我们使用固定的公网https地址加上资源路径<code>/nacos</code>访问,可以看到访问成功,这样一个固定且永久不变的公网地址就设置好了,随时随地都可以远程访问本地Nacos UI 界面来查看我们注册中心里面的服务.</p> 
+<p><img src="https://images2.imgbox.com/17/66/L93iOtmf_o.png" alt="image-20231215144810391"></p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/08f55521877df7ae3610f6858c0f682b/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">uniapp vue-cli项目配置devServer和outPutDir</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/36989da4a6ee239dd91ea4a45735bdd1/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">Weblogic，静默安装！</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

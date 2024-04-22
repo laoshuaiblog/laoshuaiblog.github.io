@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>安卓ksoap2获取.net webservice后返回DateSet型的数据的解析方法 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/25c48d7c8e929e6962860a1e4a398196/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="安卓ksoap2获取.net webservice后返回DateSet型的数据的解析方法">
+  <meta property="og:description" content="今天闲来没事，一个朋友让我帮忙看看他的项目，大概业务是这样的：
+手机客户端调用.net的webservice后返回dataset类型的视频列表信息，解析信息显示在listview中，然后点击某个视频可以下载到手机SD卡上
+dateset类型的信息：
+anyType{schema=anyType{element=anyType{complexType=anyType{choice=anyType{element=anyType{complexType=anyType{sequence=anyType{element=anyType{}; element=anyType{}; element=anyType{}; }; }; }; }; }; }; }; diffgram=anyType{NewDataSet=anyType{Table=anyType{Course_CfName=格兰仕的秘密01.flv; Course_Updir=webupload/整理课件/2012年5月/格兰仕的秘密\200K\格兰仕的秘密01_200K.flv; cf_id=24267; }; Table=anyType{Course_CfName=格兰仕的秘密02.flv; Course_Updir=webupload/整理课件/2012年5月/格兰仕的秘密\200K\格兰仕的秘密02_200K.flv; cf_id=24268; }; Table=anyType{Course_CfName=格兰仕的秘密03.flv; Course_Updir=webupload/整理课件/2012年5月/格兰仕的秘密\200K\格兰仕的秘密03_200K.flv; cf_id=24269; }; Table=anyType{Course_CfName=格兰仕的秘密04.flv; Course_Updir=webupload/整理课件/2012年5月/格兰仕的秘密\200K\格兰仕的秘密04_200K.flv; cf_id=24270; }; Table=anyType{Course_CfName=格兰仕的秘密05.flv; Course_Updir=webupload/整理课件/2012年5月/格兰仕的秘密\200K\格兰仕的秘密05_200K.flv; cf_id=24271; }; Table=anyType{Course_CfName=走进蒙牛与牛根生面对面_01.flv; Course_Updir=webupload/整理课件/2012年5月/走进蒙牛 与牛根生面对面\200K\走进蒙牛与牛根生面对面_01.flv; cf_id=24301; }; Table=anyType{Course_CfName=走进蒙牛与牛根生面对面_02.flv; Course_Updir=webupload/整理课件/2012年5月/走进蒙牛 与牛根生面对面\200K\走进蒙牛与牛根生面对面_02.flv; cf_id=24302; }; }; }; }相信调用webservice获取服务器信息就不用给大家介绍了吧，一般没有什么难度，只要URL，NAMESPACE，METHOD和需要的参数正确，基本上都可以正常获取到信息，一般我们获取到的都是xml类型的和json类型的，这种类型解析的方法很多，也很普遍，相信网上一查一大堆，但是像我们获取到的这种dataset类型的数据，既不是xml,也不是json，那么该怎么去解析呢，下面就请看代码：
+一、封装视频信息的类
+film.java
+public class Film {/** Course_CfName=格兰仕的秘密01.flv; * Course_Updir=webupload/整理课件/2012年5月/格兰仕的秘密\200K\格兰仕的秘密01_200K.flv; * cf_id=24267; */private String Course_CfName;private String Course_Updir;private String cf_id;public String getCourse_CfName() {return Course_CfName;}public void setCourse_CfName(String courseCfName) {Course_CfName = courseCfName;}public String getCourse_Updir() {return Course_Updir;}public void setCourse_Updir(String courseUpdir) {Course_Updir = courseUpdir;}public String getCf_id() {return cf_id;}public void setCf_id(String cfId) {cf_id = cfId;}} GetVideoInfoService.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2013-09-12T11:30:27+08:00">
+    <meta property="article:modified_time" content="2013-09-12T11:30:27+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">安卓ksoap2获取.net webservice后返回DateSet型的数据的解析方法</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <p>     今天闲来没事，一个朋友让我帮忙看看他的项目，大概业务是这样的：</p> 
+<p>手机客户端调用.net的webservice后返回dataset类型的视频列表信息，解析信息显示在listview中，然后点击某个视频可以下载到手机SD卡上</p> 
+<p>dateset类型的信息：</p> 
+<pre><code class="language-cpp">anyType{schema=anyType{element=anyType{complexType=anyType{choice=anyType{element=anyType{complexType=anyType{sequence=anyType{element=anyType{}; element=anyType{}; element=anyType{}; }; }; }; }; }; }; }; diffgram=anyType{NewDataSet=anyType{Table=anyType{Course_CfName=格兰仕的秘密01.flv; Course_Updir=webupload/整理课件/2012年5月/格兰仕的秘密\200K\格兰仕的秘密01_200K.flv; cf_id=24267; }; Table=anyType{Course_CfName=格兰仕的秘密02.flv; Course_Updir=webupload/整理课件/2012年5月/格兰仕的秘密\200K\格兰仕的秘密02_200K.flv; cf_id=24268; }; Table=anyType{Course_CfName=格兰仕的秘密03.flv; Course_Updir=webupload/整理课件/2012年5月/格兰仕的秘密\200K\格兰仕的秘密03_200K.flv; cf_id=24269; }; Table=anyType{Course_CfName=格兰仕的秘密04.flv; Course_Updir=webupload/整理课件/2012年5月/格兰仕的秘密\200K\格兰仕的秘密04_200K.flv; cf_id=24270; }; Table=anyType{Course_CfName=格兰仕的秘密05.flv; Course_Updir=webupload/整理课件/2012年5月/格兰仕的秘密\200K\格兰仕的秘密05_200K.flv; cf_id=24271; }; Table=anyType{Course_CfName=走进蒙牛与牛根生面对面_01.flv; Course_Updir=webupload/整理课件/2012年5月/走进蒙牛 与牛根生面对面\200K\走进蒙牛与牛根生面对面_01.flv; cf_id=24301; }; Table=anyType{Course_CfName=走进蒙牛与牛根生面对面_02.flv; Course_Updir=webupload/整理课件/2012年5月/走进蒙牛 与牛根生面对面\200K\走进蒙牛与牛根生面对面_02.flv; cf_id=24302; }; }; }; }
+</code></pre> 
+<p>      相信调用webservice获取服务器信息就不用给大家介绍了吧，一般没有什么难度，只要URL，NAMESPACE，METHOD和需要的参数正确，基本上都可以正常获取到信息，一般我们获取到的都是xml类型的和json类型的，这种类型解析的方法很多，也很普遍，相信网上一查一大堆，但是像我们获取到的这种dataset类型的数据，既不是xml,也不是json，那么该怎么去解析呢，下面就请看代码：</p> 
+<p>一、封装视频信息的类</p> 
+<p>film.java</p> 
+<pre><code class="language-java">public class Film {
+	/*
+	 * Course_CfName=格兰仕的秘密01.flv; 
+	 *  Course_Updir=webupload/整理课件/2012年5月/格兰仕的秘密\200K\格兰仕的秘密01_200K.flv; 
+	 *  cf_id=24267; 
+	 */
+	private String Course_CfName;
+	private String Course_Updir;
+	private String cf_id;
+	public String getCourse_CfName() {
+		return Course_CfName;
+	}
+	public void setCourse_CfName(String courseCfName) {
+		Course_CfName = courseCfName;
+	}
+	public String getCourse_Updir() {
+		return Course_Updir;
+	}
+	public void setCourse_Updir(String courseUpdir) {
+		Course_Updir = courseUpdir;
+	}
+	public String getCf_id() {
+		return cf_id;
+	}
+	public void setCf_id(String cfId) {
+		cf_id = cfId;
+	}
+	
+}</code></pre> 
+<p>GetVideoInfoService.java<br> 二、从服务器获取数据并解析封装（重点）</p> 
+<pre><code class="language-java">public class GetVideoInfoService {
+	private static final String NAMESPACE ="http://????.org/"; 
+	// WebService地址 
+	private static String URL ="http://????.????.????/androidphone/login.asmx?wsdl"; 
+	private static final String METHOD_NAME ="getVoides"; 
+	private static String SOAP_ACTION ="http://????.org/getVoides";
+	private List&lt;Film&gt; films=new ArrayList&lt;Film&gt;();
+	public List&lt;Film&gt; getVoidesInfo(String uname) {
+		try { 
+			//（1） 指定webservice的命名空间和调用的方法名
+			SoapObject rpc =new SoapObject(NAMESPACE, METHOD_NAME); 
+			//（2） 设置调用方法的参数值，如果没有参数，可以省略，
+			rpc.addProperty("userName", uname);
+			//3 创建HttpTransportsSE对象。
+			AndroidHttpTransport ht =new AndroidHttpTransport(URL); 
+			ht.debug =true; 
+			//4 生成调用Webservice方法的SOAP请求信息,
+			//在创建SoapSerializationEnvelope对象后，
+			//不要忘了设置SOAPSoapSerializationEnvelope类的bodyOut属性，
+			//该属性的值就是在第一步创建的SoapObject对象
+			SoapSerializationEnvelope envelope =new SoapSerializationEnvelope(SoapEnvelope.VER11); 
+			envelope.bodyOut = rpc; 
+			envelope.dotNet =true; 
+			envelope.setOutputSoapObject(rpc); 
+			//(5)使用call方法调用WebService方法
+			ht.call(SOAP_ACTION, envelope); 
+			//SoapObject result = (SoapObject) envelope.bodyIn; 
+			//Object detail=result.getProperty("getVoidesResult");
+			if (envelope.getResponse() != null) {
+				SoapObject soapObject = (SoapObject) envelope.bodyIn;
+				SoapObject soap1 = (SoapObject) soapObject.getProperty("getVoidesResult");
+				/**
+				 * 此时的获取到的信息是：
+				 * anyType{schema=anyType{element=anyType{complexType=anyType{choice=anyType
+				 * {element=anyType{complexType=anyType{sequence=anyType{element=anyType{}; 
+				 * element=anyType{}; element=anyType{}; }; }; }; }; }; }; }; 
+				 * diffgram=anyType{NewDataSet=anyType{
+				 * Table=anyType{
+				 * Course_CfName=格兰仕的秘密01.flv; 
+				 * Course_Updir=webupload/整理课件/2012年5月/格兰仕的秘密\200K\格兰仕的秘密01_200K.flv;
+				 * cf_id=24267; }; 
+				 * Table=anyType{
+				 * Course_CfName=格兰仕的秘密02.flv;
+				 * Course_Updir=webupload/整理课件/2012年5月/格兰仕的秘密\200K\格兰仕的秘密02_200K.flv; 
+				 * cf_id=24268; }; 
+				 * Table=anyType{
+				 * Course_CfName=格兰仕的秘密03.flv; 
+				 * Course_Updir=webupload/整理课件/2012年5月/格兰仕的秘密\200K\格兰仕的秘密03_200K.flv; 
+				 * cf_id=24269; }; 
+				 * Table=anyType{
+				 * Course_CfName=格兰仕的秘密04.flv; 
+				 * Course_Updir=webupload/整理课件/2012年5月/格兰仕的秘密\200K\格兰仕的秘密04_200K.flv; 
+				 * cf_id=24270; };
+				 * Table=anyType{
+				 * Course_CfName=格兰仕的秘密05.flv;
+				 * Course_Updir=webupload/整理课件/2012年5月/格兰仕的秘密\200K\格兰仕的秘密05_200K.flv; 
+				 * cf_id=24271; }; 
+				 * Table=anyType{
+				 * Course_CfName=走进蒙牛与牛根生面对面_01.flv; 
+				 * Course_Updir=webupload/整理课件/2012年5月/走进蒙牛 与牛根生面对面\200K\走进蒙牛与牛根生面对面_01.flv; 
+				 * cf_id=24301; }; 
+				 * Table=anyType{
+				 * Course_CfName=走进蒙牛与牛根生面对面_02.flv; 
+				 * Course_Updir=webupload/整理课件/2012年5月/走进蒙牛 与牛根生面对面\200K\走进蒙牛与牛根生面对面_02.flv; 
+				 * cf_id=24302; }; }; }; }	 */
+				SoapObject soapChilds =(SoapObject)soap1.getProperty(1);
+				/**因为0位置对我们来说没有数据，所以我们去1位置的信息
+				 * anyType{NewDataSet=anyType{
+				 * Table=anyType{
+				 * Course_CfName=格兰仕的秘密01.flv; 
+				 * Course_Updir=webupload/整理课件/2012年5月/格兰仕的秘密\200K\格兰仕的秘密01_200K.flv;
+				 * cf_id=24267; }; 
+				 * Table=anyType{
+				 * Course_CfName=格兰仕的秘密02.flv;
+				 * Course_Updir=webupload/整理课件/2012年5月/格兰仕的秘密\200K\格兰仕的秘密02_200K.flv; 
+				 * cf_id=24268; }; 
+				 * Table=anyType{
+				 * Course_CfName=格兰仕的秘密03.flv; 
+				 * Course_Updir=webupload/整理课件/2012年5月/格兰仕的秘密\200K\格兰仕的秘密03_200K.flv; 
+				 * cf_id=24269; }; 
+				 * Table=anyType{
+				 * Course_CfName=格兰仕的秘密04.flv; 
+				 * Course_Updir=webupload/整理课件/2012年5月/格兰仕的秘密\200K\格兰仕的秘密04_200K.flv; 
+				 * cf_id=24270; };
+				 * Table=anyType{
+				 * Course_CfName=格兰仕的秘密05.flv;
+				 * Course_Updir=webupload/整理课件/2012年5月/格兰仕的秘密\200K\格兰仕的秘密05_200K.flv; 
+				 * cf_id=24271; }; 
+				 * Table=anyType{
+				 * Course_CfName=走进蒙牛与牛根生面对面_01.flv; 
+				 * Course_Updir=webupload/整理课件/2012年5月/走进蒙牛 与牛根生面对面\200K\走进蒙牛与牛根生面对面_01.flv; 
+				 * cf_id=24301; }; 
+				 * Table=anyType{
+				 * Course_CfName=走进蒙牛与牛根生面对面_02.flv; 
+				 * Course_Updir=webupload/整理课件/2012年5月/走进蒙牛 与牛根生面对面\200K\走进蒙牛与牛根生面对面_02.flv; 
+				 * cf_id=24302; }; }; }; }	 
+				 */
+				SoapObject soap2=(SoapObject)soapChilds.getProperty(0);
+				/**去掉了前面的部分anyType{NewDataSet=
+				 * anyType{
+					 * Table=anyType{
+					 * Course_CfName=格兰仕的秘密01.flv; 
+					 * Course_Updir=webupload/整理课件/2012年5月/格兰仕的秘密\200K\格兰仕的秘密01_200K.flv;
+					 * cf_id=24267; }; 
+					 * Table=anyType{
+					 * Course_CfName=格兰仕的秘密02.flv;
+					 * Course_Updir=webupload/整理课件/2012年5月/格兰仕的秘密\200K\格兰仕的秘密02_200K.flv; 
+					 * cf_id=24268; }; 
+					 * Table=anyType{
+					 * Course_CfName=格兰仕的秘密03.flv; 
+					 * Course_Updir=webupload/整理课件/2012年5月/格兰仕的秘密\200K\格兰仕的秘密03_200K.flv; 
+					 * cf_id=24269; }; 
+					 * Table=anyType{
+					 * Course_CfName=格兰仕的秘密04.flv; 
+					 * Course_Updir=webupload/整理课件/2012年5月/格兰仕的秘密\200K\格兰仕的秘密04_200K.flv; 
+					 * cf_id=24270; };
+					 * Table=anyType{
+					 * Course_CfName=格兰仕的秘密05.flv;
+					 * Course_Updir=webupload/整理课件/2012年5月/格兰仕的秘密\200K\格兰仕的秘密05_200K.flv; 
+					 * cf_id=24271; }; 
+					 * Table=anyType{
+					 * Course_CfName=走进蒙牛与牛根生面对面_01.flv; 
+					 * Course_Updir=webupload/整理课件/2012年5月/走进蒙牛 与牛根生面对面\200K\走进蒙牛与牛根生面对面_01.flv; 
+					 * cf_id=24301; }; 
+					 * Table=anyType{
+					 * Course_CfName=走进蒙牛与牛根生面对面_02.flv; 
+					 * Course_Updir=webupload/整理课件/2012年5月/走进蒙牛 与牛根生面对面\200K\走进蒙牛与牛根生面对面_02.flv; 
+					 * cf_id=24302; }; }; }; }	 
+					 */
+				if(films.size()&gt;0){
+					films.clear();
+				}
+				/**
+				 * 里面有7个视频，所以需要我们遍历取出
+				 */
+				for(int i=0;i&lt;soap2.getPropertyCount();i++){	
+					SoapObject soap3=(SoapObject) soap2.getProperty(i);//取出每个视频信息
+					Film film=new Film();
+					film.setCourse_CfName(soap3.getProperty("Course_CfName").toString());
+					film.setCourse_Updir("????.????.com/"+soap3.getProperty("Course_Updir").toString());
+					film.setCf_id(soap3.getProperty("cf_id").toString());
+					films.add(film);//封装后存入集合中
+				 }
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return films;
+	}
+</code></pre> 
+<p><br> 三，新建个activity,调用webservice中的方法并遍历显示</p> 
+<p> </p> 
+<pre><code class="language-java">GetVideoInfoService videoService=new GetVideoInfoService();
+       List&lt;Film&gt; list=videoService.getVoidesInfo("test");
+       for(Film film:list){
+    	   System.out.println("视频名称："+film.getCourse_CfName());
+    	   System.out.println("视频路径："+film.getCourse_Updir());
+    	   System.out.println("视频编号："+film.getCf_id());
+    	   System.out.println("==============================================");
+       }</code></pre> 
+<p>运行结果：</p> 
+<p><img alt="" src="https://images2.imgbox.com/c4/38/BFeNlaog_o.jpg"><br> <br> <br>  转载请注明出处</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/ae760172f2431aba9ef465d671ca1625/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">POJ1002 487-3279</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/57f9c538daae9b33b44a7a8de69e3043/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">面试题目“ABCDE × 4 = EDCBA”新解法</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

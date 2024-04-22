@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Halcon学习之缺陷检测-凸点检测 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/5ccb661acc053cd3d8460c2384634997/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="Halcon学习之缺陷检测-凸点检测">
+  <meta property="og:description" content="思路：读取图片--》图片转化为灰度---》快速傅里叶变换把图像转到频域---》频域滤波器进行卷积---》快速傅里叶反变换---》用一个矩形掩膜计算像素点的灰度范围---》求图片灰度值的最大和最小值和变换范围---》利用全局阈值对图像进行分割---》连通区域---》根据面积筛选区域---》合并区域---》使用圆形元素对区域进行闭运算---》连通区域---》根据面积筛选区域---》计算区域的面积以及中心位置---》显示结果
+例程：detect_indent_fft.hdev 说明：这个程序展示了如何利用快速傅里叶变换（FFT）对塑料制品的表面进行目标（缺陷）的检测，大致分为三步：
+首先，我们用高斯滤波器构造一个合适的滤波器（将原图通过高斯滤波器滤波）；
+然后，将原图和构造的滤波器进行快速傅里叶变换；
+最后，利用形态学算子将缺陷表示在滤波后的图片上（在缺陷上画圈）。
+注：代码中绿色部分为个人理解和注释,其余为例程中原有代码
+*Initialization（初始化） dev_updata_off() //这一句包含如下三个算子： //dev_updata_pc(‘off’) 关闭更新程序计数器 //dev_updata_var(‘off’) 关闭更新变量窗口 //dev_updata_window(‘off’) 关闭更新图像窗口（即通过命令来显示想要在图像窗口显示的图片） dev_close_window() //关闭活动的图像窗口 read_image(Image,’plastics / plastics_01’) //载入图片 //参数说明：为读入图片命名（Image） // 文件名（’plastics/plastics_01’） get_image_size(Image,Width,height) //获取图片的长宽； //参数说明：之前读入或生成的图片（Image） // 图片的宽（Width） // 图片的高（Height） dev_open_window(0,0,Width,Height,’Black’,WindowHandle) //打开一个新的图像窗口 //参数说明：起始坐标（0,0） // 大小（Width,Height） // 背景颜色（’Black’） // 窗口句柄（WindowHandle） set_display_font （WindowHandle,14,’mono’,’ture’,’false’）//设置不依赖操作系统的字体 //参数说明：窗口句柄（WindowHandle） // 字体大小（14） // 字体类型（’mono’） // 是否黑体（’ture’） // 是否倾斜（’false’） dev_set_draw(‘Margin’) //定义区域填充模式 //参数说明：填充模式（’Margin’或者’Fill’） dev_set_line_width（3） //设置输出区域轮廓线的线宽 //可以修改参数来看最后缺陷区域标示的区别 dev_set_color（’red’） //设置一种或者多种输出颜色 * *Optimize the fft speed for the specific image size(根据指定图像大小进行fft速度最优化) optimize_rft_speed（Width,Height,’standard’） //对指定大小的图片的fft速度进行优化 //参数说明：图片大小（Width,Height） // 优化模式（’standard’） * *Construct a suitable filter by combining two Gaussian filters（结合两个高斯滤波器构造一*个合适的滤波器） Sigma1 := 10.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2020-06-19T16:19:00+08:00">
+    <meta property="article:modified_time" content="2020-06-19T16:19:00+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">Halcon学习之缺陷检测-凸点检测</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <p><strong><span style="color:#86ca5e;">思路</span>：</strong>读取图片--》图片转化为灰度---》快速傅里叶变换把图像转到频域---》频域滤波器进行卷积---》快速傅里叶反变换---》用一个矩形掩膜计算像素点的灰度范围---》求图片灰度值的最大和最小值和变换范围---》利用全局阈值对图像进行分割---》连通区域---》根据面积筛选区域---》合并区域---》使用圆形元素对区域进行闭运算---》连通区域---》根据面积筛选区域---》计算区域的面积以及中心位置---》显示结果</p> 
+<h4><span style="color:#f33b45;">例程：detect_indent_fft.hdev</span></h4> 
+<p><strong>说明</strong>：这个程序展示了如何利用快速傅里叶变换（FFT）对塑料制品的表面进行目标（缺陷）的检测，大致分为三步：</p> 
+<p>首先，我们用高斯滤波器构造一个合适的滤波器（将原图通过高斯滤波器滤波）；</p> 
+<p>然后，将原图和构造的滤波器进行快速傅里叶变换；</p> 
+<p>最后，利用形态学算子将缺陷表示在滤波后的图片上（在缺陷上画圈）。</p> 
+<p><strong>注</strong>：代码中绿色部分为个人理解和注释,其余为例程中原有代码</p> 
+<pre><code>*Initialization（初始化）
+dev_updata_off()      //这一句包含如下三个算子：
+//dev_updata_pc(‘off’)        关闭更新程序计数器
+//dev_updata_var(‘off’)       关闭更新变量窗口
+//dev_updata_window(‘off’)    关闭更新图像窗口（即通过命令来显示想要在图像窗口显示的图片）
+dev_close_window()    //关闭活动的图像窗口
+read_image(Image,’plastics
+/
+plastics_01’) //载入图片
+//参数说明：为读入图片命名（Image）
+//         文件名（’plastics/plastics_01’）
+get_image_size(Image,Width,height)        //获取图片的长宽；
+//参数说明：之前读入或生成的图片（Image）
+//           图片的宽（Width）
+//           图片的高（Height）
+dev_open_window(0,0,Width,Height,’Black’,WindowHandle)  //打开一个新的图像窗口
+//参数说明：起始坐标（0,0）
+//            大小（Width,Height）
+//            背景颜色（’Black’）
+//            窗口句柄（WindowHandle）
+set_display_font （WindowHandle,14,’mono’,’ture’,’false’）//设置不依赖操作系统的字体
+//参数说明：窗口句柄（WindowHandle）
+//            字体大小（14）
+//            字体类型（’mono’）
+//            是否黑体（’ture’）
+//            是否倾斜（’false’）
+dev_set_draw(‘Margin’)        //定义区域填充模式
+//参数说明：填充模式（’Margin’或者’Fill’）
+
+dev_set_line_width（3）    //设置输出区域轮廓线的线宽
+                              //可以修改参数来看最后缺陷区域标示的区别
+dev_set_color（’red’）   //设置一种或者多种输出颜色
+
+*
+*Optimize the fft speed for the specific image size(根据指定图像大小进行fft速度最优化)
+optimize_rft_speed（Width,Height,’standard’）    //对指定大小的图片的fft速度进行优化
+//参数说明：图片大小（Width,Height）
+//            优化模式（’standard’）
+
+*
+*Construct a suitable filter by combining two Gaussian filters（结合两个高斯滤波器构造一*个合适的滤波器）
+Sigma1 := 10.0
+Sigma2 := 3.0        //定义两个常量
+gen_gauss_filter(GaussFilter1,Sigma1,Sigma1,0.0,’none’,’rft’,Width,Height)
+gen_gauss_filter(GaussFilter2,Sigma2,Sigma2,0.0,’none’,’rft’,Width,Height)                            //在频域生成两个高斯滤波器
+//参数说明：生成的高斯滤波器（GaussFilter）
+//            空域中高斯在主方向上的标准差（Sigma）
+//            空域中高斯在正交于主方向的方向上的标准差（Sigma）
+//            滤波器主方向的角度（0.0）
+//            滤波器的规范（’none’）
+//            直流项在频域的位置（’rft’）
+//            图片的大小（Width,Height）
+sub_image(GaussFilter1,GaussFilter2,Filter,1,0)    //两图片相减（灰度）
+//sub_image(ImageMinuend, ImageSubtrahend : ImageSub : Mult, Add : )
+//g' := (g1 - g2) * Mult + Add
+//以上为函数原型以及运算公式
+
+*
+*Process the images iteratively(对图像进行迭代运算)
+NumImages := 11
+For Index := 1 to NumImages by 1        //for循环从1到NumImages，步长为1
+
+   *
+   *Read an image and convert it to gray values
+   read_image(Image,’plastics/plastics_’+Index$’02’)
+   rgb1_to_gray(Image,Image)            //将原图转化为灰度图，第一个参数为原图
+   *Perform the convolution in the frequency domain
+   rft_generic(Image,ImageFFT,’to_freq’,’none’,’complex’,Width)//对计算一幅图片实部进行快速傅里叶变换
+   //参数说明：输入的图片（Image）
+   //            傅里叶变换后输出的图片（ImageFFT）
+   //            变换方向（’to_freq’或’from_freq’）
+   //            变换因子的规范（’none’）
+   //            输出图片的数据类型（’complex’）
+   //            图片的宽（Width）
+   convol_fft(ImageFFT,Filter,ImageConvol)    //对图片用一个滤波器在频域进行卷积运算
+   //参数说明：输入的图片（ImageFFT）
+   //            频域滤波器（Filter）
+   //            运算后输出的结果
+   rft_generic(ImageConvol,ImageFiltered,’from_freq’,’n’,’real’,Width)    //对滤波后的图片进行傅里叶反变换
+
+   *
+   *Process the filtered image
+   gray_range_rect(ImageFiltered,ImageResult,10,10)//用一个矩形掩膜计算像素点的灰度范围
+   //参数说明：输入的图片（ImageFiltered）
+   //            输出的灰度范围图（ImageResult）
+   //            矩形掩膜大小（10,10）
+   min_max_rect(ImageResult,ImageResult,0,Min,Max,Range)//判断区域内灰度值的最大和最小值
+   //参数说明：待分析图片区域（ImageResult）
+   //            图片（ImageResult）
+   //            被去除的直方图两边像素点所
+   //            占总像素数的百分比（0）
+   //            得到的最小值最大值及灰度值范围（Min,Max,Range）
+   threshold(ImageResult,RegionDynThresh,max([5.55,Max*0.8]),255)//利用全局阈值对图像进行分割
+   //参数说明：输入的图片（ImageResult）
+   //            分割后得到的区域（RegionDynThresh）
+   //            阈值（max([5.55,Max*0.8]),255）
+   //            公式：MinGray &lt;= g &lt;= MaxGray
+   connection(RegionDynThresh,ConnectedRegions)    //计算区域内的连通部分
+   //参数说明：输入的图片（RegionDynThresh）
+   //            得到的连通区域（ConnectedRegions）
+   select_shape (ConnectedRegions,SelectedRegions,’area’,’and’,4,99999)//根据指定的形态特征选择区域
+   //参数说明：输入的图片（ConnectedRegions）
+   //            满足条件的区域（SelectedRegions）
+   //            将要计算的形态特征（’area’）
+   //            独立特征间的连接关系（’and’）
+   //            特征的最小限制（4）
+   //            特征的最大限制（99999）
+   union1(SelectedRegions,RegionUnion)    //返回包含所有区域的集合
+   //参数说明：包含所有区域的待计算区域的图片（tedRegions）
+   //            所有输入区域合（RegionUnion）
+   closeing_circle(RegionUnion,RegionClosing,10)//用一个圆圈来封闭一个区域
+   //参数说明：将要被封闭的区域（RegionUnion）
+   //            被封闭的区域（RegionClosing）
+   //            圆圈的半径（10）
+   connection(RegionClosing,ConnectedRegions1)
+   select_shape(ConnectedRegions1,SelectedRegions1,’area’,’and’,10,99999)
+   area_center(SelectedRegions1,Area,Row,Column)    //计算区域的面积以及中心位置
+   //参数说明：待计算的区域（SelectedRegions1）
+   //            区域的面积（Area）
+   //            区域中心的行（Row）
+   //            区域中心的列（Column）
+
+   *
+   *Display the results
+   dev_display(Image)        //显示原图
+   Number := |Area|          //将区域面积赋给Number用于后面检查是否存在缺陷
+   if(Number)
+      gen_circle_contour_xld(ContCircle,Row,Column,gen_tuple_const(Number,30),gen_tuple_const(Number,0), gen_tuple_const(Number,rad(360)),’positive’,1)//构造一个与设定的圆弧或圆相一致的边界
+       //参数说明：生成的边界（ContCircle）
+       //            圆弧或圆的中心坐标（Row,Cloumn）
+       //            圆弧或圆的半径（gen_tuple_const(Number,30)）
+       //            圆弧或圆的起始角度（gen_tuple_const(Number,0)）
+       //            圆弧或圆的结束角度（gen_tuple_const(Number,rad(360))）
+       //            不明白是什么意思
+       //            相邻两点间的距离（1）
+       ResultMessage := [‘Not OK’,Number + ‘defect(s) found’]
+      Color := [‘red’,’black’]
+      dev_display(ContCircle)
+   else
+      ResultMessage := ‘OK’
+       Color := ‘forest green’
+   endif
+      disp_message(WindowHandle,ResultMessage,’window’,12,12,Color,’ture’)
+      if(Index#NumImages)
+            disp_continue_message(WindowHandle,’black’,’ture’)
+            stop()
+      endif
+endfor</code></pre> 
+<p><img alt="" src="https://images2.imgbox.com/0d/39/BPQ4f7e9_o.png"></p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/e7e87522166a650ec0d9a3896bc20bc6/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">Java中的网络编程详解</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/2bc25c1c961b2e649986329ebc05bab6/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">python pandas拆分单元格</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

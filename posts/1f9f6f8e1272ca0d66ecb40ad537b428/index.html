@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>k8s中netty服务器容器tcp连接数量优化 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/1f9f6f8e1272ca0d66ecb40ad537b428/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="k8s中netty服务器容器tcp连接数量优化">
+  <meta property="og:description" content="netty的http1服务器在运行一段时间后会无法提供服务，返回客户端socket hang up
+使用apipost测试抓包显示三次握手后被reset，经查是连接数过多
+ps：客户端使用了大量短连接，如果能改成长连接就会消耗更少的连接，但是客户端逻辑无法掌控，只能修改服务器。
+另外能保证客户端完成四次挥手也可以避免，但同样客户端逻辑无法掌控。
+修改连接数限制 限制取决于代码中option(ChannelOption.SO_BACKLOG) 和/proc/sys/net/core/somaxconn的最小值。
+登录容器，cat /proc/sys/net/core/somaxconn显示128，对于一个服务器来说，这个限制太小了，可以放大。
+但是k8s把容器的参数分类了，大部分的参数都属于unsafe，不能直接修改。
+第一步：修改kubelet启动参数 kubelet启动增加参数：kubelet --allowed-unsafe-sysctls ‘net.core.somaxconn’
+kubelet可能是通过配置文件启动的，比如/etc/systemd/system/kubelet.service.d/10-kubeadm.conf
+修改后重启kubelet：systemctl restart kubelet
+确认是否生效：
+第二步：修改netty的yaml 在Deployment中spec-template-spec-containers下增加securityContext：
+securityContext: sysctls: - name: net.core.somaxconn value: &#34;1024&#34; 启动pod后查看somaxconn：
+根据连接状态优化 根据连接状态，如果是TIME_WAIT则修改TIME_WAIT等待时间（（主动关闭的一方是TIME_WAIT，被动关闭一方是CLOSE_WAIT），如果是ESTABLISHED且大部分是闲置不用的连接则增加闲置关闭逻辑。
+cat /proc/net/tcp查看到tcp连接数非常多，连接状态01表示已连接，0A表示监听中，6表示TIME_WAIT
+tcp状态值说明：
+TCP_ESTABLISHED:1 TCP_SYN_SENT:2 TCP_SYN_RECV:3 TCP_FIN_WAIT1:4 TCP_FIN_WAIT2:5 TCP_TIME_WAIT:6 TCP_CLOSE:7 TCP_CLOSE_WAIT:8 TCP_LAST_ACL:9 TCP_LISTEN:10 TCP_CLOSING:11 修改 TIME_WAIT 连接数量 需要修改关闭连接的等待时间，这也是k8s的unsafe参数
+步骤一 修改kubelet配置，增加： --allowed-unsafe-sysctls net.core.somaxconn,net.ipv4.* 步骤二 修改deployment： securityContext: sysctls: - name: net.core.somaxconn value: &#34;1024&#34; - name: net.ipv4.tcp_fin_timeout value: &#34;30&#34; 增加TCP空闲关闭逻辑 HTTP/1.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2024-01-26T16:58:36+08:00">
+    <meta property="article:modified_time" content="2024-01-26T16:58:36+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">k8s中netty服务器容器tcp连接数量优化</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-dark">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <p>netty的http1服务器在运行一段时间后会无法提供服务，返回客户端socket hang up<br> 使用apipost测试抓包显示三次握手后被reset，经查是连接数过多</p> 
+<p><em>ps：客户端使用了大量短连接，如果能改成长连接就会消耗更少的连接，但是客户端逻辑无法掌控，只能修改服务器。<br> 另外能保证客户端完成四次挥手也可以避免，但同样客户端逻辑无法掌控。</em></p> 
+<h2><a id="_5"></a>修改连接数限制</h2> 
+<p>限制取决于代码中option(ChannelOption.SO_BACKLOG) 和/proc/sys/net/core/somaxconn的最小值。<br> 登录容器，cat /proc/sys/net/core/somaxconn显示128，对于一个服务器来说，这个限制太小了，可以放大。<br> 但是k8s把容器的参数分类了，大部分的参数都属于unsafe，不能直接修改。</p> 
+<h3><a id="kubelet_10"></a>第一步：修改kubelet启动参数</h3> 
+<p>kubelet启动增加参数：kubelet --allowed-unsafe-sysctls ‘net.core.somaxconn’<br> kubelet可能是通过配置文件启动的，比如/etc/systemd/system/kubelet.service.d/10-kubeadm.conf<br> 修改后重启kubelet：systemctl restart kubelet<br> 确认是否生效：<br> <img src="https://images2.imgbox.com/5c/a5/tfFK25FX_o.png" alt="在这里插入图片描述"></p> 
+<h3><a id="nettyyaml_18"></a>第二步：修改netty的yaml</h3> 
+<p>在Deployment中spec-template-spec-containers下增加securityContext：</p> 
+<pre><code class="prism language-c"> securityContext<span class="token operator">:</span>
+         sysctls<span class="token operator">:</span>
+            <span class="token operator">-</span> name<span class="token operator">:</span> net<span class="token punctuation">.</span>core<span class="token punctuation">.</span>somaxconn
+              value<span class="token operator">:</span> <span class="token string">"1024"</span>
+</code></pre> 
+<p>启动pod后查看somaxconn：<br> <img src="https://images2.imgbox.com/c3/45/5G5DfKer_o.png" alt="在这里插入图片描述"></p> 
+<h2><a id="_29"></a>根据连接状态优化</h2> 
+<p>根据连接状态，如果是TIME_WAIT则修改TIME_WAIT等待时间（（主动关闭的一方是TIME_WAIT，被动关闭一方是CLOSE_WAIT），如果是ESTABLISHED且大部分是闲置不用的连接则增加闲置关闭逻辑。<br> cat /proc/net/tcp查看到tcp连接数非常多，连接状态01表示已连接，0A表示监听中，6表示TIME_WAIT<br> <img src="https://images2.imgbox.com/30/f9/XEacEJRL_o.png" alt="在这里插入图片描述"></p> 
+<p>tcp状态值说明：</p> 
+<pre><code class="prism language-c">TCP_ESTABLISHED<span class="token operator">:</span><span class="token number">1</span>   TCP_SYN_SENT<span class="token operator">:</span><span class="token number">2</span>    TCP_SYN_RECV<span class="token operator">:</span><span class="token number">3</span>      TCP_FIN_WAIT1<span class="token operator">:</span><span class="token number">4</span>
+TCP_FIN_WAIT2<span class="token operator">:</span><span class="token number">5</span>     TCP_TIME_WAIT<span class="token operator">:</span><span class="token number">6</span>  TCP_CLOSE<span class="token operator">:</span><span class="token number">7</span>         TCP_CLOSE_WAIT<span class="token operator">:</span><span class="token number">8</span>
+TCP_LAST_ACL<span class="token operator">:</span><span class="token number">9</span>      TCP_LISTEN<span class="token operator">:</span><span class="token number">10</span>  TCP_CLOSING<span class="token operator">:</span><span class="token number">11</span>
+</code></pre> 
+<h3><a id="_TIME_WAIT__42"></a>修改 TIME_WAIT 连接数量</h3> 
+<p>需要修改关闭连接的等待时间，这也是k8s的unsafe参数</p> 
+<h4><a id="_kubelet_45"></a>步骤一 修改kubelet配置，增加：</h4> 
+<pre><code class="prism language-c">   <span class="token operator">--</span>allowed<span class="token operator">-</span>unsafe<span class="token operator">-</span>sysctls net<span class="token punctuation">.</span>core<span class="token punctuation">.</span>somaxconn<span class="token punctuation">,</span>net<span class="token punctuation">.</span>ipv4<span class="token punctuation">.</span><span class="token operator">*</span>
+</code></pre> 
+<h4><a id="_deployment_50"></a>步骤二 修改deployment：</h4> 
+<pre><code class="prism language-c">  securityContext<span class="token operator">:</span>
+    sysctls<span class="token operator">:</span>
+       <span class="token operator">-</span> name<span class="token operator">:</span> net<span class="token punctuation">.</span>core<span class="token punctuation">.</span>somaxconn                               
+         value<span class="token operator">:</span> <span class="token string">"1024"</span>
+       <span class="token operator">-</span> name<span class="token operator">:</span> net<span class="token punctuation">.</span>ipv4<span class="token punctuation">.</span>tcp_fin_timeout
+         value<span class="token operator">:</span> <span class="token string">"30"</span>
+</code></pre> 
+<h3><a id="TCP_61"></a>增加TCP空闲关闭逻辑</h3> 
+<p>HTTP/1.1应该由客户端关闭连接，尤其是在keep-live情况下。<br> 但是客户端可能没有没有执行四次挥手就关闭了（没有发送FIN），这时服务端就一直认为是ESTABLISHED，需要增加空闲关闭逻辑，即一个链接上一段时间内没有收到报文也没有发送报文就关闭。</p> 
+<pre><code class="prism language-c"> public <span class="token keyword">void</span> <span class="token function">initChannel</span><span class="token punctuation">(</span>SocketChannel ch<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+        ChannelPipeline p <span class="token operator">=</span> ch<span class="token punctuation">.</span><span class="token function">pipeline</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>        
+        <span class="token comment">//闲置10分钟关闭连接 </span>
+        p<span class="token punctuation">.</span><span class="token function">addLast</span><span class="token punctuation">(</span>new <span class="token function">IdleStateHandler</span><span class="token punctuation">(</span><span class="token number">0</span><span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">,</span> <span class="token number">600</span><span class="token punctuation">,</span> TimeUnit<span class="token punctuation">.</span>SECONDS<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        p<span class="token punctuation">.</span><span class="token function">addLast</span><span class="token punctuation">(</span>new <span class="token function">IdleEventHandler</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        p<span class="token punctuation">.</span>addLast<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token comment">//正常报文处理</span>
+    <span class="token punctuation">}</span>
+    
+    public <span class="token keyword">static</span> class IdleEventHandler extends ChannelDuplexHandler <span class="token punctuation">{<!-- --></span>
+        @Override
+        public <span class="token keyword">void</span> <span class="token function">userEventTriggered</span><span class="token punctuation">(</span>ChannelHandlerContext ctx<span class="token punctuation">,</span> Object paramObject<span class="token punctuation">)</span> throws Exception <span class="token punctuation">{<!-- --></span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span>paramObject instanceof IdleStateEvent<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                IdleState state <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token punctuation">(</span>IdleStateEvent<span class="token punctuation">)</span> paramObject<span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">state</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token keyword">if</span> <span class="token punctuation">(</span>state <span class="token operator">==</span> IdleState<span class="token punctuation">.</span>ALL_IDLE<span class="token punctuation">)</span> <span class="token punctuation">{<!-- --></span>
+                    <span class="token comment">//关闭连接</span>
+                    logger<span class="token punctuation">.</span><span class="token function">info</span><span class="token punctuation">(</span>ctx<span class="token punctuation">.</span><span class="token function">channel</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">remoteAddress</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">+</span> <span class="token string">"idel to close!"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+                    ctx<span class="token punctuation">.</span><span class="token function">channel</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">close</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token punctuation">}</span>
+            <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{<!-- --></span>
+                super<span class="token punctuation">.</span><span class="token function">userEventTriggered</span><span class="token punctuation">(</span>ctx<span class="token punctuation">,</span> paramObject<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+</code></pre>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/d81ad732fb01c01a841120cd9a460b74/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">vue3用reactive定义的对象直接赋值{}没用的解决办法</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/e7b4e971a1879a35acc09bac56c071b9/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">ST-Link调试器：功能、用途和引脚</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

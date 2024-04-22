@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>业务逻辑层（service层）单元测试的实践 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/76f11db645fd844da321d28ab5b72448/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="业务逻辑层（service层）单元测试的实践">
+  <meta property="og:description" content="Service层单元测试实践 为了更好的持续集成，我们需要单元测试覆盖到逻辑层（Service）和数据访问层（Dao）。 1. Service层开展单元测试的困境 Dao层我们可以使用Unitils、Spring、Dbunit结合，Dbunit方便开发人员准备数据，Spring配置文件也为单元测试专门做了优化，使用了测试数据源，事务的问题也解决。 但是Service层的问题就复杂很多，遇到的问题主要如下 1、业务逻辑复杂，分支繁多。不仅要构造正常的情况，还要测试异常的分支，这比Dao仅仅是几条sql就复杂多了。复杂的逻辑加上很多异常无法构造，一些关键的异常分支无法覆盖。 2、数据库垂直切分的设计，Service层不得以操作了多个数据库，而连接多个数据库导致测试极慢，另外还因为涉及到跨数据库事务的难题，这个时候使用DBUnit来准备每个数据库的数据的方法已经不能适应了，整个数据库的环境是不稳定的。 3、Service层的Spring配置文件复杂，不仅包括了数据库的配置，还有JMS队列、缓存等等。启动测试就需要这些环境的配合，稍微一个不小心就会出现配置错误，整个测试失败。测试受环境影响，容易集成失败。 2. 解决方案 经过大量的实践，我们认为不应该是让Service层的单元测试依赖太多的东西，，单元测试要体现“单元”的概念，不依赖数据库、不依赖Spring上下文。 根据这个原则，我们考虑使用使用Mock对象，把Service层用到的Dao等对象都一一mock并插入到Service对象中。然后通过Unitils模拟Dao的返回值，或者抛出异常。这样就可以把Service的测试完全隔离开。经过处理后，Service的覆盖率和处理速度都得到了提升。 下面根据一个实际的例子讲解如何开展Service层的单元测试。 订单业务逻辑是这样一个场景： 用户在网站上下了一个订单，后台处理订单，OrderService对象提供了一个processOrder的方法给外部调用，首先根据订单Id获取订单的信息，根据订单中关联的accountId获得用户的帐户相关信息，然后判断帐户中的余额是否大于当前订单的金额，如果是，则在用户帐户上扣取订单相应的金额，然后返回成功。如果否，则直接返回失败。 OrderService的代码如下 Java代码 收藏代码 public class OrderService { OrderDao orderDao; AccountDao accountDao; /** * 处理订单，在用户的帐户中扣取订单的金额 * * @param orderId * @return */ @Transactional public boolean processOrder(int orderId) { // 获取订单详情 Order order = orderDao.getOrder(orderId); Assert.notNull(order, &#34;orderId is valid&#34;); // 获取帐户信息 Account account = accountDao.getAccount(order.getAccountId()); Assert.notNull(account, &#34;accountId is valid&#34;); // 判断当前用户帐户余额是否大于订单的金额 if (account.getBalance() &amp;gt; order.getOrderAmount()) { // 更新用户的帐户余额，减去订单的金额 accountDao.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2015-09-11T10:26:01+08:00">
+    <meta property="article:modified_time" content="2015-09-11T10:26:01+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">业务逻辑层（service层）单元测试的实践</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-dark">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <p>Service层单元测试实践 </p> 
+<p>为了更好的持续集成，我们需要单元测试覆盖到逻辑层（Service）和数据访问层（Dao）。 <br> 1. Service层开展单元测试的困境 <br> Dao层我们可以使用Unitils、Spring、Dbunit结合，Dbunit方便开发人员准备数据，Spring配置文件也为单元测试专门做了优化，使用了测试数据源，事务的问题也解决。 <br> 但是Service层的问题就复杂很多，遇到的问题主要如下 <br> 1、业务逻辑复杂，分支繁多。不仅要构造正常的情况，还要测试异常的分支，这比Dao仅仅是几条sql就复杂多了。复杂的逻辑加上很多异常无法构造，一些关键的异常分支无法覆盖。 <br> 2、数据库垂直切分的设计，Service层不得以操作了多个数据库，而连接多个数据库导致测试极慢，另外还因为涉及到跨数据库事务的难题，这个时候使用DBUnit来准备每个数据库的数据的方法已经不能适应了，整个数据库的环境是不稳定的。 <br> 3、Service层的Spring配置文件复杂，不仅包括了数据库的配置，还有JMS队列、缓存等等。启动测试就需要这些环境的配合，稍微一个不小心就会出现配置错误，整个测试失败。测试受环境影响，容易集成失败。 <br> 2. 解决方案 <br> 经过大量的实践，我们认为不应该是让Service层的单元测试依赖太多的东西，，单元测试要体现“单元”的概念，不依赖数据库、不依赖Spring上下文。 <br> 根据这个原则，我们考虑使用使用Mock对象，把Service层用到的Dao等对象都一一mock并插入到Service对象中。然后通过Unitils模拟Dao的返回值，或者抛出异常。这样就可以把Service的测试完全隔离开。经过处理后，Service的覆盖率和处理速度都得到了提升。 </p> 
+<p>下面根据一个实际的例子讲解如何开展Service层的单元测试。 <br> 订单业务逻辑是这样一个场景： <br> 用户在网站上下了一个订单，后台处理订单，OrderService对象提供了一个processOrder的方法给外部调用，首先根据订单Id获取订单的信息，根据订单中关联的accountId获得用户的帐户相关信息，然后判断帐户中的余额是否大于当前订单的金额，如果是，则在用户帐户上扣取订单相应的金额，然后返回成功。如果否，则直接返回失败。 <br> OrderService的代码如下 <br> Java代码 收藏代码 <br> public class OrderService { </p> 
+<pre><code>OrderDao orderDao;  
+
+AccountDao accountDao;  
+
+/** 
+ * 处理订单，在用户的帐户中扣取订单的金额 
+ *  
+ * @param orderId 
+ * @return 
+ */  
+@Transactional  
+public boolean processOrder(int orderId) {  
+    // 获取订单详情  
+    Order order = orderDao.getOrder(orderId);  
+
+    Assert.notNull(order, "orderId is valid");  
+    // 获取帐户信息  
+    Account account = accountDao.getAccount(order.getAccountId());  
+
+    Assert.notNull(account, "accountId is valid");  
+
+    // 判断当前用户帐户余额是否大于订单的金额  
+    if (account.getBalance() &gt; order.getOrderAmount()) {  
+        // 更新用户的帐户余额，减去订单的金额  
+        accountDao.updateAccount(order.getAccountId(), account.getBalance() - order.getOrderAmount());  
+        // 将订单改为已处理状态  
+        orderDao.updateOrder(orderId, (byte) 1);  
+        // 返回成功  
+        return true;  
+    } else {  
+        // 如果余额不够，返回订单处理失败  
+        return false;  
+    }  
+}  
+</code></pre> 
+<p>} </p> 
+<p>一、为了测试，需要在Maven的POM文件中增加如下的配置 <br> Java代码 收藏代码 <br> <br> org.unitils <br> unitils-mock <br> <span class="MathJax_Preview"></span><span class="MathJax" id="MathJax-Element-1-Frame"> 
+   
+   <span class="math" id="MathJax-Span-1" style="width: 25.069em; display: inline-block;"><span style="display: inline-block; position: relative; width: 20.056em; height: 0px; font-size: 125%;"><span style="position: absolute; clip: rect(1.869em 1000.003em 3.096em -0.477em); top: -2.717em; left: 0.003em;"><span class="mrow" id="MathJax-Span-2"><span class="texatom" id="MathJax-Span-3"><span class="mrow" id="MathJax-Span-4"><span class="mi" id="MathJax-Span-5" style="font-family: MathJax_Math-italic;">u</span><span class="mi" id="MathJax-Span-6" style="font-family: MathJax_Math-italic;">n</span><span class="mi" id="MathJax-Span-7" style="font-family: MathJax_Math-italic;">i</span><span class="mi" id="MathJax-Span-8" style="font-family: MathJax_Math-italic;">t</span><span class="mi" id="MathJax-Span-9" style="font-family: MathJax_Math-italic;">i</span><span class="mi" id="MathJax-Span-10" style="font-family: MathJax_Math-italic;">l</span><span class="mi" id="MathJax-Span-11" style="font-family: MathJax_Math-italic;">s</span><span class="mo" id="MathJax-Span-12" style="font-family: MathJax_Main;">.</span><span class="mi" id="MathJax-Span-13" style="font-family: MathJax_Math-italic; padding-left: 0.163em;">v</span><span class="mi" id="MathJax-Span-14" style="font-family: MathJax_Math-italic;">e</span><span class="mi" id="MathJax-Span-15" style="font-family: MathJax_Math-italic;">r</span><span class="mi" id="MathJax-Span-16" style="font-family: MathJax_Math-italic;">s</span><span class="mi" id="MathJax-Span-17" style="font-family: MathJax_Math-italic;">i</span><span class="mi" id="MathJax-Span-18" style="font-family: MathJax_Math-italic;">o</span><span class="mi" id="MathJax-Span-19" style="font-family: MathJax_Math-italic;">n</span></span></span><span class="mi" id="MathJax-Span-20" style="font-family: MathJax_Math-italic;">t</span><span class="mi" id="MathJax-Span-21" style="font-family: MathJax_Math-italic;">e</span><span class="mi" id="MathJax-Span-22" style="font-family: MathJax_Math-italic;">s</span><span class="mi" id="MathJax-Span-23" style="font-family: MathJax_Math-italic;">t</span><span class="mi" id="MathJax-Span-24" style="font-family: MathJax_Math-italic;">o</span><span class="mi" id="MathJax-Span-25" style="font-family: MathJax_Math-italic;">r</span><span class="mi" id="MathJax-Span-26" style="font-family: MathJax_Math-italic;">g<span style="display: inline-block; overflow: hidden; height: 1px; width: 0.003em;"></span></span><span class="mo" id="MathJax-Span-27" style="font-family: MathJax_Main;">.</span><span class="mi" id="MathJax-Span-28" style="font-family: MathJax_Math-italic; padding-left: 0.163em;">u</span><span class="mi" id="MathJax-Span-29" style="font-family: MathJax_Math-italic;">n</span><span class="mi" id="MathJax-Span-30" style="font-family: MathJax_Math-italic;">i</span><span class="mi" id="MathJax-Span-31" style="font-family: MathJax_Math-italic;">t</span><span class="mi" id="MathJax-Span-32" style="font-family: MathJax_Math-italic;">i</span><span class="mi" id="MathJax-Span-33" style="font-family: MathJax_Math-italic;">l</span><span class="mi" id="MathJax-Span-34" style="font-family: MathJax_Math-italic;">s</span><span class="mi" id="MathJax-Span-35" style="font-family: MathJax_Math-italic;">u</span><span class="mi" id="MathJax-Span-36" style="font-family: MathJax_Math-italic;">n</span><span class="mi" id="MathJax-Span-37" style="font-family: MathJax_Math-italic;">i</span><span class="mi" id="MathJax-Span-38" style="font-family: MathJax_Math-italic;">t</span><span class="mi" id="MathJax-Span-39" style="font-family: MathJax_Math-italic;">i</span><span class="mi" id="MathJax-Span-40" style="font-family: MathJax_Math-italic;">l</span><span class="mi" id="MathJax-Span-41" style="font-family: MathJax_Math-italic;">s</span><span class="mo" id="MathJax-Span-42" style="font-family: MathJax_Main; padding-left: 0.216em;">−</span><span class="mi" id="MathJax-Span-43" style="font-family: MathJax_Math-italic; padding-left: 0.216em;">i</span><span class="mi" id="MathJax-Span-44" style="font-family: MathJax_Math-italic;">n</span><span class="mi" id="MathJax-Span-45" style="font-family: MathJax_Math-italic;">j</span><span class="mi" id="MathJax-Span-46" style="font-family: MathJax_Math-italic;">e</span><span class="mi" id="MathJax-Span-47" style="font-family: MathJax_Math-italic;">c</span><span class="mi" id="MathJax-Span-48" style="font-family: MathJax_Math-italic;">t</span></span><span style="display: inline-block; width: 0px; height: 2.723em;"></span></span></span><span style="border-left-width: 0.003em; border-left-style: solid; display: inline-block; overflow: hidden; width: 0px; height: 1.27em; vertical-align: -0.33em;"></span></span> 
+  </span><script type="math/tex" id="MathJax-Element-1">{unitils.version}  
+    test  
+  
+  
+    org.unitils  
+    unitils-inject  
+    </script>{unitils.version} <br> test <br> <br> <br> com.alibaba <br> fastjson <br> test <br> </p> 
+<p> <br> org.unitils <br> unitils-io <br> ${unitils.version} <br> test <br> </p> 
+<p>unitils.version目前最新的为3.3版本 </p> 
+<p>二、Unitils的环境配置 <br> Unitils的启动，需要一个配置文件unitils.properties，这个文件默认需要放到classpath下。不过Service层不需要数据的设置，所以使用默认的配置即可， 不需要unitils.properties。 </p> 
+<p>三、测试数据的准备 <br> 和Dao层有Dbunit导出测试数据不一样，Service层测试数据准备很麻烦，需要为每个Dao的返回对象做假数据。一般的String还好，返回JavaBean的就麻烦，而特别悲催是那种返回一个list的JavaBean接口，JavaBean还嵌套其他Bean，要一个个对象、属性的填塞。不行的是Dao的query函数往往都是返回这种List对象的，这样导致测试代码比开发工作量还大，而且很难维护，很多开发人员有抵触情绪。 <br> 于是我们希望和Dbunit一样，将数据的准备通过资源文件来完成，不用在测试代码中构造。在评估之后，发现JavaBean和Json之间互转的效率高，而且方便。所以我们将Dao的返回转换为Json字符串打印保存下来，存放为js文件。然后在Service的测试中，在通过Unitils的IO能力，将文件内容读出为字符串，再转换为List/Bean的对象，放到Mock的Dao返回中。这样工作就轻松了很多。 <br> 为了测试，我们准备了两个JavaBean的文件 <br> ACCOUNT.js <br> {“accountId”:”S31993k”,”balance”:100} <br> ORDER.js <br> {“accountId”:”S31993k”,”orderAmount”:65,”orderId”:2345,”orderStatus”:0} <br> 测试的文件默认放在单元测试用例相同的package下。即类似src/test/resources/com/xxx/service的目录等 </p> 
+<p>四、单元测试用例的编写 <br> 测试代码同样要继承UnitilsJunit3的基类， </p> 
+<p>Java代码 收藏代码 <br> public class OrderServiceTest extends UnitilsJUnit3 { <br> // 被测试的Service对象 <br> @TestedObject <br> OrderService orderService = new OrderService(); <br> // 自动按照类型注入到被测试对象中 <br> @InjectIntoByType <br> Mock orderDaoMock; <br> // 自动按照类型注入到被测试对象中 <br> @InjectIntoByType <br> Mock accountDaoMock; <br> // 准备AccountDao返回的模拟对象数据 <br> @FileContent(“ACCOUNT.js”) <br> private String accountJs; <br> // 准备OrderDao返回的模拟数据 <br> @FileContent(“ORDER.js”) <br> private String orderJs; </p> 
+<pre><code>//各个测试用例共享的测试数据  
+Account account;  
+Order order;  
+
+@Override  
+public void setUp() {  
+    account = JSON.parseObject(accountJs, Account.class);  
+    order = JSON.parseObject(orderJs, Order.class);  
+}  
+
+/** 
+ * 测试正常流程 
+ */  
+public void testProcessOrder1() {  
+    orderDaoMock.returns(order).getOrder(2345);  
+    orderDaoMock.returns(1).updateOrder(2345, (byte) 1);  
+    accountDaoMock.returns(account).getAccount("S31993k");  
+    accountDaoMock.returns(1).updateAccount("S31993k", 35);  
+    assertEquals(true, orderService.processOrder(2345));  
+
+}  
+
+/** 
+ * 测试订单金额大于用户余额的情况 
+ */  
+public void testNotEnoughBalancen() {  
+    // 可以对返回的数据微调，这样就不需要额外的数据文件了  
+    account.setBalance(10);  
+    order.setOrderAmount(100);  
+
+    orderDaoMock.returns(order).getOrder(2345);  
+    orderDaoMock.returns(1).updateOrder(2345, (byte) 1);  
+    accountDaoMock.returns(account).getAccount("S31993k");  
+    // accountDaoMock.returns(1).updateAccount("S31993k", 35);  
+    assertEquals(false, orderService.processOrder(2345));  
+
+}  
+
+/** 
+ * 测试订单号存在的情况 
+ */  
+public void testOrderNotExist() {  
+    try {  
+        orderService.processOrder(5544);  
+        fail("This should not happended");  
+    } catch (IllegalArgumentException e) {  
+        assertTrue(true);  
+    }  
+}  
+
+/** 
+ * 测试订单关联的帐户不存在的情况 
+ */  
+public void testAccountNotExist() {  
+    order.setAccountId("FakeNumber");  
+    orderDaoMock.returns(order).getOrder(2345);  
+    try {  
+        orderService.processOrder(2345);  
+        fail("This should not happended");  
+    } catch (IllegalArgumentException e) {  
+        assertTrue(true);  
+    }  
+}  
+</code></pre> 
+<p>} </p> 
+<p>这里指的是OrderService是被测试的对象，使用@TestObject来指定。 <br> Java代码 收藏代码 <br> @TestedObject <br> OrderService orderService = new OrderService(); </p> 
+<p>请注意，这里Service是我们代码中直接new出来的，而不是Spring中拼装的。 <br> Java代码 收藏代码 <br> @InjectIntoByType <br> Mock orderDaoMock; </p> 
+<pre><code>// 自动按照类型注入到被测试对象中 
+</code></pre> 
+<p>Java代码 收藏代码 <br> @InjectIntoByType <br> Mock accountDaoMock; </p> 
+<p>因为涉及了帐户和订单表的操作，所以这里有两个Dao，我们通过Unitils的Mock对象模拟出来，然后使用@InjectIntoByType的标签，让Unitils自动按照类型插入到被测试对象中。 </p> 
+<p>Java代码 收藏代码 <br> @FileContent(“ACCOUNT.js”) <br> private String accountJs; <br> // 准备OrderDao返回的模拟数据 <br> @FileContent(“ORDER.js”) <br> private String orderJs; </p> 
+<p>@FileContent是Unitils-io包中提供的一个工具，他可以方便的读取资源文件到测试类中的字符串类变量中。我们可以利用它把Json字符串读出来。@FileContent默认加载当前测试类所在package下的资源文件，如果有特殊需求可以修改unitils.properties的属性。这里建议使用默认的规则，方便资源文件的规整。 </p> 
+<p>Java代码 收藏代码 <br> @Override <br> public void setUp() { <br> account = JSON.parseObject(accountJs, Account.class); <br> order = JSON.parseObject(orderJs, Order.class); <br> } </p> 
+<p>因为每个测试方法都需要account和order对象的实例。所以我们将其抽取到setUp方法中，可以给各个测试方法公用。这里是使用了Alibaba的FastJson作为解析Json的工具。这个工具可以根据自己的项目决定。 <br> 下面的测试用例是测试一个正常的情况 <br> Java代码 收藏代码 <br> /** <br> * 测试正常流程 <br> */ <br> public void testProcessOrder1() { <br> orderDaoMock.returns(order).getOrder(2345); <br> orderDaoMock.returns(1).updateOrder(2345, (byte) 1); <br> accountDaoMock.returns(account).getAccount(“S31993k”); <br> accountDaoMock.returns(1).updateAccount(“S31993k”, 35); <br> assertEquals(true, orderService.processOrder(2345)); </p> 
+<pre><code>}  
+</code></pre> 
+<p>使用 <br> orderDaoMock.returns(order).getOrder(2345); <br> 模拟Dao的返回，其含义就是让orderDao在接收到参数为‘2345’的时候，返回的对象是预制的order对象。模拟后，使用断言确定返回是否正确。 <br> 为了提高分支的覆盖率，我们在后面分别制造了订单金额大于余额的情况，和帐户、订单不存在的情况作为异常的测试。代码都很简单，不再一一赘述。 </p> 
+<ol><li>经验总结 <br> 一、 Service的数据准备还是手工进行的，以后可以考虑写一些套件，自动录制Dao的输出，然后在Service的测试中回放出来。 <br> 二、 Mock对象不仅可以模拟返回值，也可以按照要求抛出异常等，可以参考Unitils的说明。 <br> 三、 测试代码也需要当做是正式代码一样呵护，经常性的进行重构，避免代码冗余。比如setUp方法中的公用方法就是后期抽取出来的。 </li></ol>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/181e59a42c49fc6992cf88a3bf1bffd6/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">友情序言 to 《Learning Spark: Lightning-fast big data analytics》</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/6b5015b71094ab7200bcb777f8ca9ed3/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">maven检出项目步骤</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Batch Normalization的诅咒 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/24128f7bfaf8d8df918e3c0f4c270949/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="Batch Normalization的诅咒">
+  <meta property="og:description" content="点击上方“AI公园”，关注公众号，选择加“星标“或“置顶”
+作者：Sahil Uppal
+编译：ronghuaiyang
+导读
+batch normalization时的一些缺陷。
+Batch Normalization确实是深度学习领域的重大突破之一，也是近年来研究人员讨论的热点之一。Batch Normalization是一种被广泛采用的技术，使训练更加快速和稳定，已成为最有影响力的方法之一。然而，尽管它具有多种功能，但仍有一些地方阻碍了该方法的发展，正如我们将在本文中讨论的那样，这表明做归一化的方法仍有改进的余地。
+我们为什么要用Batch Normalization? 在讨论任何事情之前，首先，我们应该知道Batch Normalization是什么，它是如何工作的，并讨论它的用例。
+什么是Batch Normalization 在训练过程中，当我们更新之前的权值时，每个中间激活层的输出分布会在每次迭代时发生变化。这种现象称为内部协变量移位(ICS)。所以很自然的一件事，如果我想防止这种情况发生，就是修正所有的分布。简单地说，如果我的分布变动了，我会限制住这个分布，不让它移动，以帮助梯度优化和防止梯度消失，这将帮助我的神经网络训练更快。因此减少这种内部协变量位移是推动batch normalization发展的关键原则。
+它如何工作 Batch Normalization通过在batch上减去经验平均值除以经验标准差来对前一个输出层的输出进行归一化。这将使数据看起来像高斯分布。
+其中μ和*σ^2^*分别为批均值和批方差。
+并且，我们学习了一个新的平均值和协方差γ和β。所以，简而言之，你可以认为batch normalization是帮助你控制batch分布的一阶和二阶动量。
+vgg16网络的中间卷积层的特征分布输出。(左)没有任何归一化，(右)应用了batch normalization 优点 我将列举使用batch normalization的一些好处，但是我不会详细介绍，因为已经有很多文章讨论了这个问题。
+更快的收敛。
+降低初始权重的重要性。
+鲁棒的超参数。
+需要较少的数据进行泛化。
+1. 更快的收敛，2. 对超参数更鲁棒 Batch Normalization的诅咒 好，让我们回到本文的出发点，在许多情况下batch normalization开始伤害性能或根本不起作用。
+在使用小batch size的时候不稳定 如上所述，batch normalization必须计算平均值和方差，以便在batch中对之前的输出进行归一化。如果batch大小比较大的话，这种统计估计是比较准确的，而随着batch大小的减少，估计的准确性持续减小。
+ResNet-50在Batch Norm使用32、16、8、4、2张/GPU图像时的验证错误 以上是ResNet-50的验证错误图。可以推断，如果batch大小保持为32，它的最终验证误差在23左右，并且随着batch大小的减小，误差会继续减小(batch大小不能为1，因为它本身就是平均值)。损失有很大的不同(大约10%)。
+如果batch大小是一个问题，为什么我们不使用更大的batch？我们不能在每种情况下都使用更大的batch。在finetune的时候，我们不能使用大的batch，以免过高的梯度对模型造成伤害。在分布式训练的时候，大的batch最终将作为一组小batch分布在各个实例中。
+导致训练时间的增加 NVIDIA和卡耐基梅隆大学进行的实验结果表明，“尽管Batch Normalization不是计算密集型，而且收敛所需的总迭代次数也减少了。”但是每个迭代的时间显著增加了，而且还随着batch大小的增加而进一步增加。
+ResNet-50 在ImageNet上使用 Titan X Pascal 你可以看到，batch normalization消耗了总训练时间的1/4。原因是batch normalization需要通过输入数据进行两次迭代，一次用于计算batch统计信息，另一次用于归一化输出。
+训练和推理时不一样的结果 例如，在真实世界中做“物体检测”。在训练一个物体检测器时，我们通常使用大batch(YOLOv4和Faster-RCNN都是在默认batch大小= 64的情况下训练的)。但在投入生产后，这些模型的工作并不像训练时那么好。这是因为它们接受的是大batch的训练，而在实时情况下，它们的batch大小等于1，因为它必须一帧帧处理。考虑到这个限制，一些实现倾向于基于训练集上使用预先计算的平均值和方差。另一种可能是基于你的测试集分布计算平均值和方差值。
+对于在线学习不好 与batch学习相比，在线学习是一种学习技术，在这种技术中，系统通过依次向其提供数据实例来逐步接受训练，可以是单独的，也可以是通过称为mini-batch的小组进行。每个学习步骤都是快速和便宜的，所以系统可以在新的数据到达时实时学习。
+典型的在线学习pipeline 由于它依赖于外部数据源，数据可能单独或批量到达。由于每次迭代中batch大小的变化，对输入数据的尺度和偏移的泛化能力不好，最终影响了性能。
+对于循环神经网络不好 虽然batch normalization可以显著提高卷积神经网络的训练和泛化速度，但它们很难应用于递归结构。batch normalization可以应用于RNN堆栈之间，其中归一化是“垂直”应用的，即每个RNN的输出。但是它不能“水平地”应用，例如在时间步之间，因为它会因为重复的重新缩放而产生爆炸性的梯度而伤害到训练。">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2020-10-30T10:00:00+08:00">
+    <meta property="article:modified_time" content="2020-10-30T10:00:00+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">Batch Normalization的诅咒</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <div id="js_content"> 
+ <p style="text-align: center">点击上方“AI公园”，关注公众号，选择加“星标“或“置顶”</p> 
+ <hr> 
+ <blockquote> 
+  <p>作者：Sahil Uppal</p> 
+  <p>编译：ronghuaiyang<br></p> 
+ </blockquote> 
+ <p><strong>导读</strong></p> 
+ <p>batch normalization时的一些缺陷。</p> 
+ <p style="text-align: center"><img src="https://images2.imgbox.com/bb/10/bouKbczT_o.png"></p> 
+ <p>Batch Normalization确实是深度学习领域的重大突破之一，也是近年来研究人员讨论的热点之一。Batch Normalization是一种被广泛采用的技术，使训练更加快速和稳定，已成为最有影响力的方法之一。然而，尽管它具有多种功能，但仍有一些地方阻碍了该方法的发展，正如我们将在本文中讨论的那样，这表明做归一化的方法仍有改进的余地。<br></p> 
+ <h2>我们为什么要用Batch Normalization?</h2> 
+ <p>在讨论任何事情之前，首先，我们应该知道Batch Normalization是什么，它是如何工作的，并讨论它的用例。</p> 
+ <h3>什么是Batch Normalization</h3> 
+ <p>在训练过程中，当我们更新之前的权值时，每个中间激活层的输出分布会在每次迭代时发生变化。这种现象称为内部协变量移位(ICS)。所以很自然的一件事，如果我想防止这种情况发生，就是修正所有的分布。简单地说，如果我的分布变动了，我会限制住这个分布，不让它移动，以帮助梯度优化和防止梯度消失，这将帮助我的神经网络训练更快。因此减少这种内部协变量位移是推动batch normalization发展的关键原则。</p> 
+ <h3>它如何工作</h3> 
+ <p>Batch Normalization通过在batch上减去经验平均值除以经验标准差来对前一个输出层的输出进行归一化。这将使数据看起来像<strong>高斯分布</strong>。</p> 
+ <p style="text-align: center"><img src="https://images2.imgbox.com/ed/c2/VOUdOo90_o.png"></p> 
+ <p>其中<em>μ</em>和*σ^2^*分别为批均值和批方差。<br></p> 
+ <p style="text-align: center"><img src="https://images2.imgbox.com/78/21/Dpd3XVUm_o.png"></p> 
+ <p>并且，我们学习了一个新的平均值和协方差<em>γ</em>和<em>β</em>。所以，简而言之，你可以认为batch normalization是帮助你控制batch分布的一阶和二阶动量。<br></p> 
+ <p style="text-align: center"><img src="https://images2.imgbox.com/33/d1/1oR04Wh1_o.png"></p> 
+ vgg16网络的中间卷积层的特征分布输出。(左)没有任何归一化，(右)应用了batch normalization 
+ <br> 
+ <h3>优点</h3> 
+ <p>我将列举使用batch normalization的一些好处，但是我不会详细介绍，因为已经有很多文章讨论了这个问题。</p> 
+ <ul><li><p>更快的收敛。</p></li><li><p>降低初始权重的重要性。</p></li><li><p>鲁棒的超参数。</p></li><li><p>需要较少的数据进行泛化。</p></li></ul> 
+ <p style="text-align: center"><img src="https://images2.imgbox.com/b9/e9/4YNKvAAe_o.png"></p> 
+ 1. 更快的收敛，2. 对超参数更鲁棒 
+ <br> 
+ <h2>Batch Normalization的诅咒</h2> 
+ <p>好，让我们回到本文的出发点，在许多情况下batch normalization开始伤害性能或根本不起作用。</p> 
+ <h3>在使用小batch size的时候不稳定</h3> 
+ <p>如上所述，batch normalization必须计算平均值和方差，以便在batch中对之前的输出进行归一化。如果batch大小比较大的话，这种统计估计是比较准确的，而随着batch大小的减少，估计的准确性持续减小。</p> 
+ <p style="text-align: center"><img src="https://images2.imgbox.com/03/6e/ielCPbXy_o.png"></p> 
+ ResNet-50在Batch Norm使用32、16、8、4、2张/GPU图像时的验证错误 
+ <br> 
+ <p>以上是ResNet-50的验证错误图。可以推断，如果batch大小保持为32，它的最终验证误差在23左右，并且随着batch大小的减小，误差会继续减小(batch大小不能为1，因为它本身就是平均值)。损失有很大的不同(大约10%)。</p> 
+ <p>如果batch大小是一个问题，为什么我们不使用更大的batch？我们不能在每种情况下都使用更大的batch。在finetune的时候，我们不能使用大的batch，以免过高的梯度对模型造成伤害。在分布式训练的时候，大的batch最终将作为一组小batch分布在各个实例中。</p> 
+ <h3>导致训练时间的增加</h3> 
+ <p>NVIDIA和卡耐基梅隆大学进行的实验结果表明，“尽管Batch Normalization不是计算密集型，而且收敛所需的总迭代次数也减少了。”但是每个迭代的时间显著增加了，而且还随着batch大小的增加而进一步增加。</p> 
+ <p style="text-align: center"><img src="https://images2.imgbox.com/61/8a/cUNh1IPG_o.png"></p> 
+ ResNet-50 在ImageNet上使用 Titan X Pascal 
+ <br> 
+ <p>你可以看到，batch normalization消耗了总训练时间的1/4。原因是batch normalization需要通过输入数据进行两次迭代，一次用于计算batch统计信息，另一次用于归一化输出。</p> 
+ <h3>训练和推理时不一样的结果</h3> 
+ <p>例如，在真实世界中做“物体检测”。在训练一个物体检测器时，我们通常使用大batch(YOLOv4和Faster-RCNN都是在默认batch大小= 64的情况下训练的)。但在投入生产后，这些模型的工作并不像训练时那么好。这是因为它们接受的是大batch的训练，而在实时情况下，它们的batch大小等于1，因为它必须一帧帧处理。考虑到这个限制，一些实现倾向于基于训练集上使用预先计算的平均值和方差。另一种可能是基于你的测试集分布计算平均值和方差值。</p> 
+ <h3>对于在线学习不好</h3> 
+ <p>与batch学习相比，在线学习是一种学习技术，在这种技术中，系统通过依次向其提供数据实例来逐步接受训练，可以是单独的，也可以是通过称为<em>mini-batch</em>的小组进行。每个学习步骤都是快速和便宜的，所以系统可以在新的数据到达时实时学习。</p> 
+ <p style="text-align: center"><img src="https://images2.imgbox.com/ed/e6/AMV8dGnH_o.png"></p> 
+ 典型的在线学习pipeline 
+ <br> 
+ <p>由于它依赖于外部数据源，数据可能单独或批量到达。由于每次迭代中batch大小的变化，对输入数据的尺度和偏移的泛化能力不好，最终影响了性能。</p> 
+ <h3>对于循环神经网络不好</h3> 
+ <p>虽然batch normalization可以显著提高卷积神经网络的训练和泛化速度，但它们很难应用于递归结构。batch normalization可以应用于RNN堆栈之间，其中归一化是“垂直”应用的，即每个RNN的输出。但是它不能“水平地”应用，例如在时间步之间，因为它会因为重复的重新缩放而产生爆炸性的梯度而伤害到训练。</p> 
+ <p>[^注]: 一些研究实验表明，batch normalization使得神经网络容易出现对抗漏洞，但我们没有放入这一点，因为缺乏研究和证据。</p> 
+ <h2>可替换的方法</h2> 
+ <p>这就是使用batch normalization的一些缺点。在batch normalization无法很好工作的情况下，有几种替代方法。</p> 
+ <ul><li><p>Layer Normalization</p></li><li><p>Instance Normalization</p></li><li><p>Group Normalization (+ weight standardization)</p></li><li><p>Synchronous Batch Normalization</p></li></ul> 
+ <h2>总结</h2> 
+ <p>所以，看起来训练深度神经网络很简单，但我不认为它很容易。从这个意义上说，我可以选择的架构很少，每个模型都有固定的学习速度，固定的优化器和固定的技巧。这些技巧是通过自然选择选择的，就像有人想出了一些技巧，人们引入之后如果有效，就会保留，如果无效，人们最终会忘记，并没有人再去使用它。除此之外，batch normalization是深度学习发展中的一个里程碑技术。然而，正如前面所讨论的，沿着batch 维度进行归一化引入了一些问题，这表明归一化技术仍有改进的空间。</p> 
+ <p><img src="https://images2.imgbox.com/c3/0e/pauHQuRe_o.png"></p> 
+ <p>—END—</p> 
+ <p>英文原文：https://towardsdatascience.com/curse-of-batch-normalization-8e6dd20bc304</p> 
+ <p style="text-align: center"><img src="https://images2.imgbox.com/fd/b1/4FFmjUii_o.png"></p> 
+ <p style="text-align: center">请长按或扫描二维码关注本公众号</p> 
+ <p style="text-align: right"><strong>喜欢的话，请给我个在看吧</strong><strong>！</strong><strong><img width="30" src="https://images2.imgbox.com/66/84/b5HdC20Y_o.png"></strong></p> 
+</div>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/9b5a373214d7c7931635c24237474eb9/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">CAT3.0的集群部署</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/279f0ab82526d7270bb8f6d3a36a1f6b/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">Android Studio下载、安装、配置SDK</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

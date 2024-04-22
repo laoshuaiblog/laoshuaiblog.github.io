@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Java8 Stream流Collectors.toMap当key重复时报异常（IllegalStateException） - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/99de20887726ebdbe03ce51c428842a4/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="Java8 Stream流Collectors.toMap当key重复时报异常（IllegalStateException）">
+  <meta property="og:description" content="一、问题 在使用Collectors.toMap(Function&amp;lt;? super T, ? extends K&amp;gt; keyMapper, Function&amp;lt;? super T, ? extends U&amp;gt; valueMapper)（两个参数的）时，如果 key 有重复，则会报异常（IllegalStateException）。
+二、分析 Collectors.toMap()是有三个重载方法（2个参数，3个参数，4个参数），如下所示：
+keyMapper：Key 的映射函数
+valueMapper：Value 的映射函数
+mergeFunction：当 Key 冲突时，调用的合并方法
+mapSupplier：Map 构造器，在需要返回特定的 Map 时使用
+1、toMap(Function&amp;lt;? super T, ? extends K&amp;gt; keyMapper, Function&amp;lt;? super T, ? extends U&amp;gt; valueMapper); 2、toMap(Function&amp;lt;? super T, ? extends K&amp;gt; keyMapper, Function&amp;lt;? super T, ? extends U&amp;gt; valueMapper, BinaryOperator&amp;lt;U&amp;gt; mergeFunction); 3、toMap(Function&amp;lt;? super T, ? extends K&amp;gt; keyMapper, Function&amp;lt;? super T, ?">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2023-02-23T10:12:54+08:00">
+    <meta property="article:modified_time" content="2023-02-23T10:12:54+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">Java8 Stream流Collectors.toMap当key重复时报异常（IllegalStateException）</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <h4>一、问题</h4> 
+<p>在使用Collectors.toMap(Function&lt;? super T, ? extends K&gt; keyMapper, Function&lt;? super T, ? extends U&gt; valueMapper)（两个参数的）时，如果 key 有重复，则会报异常（IllegalStateException）。</p> 
+<p><img alt="" height="747" src="https://images2.imgbox.com/8f/a0/FR12k5IR_o.png" width="1066"> </p> 
+<h4>二、分析</h4> 
+<p>Collectors.toMap()是有三个重载方法（2个参数，3个参数，4个参数），如下所示：</p> 
+<blockquote> 
+ <p>keyMapper：Key 的映射函数</p> 
+ <p>valueMapper：Value 的映射函数</p> 
+ <p>mergeFunction：当 Key 冲突时，调用的合并方法</p> 
+ <p>mapSupplier：Map 构造器，在需要返回特定的 Map 时使用</p> 
+</blockquote> 
+<pre><code class="language-java">1、toMap(Function&lt;? super T, ? extends K&gt; keyMapper, Function&lt;? super T, ? extends U&gt; valueMapper);
+2、toMap(Function&lt;? super T, ? extends K&gt; keyMapper, Function&lt;? super T, ? extends U&gt; valueMapper,
+        BinaryOperator&lt;U&gt; mergeFunction);
+3、toMap(Function&lt;? super T, ? extends K&gt; keyMapper, Function&lt;? super T, ? extends U&gt; valueMapper,
+        BinaryOperator&lt;U&gt; mergeFunction, Supplier&lt;M&gt; mapSupplier);</code></pre> 
+<p>①第一个，如果key冲突了，会默认抛出异常</p> 
+<pre><code class="language-java">public static &lt;T, K, U&gt;
+Collector&lt;T, ?, Map&lt;K,U&gt;&gt; toMap(Function&lt;? super T, ? extends K&gt; keyMapper,
+                                Function&lt;? super T, ? extends U&gt; valueMapper) {
+    return toMap(keyMapper, valueMapper, throwingMerger(), HashMap::new);
+}</code></pre> 
+<p>②第二个，如果key冲突了，可以按照指定的要求进行合并（取第一个还是最后一个）</p> 
+<pre><code class="language-java">public static &lt;T, K, U&gt;
+Collector&lt;T, ?, Map&lt;K,U&gt;&gt; toMap(Function&lt;? super T, ? extends K&gt; keyMapper,
+                                Function&lt;? super T, ? extends U&gt; valueMapper,
+                                BinaryOperator&lt;U&gt; mergeFunction) {
+    return toMap(keyMapper, valueMapper, mergeFunction, HashMap::new);
+}</code></pre> 
+<p>③第三个可以自定义异常方法和 Map 类型</p> 
+<pre><code class="language-java">public static &lt;T, K, U, M extends Map&lt;K, U&gt;&gt;
+Collector&lt;T, ?, M&gt; toMap(Function&lt;? super T, ? extends K&gt; keyMapper,
+                            Function&lt;? super T, ? extends U&gt; valueMapper,
+                            BinaryOperator&lt;U&gt; mergeFunction,
+                            Supplier&lt;M&gt; mapSupplier) {
+    BiConsumer&lt;M, T&gt; accumulator
+            = (map, element) -&gt; map.merge(keyMapper.apply(element),
+                                          valueMapper.apply(element), mergeFunction);
+    return new CollectorImpl&lt;&gt;(mapSupplier, accumulator, mapMerger(mergeFunction), CH_ID);
+}</code></pre> 
+<p>举例如下：</p> 
+<p><img alt="" height="806" src="https://images2.imgbox.com/a2/6b/54tLu2H9_o.png" width="854"></p> 
+<p></p> 
+<h4>三、解决方法</h4> 
+<p>避免出现重复时报异常，建议选用第二个带3个参数的 toMap 方法（一般取前面value的值，或者取后面放入的 value 值则覆盖先前的 value 值）。</p> 
+<p>1、选用重复 key 中第一个 value 值</p> 
+<pre><code class="language-java">Map&lt;String, Object&gt; result = list.stream().flatMap(m -&gt; m.entrySet().stream())
+    .collect(Collectors.toMap(m -&gt; m.getKey(), m -&gt; m.getValue(), (v1, v2) -&gt; v1));</code></pre> 
+<p>2、选用重复 key 中最后一个 value 值 （若重复 key 元素有2个则取第二元素的 value，若有3个则取第三个的 value，…）</p> 
+<pre><code class="language-java">Map&lt;String, Object&gt; result = list.stream().flatMap(m -&gt; m.entrySet().stream())
+    .collect(Collectors.toMap(m -&gt; m.getKey(), m -&gt; m.getValue(), (v1, v2) -&gt; v2));</code></pre> 
+<p>3、指定取哪个value值或哪种类型的value值（具体的实践根据具体的业务来操作数据即可）</p> 
+<p><img alt="" height="785" src="https://images2.imgbox.com/f7/c2/ESI2Awbu_o.png" width="797"></p> 
+<p>4、直接返回一个给定的默认值</p> 
+<p><img alt="" height="566" src="https://images2.imgbox.com/73/94/Wgfk8P1q_o.png" width="806"></p> 
+<h4>四、注意事项</h4> 
+<p>1、key 不能有重复，如果重复则需要使用合并函数取默认值，否则会报错，因为 Map 的 key 不能重复。 2、合并函数有两个参数，第一个参数是重复数据中的第一个元素，第二个参数是重复数据中的最后一个元素，可以用来返回默认值。 3、使用合并函数可以配合排序函数，根据排序规则正序、倒序，取每组重复数据中最近或最远的一条数据，用来处理适当的业务。（上面没有举例，自行验证）</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/c33e7fa2de69cb4971f1cdba1acda443/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">Linux基础 gcc编译器</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/cfa07d5b41d7024fbf7573f8d9a78e57/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">从Clickhouse读取大量数据写入本地文件</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

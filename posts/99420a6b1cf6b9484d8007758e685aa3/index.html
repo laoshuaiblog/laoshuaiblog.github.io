@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Linux之编译程序详细介绍---./configure、make、make install - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/99420a6b1cf6b9484d8007758e685aa3/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="Linux之编译程序详细介绍---./configure、make、make install">
+  <meta property="og:description" content="本节介绍如何通过源代码生成可执行程序，在博主前期使用NVIDIA Jetson TX2时,由于Arm架构的各个包不完备,经常需要源码编译OpenCV等.
+为什么要编译软件呢？
+可用性:尽管有些发行版已经包含了版本库中的一些预编译程序，但并不会包含用户所有可能需要的应用程序。此时，用户只能源码编译安装及时性:虽然有些发行版本专注于一些前沿的程序版本,但是多数并不会。这意味着要想获取最新版本的程序，编译必不可少. 0.参考文献 《Linux命令行大全》 [美] William E. Shotts. Jr 著 郭光伟 郝记生 译， 人民邮电出版社
+更多有用的Linux知识详解，可参加博主的Linux学习导航页.
+1.什么是编译 编译就是一个将源代码(程序员编写的人类可读的程序描述–高级语言)翻译成计算机处理器能识别的语言(机器语言)的过程.
+高级语言编写的程序通过编译器转换成机器语言。有些编译器则将高级语言程序转换成汇编语言，然后再使用一个汇编程序将其转换成机器语言.
+经常与编译一起使用的步骤是链接.库提供了通用任务支持，包含了多个例程，每一个实现的都是许多程序能够共享的通用任务，这些程序通常在/lib和/usr/lib中.链接器(linker)程序可以实现编译器的输出与编译程序所需要库之间的链接.该操作的最终结果就是生成一个可供使用的可执行文件.
+2.是不是所有程序都需要编译 答案是否定的.像shell脚本可以直接运行，这些文件都是用脚本或解释型语言编写的，例如Perl,Python,PHP等。
+脚本语言由一个称为解释器的特殊程序来执行，解释器负责输入程序文件并执行其包含的所有指令.通常，解释型程序要比编译后的程序执行起来慢.这是因为,在解释型语言中，每条源代码指令在执行时都要重新翻译一次该代码指令.然而编译后的程序中,每条源代码指令只翻译一次,并且该翻译结果将永久地记录到最后的可执行文件中.
+3.编译一个C程序 在执行编译操作之前,需要一些工具,诸如编译器、链接器以及make等. **gcc(GNU C编译器)**是Linux环境中通用的C编译器.
+$ which gcc /usr/bin/gcc 表明已经安装该编译器.
+3.1 获取源代码 从一个叫做diction的GNU项目中选择一个程序进行编译练习.
+使用ftp下载源码到src/目录.
+$ mkdir src $ cd src $ ftp ftp.gnu.org Connected to ftp.gnu.org. 220 GNU FTP server ready. Name (ftp.gnu.org:lmj): anonymous 230-NOTICE (Updated October 13 2017): 230- 230-Because of security concerns with plaintext protocols, we still 230-intend to disable the FTP protocol for downloads on this server 230-(downloads would still be available over HTTP and HTTPS), but we 230-will not be doing it on November 1, 2017, as previously announced 230-here.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2020-06-23T13:11:43+08:00">
+    <meta property="article:modified_time" content="2020-06-23T13:11:43+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">Linux之编译程序详细介绍---./configure、make、make install</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-dark">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <p>本节介绍如何通过源代码生成可执行程序，在博主前期使用NVIDIA Jetson TX2时,由于Arm架构的各个包不完备,经常需要源码编译OpenCV等.<br> 为什么要编译软件呢？</p> 
+<ul><li>可用性:尽管有些发行版已经包含了版本库中的一些预编译程序，但并不会包含用户所有可能需要的应用程序。此时，用户只能源码编译安装</li><li>及时性:虽然有些发行版本专注于一些前沿的程序版本,但是多数并不会。这意味着要想获取最新版本的程序，编译必不可少.</li></ul> 
+<h2><a id="0_5"></a>0.参考文献</h2> 
+<blockquote> 
+ <p>《Linux命令行大全》 [美] William E. Shotts. Jr 著 郭光伟 郝记生 译， 人民邮电出版社</p> 
+</blockquote> 
+<p>更多有用的Linux知识详解，可参加博主的<a href="https://blog.csdn.net/mathlxj/article/details/106746784">Linux学习导航页</a>.</p> 
+<h2><a id="1_11"></a>1.什么是编译</h2> 
+<p>编译就是一个将源代码(程序员编写的人类可读的程序描述–<strong>高级语言</strong>)翻译成计算机处理器能识别的语言(<strong>机器语言)<strong>的过程.<br> 高级语言编写的程序通过编译器转换成机器语言。有些编译器则将高级语言程序转换成</strong>汇编语言</strong>，然后再使用一个汇编程序将其转换成机器语言.<br> 经常与编译一起使用的步骤是<strong>链接</strong>.<strong>库</strong>提供了通用任务支持，包含了多个<strong>例程</strong>，每一个实现的都是许多程序能够共享的通用任务，这些程序通常在/lib和/usr/lib中.<strong>链接器</strong>(linker)程序可以实现<strong>编译器的输出与编译程序所需要库之间的链接</strong>.该操作的最终结果就是生成一个可供使用的可执行文件.</p> 
+<h2><a id="2_16"></a>2.是不是所有程序都需要编译</h2> 
+<p>答案是否定的.像shell脚本可以直接运行，这些文件都是<strong>用脚本或解释型语言</strong>编写的，例如Perl,Python,PHP等。<br> <strong>脚本语言</strong>由一个称为<strong>解释器</strong>的特殊程序来执行，<strong>解释器负责输入程序文件并执行其包含的所有指令</strong>.通常，解释型程序要比编译后的程序执行起来<strong>慢</strong>.这是因为,<strong>在解释型语言中，每条源代码指令在执行时都要重新翻译一次该代码指令</strong>.然而<strong>编译后</strong>的程序中,<strong>每条源代码指令只翻译一次,并且该翻译结果将永久地记录到最后的可执行文件中</strong>.</p> 
+<h2><a id="3C_20"></a>3.编译一个C程序</h2> 
+<p>在执行编译操作之前,需要一些工具,诸如<strong>编译器、链接器以及make</strong>等. **gcc(GNU C编译器)**是Linux环境中通用的C编译器.</p> 
+<pre><code class="prism language-l">$ which gcc
+/usr/bin/gcc
+</code></pre> 
+<p>表明已经安装该编译器.</p> 
+<h3><a id="31__28"></a>3.1 获取源代码</h3> 
+<p>从一个叫做diction的GNU项目中选择一个程序进行编译练习.<br> 使用ftp下载源码到src/目录.</p> 
+<pre><code class="prism language-l">$ mkdir src
+$ cd src
+$ ftp ftp.gnu.org
+Connected to ftp.gnu.org.
+220 GNU FTP server ready.
+Name (ftp.gnu.org:lmj): anonymous
+230-NOTICE (Updated October 13 2017):
+230-
+230-Because of security concerns with plaintext protocols, we still
+230-intend to disable the FTP protocol for downloads on this server
+230-(downloads would still be available over HTTP and HTTPS), but we
+230-will not be doing it on November 1, 2017, as previously announced
+230-here. We will be sharing our reasons and offering a chance to
+230-comment on this issue soon; watch this space for details.
+230-
+230-If you maintain scripts used to access ftp.gnu.org over FTP,
+230-we strongly encourage you to change them to use HTTPS instead.
+230-
+230----
+230-
+230-Due to U.S. Export Regulations, all cryptographic software on this
+230-site is subject to the following legal notice:
+230-
+230-    This site includes publicly available encryption source code
+230-    which, together with object code resulting from the compiling of
+230-    publicly available source code, may be exported from the United
+230-    States under License Exception "TSU" pursuant to 15 C.F.R. Section
+230-    740.13(e).
+230-
+230-This legal notice applies to cryptographic software only. Please see
+230-the Bureau of Industry and Security (www.bxa.doc.gov) for more
+230-information about current U.S. regulations.
+230 Login successful.
+Remote system type is UNIX.
+Using binary mode to transfer files.
+ftp&gt; cd gnu/diction
+250 Directory successfully changed.
+ftp&gt; ls
+200 EPRT command successful. Consider using EPSV.
+150 Here comes the directory listing.
+-rw-r--r--    1 3003     65534       68940 Aug 28  1998 diction-0.7.tar.gz
+-rw-r--r--    1 3003     65534       90957 Mar 04  2002 diction-1.02.tar.gz
+-rw-r--r--    1 3003     65534      141062 Sep 17  2007 diction-1.11.tar.gz
+-rw-r--r--    1 3003     65534         189 Sep 17  2007 diction-1.11.tar.gz.sig
+226 Directory send OK.
+ftp&gt; get diction-1.11.tar.gz
+local: diction-1.11.tar.gz remote: diction-1.11.tar.gz
+200 EPRT command successful. Consider using EPSV.
+150 Opening BINARY mode data connection for diction-1.11.tar.gz (141062 bytes).
+226 Transfer complete.
+141062 bytes received in 0.74 secs (185.8389 kB/s)
+ftp&gt; bye
+221 Goodbye.
+</code></pre> 
+<p>源码是以tar压缩文件形式存在，有时也被成为tarball，该文件包含了源代码树，即构成该源代码的目录及文件的组织架构.<br> 对其解压</p> 
+<pre><code class="prism language-l">$ tar -xzf diction-1.11.tar.gz
+$ ls
+diction-1.11  diction-1.11.tar.gz
+</code></pre> 
+<h3><a id="32__93"></a>3.2 检查源代码树</h3> 
+<p>解压后的文件包含了原文件树，具体内容为</p> 
+<pre><code class="prism language-l">$ ls
+config.guess  configure.in  diction.1.in  diction.spec.in  en_GB.po   getopt_int.h  misc.c  nl.po       style.1.in
+config.h.in   COPYING       diction.c     diction.texi.in  getopt1.c  INSTALL       misc.h  README      style.c
+config.sub    de            diction.pot   en               getopt.c   install-sh    NEWS    sentence.c  test
+configure     de.po         diction.spec  en_GB            getopt.h   Makefile.in   nl      sentence.h
+</code></pre> 
+<p>GNU项目的程序也包含了如<strong>README、INSTALL、NEWS</strong>和<strong>COPYING</strong>等这些文件，这些文件包含的是<strong>程序的描述、安装步骤说明</strong>和<strong>许可条款</strong>.在开始编译之前,阅读README和INSTALL是非常有必要的.<br> 其它有趣的文件是以<code>.c</code>和<code>.h</code>结尾的文件,<strong>软件包提供的程序</strong>便是以<code>.c</code>结尾,并且划分成了多个模块.这种<strong>将大的程序分成较小的、易于管理的小程序片</strong>已经很普遍.这些源码都是普通文本文件，可以用less查看.<br> <code>.h</code>文件是头文件，包含了对源代码文件或库中的例程的描述.<strong>编译器在链接这些例程模块时，必须给它提供一个所用到所有模块的描述</strong>.例如,在diction.c的开头,可以看到如下文本行.</p> 
+<pre><code class="prism language-l">#include "getopt.h"
+</code></pre> 
+<p>该文本行会指示编译器在读取diction.c中的源代码内容时先读取getopt.h中的内容，进而读取getopt.c中的内容.<br> 在getopt.h的include语句上面,还可以看到其他include语句，例如</p> 
+<pre><code class="prism language-l">#include &lt;regex.h&gt;
+</code></pre> 
+<p>这些都是用来引用头文件，但是它们引用是系统提供的头文件，路径在/usr/include.</p> 
+<h3><a id="33__115"></a>3.3 生成程序</h3> 
+<p>大多数程序都是使用一个简单的2行命令来生成的.</p> 
+<pre><code class="prism language-l">./configure
+make
+</code></pre> 
+<p><code>configure</code>程序其实是源代码树下的一个shell脚本,它的任务就是<strong>分析生成环境</strong>.多数源码都设计成<strong>可移植的</strong>.也就是说，源代码可以在多种类型的UNIX系统上生成,只是源代码在生成时可能需要经过<strong>细微的调整</strong>以适应各系统之间的不同。configure同样会检查系统是否已经安装了必要的外部工具和组件.</p> 
+<pre><code class="prism language-l">$ ./configure
+checking build system type... x86_64-unknown-linux-gnu
+checking host system type... x86_64-unknown-linux-gnu
+checking for gcc... gcc
+checking for C compiler default output file name... a.out
+checking whether the C compiler works... yes
+checking whether we are cross compiling... no
+checking for suffix of executables...
+checking for suffix of object files... o
+checking whether we are using the GNU C compiler... yes
+checking whether gcc accepts -g... yes
+checking for gcc option to accept ISO C89... none needed
+checking for a BSD-compatible install... /usr/bin/install -c
+checking for strerror... yes
+checking for library containing regcomp... none required
+checking for broken realloc... no
+checking for msgfmt... yes
+checking how to run the C preprocessor... gcc -E
+checking for grep that handles long lines and -e... /bin/grep
+checking for egrep... /bin/grep -E
+checking for ANSI C header files... yes
+checking for sys/types.h... yes
+checking for sys/stat.h... yes
+checking for stdlib.h... yes
+checking for string.h... yes
+checking for memory.h... yes
+checking for strings.h... yes
+checking for inttypes.h... yes
+checking for stdint.h... yes
+checking for unistd.h... yes
+checking libintl.h usability... yes
+checking libintl.h presence... yes
+checking for libintl.h... yes
+checking for library containing gettext... none required
+configure: creating ./config.status
+config.status: creating Makefile
+config.status: creating diction.1
+config.status: creating diction.texi
+config.status: creating diction.spec
+config.status: creating style.1
+config.status: creating test/rundiction
+config.status: creating config.h
+</code></pre> 
+<p>重点注意的一点是：这里没有错误信息,如果有的话，该configure操作将以失败告终，并且不会生成可执行程序，直至纠正错误.<br> 可以看到configure在源目录中创建了几个新文件，其中最重要的是<strong>Makefile</strong>，Makefile是<strong>指导make命令如何创建可执行程序的配置文件</strong>.当然，其也是普通文本文件，可以用less查看.</p> 
+<pre><code class="prism language-l">$ less Makefile
+</code></pre> 
+<p><strong>make程序的作用其实就是输入Makefile</strong>，该文件<strong>描述了生成最后可执行程序时各部件之间的联系及依赖关系</strong>.<br> makefile的第一部分内容定义了一些变量**,这些变量在makefile的后面部分将会被替代掉**，例如</p> 
+<pre><code class="prism language-l">CC=             gcc
+</code></pre> 
+<p>该行将C编译器定义为gcc，然后在makefile的后面内容，可以看到如下例子</p> 
+<pre><code class="prism language-l">diction:        diction.o sentence.o misc.o getopt.o getopt1.o
+                $(CC) -o $@ $(LDFLAGS) diction.o sentence.o misc.o \
+                getopt.o getopt1.o $(LIBS)
+</code></pre> 
+<p>该例中包含了一个替代操作，在运行时 <strong>$(CC)会被替代成gcc</strong>.<br> 大多数Makefile文件都有很多行,这些行<strong>定义了目标文件</strong>(该例中是diction可执行文件),也定义了<strong>目标文件所依赖的一些文件</strong>,剩下的行则描述的是那些<strong>将原文件生成目标文件的命令</strong>.本例中,可执行文diction依赖于文件diction.o、sentence.o、misc.o、getopt.o以及getopt1.o,可以看到这些目标文件的定义</p> 
+<pre><code class="prism language-l">#{<!-- -->{<!-- -->{ dependencies
+diction.o:      diction.c config.h getopt.h misc.h sentence.h
+getopt.o:       getopt.c getopt.h getopt_int.h
+getopt1.o:      getopt1.c getopt.h getopt_int.h
+misc.o: misc.c config.h misc.h
+sentence.o:     sentence.c config.h misc.h sentence.h
+style.o:        style.c config.h getopt.h misc.h sentence.h
+#}}}
+</code></pre> 
+<p>然而,我们并没有看到为它们指定的任何命令，其实，它们是<strong>由文件前面的总体目标行生成的</strong>，该目标行描述了用来将所有.c文件编译成.o文件的命令.</p> 
+<pre><code class="prism language-l">.c.o:
+                $(CC) -c $(CPPFLAGS) $(CFLAGS) $&lt;
+</code></pre> 
+<p>接下来就是运行make</p> 
+<pre><code class="prism language-l">$ make 
+</code></pre> 
+<p>运行结束后，所有目标文件都出现了</p> 
+<pre><code class="prism language-l">$ ls
+config.guess   configure     diction       diction.spec
+config.h       configure.in  diction.1     diction.spec.in
+config.h.in    COPYING       diction.1.in  diction.texi
+config.log     de            diction.c     diction.texi.in
+config.status  de.mo         diction.o     en
+config.sub     de.po         diction.pot   en_GB
+</code></pre> 
+<p>如果再次运行make,则</p> 
+<pre><code class="prism language-l">$ make
+make: Nothing to be done for 'all'.
+</code></pre> 
+<p>这是因为**,make并不是简单地重新生成所有东西，只会生成那些需要生成的文件**。在所有目标文件已经存在的情况下,make会判断原文件没有任何改动，就不会进行任何操作.当然，可以删除其中某个目标文件，然后再次运行make来观察.</p> 
+<pre><code class="prism language-l"> rm getopt.o
+$ make
+gcc -c -I. -DSHAREDIR=\"/usr/local/share\" -DLOCALEDIR=\"/usr/local/share/locale\" -g -O2 -pipe -Wno-unused -Wshadow -Wbad-function-cast -Wmissing-prototypes -Wstrict-prototypes -Wcast-align -Wcast-qual -Wpointer-arith -Wcast-align -Wwrite-strings -Wmissing-declarations -Wnested-externs -Wundef -pedantic -fno-common getopt.c
+gcc -o diction -g diction.o sentence.o misc.o \
+        getopt.o getopt1.o
+gcc -o style -g style.o sentence.o misc.o \
+        getopt.o getopt1.o -lm
+</code></pre> 
+<p>可以看到<strong>make重新生成了getopt.o，并重新链接diction和style程序，因为它们都依赖于被删除的程序</strong>.<br> 这种特性说明了make的另外一种用法–可以<strong>维护目标文件的更新</strong>.make坚持一个原则—<strong>目标文件要比依赖文件新</strong>.</p> 
+<h3><a id="34__231"></a>3.4 安装程序</h3> 
+<p>打包好的源代码一般包含一个特殊的make目标程序，便是<code>install</code>.<strong>该目标程序将会在系统目录下安装最后生成的可执行程序</strong>.通常安装在**/usr/local/bin<strong>中，即</strong>本地主机上生成软件的常见安装目录**.然而，需要管理员权限.</p> 
+<pre><code class="prism language-l">$ sudo make install
+</code></pre> 
+<p>安装结束后，就可以查看程序是否可以运行.</p> 
+<pre><code class="prism language-l">$ which diction
+/usr/local/bin/diction
+man diction
+</code></pre>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/88787091e77ab20ecbae05bded452444/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">iStat Menus 无法正常读取传感器温度的解决办法</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/50ecf7b4dc2e98270471d4fd19048cbe/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">ResultSet的介绍与使用</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>rabbitmq的消息发布确认机制 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/396155246215318335be178e57bfc0dc/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="rabbitmq的消息发布确认机制">
+  <meta property="og:description" content="1. 消息可靠性投递
+前言
+在代码里面一定是先操作数据库再发送消息。避免因为数据库回滚导致的数据不一致。但是如果先操作数据，后发送消息，发送消息出了问题，那不是一样会出现业务数据的不一致？
+这篇文章我们来分析 RabbitMQ 的可靠性投递，也就是在使用 RabbitMQ 实现异步通信的时候，消息丢了怎么办，消息重复消费怎么办？在 RabbitMQ 里面提供了很多保证消息可靠投递的机制，这个也是 RabbitMQ 的一个特性。
+在学习RabbitMQ前，必须要明确一个问题，因为效率与可靠性是无法兼得的，如果要保证每一个环节都成功，势必会对消息的收发效率造成影响。所以如果是一些业务实时一致性要求不是特别高的场合，可以牺牲一些可靠性来换取效率。比如发送通知或者记录日志的这种场景，如果用户没有收到通知，不会造成业务影响，只要再次发送就可以了。
+在我们使用 RabbitMQ 收发消息的时候，有几个主要环节：
+1 代表消息从生产者发送到 Broker。
+生产者把消息发到 Broker 之后，怎么知道自己的消息有没有被 Broker 成功接收？
+2 代表消息从 Exchange 路由到 Queue
+Exchange 是一个绑定列表，如果消息没有办法路由到正确的队列，会发生什么事情？应该怎么处理？
+3 代表消息在 Queue 中存储
+队列是一个独立运行的服务，有自己的数据库（Mnesia），它是真正用来存储消息的。如果还没有消费者来消费，那么消息要一直存储在队列里面。如果队列出了问题，消息肯定会丢失。怎么保证消息在队列稳定地存储呢？
+4 代表消费者订阅 Queue 并消费消息
+队列的特性是什么？FIFO。队列里面的消息是一条一条的投递的，也就是说，只有上一条消息被消费者接收以后，才能把这一条消息从数据库删掉，继续投递下一条消息。那么问题来了，Broker 怎么知道消费者已经接收了消息呢？
+下面我们通过收到ack的方式保证消息的可靠性
+1.我们进行配置开启手动确认机制
+server.port=9994 spring.rabbitmq.port=5672 spring.rabbitmq.username=guest spring.rabbitmq.password=guest # 发送方 # 开启发送确认(未到达MQ服务器) spring.rabbitmq.publisher-confirms=true # 开启发送失败退回(未找到对应queue) spring.rabbitmq.publisher-returns=true #启动时自动启动容器 spring.rabbitmq.listener.auto-startup=true # 消费方 开启手动ACK spring.rabbitmq.listener.direct.acknowledge-mode=manual spring.rabbitmq.listener.simple.acknowledge-mode=manual 2.创建交换机,队列和路由 @Slf4j @Configuration public class Config1 implements RabbitTemplate.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2023-03-02T11:07:10+08:00">
+    <meta property="article:modified_time" content="2023-03-02T11:07:10+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">rabbitmq的消息发布确认机制</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <p>1. 消息可靠性投递<br> 前言<br> 在代码里面一定是先操作数据库再发送消息。避免因为数据库回滚导致的数据不一致。但是如果先操作数据，后发送消息，发送消息出了问题，那不是一样会出现业务数据的不一致？</p> 
+<p>这篇文章我们来分析 RabbitMQ 的可靠性投递，也就是在使用 RabbitMQ 实现异步通信的时候，消息丢了怎么办，消息重复消费怎么办？在 RabbitMQ 里面提供了很多保证消息可靠投递的机制，这个也是 RabbitMQ 的一个特性。</p> 
+<p>在学习RabbitMQ前，必须要明确一个问题，因为效率与可靠性是无法兼得的，如果要保证每一个环节都成功，势必会对消息的收发效率造成影响。所以如果是一些业务实时一致性要求不是特别高的场合，可以牺牲一些可靠性来换取效率。比如发送通知或者记录日志的这种场景，如果用户没有收到通知，不会造成业务影响，只要再次发送就可以了。</p> 
+<p><strong>在我们使用 RabbitMQ 收发消息的时候，有几个主要环节：</strong></p> 
+<p><img alt="在这里插入图片描述" src="https://images2.imgbox.com/45/11/uFsLgUDW_o.png"><br><strong>1 代表消息从生产者发送到 Broker。</strong><br> 生产者把消息发到 Broker 之后，怎么知道自己的消息有没有被 Broker 成功接收？<br><strong>2 代表消息从 Exchange 路由到 Queue</strong><br> Exchange 是一个绑定列表，如果消息没有办法路由到正确的队列，会发生什么事情？应该怎么处理？<br><strong>3 代表消息在 Queue 中存储</strong><br> 队列是一个独立运行的服务，有自己的数据库（Mnesia），它是真正用来存储消息的。如果还没有消费者来消费，那么消息要一直存储在队列里面。如果队列出了问题，消息肯定会丢失。怎么保证消息在队列稳定地存储呢？<br><strong>4 代表消费者订阅 Queue 并消费消息</strong><br> 队列的特性是什么？FIFO。队列里面的消息是一条一条的投递的，也就是说，只有上一条消息被消费者接收以后，才能把这一条消息从数据库删掉，继续投递下一条消息。那么问题来了，Broker 怎么知道消费者已经接收了消息呢？<br>  </p> 
+<p>下面我们通过收到ack的方式保证消息的可靠性</p> 
+<p>1.我们进行配置开启手动确认机制</p> 
+<pre><code class="language-java">server.port=9994
+
+spring.rabbitmq.port=5672
+spring.rabbitmq.username=guest
+spring.rabbitmq.password=guest
+
+# 发送方
+# 开启发送确认(未到达MQ服务器)
+spring.rabbitmq.publisher-confirms=true
+# 开启发送失败退回(未找到对应queue)
+spring.rabbitmq.publisher-returns=true
+
+#启动时自动启动容器
+spring.rabbitmq.listener.auto-startup=true
+
+
+# 消费方 开启手动ACK
+spring.rabbitmq.listener.direct.acknowledge-mode=manual
+spring.rabbitmq.listener.simple.acknowledge-mode=manual</code></pre> 
+<p></p> 
+<p>2.创建交换机,队列和路由 </p> 
+<pre><code class="language-java">@Slf4j
+@Configuration
+public class Config1 implements RabbitTemplate.ConfirmCallback,RabbitTemplate.ReturnCallback {
+    
+    @Autowired
+    private RabbitTemplate rabbitTemplate;
+    
+    //后置处理器,先将其他注解都加载完在加载此方法,不然会造成空指针
+    @PostConstruct
+    public void init(){
+        rabbitTemplate.setConfirmCallback(this);
+        rabbitTemplate.setReturnCallback(this);
+    }
+
+    //交换机是否收到消息的确认机制
+    @Override
+    public void confirm(CorrelationData correlationData, boolean ack, String cause) {
+        if (ack){
+            log.info("交换机收到生产者发送的消息");
+        }else {
+            log.error("交换机没有收到生产者发送的消息");
+        }
+    }
+
+    //队列未收到消息会进行消息回调
+    @Override
+    public void returnedMessage(Message message, int replyCode, String replyText, String exchange, String routingKey) {
+       String mes=new String(message.getBody());
+        log.error("队列未收到消息:{}",mes);
+    }
+
+
+    //交换机
+    public static final String CONFIRM_EXCHANGE="confirm.exchange";
+    //队列
+    public static final String CONFIRM_QUEUE="confirm.queue";
+
+    public static final String CONFIRM_ROUTING_KEY="confirm.routing";
+
+    @Bean
+    public DirectExchange confirmExchange(){
+        return new DirectExchange(CONFIRM_EXCHANGE,true,false);
+    }
+
+    @Bean
+    public Queue confirmQueue(){
+        return QueueBuilder.durable(CONFIRM_QUEUE).build();
+    }
+
+    @Bean
+    public Binding confirmBinding(){
+        return BindingBuilder.bind(confirmQueue()).to(confirmExchange()).with(CONFIRM_ROUTING_KEY);
+    }
+
+
+
+}</code></pre> 
+<p>3.生产者发送消息</p> 
+<pre><code class="language-java">@Slf4j
+@RestController
+@RequestMapping("/confirm")
+public class ConfirmController {
+
+    @Autowired
+    private RabbitTemplate rabbitTemplate;
+
+
+    @RequestMapping(value = "/send/{message}",method = RequestMethod.GET)
+    public void sendMes(@PathVariable("message") String message){
+        rabbitTemplate.convertAndSend(Config1.CONFIRM_EXCHANGE,Config1.CONFIRM_ROUTING_KEY,message);
+        log.info("生产者发送的消息为:{}",message);
+    }
+}</code></pre> 
+<p>4.消费者监听消息(此时还未手动ack)</p> 
+<pre><code class="language-java">@Slf4j
+@Component
+public class ConfirmConsumer {
+
+    @RabbitListener(queues = Config1.CONFIRM_QUEUE)
+    public void getMes(Message message, Channel channel){
+        String mes=new String(message.getBody());
+        log.info("消费者收到的消息为:{}",mes);
+    }
+
+}</code></pre> 
+<p>5.我们首先测试第一次发消息成功的情况如何<br><a href="http://localhost:9994/confirm/send/%E7%AC%AC%E4%B8%80%E6%AC%A1" rel="nofollow" title="http://localhost:9994/confirm/send/第一次">http://localhost:9994/confirm/send/第一次<br></a><br><br>  </p> 
+<p><img alt="" height="186" src="https://images2.imgbox.com/8d/9f/THpdsrve_o.png" width="1200"></p> 
+<p> 如上图所示,当我们消息发送成功的时候,交换机会触发回调函数.</p> 
+<p></p> 
+<p>5.1 接下来我们在发送消息的时候将交换机和路由key依次改错来验证一次啊回调机制</p> 
+<p><img alt="" height="169" src="https://images2.imgbox.com/75/cc/F8yEUEWg_o.png" width="1009"></p> 
+<p>此时交换机是改成了错误的,我们重启继续发消息试验</p> 
+<p><img alt="" height="194" src="https://images2.imgbox.com/0a/62/uZXuOUxL_o.png" width="1200"> </p> 
+<p>这个时候就看到产生了报错信息404,表示没有这个交换机,同时交换机的回调机制响应了</p> 
+<p>5. 2  接下来把队列改错</p> 
+<p><img alt="" height="226" src="https://images2.imgbox.com/20/26/tlTAE2ri_o.png" width="1174"></p> 
+<p>看测试结果</p> 
+<p> <img alt="" height="187" src="https://images2.imgbox.com/cf/b5/a5MU0Gl6_o.png" width="1200"></p> 
+<p>此时根据结果我们可以看出消息是发送到了交换机,然后由交换机将消息路由到队列的时候发生了错误.因为我们将路由key改错了.</p> 
+<p></p> 
+<p><strong>6.回退消息</strong></p> 
+<p></p> 
+<div> 
+ <span style="color:#000000;"><strong>在仅开启了生产者确认机制的情况下，交换机接收到消息后，会直接给消息生产者发送确认消息</strong></span> 
+ <span style="color:#000000;">，</span> 
+ <span style="color:#000000;"><strong>如 </strong></span> 
+</div> 
+<div> 
+ <span style="color:#000000;"><strong>果发现该消息不可路由，那么消息会被直接丢弃，此时生产者是不知道消息被丢弃这个事件的</strong></span> 
+ <span style="color:#000000;">。那么如何 </span> 
+</div> 
+<div> 
+ <span style="color:#000000;">让无法被路由的消息帮我想办法处理一下？最起码通知我一声，我好自己处理啊。通过设置 </span> 
+ <span style="color:#000000;">mandatory </span> 
+ <span style="color:#000000;">参 </span> 
+</div> 
+<div> 
+ <span style="color:#000000;">数可以在当消息传递过程中不可达目的地时将消息返回给生产者。 </span> 
+ <span style="color:#000000;">如下图</span> 
+</div> 
+<div> 
+ <img alt="" height="264" src="https://images2.imgbox.com/60/7a/yN6ep3xL_o.png" width="833"> 
+</div> 
+<p></p> 
+<p>接下来我们修改消费者代码</p> 
+<p><img alt="" height="823" src="https://images2.imgbox.com/b1/78/vNi0MiMW_o.png" width="1200"></p> 
+<p>如上图所示,我打了断点,因为不超过一百,所以会一直Nack,然后因为我们的参数设置了true,那么消息就会一直返回队列,一直重新发送,这样子保证消费者消息不会丢失</p> 
+<p>但是鱼与熊掌不可兼得,需要性能的话就要牺牲稳定性,不能保证消息不丢失.</p> 
+<p>需要稳定性的话,就要牺牲西能,让未被消费的消息一直发送,直到消费成功 </p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/d775d74bdbf9049ebb3afacb4fae8b2b/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">MySQL 数据库创建不了外键约束</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/b5f9a4599db2c400de6b5a5fdfb83f88/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">Nginx命令大全</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

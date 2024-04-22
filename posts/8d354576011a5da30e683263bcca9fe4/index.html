@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>LVS&#43;Keepalived 高可用群集 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/8d354576011a5da30e683263bcca9fe4/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="LVS&#43;Keepalived 高可用群集">
+  <meta property="og:description" content="一.背景
+企业应用中，单点服务器承担应用存在单点故障的危险
+单点故障一旦发生，企业服务将发生中断，造成极大的危害
+为解决单点故障，而引入keepalived
+keepalived工具介绍 专为LVS和HA设计的一款健康检查工具
+支持故障自动切换(Failover)
+支持节点健康状态检查(Health Checking)
+判断LVS负载调度器、节点服务器的可用性，当master主机出现故障及时切换到backup 节点保证业务正常，当master故障主机恢复后将其重新加入群集并且业务重新切换回master节点。
+官方网站: http://www.keepalived.org/ Keepalived实现原理剖析 Keepalived采用VRRP热备份协议实现Linux服务器的多机热备功能
+VRRP(虚拟路由冗余协议) 是针对路由器的一种备份解决方案
+由多台路由器组成一个热备组，通过共用的虚拟IP地址对外提供服务
+每个热备组内同时只有一台主路由器提供服务，其他路由器处于冗余状态
+若当前在线的路由器失效，则其他路由器会根据设置的优先级自动接替虚拟IP地址，继续提供服务
+VRRP 相关术语 虚拟路由器：Virtual Router 虚拟路由器标识：VRID(0-255)，唯一标识虚拟路由器 VIP：Virtual IP VMAC：Virutal MAC (00-00-5e-00-01-VRID) 物理路由器： master：主设备 backup：备用设备 priority：优先级 虚拟路由器的主备 是由priority：优先级决定的 VRRP工作过程 选举Master，比较优先级，高的为Master，若优先级相同无Master时，比较接口IP地址，大的为Master，Master设备发送ARP报文，承担报文转发工作；
+状态维持，Master设备周期发送通告报文，公布配置信息和工作状态；
+Backup设备根据收到的通告报文判断Master设备是否工作正常，如果Master设备主动放弃Master地位时，会发送优先级为0的通告报文，Backup设备收到后会快速切换成Master设备或者定时器超时后Backup设备认为Master设备无法正常工作，会切换状态为Master。
+当Master设备出现故障后怎么办？
+Master设备故障后，组内的备份设备一段时间（Master_Down_Interval定时器取值为：3×Advertisement_Interval＋Skew_Time，单位为秒）内没有接收到来自Master设备的报文，则将自己转为Master设备。一个VRRP组里有多台备份设备时，短时间内可能产生多个Master设备，设备将会对收到的VRRP报文中的优先级与本地优先级做比较，从而选取优先级高的设备成为Master。 Master设备故障后恢复的时候会怎么样？
+Master设备恢复后，若其优先级为255则立即为Master设备，若优先级小于255，先切换为Backup设备，当Backup优先级高于Master设备时，如果此时工作模式为抢占模式，则Backup设备切换为Master设备，如果工作模式为非抢占模式，Backup设备不会切换为Master。（当设备切换为Master地位时都会发送免费ARP报文，承担报文转发功能） Keepalived案例讲解 Keepalived可实现多机热备,每个热备组可有多台服务器双机热备的故障切换是由虚拟P地址的漂移来实现,适用于各种应用服务器Keepalived配置目录位于/etc/keepalived/ Keeplived及其工作原理 Keepalived是一个基于VRRP协议来实现的LVS服务高可用方案，可以解决静态路由出现的单点故障问题。
+在一个LVS服务集群中通常有主服务器（MASTER）和备份服务器（BACKUP）两种角色的服务器，但是对外表现为一个虚拟IP。主服务器会发送VRRP通告信息给备份服务器，当备份服务器收不到VRRP消息的时候，即主服务器异常的时候，备份服务器就会接管虚拟IP，继续提供服务，从而保证了高可用性
+Keepalived体系主要模块及其作用 keepalived体系架构中主要有三个模块，分别是core、check和vrrp。
+core模块：为keepalived的核心，负责主进程的启动、维护及全局配置文件的加载和解析。vrrp模块：是来实现VRRP协议的。check模块：负责健康检查，常见的方式有端口检查及URL检查。 keepalive服务 keepalive服务可以使用yum安装、以及编译安装
+本地yum源自带的版本比较旧
+编译安装可以从官网下载较新的安装包进行安装
+安装keepalive 使用yum安装：yum install keepalived.x86_64 -y
+默认的主配置文件有157行
+cat /etc/keepalived/keepalived.conf |wc -l
+配置文件详解 全局配置
+global_defs">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2024-03-14T14:04:05+08:00">
+    <meta property="article:modified_time" content="2024-03-14T14:04:05+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">LVS&#43;Keepalived 高可用群集</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <p>一.背景</p> 
+<p>  企业应用中，单点服务器承担应用存在单点故障的危险</p> 
+<p>  单点故障一旦发生，企业服务将发生中断，造成极大的危害</p> 
+<p>  为解决单点故障，而引入keepalived</p> 
+<h3 id="keepalived工具介绍">keepalived工具介绍</h3> 
+<p><strong>专为LVS和HA设计的一款健康检查工具</strong></p> 
+<ul><li> <p>支持故障自动切换(Failover)</p> </li><li> <p>支持节点健康状态检查(Health Checking)</p> </li></ul> 
+<p>判断LVS负载调度器、节点服务器的可用性，当master主机出现故障及时切换到backup 节点保证业务正常，当master故障主机恢复后将其重新加入群集并且业务重新切换回master节点。</p> 
+<ul><li>官方网站: http://www.keepalived.org/</li></ul> 
+<h3 id="keepalived实现原理剖析">Keepalived实现原理剖析</h3> 
+<p><strong>Keepalived采用VRRP热备份协议实现Linux服务器的多机热备功能</strong></p> 
+<h4 id="vrrp虚拟路由冗余协议"><strong>VRRP(虚拟路由冗余协议)</strong></h4> 
+<ul><li> <p>是针对路由器的一种备份解决方案</p> </li><li> <p>由多台路由器组成一个热备组，通过共用的虚拟IP地址对外提供服务</p> </li><li> <p>每个热备组内同时只有一台主路由器提供服务，其他路由器处于冗余状态</p> </li><li> <p>若当前在线的路由器失效，则其他路由器会根据设置的优先级自动接替虚拟IP地址，继续提供服务</p> </li></ul> 
+<h5 id="vrrp-相关术语">VRRP 相关术语</h5> 
+<pre><code>虚拟路由器：Virtual Router
+虚拟路由器标识：VRID(0-255)，唯一标识虚拟路由器
+VIP：Virtual IP
+VMAC：Virutal MAC (00-00-5e-00-01-VRID)
+物理路由器：
+master：主设备
+backup：备用设备
+priority：优先级
+虚拟路由器的主备 是由priority：优先级决定的
+</code></pre> 
+<h5 id="vrrp工作过程">VRRP工作过程</h5> 
+<ul><li> <p>选举Master，比较优先级，高的为Master，若优先级相同无Master时，比较接口IP地址，大的为Master，Master设备发送ARP报文，承担报文转发工作；</p> </li><li> <p>状态维持，Master设备周期发送通告报文，公布配置信息和工作状态；</p> </li><li> <p>Backup设备根据收到的通告报文判断Master设备是否工作正常，如果Master设备主动放弃Master地位时，会发送优先级为0的通告报文，Backup设备收到后会快速切换成Master设备或者定时器超时后Backup设备认为Master设备无法正常工作，会切换状态为Master。</p> </li></ul> 
+<p><strong>当Master设备出现故障后怎么办？</strong></p> 
+<ul><li>Master设备故障后，组内的备份设备一段时间（Master_Down_Interval定时器取值为：3×Advertisement_Interval＋Skew_Time，单位为秒）内没有接收到来自Master设备的报文，则将自己转为Master设备。一个VRRP组里有多台备份设备时，短时间内可能产生多个Master设备，设备将会对收到的VRRP报文中的优先级与本地优先级做比较，从而选取优先级高的设备成为Master。</li></ul> 
+<p><strong>Master设备故障后恢复的时候会怎么样？</strong></p> 
+<ul><li>Master设备恢复后，若其优先级为255则立即为Master设备，若优先级小于255，先切换为Backup设备，当Backup优先级高于Master设备时，如果此时工作模式为抢占模式，则Backup设备切换为Master设备，如果工作模式为非抢占模式，Backup设备不会切换为Master。（当设备切换为Master地位时都会发送免费ARP报文，承担报文转发功能）</li></ul> 
+<h3 id="keepalived案例讲解">Keepalived案例讲解</h3> 
+<p><img alt="" height="595" src="https://images2.imgbox.com/e9/4a/YdbrF6zF_o.png" width="1200"></p> 
+<ul><li>Keepalived可实现多机热备,每个热备组可有多台服务器</li><li>双机热备的故障切换是由虚拟P地址的漂移来实现,适用于各种应用服务器</li><li>Keepalived配置目录位于/etc/keepalived/</li></ul> 
+<h3 id="keeplived及其工作原理">Keeplived及其工作原理</h3> 
+<ul><li> <p>Keepalived是一个基于VRRP协议来实现的LVS服务高可用方案，可以解决静态路由出现的单点故障问题。</p> </li><li> <p>在一个LVS服务集群中通常有主服务器（MASTER）和备份服务器（BACKUP）两种角色的服务器，但是对外表现为一个虚拟IP。主服务器会发送VRRP通告信息给备份服务器，当备份服务器收不到VRRP消息的时候，即主服务器异常的时候，备份服务器就会接管虚拟IP，继续提供服务，从而保证了高可用性</p> </li></ul> 
+<h3 id="keepalived体系主要模块及其作用">Keepalived体系主要模块及其作用</h3> 
+<p><strong>keepalived体系架构中主要有三个模块，分别是core、check和vrrp。</strong></p> 
+<ul><li>core模块：为keepalived的核心，负责主进程的启动、维护及全局配置文件的加载和解析。</li><li>vrrp模块：是来实现VRRP协议的。</li><li>check模块：负责健康检查，常见的方式有端口检查及URL检查。</li></ul> 
+<h3 id="%E4%B8%89%E3%80%81keepalive%E6%9C%8D%E5%8A%A1">keepalive服务</h3> 
+<p>keepalive服务可以使用yum安装、以及编译安装</p> 
+<p>本地yum源自带的版本比较旧</p> 
+<p>编译安装可以从官网下载较新的安装包进行安装</p> 
+<h4 id="%EF%BC%88%E4%B8%80%EF%BC%89%E5%AE%89%E8%A3%85keepalive">安装keepalive</h4> 
+<p>使用yum安装：yum  install keepalived.x86_64 -y</p> 
+<p> <img alt="" height="153" src="https://images2.imgbox.com/f8/93/CO93A5aQ_o.png" width="756"></p> 
+<p>  默认的主配置文件有157行</p> 
+<p>cat /etc/keepalived/keepalived.conf |wc -l</p> 
+<p><img alt="" height="105" src="https://images2.imgbox.com/a9/95/gnvsWgHK_o.png" width="842"></p> 
+<h4> 配置文件详解</h4> 
+<p><strong>全局配置</strong></p> 
+<p><img alt="" height="428" src="https://images2.imgbox.com/aa/f8/eK3xnOwg_o.png" width="750"></p> 
+<p> global_defs<br> #全局配置<br>  <br> notification_email<br> #定义当VRRP实例状态发生变化时，系统将通过电子邮件发送通知给指定的收件人列表。<br>  <br> acassen@firewall.loc, failover@firewall.loc, sysadmin@firewall.loc<br> #邮件通知的接收者。<br>  <br> notification_email_from Alexandre.Cassen@firewall.loc<br> #设置发送邮件通知时显示的发件人地址，这里是 Alexandre.Cassen@firewall.loc。<br>  <br> smtp_server  192.168.200.1<br> #指定SMTP服务器地址，本例中为 192.168.200.1，该服务器用于发送邮件通知。<br>  <br> smtp_connect_timeout  30<br> #设置SMTP服务器连接超时时间，单位为秒，这里为30秒。<br>  <br> router_id LVS_DEVEL<br> #为当前运行的Keepalived实例设置一个唯一的标识符，用在日志和其他网络通信中<br>  <br> vrrp_skip_check_adv_addr<br> #跳过对通告地址（advertised address）的检查。如果启用此选项，在某些情况下<br> #可以避免错误，比如通告地址未在任何接口上配置。<br>  <br> vrrp_strict<br> #启用严格模式，要求配置必须符合RFC文档的标准规范，否则Keepalived服务可能不会启动。<br> #建议关闭<br>  <br> vrrp_garp_interval 0<br> #设置发送GARP（即无请求的ARP响应）消息的时间间隔，默认值通常为1秒。设为0表示禁用GARP功能。<br>  <br> vrrp_gna_interval 0<br> #设置发送GNA（即IPv6下的无请求邻居通告）消息的时间间隔。设为0表示禁用GNA功能</p> 
+<p><strong>VRRP实例配置 </strong></p> 
+<p><img alt="" height="412" src="https://images2.imgbox.com/4c/41/KTfTEuzX_o.png" width="673"></p> 
+<p>vrrp_instance VI_1<br> '定义VRRP实例名称。'<br>  <br> state MASTER<br> '设置当前节点在VRRP组中的初始状态为MASTER。这意味着该节点将优先处理请求，<br> 并拥有VIP（虚拟IP地址）的所有权'<br>  <br> 'interface eth0'<br> '指定VRRP通告报文通过哪个网络接口发送，这里使用的是eth0接口。'<br>  <br> virtual_router_id 51<br> '每个VRRP实例需要一个唯一的标识符，这里用数字51表示。主备需要在同一个标识符内'<br>  <br> priority 100<br> '设置本节点在VRRP组中的优先级，数值越高代表优先级越高，优先级最高的节点将成为MASTER'<br>  <br> advert_int 1<br> '设置VRRP通告消息的时间间隔，单位为秒。此处设置为每秒发送一次心跳消息以确认其是否在线'<br>  <br> authentication：<br> auth_type PASS  '设置认证类型为密码认证。'<br> auth_pass 1111  '设置用于身份验证的共享密码。'<br>  <br> virtual_ipaddress<br> '列出此VRRP实例要管理的一系列虚拟IP地址' </p> 
+<p><strong>服务器配置</strong></p> 
+<p><img alt="" height="598" src="https://images2.imgbox.com/7f/3c/pZIlmmaB_o.png" width="746"></p> 
+<p> '虚拟服务器'<br> virtual_server 192.168.200.100 443<br> #定义了一个虚拟服务器，对外提供服务的地址为192.168.200.100，监听端口为443（即HTTPS服务）。<br>  <br> delay_loop 6<br> #健康检查间隔，每隔6秒对后端服务器执行一次健康检查。<br>  <br> lb_algo rr<br> #负载均衡算法采用轮询（Round Robin）策略。<br>  <br> lb_kind NAT<br> #负载均衡方式采用NAT，客户端与真实服务器之间的通信通过NAT进行转发。<br>  <br> #persistence_timeout 50<br> #会话保持超时时间，同一个客户端在50秒内发起的新请求都会被转发到同一台后端服务器上。<br>  <br> protocol TCP<br> #明确指出虚拟服务器处理的是TCP流量。<br>  <br> '真实服务器配置'<br>  <br> real_server 192.168.201.100 443<br> #定义一个真实服务器，其IP地址为192.168.201.100，同样监听443端口<br>  <br> weight 1<br> #权重值为1，表示该服务器在负载均衡中分配请求的相对权重。<br>  <br> SSL_GET<br> #使用SSL协议发送GET请求来进行健康检查。<br>  <br> url<br> #定义了两个需要检查的URL路径及其预期的HTTP响应摘要。一般不适用url，需要更改<br>  <br> connect_timeout 3    #设置连接到真实服务器的超时时间为3秒。<br> nb_get_retry 3       #如果首次请求未能得到正确的摘要，将重试3次。<br> delay_before_retry   #每次重试前等待3秒。</p> 
+<h3><strong>扩展</strong></h3> 
+<p><strong>脑裂</strong></p> 
+<p><strong>脑裂：</strong><br> 在高可用（HA）系统中，当联系2个节点的“心跳线”断开时，本来为一整体、动作协调的HA系统，就分裂成为2个独立的个体。</p> 
+<p>由于相互失去了联系，都以为是对方出了故障。两个节点上的HA软件像“裂脑人”一样，争抢“共享资源”、争起“应用服务”，就会发生严重后果。共享资源被瓜分、两边“服务”都起不来了；或者两边“服务”都起来了，但同时读写“共享存储”，导致数据损坏</p> 
+<p><strong>造成脑裂的原因有哪些？</strong><br> 高可用服务器对之间心跳线链路发生故障，导致无法正常通信。<br> 因心跳线坏了（包括断了，老化）。<br> 因网卡及相关驱动坏了，ip配置及冲突问题（网卡直连）<br> 因心跳线间连接的设备故障（网卡及交换机）<br> 因仲裁的机器出问题（采用仲裁的方案）<br> 高可用服务器上开启了 iptables防火墙阻挡了心跳消息传输。<br> 高可用服务器上心跳网卡地址等信息配置不正确，导致发送心跳失败<br> 其他服务配置不当等原因，如心跳方式不同，心跳广插冲突、软件Bug等。<br><strong>如何解决keepalived脑裂问题？</strong><br> 同时使用串行电缆和以太网电缆连接、同时使用两条心跳线路，这样一条线路断了，另外一条还是好的，依然能传送心跳消息<br> 当检查脑裂时强行关闭一个心跳节点（这个功能需要特殊设备支持，如stonith、fence）相当于备节点接收不到心跳消息，通过单独的线路发送关机命令关闭主节点的电源<br> 做好对脑裂的监控报警<br><strong>解决常见方案：</strong></p> 
+<p>如果开启防火墙，一定要让心跳消息通过，一般通过允许IP段的形式解决<br> 可以拉一条以太网网线或者串口线作为主被节点心跳线路的冗余<br> 开发检测程序通过监控软件检测脑裂<br>  </p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/467479daf5d501601cc4cba2df6d4027/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">产品经理能否带中国AI突破重围？</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/f35154181ef0b18d068d60b3b7345c1d/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">【leetcode&#43;深度/广度优先搜索】841. 钥匙和房间 (DFS,BFS)</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

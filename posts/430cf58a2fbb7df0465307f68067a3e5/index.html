@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>硬件I2C实验 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/430cf58a2fbb7df0465307f68067a3e5/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="硬件I2C实验">
+  <meta property="og:description" content="1配置GPIO和I2C模式 1，使能GPIOB，I2C1
+RCC-&amp;gt;APB2ENR|=1&amp;lt;&amp;lt;3;//使能GPIOB
+RCC-&amp;gt;APB1ENR|=1&amp;lt;&amp;lt;21;//使能I2C1
+GPIOB-&amp;gt;CRL&amp;amp;=~((u32)0x0F&amp;lt;&amp;lt;4*6); GPIOB-&amp;gt;CRL|=((u32)0x0F&amp;lt;&amp;lt;4*6);//配置PB6为复用开漏输出 GPIOB-&amp;gt;CRL&amp;amp;=~((u32)0x0F&amp;lt;&amp;lt;4*7); GPIOB-&amp;gt;CRL|=((u32)0x0F&amp;lt;&amp;lt;4*7);//配置PB7为复用开漏输出 I2C_InitStructure.I2C_Ack=I2C_Ack_Enable; I2C_InitStructure.I2C_AcknowledgedAddress=I2C_AcknowledgedAddress_7bit; I2C_InitStructure.I2C_ClockSpeed=400000; I2C_InitStructure.I2C_DutyCycle=I2C_DutyCycle_2; I2C_InitStructure.I2C_Mode=I2C_Mode_I2C; I2C_InitStructure.I2C_OwnAddress1=0x3EF; I2C_Init(I2C1,&amp;amp;I2C_InitStructure);//配置i2c1模式 I2C_Cmd(I2C1,ENABLE);//使能I2C 2.写单页（不超过8个字节）
+while(I2C_GetFlagStatus(I2C1,I2C_FLAG_BUSY))//判断总线是否忙碌 { if((I2C_Timeout--)==0)return I2C_TIMEOUT_UserCallPack(1); } I2C_GenerateSTART(I2C1,ENABLE);//发送起始信号 I2C_Timeout=I2CT_FLAG_Timeout; while(!(I2C_CheckEvent(I2C1,I2C_EVENT_MASTER_MODE_SELECT)))//检查事件EV5（事件主机模式选择） { if((I2C_Timeout--)==0)return I2C_TIMEOUT_UserCallPack(2); } I2C_Send7bitAddress(I2C1,0xA0,I2C_Direction_Transmitter);//发送地址，模式发送 I2C_Timeout=I2CT_FLAG_Timeout; while(!(I2C_CheckEvent(I2C1,I2C_EVENT_MASTER_TRANSMITTER_MODE_SELECTED)))//（检测事件EV6，主机发送模式已选择） { if((I2C_Timeout--)==0)return I2C_TIMEOUT_UserCallPack(3); } I2C_SendData(I2C1,WriteAddr);//发送写入地址 I2C_Timeout=I2CT_FLAG_Timeout; while(!(I2C_CheckEvent(I2C1,I2C_EVENT_MASTER_BYTE_TRANSMITTED)))//（检测事件EV8，主机数据已发送） { if((I2C_Timeout--)==0)return I2C_TIMEOUT_UserCallPack(4); } for(i=0;i&amp;lt;NumToWrite;i&#43;&#43;) { I2C_SendData(I2C1,pBuffer[i]); //发送数据 I2C_Timeout=I2CT_FLAG_Timeout; while(!(I2C_CheckEvent(I2C1,I2C_EVENT_MASTER_BYTE_TRANSMITTED)))//（检测事件EV8，主机数据已发送） { if((I2C_Timeout--)==0)return I2C_TIMEOUT_UserCallPack(5); } } I2C_GenerateSTOP(I2C1,ENABLE);//发送结束信号 3接受数据
+u32 EEPROM_Byte_Read(u8 ReadAddr,u8 *pBuffer,u8 NumToRead)
+{
+u8 i;
+I2C_Timeout=I2CT_LONG_Timeout;
+while(I2C_GetFlagStatus(I2C1,I2C_FLAG_BUSY))//检查总线忙碌状态 { if((I2C_Timeout--)==0)return I2C_TIMEOUT_UserCallPack(6); } I2C_GenerateSTART(I2C1,ENABLE);//发送起始信号 I2C_Timeout=I2CT_FLAG_Timeout; while(!">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2020-04-26T22:58:48+08:00">
+    <meta property="article:modified_time" content="2020-04-26T22:58:48+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">硬件I2C实验</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-dark">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <h2><a id="1GPIOI2C_0"></a>1配置GPIO和I2C模式</h2> 
+<p>1，使能GPIOB，I2C1<br> RCC-&gt;APB2ENR|=1&lt;&lt;3;//使能GPIOB<br> RCC-&gt;APB1ENR|=1&lt;&lt;21;//使能I2C1</p> 
+<pre><code>GPIOB-&gt;CRL&amp;=~((u32)0x0F&lt;&lt;4*6);
+GPIOB-&gt;CRL|=((u32)0x0F&lt;&lt;4*6);//配置PB6为复用开漏输出
+
+GPIOB-&gt;CRL&amp;=~((u32)0x0F&lt;&lt;4*7);
+GPIOB-&gt;CRL|=((u32)0x0F&lt;&lt;4*7);//配置PB7为复用开漏输出
+I2C_InitStructure.I2C_Ack=I2C_Ack_Enable;
+I2C_InitStructure.I2C_AcknowledgedAddress=I2C_AcknowledgedAddress_7bit;
+I2C_InitStructure.I2C_ClockSpeed=400000;
+I2C_InitStructure.I2C_DutyCycle=I2C_DutyCycle_2;
+I2C_InitStructure.I2C_Mode=I2C_Mode_I2C;
+I2C_InitStructure.I2C_OwnAddress1=0x3EF;
+I2C_Init(I2C1,&amp;I2C_InitStructure);//配置i2c1模式
+I2C_Cmd(I2C1,ENABLE);//使能I2C
+</code></pre> 
+<p>2.写单页（不超过8个字节）</p> 
+<pre><code>while(I2C_GetFlagStatus(I2C1,I2C_FLAG_BUSY))//判断总线是否忙碌
+{
+	if((I2C_Timeout--)==0)return I2C_TIMEOUT_UserCallPack(1);
+}
+I2C_GenerateSTART(I2C1,ENABLE);//发送起始信号
+
+I2C_Timeout=I2CT_FLAG_Timeout;
+while(!(I2C_CheckEvent(I2C1,I2C_EVENT_MASTER_MODE_SELECT)))//检查事件EV5（事件主机模式选择）
+{
+	if((I2C_Timeout--)==0)return I2C_TIMEOUT_UserCallPack(2);
+}
+
+I2C_Send7bitAddress(I2C1,0xA0,I2C_Direction_Transmitter);//发送地址，模式发送
+
+I2C_Timeout=I2CT_FLAG_Timeout;
+while(!(I2C_CheckEvent(I2C1,I2C_EVENT_MASTER_TRANSMITTER_MODE_SELECTED)))//（检测事件EV6，主机发送模式已选择）
+{
+	if((I2C_Timeout--)==0)return I2C_TIMEOUT_UserCallPack(3);
+}
+
+I2C_SendData(I2C1,WriteAddr);//发送写入地址
+
+I2C_Timeout=I2CT_FLAG_Timeout;
+while(!(I2C_CheckEvent(I2C1,I2C_EVENT_MASTER_BYTE_TRANSMITTED)))//（检测事件EV8，主机数据已发送）
+{
+	if((I2C_Timeout--)==0)return I2C_TIMEOUT_UserCallPack(4);
+}
+
+for(i=0;i&lt;NumToWrite;i++)
+{
+	I2C_SendData(I2C1,pBuffer[i]); //发送数据
+	
+	I2C_Timeout=I2CT_FLAG_Timeout;
+	while(!(I2C_CheckEvent(I2C1,I2C_EVENT_MASTER_BYTE_TRANSMITTED)))//（检测事件EV8，主机数据已发送）
+	{
+		if((I2C_Timeout--)==0)return I2C_TIMEOUT_UserCallPack(5);
+	}
+}
+I2C_GenerateSTOP(I2C1,ENABLE);//发送结束信号
+</code></pre> 
+<p>3接受数据</p> 
+<p>u32 EEPROM_Byte_Read(u8 ReadAddr,u8 *pBuffer,u8 NumToRead)<br> {<!-- --><br> u8 i;<br> I2C_Timeout=I2CT_LONG_Timeout;</p> 
+<pre><code>while(I2C_GetFlagStatus(I2C1,I2C_FLAG_BUSY))//检查总线忙碌状态
+{
+	if((I2C_Timeout--)==0)return I2C_TIMEOUT_UserCallPack(6);
+}
+
+I2C_GenerateSTART(I2C1,ENABLE);//发送起始信号
+
+I2C_Timeout=I2CT_FLAG_Timeout;
+while(!(I2C_CheckEvent(I2C1,I2C_EVENT_MASTER_MODE_SELECT)))//（检查事件EV5，主机模式选择）
+{
+	if((I2C_Timeout--)==0)return I2C_TIMEOUT_UserCallPack(7);
+}
+
+I2C_Send7bitAddress(I2C1,0xA0,I2C_Direction_Transmitter);//发送地址，方向发送
+
+I2C_Timeout=I2CT_FLAG_Timeout;
+while(!(I2C_CheckEvent(I2C1,I2C_EVENT_MASTER_TRANSMITTER_MODE_SELECTED)))//（检测事件EV6，主机发送模式已选择）
+{
+	if((I2C_Timeout--)==0)return I2C_TIMEOUT_UserCallPack(8);
+}
+
+I2C_SendData(I2C1,ReadAddr);//发送读取地址
+
+I2C_Timeout=I2CT_FLAG_Timeout;
+while(!(I2C_CheckEvent(I2C1,I2C_EVENT_MASTER_BYTE_TRANSMITTED)))//（检测事件EV8，主机数据已发送）
+{
+	if((I2C_Timeout--)==0)return I2C_TIMEOUT_UserCallPack(9);
+}
+
+I2C_GenerateSTART(I2C1,ENABLE);//再次发送起始信号
+
+I2C_Timeout=I2CT_FLAG_Timeout;
+while(!(I2C_CheckEvent(I2C1,I2C_EVENT_MASTER_MODE_SELECT)))//（检测事件EV5，主机模式选择）
+{
+	if((I2C_Timeout--)==0)return I2C_TIMEOUT_UserCallPack(9);
+}
+
+I2C_Send7bitAddress(I2C1,0xA0,I2C_Direction_Receiver);//发送地址，方向读取
+
+I2C_Timeout=I2CT_FLAG_Timeout;
+while(!(I2C_CheckEvent(I2C1,I2C_EVENT_MASTER_RECEIVER_MODE_SELECTED)))//（检测事件EV6，主机读取模式已选择）
+{
+	if((I2C_Timeout--)==0)return I2C_TIMEOUT_UserCallPack(10);
+}
+
+for(i=0;i&lt;NumToRead;i++)
+{
+	if(i==NumToRead-1)
+	{
+		I2C_AcknowledgeConfig(I2C1,DISABLE);//不回应Ack
+		
+		I2C_GenerateSTOP(I2C1,ENABLE);//发送停止信号
+	}
+		while(!(I2C_CheckEvent(I2C1,I2C_EVENT_MASTER_BYTE_RECEIVED)))//（检测事件EV7，主机数据已读取）
+	{
+		if((I2C_Timeout--)==0)return I2C_TIMEOUT_UserCallPack(11);
+	}
+	
+	pBuffer[i] = I2C_ReceiveData(I2C1);
+	
+	I2C_Timeout=I2CT_FLAG_Timeout;
+}
+I2C_AcknowledgeConfig(I2C1,ENABLE);//重新使能回应Ack
+}
+</code></pre> 
+<p>3.等待写入</p> 
+<p>void wait_busy(void)<br> {<!-- --><br> u16 SR1_Tmp;<br> do<br> {<!-- --><br> I2C_GenerateSTART(I2C1,ENABLE);//发送起始信号<br> SR1_Tmp=I2C_ReadRegister(I2C1,I2C_Register_SR1);//读取sR1寄存器值<br> I2C_Send7bitAddress(I2C1,0xA0,I2C_Direction_Transmitter);//发送地址信号，方向发送<br> }<br> while(!(I2C_ReadRegister(I2C1,I2C_Register_SR1)&amp;0x0002));//判断字节是否发送结束<br> I2C_ClearFlag(I2C1,I2C_FLAG_AF);//清除应答失败标志位<br> I2C_GenerateSTOP(I2C1,ENABLE);//发送停止信号清除字节发送结束标志位<br> }</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/e25cf5aee3ee2b6c0b9499770c1e9ac1/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">请问如何在Origin点线图误差棒上添加显著性标记,如下图</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/c598da7d690d9f09a66cad8a87c67706/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">深入理解Batch Normalization原理与作用</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

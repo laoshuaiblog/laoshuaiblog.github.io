@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>CAS总结之Ticket篇(转,非常详细，后文还提到一个ppt，非常易懂) - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/afd32152bb3549da90173797040edee3/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="CAS总结之Ticket篇(转,非常详细，后文还提到一个ppt，非常易懂)">
+  <meta property="og:description" content="CAS的核心就是其Ticket，及其在Ticket之上的一系列处理操作。CAS的主要票据有TGT、ST、PGT、PGTIOU、PT，其中TGT、ST是CAS1.0协议中就有的票据，PGT、PGTIOU、PT是CAS2.0协议中有的票据。 一 名词解释
+TGT（Ticket Grangting Ticket） TGT是CAS为用户签发的登录票据，拥有了TGT，用户就可以证明自己在CAS成功登录过。TGT封装了Cookie值以及此Cookie值对应的用户信息。用户在CAS认证成功后，CAS生成cookie，写入浏览器，同时生成一个TGT对象，放入自己的缓存，TGT对象的ID就是cookie的值。当HTTP再次请求到来时，如果传过来的有CAS生成的cookie，则CAS以此cookie值为key查询缓存中有无TGT ，如果有的话，则说明用户之前登录过，如果没有，则用户需要重新登录。
+ST（Service Ticket） ST是CAS为用户签发的访问某一service的票据。用户访问service时，service发现用户没有ST，则要求用户去CAS获取ST。用户向CAS发出获取ST的请求，如果用户的请求中包含cookie，则CAS会以此cookie值为key查询缓存中有无TGT，如果存在TGT，则用此TGT签发一个ST，返回给用户。用户凭借ST去访问service，service拿ST去CAS验证，验证通过后，允许用户访问资源。
+PGT（Proxy Granting Ticket） Proxy Service的代理凭据。用户通过CAS成功登录某一Proxy Service后，CAS生成一个PGT对象，缓存在CAS本地，同时将PGT的值（一个UUID字符串）回传给Proxy Service，并保存在Proxy Service里。Proxy Service拿到PGT后，就可以为Target Service（back-end service）做代理，为其申请PT。
+PGTIOU（Proxy Granting Ticket IOU） PGTIOU是CAS协议中定义的一种附加票据，它增强了传输、获取PGT的安全性。
+PGT的传输与获取的过程：Proxy Service调用CAS的serviceValidate接口验证ST成功后，CAS首先会访问pgtUrl指向的https url，将生成的 PGT及PGTIOU传输给proxy service，proxy service会以PGTIOU为key，PGT为value，将其存储在Map中；然后CAS会生成验证ST成功的xml消息，返回给Proxy Service，xml消息中含有PGTIOU，proxy service收到Xml消息后，会从中解析出PGTIOU的值，然后以其为key，在map中找出PGT的值，赋值给代表用户信息的Assertion对象的pgtId，同时在map中将其删除。
+PT（Proxy Ticket） PT是用户访问Target Service（back-end service）的票据。如果用户访问的是一个Web应用，则Web应用会要求浏览器提供ST，浏览器就会用cookie去CAS获取一个ST，然后就可以访问这个Web应用了。如果用户访问的不是一个Web应用，而是一个C/S结构的应用，因为C/S结构的应用得不到cookie，所以用户不能自己去CAS获取ST，而是通过访问proxy service的接口，凭借proxy service的PGT去获取一个PT，然后才能访问到此应用。
+二 代码解析
+CAS Ticket类图
+TicketGrantingTicket 的 grantServiceTicket方法 方法声明：public synchronized ServiceTicket grantServiceTicket(final String id,final Service service, final ExpirationPolicy expirationPolicy, final boolean credentialsProvided)
+方法描述:
+1：生成SerivceTicketImpl
+2：更新属性：
+this.previousLastTimeUsed = this.lastTimeUsed;">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2015-07-18T18:53:44+08:00">
+    <meta property="article:modified_time" content="2015-07-18T18:53:44+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">CAS总结之Ticket篇(转,非常详细，后文还提到一个ppt，非常易懂)</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <span style="font-size:24px"><span style="color:#434a54"><span style="color:#000"><span style="font-family:微软雅黑"></span></span></span></span> 
+<div>
+  CAS的核心就是其Ticket，及其在Ticket之上的一系列处理操作。CAS的主要票据有TGT、ST、PGT、PGTIOU、PT，其中TGT、ST是CAS1.0协议中就有的票据，PGT、PGTIOU、PT是CAS2.0协议中有的票据。 
+</div> 
+<div id="blog_content"> 
+ <p> </p> 
+ <p>一 名词解释</p> 
+ <ul><li>TGT（Ticket Grangting Ticket）</li></ul> 
+ <p>TGT是CAS为用户签发的登录票据，拥有了TGT，用户就可以证明自己在CAS成功登录过。TGT封装了Cookie值以及此Cookie值对应的用户信息。用户在CAS认证成功后，CAS生成cookie，写入浏览器，同时生成一个TGT对象，放入自己的缓存，TGT对象的ID就是cookie的值。当HTTP再次请求到来时，如果传过来的有CAS生成的cookie，则CAS以此cookie值为key查询缓存中有无TGT ，如果有的话，则说明用户之前登录过，如果没有，则用户需要重新登录。</p> 
+ <p> </p> 
+ <ul><li>ST（Service Ticket）</li></ul> 
+ <p>ST是CAS为用户签发的访问某一service的票据。用户访问service时，service发现用户没有ST，则要求用户去CAS获取ST。用户向CAS发出获取ST的请求，如果用户的请求中包含cookie，则CAS会以此cookie值为key查询缓存中有无TGT，如果存在TGT，则用此TGT签发一个ST，返回给用户。用户凭借ST去访问service，service拿ST去CAS验证，验证通过后，允许用户访问资源。</p> 
+ <p> </p> 
+ <ul><li>PGT（Proxy Granting Ticket）</li></ul> 
+ <p>Proxy Service的代理凭据。用户通过CAS成功登录某一Proxy Service后，CAS生成一个PGT对象，缓存在CAS本地，同时将PGT的值（一个UUID字符串）回传给Proxy Service，并保存在Proxy Service里。Proxy Service拿到PGT后，就可以为Target Service（back-end service）做代理，为其申请PT。</p> 
+ <p> </p> 
+ <ul><li>PGTIOU（Proxy Granting Ticket IOU）</li></ul> 
+ <p>PGTIOU是CAS协议中定义的一种附加票据，它增强了传输、获取PGT的安全性。<br> PGT的传输与获取的过程：Proxy Service调用CAS的serviceValidate接口验证ST成功后，CAS首先会访问pgtUrl指向的https url，将生成的 PGT及PGTIOU传输给proxy service，proxy service会以PGTIOU为key，PGT为value，将其存储在Map中；然后CAS会生成验证ST成功的xml消息，返回给Proxy Service，xml消息中含有PGTIOU，proxy service收到Xml消息后，会从中解析出PGTIOU的值，然后以其为key，在map中找出PGT的值，赋值给代表用户信息的Assertion对象的pgtId，同时在map中将其删除。</p> 
+ <p> </p> 
+ <ul><li>PT（Proxy Ticket）</li></ul> 
+ <p>PT是用户访问Target Service（back-end service）的票据。如果用户访问的是一个Web应用，则Web应用会要求浏览器提供ST，浏览器就会用cookie去CAS获取一个ST，然后就可以访问这个Web应用了。如果用户访问的不是一个Web应用，而是一个C/S结构的应用，因为C/S结构的应用得不到cookie，所以用户不能自己去CAS获取ST，而是通过访问proxy service的接口，凭借proxy service的PGT去获取一个PT，然后才能访问到此应用。</p> 
+ <p> </p> 
+ <p>二 代码解析</p> 
+ <p><img src="https://images2.imgbox.com/24/09/5IpOcK1j_o.jpg" alt=""><br> <br>                                                     CAS Ticket类图</p> 
+ <ul><li>TicketGrantingTicket 的 grantServiceTicket方法</li></ul> 
+ <p>方法声明：public synchronized ServiceTicket grantServiceTicket(final String id,final Service service, final ExpirationPolicy expirationPolicy, final boolean credentialsProvided)<br> 方法描述:<br>  1：生成SerivceTicketImpl<br>  2：更新属性：<br> this.previousLastTimeUsed = this.lastTimeUsed;<br>    this.lastTimeUsed = System.currentTimeMillis();<br>    this.countOfUses++;<br>  3：给service对象的principal属性赋值<br>  4：将service对象放入map services</p> 
+ <p> </p> 
+ <ul><li>ServiceTicket 的 grantTicketGrantingTicket方法</li></ul> 
+ <p>方法声明：<br> public TicketGrantingTicket grantTicketGrantingTicket(final String id, final Authentication authentication,final ExpirationPolicy expirationPolicy)<br> 方法描述：在CAS3.3对CAS2.0协议的实现中，PGT是由ST签发的，调用的就是ServiceTicket的grantTicketGrantingTicket方法。方法返回的TicketGrantingTicket对象，表征的是一个PGT对象，其中的ticketGrantingTicket属性的值是签发ST的TGT对象。</p> 
+ <p> </p> 
+ <ul><li>TicketGrantingTicket 的 expire方法</li></ul> 
+ <p>方法声明：void expire()<br> 方法描述：<br> 在CAS的logout接口实现中，要调用TGT对象的expire方法，然后会在缓存中清除此TGT对象。<br> expire方法的内容：循环遍历 services 中的Service对象，调用其logoutOfService方法。具体Service实现类中的logoutOfService方法的实现，要通知具体的应用，客户要退出。<br> <br> <strong>TGT、ST、PGT、PT之间关系的总结</strong></p> 
+ <p> </p> 
+ <p>1：ST是TGT签发的。用户在CAS上认证成功后，CAS生成TGT，用TGT签发一个ST，ST的ticketGrantingTicket属性值是TGT对象，然后把ST的值redirect到客户应用。</p> 
+ <p> </p> 
+ <p>2：PGT是ST签发的。用户凭借ST去访问Proxy service，Proxy service去CAS验证ST（同时传递PgtUrl参数给CAS），如果ST验证成功，则CAS用ST签发一个PGT，PGT对象里的ticketGrantingTicket是签发ST的TGT对象。</p> 
+ <p> </p> 
+ <p>3：PT是PGT签发的。Proxy service代理back-end service去CAS获取PT的时候，CAS根据传来的pgt参数，获取到PGT对象，然后调用其grantServiceTicket方法，生成一个PT对象。</p> 
+ <p><br> <img src="https://images2.imgbox.com/99/d6/iA9hWrVx_o.jpg" alt=""><br>                                         TGT、ST、PGT、PT之间的关联关系</p> 
+ <p> </p> 
+ <p>注：如果本文中介绍的 Ticket 概念不详细，请参考本人的另一篇文章 CAS 总结之协议分析篇(<a target="_blank" href="http://zhenkm0507.iteye.com/blog/546822" rel="nofollow noopener noreferrer">http://zhenkm0507.iteye.com/blog/546822</a>)，里面的动画演示比较清楚地表达了 Client 、 Service 、 CAS 三者之间的交互。</p> 
+ <p><br> </p> 
+ <p></p> 
+ <p>CAS是怎么操作的呢?或则是KRB(Kerberos)怎么操作的呢?<br> 他并不是很复杂,他先是建立一个 专门认证用户的 服务(SERVER) 这个服务只做一件事,负责验证用户的ID和PASS 是否是正确,在正确的情况提供用户一个名为TGT的票据,<br> 相当你要去游乐场玩,首先你要在门口检查你的身份(即CHECK 你的ID和PASS),如果你通过验证,游乐场的门卫(AS)即提供给你一张门卡(TGT).<br> 这张卡片的用处就是告诉 游乐场的各个场所,你是通过正门进来,而不是后门偷爬进来的,并且也是获取进入场所一把钥匙.<br> 好的,现在你有张卡,但是这对你来不重要,因为你来游乐场不是为了拿这张卡的,好的,我们向你的目的出发, 恩,你来到一个摩天楼,你想进入玩玩,<br> 这时摩天轮的服务员(client)拦下你,向你要求摩天轮的(ST)票据,你说你只有一个门卡(TGT),好的,那你只要把TGT放在一旁的票据授权机(TGS)上刷一下,<br> 票据授权机(TGS)就根据你现在所在的摩天轮,给你一张摩天轮的票据(ST),哈,你有摩天轮的票据, 现在你可以畅通无阻的进入摩天轮里游玩了.<br> 当然如果你玩完摩天轮后,想去游乐园的咖啡厅休息下,那你一样只要带着那张门卡(TGT).到相应的咖啡厅的票据授权机(TGS)刷一下,得到咖啡厅的票据(ST)就可以进入咖啡厅<br> 当你离开游乐场后,想用这张TGT去刷打的回家的费用,呵呵,对不起,你的TGT已经过期了,在你离开游乐场那刻开始,你的TGT就已经销毁了~ </p> 
+ <p> </p> 
+ <p>Service ticket(ST)  --------- 服务票据， 由KDC 的 TGS 发放。 任何一台Workstation 都需要拥有一张有效的 Service Ticket 才能访问域内部的应用(Applications)。 <br> Ticket Granting tieckt(TGT) --------- 票据授权票据，由 KDC 的 AS 发放。即获取这样一张票据后，以后申请各种其他服务票据(ST)便不必再向KDC 提交身份认证信息(准确术语是 Credentials)。 <br> authentication service (AS) --------- 认证用服务，索取 Crendential，发放 TGT <br> ticket-granting service (TGS) --------- 票据授权服务，索取 TGT，发放 ST</p> 
+ <br> 
+</div> 
+<a target="_blank" href="http://www.znds.com/bbs-109-1.html" rel="nofollow noopener noreferrer" class="relatedlink"></a>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/a9e86aba8d07e30ef8f00a9da2457c94/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">半同步/半异步并发模式进程池实现</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/656c8b4dbb098415b0d8c1e40db5a6ba/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">PHP中const和define()定义常量的细节区别</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

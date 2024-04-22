@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Java 反射机制 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/c5d766bbf7e712380692eb9d8cf872e0/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="Java 反射机制">
+  <meta property="og:description" content="目录
+一、反射机制概述
+二、理解并获取Class实例
+三、反射的用法
+1. 通过反射创建运行时类的对象
+2. 通过反射获取运行时类的属性结构
+3. 通过反射获取运行时类的方法结构
+4. 通过反射获取运行时类的构造器结构
+5. 通过反射获取运行时类的父类
+6. 通过反射获取运行时类的接口、所在包、注解
+7. 通过反射调用指定属性
+8. 通过反射调用指定方法
+9. 通过反射调用指定构造器
+四、应用场景
+五、总结
+一、反射机制概述 Reflection(反射)是被视为动态语言的关键，反射机制允许程序在执行期借助于Reflection API取得任何类的内部信息，并能直接操作任意对象的内部属性及方法。
+加载完类之后，在堆内存的方法区中就产生了一个Class类型的对象 (一个类只有一个Class对象)，这个对象就包含了完整的类的结构信息。我们可以通过这个对象看到类的结构。这个对象就像一面镜子，透过这个镜子看到类的结构，所以，我们形象的称之为：反射
+二、理解并获取Class实例 关于java.lang.Class类的理解
+1.类的加载过程:程序经过javac.exe命令以后，会生成一个或多个字节码文件(.class结尾)。接着我们使用java.exe命今对某个字节码文件进行解释运行。相当于将某个字节码文件加载到内存中。此过程就称为类的加载。加载到内存中的类，我们就称为运行时类，此运行时类，就作为Class的一个实例。
+2.换句话说，Class的实例就对应着一个运行时类。
+3.加载到内存中的运行时类，会缓存一定的时间。在此时间内，我们可以通过不同的方式来获取此运行时类
+获取Class实例的四种方式: //方式一: 调用运行时类的属性: .class Class clazz1 = Person.class; System.out.println(clazz1); //方式二: 通过运行时类的对象，调用getclass() Person p1 = new Person(); Class clazz2 = p1.getClass(); System.out.println(clazz2); //方式三: 调用CLass的静态方法: forName(String classPath) Class clazz3 = Class .forName(&#34;com.fd.java.Person&#34;); //clazz3 = Class.forName(&#34;java.lang.String&#34;); System.out.println(clazz3); //方式四: 使用类的加载器: CLassLoader ClassLoader classLoader = ReflectionTest.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2023-05-01T22:49:38+08:00">
+    <meta property="article:modified_time" content="2023-05-01T22:49:38+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">Java 反射机制</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <p id="main-toc"><strong>目录</strong></p> 
+<p id="%E4%B8%80%E3%80%81%E5%8F%8D%E5%B0%84%E6%9C%BA%E5%88%B6%E6%A6%82%E8%BF%B0-toc" style="margin-left:40px;"><a href="#%E4%B8%80%E3%80%81%E5%8F%8D%E5%B0%84%E6%9C%BA%E5%88%B6%E6%A6%82%E8%BF%B0" rel="nofollow">一、反射机制概述</a></p> 
+<p id="%E4%BA%8C%E3%80%81%E7%90%86%E8%A7%A3%E5%B9%B6%E8%8E%B7%E5%8F%96Class%E5%AE%9E%E4%BE%8B-toc" style="margin-left:40px;"><a href="#%E4%BA%8C%E3%80%81%E7%90%86%E8%A7%A3%E5%B9%B6%E8%8E%B7%E5%8F%96Class%E5%AE%9E%E4%BE%8B" rel="nofollow">二、理解并获取Class实例</a></p> 
+<p id="%E4%B8%89%E3%80%81%E5%8F%8D%E5%B0%84%E7%9A%84%E7%94%A8%E6%B3%95-toc" style="margin-left:40px;"><a href="#%E4%B8%89%E3%80%81%E5%8F%8D%E5%B0%84%E7%9A%84%E7%94%A8%E6%B3%95" rel="nofollow">三、反射的用法</a></p> 
+<p id="1.%C2%A0%E9%80%9A%E8%BF%87%E5%8F%8D%E5%B0%84%E5%88%9B%E5%BB%BA%E8%BF%90%E8%A1%8C%E6%97%B6%E7%B1%BB%E7%9A%84%E5%AF%B9%E8%B1%A1-toc" style="margin-left:80px;"><a href="#1.%C2%A0%E9%80%9A%E8%BF%87%E5%8F%8D%E5%B0%84%E5%88%9B%E5%BB%BA%E8%BF%90%E8%A1%8C%E6%97%B6%E7%B1%BB%E7%9A%84%E5%AF%B9%E8%B1%A1" rel="nofollow">1. 通过反射创建运行时类的对象</a></p> 
+<p id="2.%C2%A0%E9%80%9A%E8%BF%87%E5%8F%8D%E5%B0%84%E8%8E%B7%E5%8F%96%E8%BF%90%E8%A1%8C%E6%97%B6%E7%B1%BB%E7%9A%84%E5%B1%9E%E6%80%A7%E7%BB%93%E6%9E%84-toc" style="margin-left:80px;"><a href="#2.%C2%A0%E9%80%9A%E8%BF%87%E5%8F%8D%E5%B0%84%E8%8E%B7%E5%8F%96%E8%BF%90%E8%A1%8C%E6%97%B6%E7%B1%BB%E7%9A%84%E5%B1%9E%E6%80%A7%E7%BB%93%E6%9E%84" rel="nofollow">2. 通过反射获取运行时类的属性结构</a></p> 
+<p id="3.%20%E9%80%9A%E8%BF%87%E5%8F%8D%E5%B0%84%E8%8E%B7%E5%8F%96%E8%BF%90%E8%A1%8C%E6%97%B6%E7%B1%BB%E7%9A%84%E6%96%B9%E6%B3%95%E7%BB%93%E6%9E%84-toc" style="margin-left:80px;"><a href="#3.%20%E9%80%9A%E8%BF%87%E5%8F%8D%E5%B0%84%E8%8E%B7%E5%8F%96%E8%BF%90%E8%A1%8C%E6%97%B6%E7%B1%BB%E7%9A%84%E6%96%B9%E6%B3%95%E7%BB%93%E6%9E%84" rel="nofollow">3. 通过反射获取运行时类的方法结构</a></p> 
+<p id="4.%C2%A0%E9%80%9A%E8%BF%87%E5%8F%8D%E5%B0%84%E8%8E%B7%E5%8F%96%E8%BF%90%E8%A1%8C%E6%97%B6%E7%B1%BB%E7%9A%84%E6%9E%84%E9%80%A0%E5%99%A8%E7%BB%93%E6%9E%84-toc" style="margin-left:80px;"><a href="#4.%C2%A0%E9%80%9A%E8%BF%87%E5%8F%8D%E5%B0%84%E8%8E%B7%E5%8F%96%E8%BF%90%E8%A1%8C%E6%97%B6%E7%B1%BB%E7%9A%84%E6%9E%84%E9%80%A0%E5%99%A8%E7%BB%93%E6%9E%84" rel="nofollow">4. 通过反射获取运行时类的构造器结构</a></p> 
+<p id="5.%C2%A0%E9%80%9A%E8%BF%87%E5%8F%8D%E5%B0%84%E8%8E%B7%E5%8F%96%E8%BF%90%E8%A1%8C%E6%97%B6%E7%B1%BB%E7%9A%84%E7%88%B6%E7%B1%BB-toc" style="margin-left:80px;"><a href="#5.%C2%A0%E9%80%9A%E8%BF%87%E5%8F%8D%E5%B0%84%E8%8E%B7%E5%8F%96%E8%BF%90%E8%A1%8C%E6%97%B6%E7%B1%BB%E7%9A%84%E7%88%B6%E7%B1%BB" rel="nofollow">5. 通过反射获取运行时类的父类</a></p> 
+<p id="6.%C2%A0%E9%80%9A%E8%BF%87%E5%8F%8D%E5%B0%84%E8%8E%B7%E5%8F%96%E8%BF%90%E8%A1%8C%E6%97%B6%E7%B1%BB%E7%9A%84%E6%8E%A5%E5%8F%A3%E3%80%81%E6%89%80%E5%9C%A8%E5%8C%85%E3%80%81%E6%B3%A8%E8%A7%A3-toc" style="margin-left:80px;"><a href="#6.%C2%A0%E9%80%9A%E8%BF%87%E5%8F%8D%E5%B0%84%E8%8E%B7%E5%8F%96%E8%BF%90%E8%A1%8C%E6%97%B6%E7%B1%BB%E7%9A%84%E6%8E%A5%E5%8F%A3%E3%80%81%E6%89%80%E5%9C%A8%E5%8C%85%E3%80%81%E6%B3%A8%E8%A7%A3" rel="nofollow">6. 通过反射获取运行时类的接口、所在包、注解</a></p> 
+<p id="7.%C2%A0%E9%80%9A%E8%BF%87%E5%8F%8D%E5%B0%84%E8%B0%83%E7%94%A8%E6%8C%87%E5%AE%9A%E5%B1%9E%E6%80%A7-toc" style="margin-left:80px;"><a href="#7.%C2%A0%E9%80%9A%E8%BF%87%E5%8F%8D%E5%B0%84%E8%B0%83%E7%94%A8%E6%8C%87%E5%AE%9A%E5%B1%9E%E6%80%A7" rel="nofollow">7. 通过反射调用指定属性</a></p> 
+<p id="8.%C2%A0%E9%80%9A%E8%BF%87%E5%8F%8D%E5%B0%84%E8%B0%83%E7%94%A8%E6%8C%87%E5%AE%9A%E6%96%B9%E6%B3%95-toc" style="margin-left:80px;"><a href="#8.%C2%A0%E9%80%9A%E8%BF%87%E5%8F%8D%E5%B0%84%E8%B0%83%E7%94%A8%E6%8C%87%E5%AE%9A%E6%96%B9%E6%B3%95" rel="nofollow">8. 通过反射调用指定方法</a></p> 
+<p id="9.%C2%A0%E9%80%9A%E8%BF%87%E5%8F%8D%E5%B0%84%E8%B0%83%E7%94%A8%E6%8C%87%E5%AE%9A%E6%9E%84%E9%80%A0%E5%99%A8-toc" style="margin-left:80px;"><a href="#9.%C2%A0%E9%80%9A%E8%BF%87%E5%8F%8D%E5%B0%84%E8%B0%83%E7%94%A8%E6%8C%87%E5%AE%9A%E6%9E%84%E9%80%A0%E5%99%A8" rel="nofollow">9. 通过反射调用指定构造器</a></p> 
+<p id="%E5%9B%9B%E3%80%81%E5%BA%94%E7%94%A8%E5%9C%BA%E6%99%AF-toc" style="margin-left:40px;"><a href="#%E5%9B%9B%E3%80%81%E5%BA%94%E7%94%A8%E5%9C%BA%E6%99%AF" rel="nofollow">四、应用场景</a></p> 
+<p id="%E4%BA%94%E3%80%81%E6%80%BB%E7%BB%93-toc" style="margin-left:40px;"><a href="#%E4%BA%94%E3%80%81%E6%80%BB%E7%BB%93" rel="nofollow">五、总结</a></p> 
+<hr id="hr-toc"> 
+<h3>一、反射机制概述</h3> 
+<p id="4.%C2%A0%E9%80%9A%E8%BF%87%E5%8F%8D%E5%B0%84%E8%8E%B7%E5%8F%96%E8%BF%90%E8%A1%8C%E6%97%B6%E7%B1%BB%E7%9A%84%E6%9E%84%E9%80%A0%E5%99%A8%E7%BB%93%E6%9E%84-toc" style="margin-left:80px;"></p> 
+<p>Reflection(反射)是被视为动态语言的关键，反射机制允许程序在执行期借助于Reflection API取得任何类的内部信息，并能直接操作任意对象的内部属性及方法。<br> 加载完类之后，在堆内存的方法区中就产生了一个Class类型的对象 (一个类只有一个Class对象)，这个对象就包含了完整的类的结构信息。我们可以通过这个对象看到类的结构。这个对象就像一面镜子，透过这个镜子看到类的结构，所以，我们形象的称之为：反射</p> 
+<p><img alt="" height="104" src="https://images2.imgbox.com/c9/aa/fjrhh3ga_o.png" width="703"></p> 
+<p> <img alt="" height="256" src="https://images2.imgbox.com/d9/7d/WGKiC3bo_o.png" width="577"></p> 
+<p> <img alt="" height="329" src="https://images2.imgbox.com/f2/83/VErQZNZD_o.png" width="643"></p> 
+<h3 id="%E4%BA%8C%E3%80%81%E7%90%86%E8%A7%A3%E5%B9%B6%E8%8E%B7%E5%8F%96Class%E5%AE%9E%E4%BE%8B">二、理解并获取Class实例</h3> 
+<p>关于java.lang.Class类的理解</p> 
+<p>1.类的加载过程:程序经过javac.exe命令以后，会生成一个或多个字节码文件(.class结尾)。接着我们使用java.exe命今对某个字节码文件进行解释运行。相当于将某个字节码文件加载到内存中。此过程就称为类的加载。加载到内存中的类，我们就称为运行时类，此运行时类，就作为Class的一个实例。</p> 
+<p>2.换句话说，Class的实例就对应着一个运行时类。</p> 
+<p>3.加载到内存中的运行时类，会缓存一定的时间。在此时间内，我们可以通过不同的方式来获取此运行时类</p> 
+<pre><code class="language-java">获取Class实例的四种方式:
+//方式一: 调用运行时类的属性: .class
+Class clazz1 = Person.class;
+System.out.println(clazz1);
+//方式二: 通过运行时类的对象，调用getclass()
+Person p1 = new Person();
+Class clazz2 = p1.getClass();
+System.out.println(clazz2);
+//方式三: 调用CLass的静态方法: forName(String classPath)
+Class clazz3 = Class .forName("com.fd.java.Person");
+//clazz3 = Class.forName("java.lang.String");
+System.out.println(clazz3);
+//方式四: 使用类的加载器: CLassLoader
+ClassLoader classLoader = ReflectionTest.class.getClassLoader();
+Class clazz4 = classLoader.loadClass("com.fd.java.Person");
+System.out.println(clazz4);
+
+System.out.println(clazz1 == clazz2); //true
+System.out.println(clazz1 == clazz3); //true
+System.out.println(clazz1 == clazz4); //true</code></pre> 
+<h3 id="%E4%B8%89%E3%80%81%E5%8F%8D%E5%B0%84%E7%9A%84%E7%94%A8%E6%B3%95">三、反射的用法</h3> 
+<h4 id="1.%C2%A0%E9%80%9A%E8%BF%87%E5%8F%8D%E5%B0%84%E5%88%9B%E5%BB%BA%E8%BF%90%E8%A1%8C%E6%97%B6%E7%B1%BB%E7%9A%84%E5%AF%B9%E8%B1%A1">1. 通过反射创建运行时类的对象</h4> 
+<pre><code class="language-java">public void test() throws IllegalAccessException,InstantiationException {
+    Class&lt;Person&gt; clazz = Person.class;
+    /*
+    newInstance():调用此方法，创建对应的运行时类的对象。内部调用了运行时类的空参的构造器
+    要想此方法正常的创建运行时类的对象，要求:
+    1.运行时类必须提供空参的构造器
+    2.空参的构造器的访问权限得够。通常，设置为public。
+    
+    在javabean 中要求提供一个public的空参构道器。原因:
+    1.便于通过反射，创建运行时类的对象
+    2.便于子类继承此运行时类时，默认调用super()时，保证父类有此构造器
+    */
+    Person obj = clazz.newInstance();
+    System.out.println(obj);
+}</code></pre> 
+<h4 id="2.%C2%A0%E9%80%9A%E8%BF%87%E5%8F%8D%E5%B0%84%E8%8E%B7%E5%8F%96%E8%BF%90%E8%A1%8C%E6%97%B6%E7%B1%BB%E7%9A%84%E5%B1%9E%E6%80%A7%E7%BB%93%E6%9E%84">2. 通过反射获取运行时类的属性结构</h4> 
+<pre><code class="language-java">@Test
+public void test1(){
+    Class clazz = Person.class;
+    //获取属性结构
+    //getFields(): 获取当前运行时类及其父类中声明为public 访问权限的属性
+    Field[] fields = clazz.getFields();
+    for(Field f : fields){
+        System.out.printIn(f);
+    }
+    
+    //getDecLaredFieLds(): 获取当前运行时类中声明的所有属性(不包含父类中声明的属性)
+    Field[] declaredFields = clazz.getDeclaredFields();
+    for(Field f : declaredFields){
+        System.out.println(f);            
+    }
+}
+
+@Test
+public void test2() {
+    //权限修饰符 数据类型 变量名
+    Class clazz = Person.class;
+    Field[] declaredFields = clazz.getDeclaredFields();
+    for(Field f : declaredFields){
+        //1.权限修饰符
+        int modifier = f.getModifiers();
+        System.out.print(Modifier.tostring(modifier) + "\t");
+        //2.数据类型
+        Class type = f.getType();
+        System.out.print(type.getName() + "\t"];
+        //3.变量名
+        String fName = f.getName();
+        System.out.print(fName);
+        System.out.println();
+         /*
+         * 得到字段值 通过get属性获得
+         * */
+        PropertyDescriptor pd = new PropertyDescriptor(f.getName(), clazz);
+        Method getMethod = pd.getReadMethod();
+        Object invoke = getMethod.invoke(person);
+        System.out.println(invoke);
+        
+         // 设置值
+         Method writeMethod = pd.getWriteMethod();
+         try {
+            if (!Modifier.isPublic(readMethod.getDeclaringClass().getModifiers())) {
+                readMethod.setAccessible(true);
+            }
+            Object value = readMethod.invoke(source);
+            if (!Modifier.isPublic(writeMethod.getDeclaringClass().getModifiers())) {
+                readMethod.setAccessible(true);
+            }
+            writeMethod.invoke(target, value);
+        } catch (IllegalAccessException | InvocationTargetException e) {
+            throw new RuntimeException(e);
+        }
+    }
+}</code></pre> 
+<h4 id="3.%20%E9%80%9A%E8%BF%87%E5%8F%8D%E5%B0%84%E8%8E%B7%E5%8F%96%E8%BF%90%E8%A1%8C%E6%97%B6%E7%B1%BB%E7%9A%84%E6%96%B9%E6%B3%95%E7%BB%93%E6%9E%84">3. 通过反射获取运行时类的方法结构</h4> 
+<pre><code class="language-java">@Test
+public void test1() {
+    Class clazz = Person.class;
+    //getMethods(): 获当前运行时类及其所有父类中明为public权限的方法
+    Method[] methods = clazz.getMethods();
+    for(Method m : methods) {
+         System.out.println(m);   
+    }
+    System.out.println();
+    //getDeclaredMethods(): 获取当前运行时类中声明的所有方法。(不包含父类中声明的方法）
+    Method[] declaredMethods = clazz.getDeclaredMethods();
+    for(Method m : declaredMethods) {
+        System.out.println(m);
+    }
+}
+
+/*方法具体结构
+@Xxxx
+权限修饰符，返回值类型 方法名(参数类型1 形参名1，..）thows XxxException{}
+*/
+@Test
+public void test2() {
+    Class clazz = Person.class;
+    Method[] declaredMethods = clazz.getDeclaredMethods();
+    for(Method m : declaredMethods) {
+        //1.获取方法声明的注解
+        Annotation[] annos = m.getAnnotations();
+        for(Annotation a : annos) {
+            System.out.println(a);
+        }
+        //2.权限修饰符
+        System.out.print(Modifier.toString(m.getModifiers()) + "t");
+        //3.返回值类型
+        System.out.print(m.getReturnType().getName() + " t");
+        //4.方法名
+        System.out.print(m.getName());
+        System.out.print("(");
+        //5.形参列表
+        Class[] parameterTypes = m.getParameterTypes();
+        if(!(parameterTypes == null &amp;&amp; parameterTypes.length == 0)) {
+             for(int i = 0;i &lt; parameterTypes.length;i++) {
+                 if(i == parameterTypes.length - 1) {
+                     System.out.print(parameterTypes[i].getName() + " args_" + i);
+                     break;                                      
+                 }
+                 System.out.print(parameterTypes[i].getName() + " args_" + i + ",");                                 
+             }
+        }
+        System.out.print(")");
+        
+        //6.抛出的异常
+        Class[] exceptionTypes = m.getExceptionTypes();
+        if(exceptionTypes.length &gt; 0) {
+            System.outprint("throws ");
+            for(int i = 0;i &lt; exceptionTypes.length;i++) {
+                if(i == exceptionTypes.length - 1) {
+                    System.out.print(exceptionTypes[i].getName());
+                    break;                            
+                }
+                System.out.print(exceptionTypes[i].getName() + ",");                    
+            }
+        }
+    }
+}</code></pre> 
+<h4 id="4.%C2%A0%E9%80%9A%E8%BF%87%E5%8F%8D%E5%B0%84%E8%8E%B7%E5%8F%96%E8%BF%90%E8%A1%8C%E6%97%B6%E7%B1%BB%E7%9A%84%E6%9E%84%E9%80%A0%E5%99%A8%E7%BB%93%E6%9E%84">4. 通过反射获取运行时类的构造器结构</h4> 
+<pre><code class="language-java">//获取运行时类的构造器
+@Test
+public void test1() {
+    Class clazz = Person.class;
+    //getConstructors(): 获取当前运行时类中声明为public的构造器
+    Constructor[] constructors = clazz.getConstructors();
+    for(Constructor c : constructors){
+        System.out.println(c);
+    }
+    System.out.println();
+    //getDeclaredConstructors(): 获当前运行时类中声明的所有的构造器
+    Constructor[] declaredConstructors = clazz.getDeclaredConstructors();
+    for(Constructor c : declaredConstructors){
+        System.out.println(c);
+    }
+}</code></pre> 
+<h4 id="5.%C2%A0%E9%80%9A%E8%BF%87%E5%8F%8D%E5%B0%84%E8%8E%B7%E5%8F%96%E8%BF%90%E8%A1%8C%E6%97%B6%E7%B1%BB%E7%9A%84%E7%88%B6%E7%B1%BB">5. 通过反射获取运行时类的父类</h4> 
+<pre><code class="language-java">@Test
+public void test2() {
+    Class clazz = Person.class;
+    Class superclass = clazz.getSuperclass();
+    System.out.println(superclass);
+}
+//获取运行时类的带泛型的父类
+@Test
+public void test3() {
+    Class clazz = Person.class;
+    Type genericSuperclass = clazz.getGenericSuperclass();
+    System.out.println(genericSuperclass);
+}
+
+//获取运行时类的带泛型的父类的泛型
+@Test
+public void test4() {
+    Class clazz = Person.class;
+    Type genericSuperclass = clazz.getGenericSuperclass();
+    ParameterizedType paramType = (ParameterizedType) genericSuperclass;
+    //获取泛型类型
+    Type[] actualTypeArguments = paramType.getActualTypeArguments();
+    System.out.println(actualTypeArguments[0].getTypeName());
+}</code></pre> 
+<h4 id="6.%C2%A0%E9%80%9A%E8%BF%87%E5%8F%8D%E5%B0%84%E8%8E%B7%E5%8F%96%E8%BF%90%E8%A1%8C%E6%97%B6%E7%B1%BB%E7%9A%84%E6%8E%A5%E5%8F%A3%E3%80%81%E6%89%80%E5%9C%A8%E5%8C%85%E3%80%81%E6%B3%A8%E8%A7%A3">6. 通过反射获取运行时类的接口、所在包、注解</h4> 
+<pre><code class="language-java">@Test
+public void test5() {
+    Class clazz = Person.class;
+    Class[] interfaces = clazz.getInterfaces();
+    for(Class c : interfaces) {
+        System.out.println(c);
+    }
+    System.out.println();
+    //获取运行时类的父类实现的接口
+    Class[] interfaces1 = clazz.getSuperclass().getInterfaces();
+    for(Class c : interfaces1) {
+        System.out.println(c);    
+    }
+    // 获取运行时类的包
+    Package pack = clazz.getPackage();
+    System.out.println(pack);
+    
+    //获取运行时类声明的注解
+    Annotation[] annotations = clazz.getAnnotations();
+    for(Annotation annos : annotations) {
+          System.out.println(annos);  
+    }
+}</code></pre> 
+<h4 id="7.%C2%A0%E9%80%9A%E8%BF%87%E5%8F%8D%E5%B0%84%E8%B0%83%E7%94%A8%E6%8C%87%E5%AE%9A%E5%B1%9E%E6%80%A7">7. 通过反射调用指定属性</h4> 
+<pre><code class="language-java">Class clazz = Person.class;
+//创建运行时类的对象
+Person p = (Person) clazz.newInstance();
+//获取指定的属性：要求属性声明为public，通常不采用此方法
+Field id = clazz.getField("id");
+/*
+设置当前属性的值
+set(): 参数1: 指明设置哪个对象的属性参数 2: 将此属性值设置为多少
+*/
+id.set(p, 1001);
+
+/*获取当前属性的值
+get(): 参数1: 获取哪个对象的当前属性值
+*/
+int pId = (int) id.get(p);
+System.out.println(pId);
+
+/*****************方式二（常用）************************/
+Class cLazz = Person.class;
+//创建运行时类的对象
+Person p = (Person) clazz.newInstance();
+//1.getDeclaredField(String fieldName):获运行时类中指定变量名的属性
+Field name = clazz.getDeclaredField("name");
+
+//2.保证当前属性是可访问的
+name.setAccessible(true);
+
+//3.获取、设置指定对象的此属性值
+name.set(p, "Tom");
+System.out.println(name.get(p));</code></pre> 
+<h4 id="8.%C2%A0%E9%80%9A%E8%BF%87%E5%8F%8D%E5%B0%84%E8%B0%83%E7%94%A8%E6%8C%87%E5%AE%9A%E6%96%B9%E6%B3%95">8. 通过反射调用指定方法</h4> 
+<pre><code class="language-java">//如何操作运行时类中的指定的方法 -- 需要掌握
+@Test
+public void testMethod() throws Exception {
+    Class clazz = Person.class;
+    //创建运行时类的对象
+    Person p = (Person)clazz.newInstance();
+    /*
+    1.获取指定的某个方法
+    getDeclaredMethod(): 参数1 : 指明获取的方法的名称 参数2: 指明获取的方法的形参列表
+    */
+    Method show = clazz.getDeclaredMethod("show", String.class);
+    
+    //2.保证当前方法是可访问的
+    show.setAccessible(true);
+    
+    /*
+    2. 调用方法的invoke():参数1: 方法的调用者 参数2: 给方法形参赋值的实参
+    invoke()的返回值即为对应类中调用的方法的返回值。
+    */
+    Object returnValue = show.invoke(p, "CHN"); //String nation = p.show("CHN")
+    System.out.println(returnValue);
+    
+    // 如何调用静态方法
+    // private static void showDesc()
+    Method showDesc = clazz.getDeclaredMethod("showDesc");
+    showDesc.setAccessible(true);
+    //如果调用的运行时类中的方法没有返回值，则此invoke()返回null
+    //Object returnVal = showDesc.invoke(null);
+    Object returnVal = showDesc.invoke(Person.class);
+    System.out.println(returnVal);//null
+}</code></pre> 
+<h4 id="9.%C2%A0%E9%80%9A%E8%BF%87%E5%8F%8D%E5%B0%84%E8%B0%83%E7%94%A8%E6%8C%87%E5%AE%9A%E6%9E%84%E9%80%A0%E5%99%A8">9. 通过反射调用指定构造器</h4> 
+<pre><code class="language-java">@Test
+public void testConstructor() throws Exception {
+    Class clazz = Person.class;
+    //private Person(String name)
+    /*
+    1.获取指定的构造器
+    getDecLaredConstructor(): 参数:指明构造器的参数列表
+    */
+    Constructor constructor = clazz.getDeclaredConstructor(String.class);
+    //2.保证此构造器是可访问的
+    constructor.setAccessible(true);
+    //3.调用此构造器创建运行时类的对象
+    Person per = (Person) constructor.newinstance("Tom");
+}</code></pre> 
+<h3 id="%E5%9B%9B%E3%80%81%E5%BA%94%E7%94%A8%E5%9C%BA%E6%99%AF">四、应用场景</h3> 
+<p>反射机制可以用于很多实际应用场景中，例如：</p> 
+<p>1.框架开发</p> 
+<p>Java反射机制在框架开发中扮演了重要角色。许多框架都使用反射机制来实现插件化和动态配置等功能。例如，Spring框架就广泛使用反射机制来动态装配Bean和调用方法。</p> 
+<p>2.单元测试</p> 
+<p>Java反射机制在单元测试中也是非常有用的。测试框架可以使用反射机制来检查和调用测试类的方法，以及访问私有变量和方法等。</p> 
+<p>3.序列化和反序列化</p> 
+<p>Java反射机制还可以用于对象的序列化和反序列化。序列化就是将一个对象转换成字节序列的过程，而反序列化就是将字节序列转换回对象的过程。Java反射机制可以通过对类的属性进行访问，将对象的状态保存到一个字节序列中，并在需要的时候将其还原为对象。</p> 
+<p>4.动态代理</p> 
+<p>Java反射机制可以实现动态代理。动态代理是一种设计模式，它允许在运行时创建一个代理对象，来替代真实对象执行某些操作。在Java中，可以使用反射机制来创建代理对象，从而实现动态代理的功能。</p> 
+<p>5.IOC容器</p> 
+<p>IOC（Inversion of Control）是一种设计模式，它的核心思想是将对象之间的依赖关系反转。在Java中，可以使用反射机制来实现IOC容器。通过反射机制，IOC容器可以在运行时动态地实例化和装配Bean，并自动处理Bean之间的依赖关系，从而实现对象之间的松耦合。</p> 
+<p>6.AOP编程</p> 
+<p>AOP（Aspect-Oriented Programming）是一种编程思想，它的核心思想是将业务逻辑和系统功能分离。在Java中，可以使用反射机制来实现AOP编程。通过反射机制，AOP框架可以在运行时动态地为对象添加额外的功能，从而实现业务逻辑和系统功能的分离。</p> 
+<h3 id="%E4%BA%94%E3%80%81%E6%80%BB%E7%BB%93">五、总结</h3> 
+<p>Java反射机制是一种非常强大和灵活的技术，它可以在运行时动态地检查和操作Java程序的内部结构，可以用于很多实际应用场景。但是，反射机制也有一些缺点，例如运行时性能较差、容易出错等。因此，在使用反射机制时需要注意它的性能和安全性，避免出现不必要的问题。</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/2d1f1a5905b1b8738259d032ca2ecf9d/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">PaddleDetection的学习笔记</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/fa3e88872fd3731741783c4357c90c2f/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">“use strict“是什么? 使用它有什么优缺点？</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

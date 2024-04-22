@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Clickhouse 的group_concat 实现 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/ab2ff3698492bfe4a4e686e617354c73/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="Clickhouse 的group_concat 实现">
+  <meta property="og:description" content="MySQL的group_concat 函数经常实用，功能蛮强大的。
+MySQL创建表： create table kpi(emp_no varchar(8),performance varchar(32),month varchar(32)); clickhouse 创建表： create table kpi(emp_no varchar(8),performance varchar(32),month varchar(32)) engine=Memory; 分别在MySQL和Clickhouse中插入数据： insert into kpi values (10,&#39;A&#39;,&#39;2020-01&#39;),(10,&#39;A&#39;,&#39;2020-02&#39;),(10,&#39;C&#39;,&#39;2020-03&#39;),(10,&#39;B&#39;,&#39;2020-04&#39;),(10,&#39;A&#39;,&#39;2020-05&#39;),(10,&#39;A&#39;,&#39;2020-06&#39;); insert into kpi values (20,&#39;A&#39;,&#39;2020-01&#39;),(20,&#39;B&#39;,&#39;2020-02&#39;),(20,&#39;C&#39;,&#39;2020-03&#39;),(20,&#39;C&#39;,&#39;2020-04&#39;),(20,&#39;A&#39;,&#39;2020-05&#39;),(20,&#39;D&#39;,&#39;2020-06&#39;); insert into kpi values (30,&#39;C&#39;,&#39;2020-03&#39;),(30,&#39;C&#39;,&#39;2020-04&#39;),(30,&#39;B&#39;,&#39;2020-05&#39;),(30,&#39;B&#39;,&#39;2020-06&#39;); 数据查询如下：
+MySQL的group_concat 功能展示：
+mysql&amp;gt; select emp_no,group_concat(performance order by month separator &#39;-&#39;) kpi_list,group_concat(distinct performance order by month separator &#39;-&#39;) kpi_uniq,group_concat(distinct performance order by month desc separator &#39;-&#39;) kpi_uniq_desc from kpi group by emp_no; &#43;--------&#43;-------------&#43;----------&#43;---------------&#43; | emp_no | kpi_list | kpi_uniq | kpi_uniq_desc | &#43;--------&#43;-------------&#43;----------&#43;---------------&#43; | 10 | A-A-C-B-A-A | A-C-B | B-C-A | | 20 | A-B-C-C-A-D | A-B-C-D | D-C-B-A | | 30 | C-C-B-B | C-B | B-C | &#43;--------&#43;-------------&#43;----------&#43;---------------&#43; 3 rows in set (0.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2020-08-01T14:44:47+08:00">
+    <meta property="article:modified_time" content="2020-08-01T14:44:47+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">Clickhouse 的group_concat 实现</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <p>MySQL的group_concat 函数经常实用，功能蛮强大的。</p> 
+<pre><code>MySQL创建表：
+
+create table kpi(emp_no varchar(8),performance varchar(32),month varchar(32));
+
+clickhouse 创建表：
+create table kpi(emp_no varchar(8),performance varchar(32),month varchar(32)) engine=Memory;
+
+
+分别在MySQL和Clickhouse中插入数据：
+insert into kpi values (10,'A','2020-01'),(10,'A','2020-02'),(10,'C','2020-03'),(10,'B','2020-04'),(10,'A','2020-05'),(10,'A','2020-06');
+insert into kpi values (20,'A','2020-01'),(20,'B','2020-02'),(20,'C','2020-03'),(20,'C','2020-04'),(20,'A','2020-05'),(20,'D','2020-06');
+insert into kpi values (30,'C','2020-03'),(30,'C','2020-04'),(30,'B','2020-05'),(30,'B','2020-06');
+
+</code></pre> 
+<p>数据查询如下：</p> 
+<p><img alt="" height="295" src="https://images2.imgbox.com/78/e9/lx1iko2h_o.png" width="334"></p> 
+<p>MySQL的group_concat 功能展示：</p> 
+<pre><code>mysql&gt; select emp_no,group_concat(performance order by month separator '-') kpi_list,group_concat(distinct performance order by month separator '-') kpi_uniq,group_concat(distinct performance order by month desc separator '-') kpi_uniq_desc from kpi group by emp_no;  
++--------+-------------+----------+---------------+
+| emp_no | kpi_list    | kpi_uniq | kpi_uniq_desc |
++--------+-------------+----------+---------------+
+| 10     | A-A-C-B-A-A | A-C-B    | B-C-A         |
+| 20     | A-B-C-C-A-D | A-B-C-D  | D-C-B-A       |
+| 30     | C-C-B-B     | C-B      | B-C           |
++--------+-------------+----------+---------------+
+3 rows in set (0.00 sec)
+
+kpi_list:按照月份依次显示每个月的绩效
+kpi_uniq:上半年获得的绩效 等级（绩效去重）
+kpi_uniq_desc ：去重后的绩效反向排序</code></pre> 
+<p> Clickhouse的Group_concat 实现：</p> 
+<pre><code>SELECT 
+    emp_no,
+    groupArray(performance) AS kpi_asc,
+    arrayStringConcat(kpi_asc, '-') AS kpi_list,
+    arrayReverse(kpi_asc) AS kpi_desc,
+    groupUniqArray(performance) AS kpis,
+    arraySort(kpis) AS kpi_uniq,
+    countEqual(kpi_asc, 'A') AS A_cnt,
+    countEqual(kpi_asc, 'B') AS B_cnt,
+    countEqual(kpi_asc, 'C') AS C_cnt,
+    countEqual(kpi_asc, 'D') AS D_cnt
+FROM kpi
+GROUP BY emp_no
+ORDER BY emp_no ASC
+
+┌─emp_no─┬─kpi_asc───────────────────┬─kpi_list────┬─kpi_desc──────────────────┬─kpis──────────────┬─kpi_uniq──────────┬─A_cnt─┬─B_cnt─┬─C_cnt─┬─D_cnt─┐
+│ 10     │ ['A','A','C','B','A','A'] │ A-A-C-B-A-A │ ['A','A','B','C','A','A'] │ ['B','A','C']     │ ['A','B','C']     │     4 │     1 │     1 │     0 │
+│ 20     │ ['A','B','C','C','A','D'] │ A-B-C-C-A-D │ ['D','A','C','C','B','A'] │ ['B','A','D','C'] │ ['A','B','C','D'] │     2 │     1 │     2 │     1 │
+│ 30     │ ['C','C','B','B']         │ C-C-B-B     │ ['B','B','C','C']         │ ['B','C']         │ ['B','C']         │     0 │     2 │     2 │     0 │
+└────────┴───────────────────────────┴─────────────┴───────────────────────────┴───────────────────┴───────────────────┴───────┴───────┴───────┴───────┘
+
+3 rows in set. Elapsed: 0.007 sec. </code></pre> 
+<p>结论:要等同于MySQL中的group_concat 功能需要使用到Clickhouse中的几个函数组合使用：</p> 
+<p>groupArray 行专列</p> 
+<p><code>groupUniqArray</code>  等同于mysql中的 group_concat(distinct ..）</p> 
+<p><code>arrayStringConcat</code>  等同于group_concat 子语句中的separator '-' 语句</p> 
+<p>countEqual 则统计数组中元素出现的次数，MySQL实现成功要麻烦点。</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/fecbef34b164cf0b5d3a06d621759e35/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">个人觉得好用的油猴脚本</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/4fcd040c8d12c982857efbdb492f1633/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">边沿检测--两种verilog代码写法</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

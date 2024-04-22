@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>python利用pandas.DataFrame批量写入clickhouse - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/6b87e7b4f4ecebabffbda46713e88c57/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="python利用pandas.DataFrame批量写入clickhouse">
+  <meta property="og:description" content="python 包引入 import json import logging import math import os import pandas as pd import datetime import requests from clickhouse_driver import Client from cmc.config import config #在类外定义全局变量,这样当前这个py文件都可以共享 process_date = datetime.datetime.now().strftime(&#34;%Y%m%d&#34;) class MyPyClassDemo: def __init__(self, api_key: str): self.api_key = api_key def tstFuctions(self): pass .... def getClickHouseClient(self): try: host_name = &#39;xxxx.xxx.com&#39; client = Client( host=host_name, database=&#39;your db name&#39;, user=&#39;root&#39;, password=&#39;123123&#39;, send_receive_timeout=20, settings={&#39;use_numpy&#39;: True} ) return client except Exception as e: print(&#34;Error: &#34;">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2022-08-30T14:41:07+08:00">
+    <meta property="article:modified_time" content="2022-08-30T14:41:07+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">python利用pandas.DataFrame批量写入clickhouse</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <p></p> 
+<p>python 包引入 </p> 
+<pre><code class="language-python">import json
+import logging
+import math
+import os
+import pandas as pd
+import datetime
+import requests
+from clickhouse_driver import Client
+from cmc.config import config
+
+#在类外定义全局变量,这样当前这个py文件都可以共享
+process_date = datetime.datetime.now().strftime("%Y%m%d")
+
+class MyPyClassDemo:
+
+    def __init__(self, api_key: str):
+        self.api_key = api_key
+
+    def tstFuctions(self):
+        pass
+        ....</code></pre> 
+<pre><code class="language-python">def getClickHouseClient(self):
+        try:
+            host_name = 'xxxx.xxx.com'
+            client = Client(
+                host=host_name,
+                database='your db name',
+                user='root',
+                password='123123',
+                send_receive_timeout=20,
+                settings={'use_numpy': True}
+            )
+            return client
+        except Exception as e:
+            print("Error: "+str(e))
+            return None</code></pre> 
+<p><strong><span style="color:#fe2c24;">注意</span></strong>这里一定要有 settings={'use_numpy': True} 这个设置，否则会报错:</p> 
+<p>TypeError: Unsupported column type: &lt;class 'numpy.ndarray'&gt;. list or tuple is expected.</p> 
+<pre><code class="language-python">    def process_json_files(self):
+        tmp_dir = 'out/cmc_data/'
+        files = os.listdir(tmp_dir)    #获取当前目录下的所有文件名称列表
+        print(files)
+
+        storage_client = self.getClickHouseClient()    #加载CH数据库连接
+        for file in files:
+            if not file.startswith('cmc_projects'):
+                continue
+            with open(tmp_dir + file, 'r') as f:    #根据相对路径读取json文件
+                json_string = f.read()              #获取json字符串
+                data_list = json.loads(json_string) #转成list类型
+                #df = pd.DataFrame.from_dict(json_normalize(data_list), orient='columns')  #按列读取(也包含json格式当中嵌套的列),用全部读取到的列来构造dFrame当中的类
+                df = pd.json_normalize(data_list)    # 新版本的推荐写法
+                #print(df.T)    # 打印读取到的列
+                insert_df = df[['id', 'name', 'symbol', 'slug', 'rank', 'is_active', 'first_historical_data', 'platform.id', 'platform.name', 'platform.symbol', 'platform.slug', 'platform.token_address']]     # 抽取指定的列,重组新的dframe
+                insert_df.insert(loc=12, column='update_time', value=process_date)  # 在新重组的dframe当中插入一列(数据写入的日期)
+                insert_df["platform.id"] = insert_df["platform.id"].apply(self.modify)        # 通过apply() 修改某一列的值
+                #insert_df = insert_df.loc[0:1]    # (调试)取第0行
+                #insert_df.iloc[:,0:12]            # (调试)取0-12列
+                insert_df.rename(columns={"platform.id": "platform_id", "platform.name": "platform_name", "platform.symbol": "platform_symbol", "platform.slug": "platform_slug", "platform.token_address": "token_address"}, inplace=True)    # 要求dframe当中的列字段必须与CH数据库当中的列字段一一对应，否则报keyError错
+                #print(insert_df)
+                #print(type(insert_df["platform_id"]))
+                storage_client.insert_dataframe('INSERT INTO tstdb.ods_infos (*) VALUES', insert_df)    # 用CH提供的client批量将的frame当中的数据一次刷入CH当中</code></pre> 
+<p><span style="color:#fe2c24;"><strong>注意</strong></span>: 这里一次批量刷入CH的条数，取决于json文件当中的数据条数，可在源文件或者data_list</p> 
+<p>的位置做数据量的控制操作</p> 
+<pre><code class="language-python">def modify(self, id):
+        if math.isnan(id) :   # python &lt;class 'float'&gt;判断是nan
+            return int(0)
+        else :
+            return int(id)
+        return id</code></pre> 
+<p>CH建表语句和说明 </p> 
+<pre><code class="language-java">CREATE TABLE tst_db.ods_infos (
+	id UInt32,
+	name String,
+	symbol String,
+	slug String,
+	rank UInt32,
+	is_active UInt32,
+	first_historical_data String,
+	platform_id UInt32,
+	platform_name String,
+	platform_symbol String,
+	platform_slug String,
+	token_address String,
+	update_time String
+)
+ENGINE = ReplacingMergeTree
+PARTITION BY update_time
+PRIMARY KEY id    -- 这里一定要设置主键，插入相同key值的数据才会覆盖跟新，否则记录会重复
+ORDER BY (
+	 id,
+	 name,
+	 symbol,
+	 platform_id,
+	 platform_name
+)
+SETTINGS index_granularity = 8192,
+storage_policy = 'policy_name_eth';</code></pre> 
+<p><br>  </p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/d4f23172373cc1aaf487a3c090615274/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">VScode Remote SSH连接失败</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/34dfff485fe6733546c6d763a67a3a2e/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">SQLserver 批量删除表（drop）</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>用Python解决女朋友看电影没字幕的需求 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/5abaa62f40070f1b07a70428c01f0a92/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="用Python解决女朋友看电影没字幕的需求">
+  <meta property="og:description" content="用Python解决女朋友看电影没字幕的需求 文章目录 用Python解决女朋友看电影没字幕的需求一、故事情节二、开发前的准备工作三、开发过程详细介绍（一）接口规范说明（二）项目开发1、界面部分的实现2、处理音视频功能开发3、发送数据翻译功能的开发 四、效果展示五、总结 一、故事情节 是这样子的，女朋友晚上突然翻到了自己喜欢看的一个电影，但是没有字幕，这让她很苦恼。
+我急中生智，紧急的解决了我女朋友的需求。
+想到了使用Python做一个可以识别语音，然后翻译出来文字的软件。
+如下图就是本片文章所要完成的效果，哈哈，是不是还不错，很棒的样子。
+如果有兴趣可以给我点个赞，之后带来更多好玩、有趣的demo和实现的教程。
+《甄嬛传》第一集的某一小段：
+其实，是这样子的：
+最近剧荒，偶然翻出了曾经下载的电视剧回味一番，经典就是经典，不论是剧情还是台词，都那么有魅力，咦？等等，台词，台词……作为一个IT从业者，我忽然灵光一现——现在语音识别技术这么发达，能否有什么办法能帮我保存下一些精彩桥段的台词呢？或许我也可以是个野生字幕君:p ,似乎也可以在此基础上顺手再翻译一下个别难懂的台词！
+略加思索，我大概有了个想法——做个视频中提取音频的程序，而后去请求一个开放的语音识别API来帮我把语音转为文字。鉴于之前调用有道智云的愉快经验，我决定再次拿来为我所用，很快做出了这个demo（请忽略这丑丑的界面布局，能用就行……）。
+欢迎关注我，一块来履行我之前的承诺，连更一个月之内，把几篇写完。
+序号预计完成时间开发dome名字以及功能&amp;amp;发布文章内容是否已写完文章链接19月3文本翻译，单文本翻译，批量翻译demo。已完成CSDN：点我直达 微信公众号：点我直达29月11OCR-demo，完成批量上传识别;在一个demo中可选择不同类型的OCR识别《包含手写体/印刷体/身份证/表格/整题/名片），然后调用平台能力，具体实现步骤等。已完成CSDN：点我直达
+微信公众号：310月27语音识别demo，demo中上传—段视频，并截取视频中短语音识别-demo的一段音频进行短语音识别CSDN：点我直达
+微信公众号：49月17智能语音评测-demoCSDN：
+微信公众号：59月24作文批改-demoCSDN：
+微信公众号：69月30语音合成-demoCSDN：
+微信公众号：710月15单题拍搜-demoCSDN：
+微信公众号：810月20图片翻译-demoCSDN：
+微信公众号： 二、开发前的准备工作 首先，是需要在有道智云的个人页面上创建实例、创建应用、绑定应用和实例，获取调用接口用到的应用的id和密钥。具体个人注册的过程和应用创建过程详见文章不到100行代码搞定Python做OCR识别身份证，文字等各种字体
+三、开发过程详细介绍 下面介绍具体的代码开发过程。
+（一）接口规范说明 首先分析有道智云的API输入输出规范。根据文档来看，调用接口格式如下：
+有道语音识别API HTTPS地址：
+https://openapi.youdao.com/asrapi 接口调用参数:
+字段名类型含义必填备注qtext要翻译的音频文件的Base64编码字符串True必须是Base64编码langTypetext源语言True支持语言appKeytext应用 IDTrue可在 应用管理 查看salttextUUIDTrueUUIDcurtimetext时间戳（秒）true秒数signtext签名，通过md5(应用ID&#43;q&#43;salt&#43;curTime&#43;密钥)生成True应用ID&#43;q&#43;salt&#43;curTime&#43;密钥的MD5值signTypetext签名版本Truev2formattext语音文件的格式，wavtruewavratetext采样率， 推荐 16000 采用率true16000channeltext声道数， 仅支持单声道，请填写固定值1true1typetext上传类型， 仅支持base64上传，请填写固定值1true1 其中q为base64编码的待识别音频文件，“上传的文件时长不能超过120s，文件大小不能超过10M”，这点需要注意一下。
+API的返回内容较为简单：
+字段含义errorCode识别结果错误码，一定存在。 详细信息参加 错误代码列表result识别结果，识别成功一定存在 （二）项目开发 这个项目使用python3开发，包括maindow.py，videoprocess.py，srbynetease.py三个文件。
+界面部分，使用python自带的tkinter库，提供视频文件选择、时间输入框和确认按钮；
+videoprocess.py:来实现在视频的指定时间区间提取音频和处理API返回信息的功能；
+srbynetease.py:将处理好的音频发送到短语音识别API并返回结果。
+1、界面部分的实现 界面部分代码如下，比较简单。
+root=tk.Tk() root.title(&#34;netease youdao sr test&#34;) frm = tk.Frame(root) frm.grid(padx=&#39;50&#39;, pady=&#39;50&#39;) btn_get_file = tk.Button(frm, text=&#39;选择待识别视频&#39;, command=get_file) btn_get_file.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2020-09-24T17:05:10+08:00">
+    <meta property="article:modified_time" content="2020-09-24T17:05:10+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">用Python解决女朋友看电影没字幕的需求</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-dark">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <h2><a id="Python_0"></a>用Python解决女朋友看电影没字幕的需求</h2> 
+<p></p> 
+<div class="toc"> 
+ <h4>文章目录</h4> 
+ <ul><li><a href="#Python_0" rel="nofollow">用Python解决女朋友看电影没字幕的需求</a></li><li><ul><li><a href="#_3" rel="nofollow">一、故事情节</a></li><li><a href="#_57" rel="nofollow">二、开发前的准备工作</a></li><li><a href="#_64" rel="nofollow">三、开发过程详细介绍</a></li><li><ul><li><a href="#_68" rel="nofollow">（一）接口规范说明</a></li><li><a href="#_103" rel="nofollow">（二）项目开发</a></li><li><ul><li><a href="#1_113" rel="nofollow">1、界面部分的实现</a></li><li><a href="#2_158" rel="nofollow">2、处理音视频功能开发</a></li><li><a href="#3_185" rel="nofollow">3、发送数据翻译功能的开发</a></li></ul> 
+   </li></ul> 
+   </li><li><a href="#_215" rel="nofollow">四、效果展示</a></li><li><a href="#_225" rel="nofollow">五、总结</a></li></ul> 
+ </li></ul> 
+</div> 
+<p></p> 
+<h3><a id="_3"></a>一、故事情节</h3> 
+<p>是这样子的，女朋友晚上突然翻到了自己喜欢看的一个电影，但是没有字幕，这让她很苦恼。</p> 
+<p>我急中生智，紧急的解决了我女朋友的需求。</p> 
+<p>想到了使用Python做一个可以识别语音，然后翻译出来文字的软件。</p> 
+<p><img src="https://images2.imgbox.com/be/a3/w3Tn5uln_o.jpg" alt="在这里插入图片描述"></p> 
+<p>如下图就是本片文章所要完成的效果，哈哈，是不是还不错，很棒的样子。</p> 
+<p>如果有兴趣可以给我点个赞，之后带来更多好玩、有趣的demo和实现的教程。</p> 
+<p>《甄嬛传》第一集的某一小段：</p> 
+<p><img src="https://images2.imgbox.com/df/61/7JxtiqRx_o.png" alt="在这里插入图片描述"></p> 
+<p><strong>其实，是这样子的：</strong></p> 
+<p>最近剧荒，偶然翻出了曾经下载的电视剧回味一番，经典就是经典，不论是剧情还是台词，都那么有魅力，咦？等等，台词，台词……作为一个IT从业者，我忽然灵光一现——现在语音识别技术这么发达，能否有什么办法能帮我保存下一些精彩桥段的台词呢？或许我也可以是个野生字幕君:p ,似乎也可以在此基础上顺手再翻译一下个别难懂的台词！</p> 
+<p>略加思索，我大概有了个想法——做个视频中提取音频的程序，而后去请求一个开放的语音识别API来帮我把语音转为文字。鉴于之前调用有道智云的愉快经验，我决定再次拿来为我所用，很快做出了这个<a href="https://github.com/LemonQH/SRFromVideo">demo</a>（请忽略这丑丑的界面布局，能用就行……）。</p> 
+<p><img src="https://images2.imgbox.com/df/62/zCpSXIkm_o.png" alt="在这里插入图片描述"></p> 
+<p>欢迎关注我，<code>一块来履行我之前的承诺</code>，<code>连更一个月之内</code>，把几篇写完。</p> 
+<table><thead><tr><th>序号</th><th>预计完成时间</th><th>开发dome名字以及功能&amp;发布文章内容</th><th>是否已写完</th><th>文章链接</th></tr></thead><tbody><tr><td>1</td><td>9月3</td><td>文本翻译，单文本翻译，批量翻译demo。</td><td>已完成</td><td>CSDN：<a href="https://blog.csdn.net/qq_17623363/article/details/108511541">点我直达</a> <br>微信公众号：<a href="https://mp.weixin.qq.com/s/6AMzkTtPKf4JcATHD-_yAg" rel="nofollow">点我直达</a></td></tr><tr><td>2</td><td>9月11</td><td>OCR-demo，完成批量上传识别;在一个demo中可选择不同类型的OCR识别《包含手写体/印刷体/身份证/表格/整题/名片），然后调用平台能力，具体实现步骤等。</td><td>已完成</td><td>CSDN：<a href="https://blog.csdn.net/qq_17623363/article/details/108588629">点我直达</a><br>微信公众号：</td></tr><tr><td>3</td><td>10月27</td><td>语音识别demo，demo中上传—段视频，并截取视频中短语音识别-demo的一段音频进行短语音识别</td><td></td><td>CSDN：<a href="https://truedei.blog.csdn.net/article/details/109153738" rel="nofollow">点我直达</a><br>微信公众号：</td></tr><tr><td>4</td><td>9月17</td><td>智能语音评测-demo</td><td></td><td>CSDN：<br>微信公众号：</td></tr><tr><td>5</td><td>9月24</td><td>作文批改-demo</td><td></td><td>CSDN：<br>微信公众号：</td></tr><tr><td>6</td><td>9月30</td><td>语音合成-demo</td><td></td><td>CSDN：<br>微信公众号：</td></tr><tr><td>7</td><td>10月15</td><td>单题拍搜-demo</td><td></td><td>CSDN：<br>微信公众号：</td></tr><tr><td>8</td><td>10月20</td><td>图片翻译-demo</td><td></td><td>CSDN：<br>微信公众号：</td></tr><tr><td></td><td></td><td></td><td></td><td></td></tr></tbody></table> 
+<h3><a id="_57"></a>二、开发前的准备工作</h3> 
+<p>首先，是需要在有道智云的个人页面上创建实例、创建应用、绑定应用和实例，获取调用接口用到的应用的id和密钥。具体个人注册的过程和应用创建过程详见文章<a href="https://blog.csdn.net/qq_17623363/article/details/108588629">不到100行代码搞定Python做OCR识别身份证，文字等各种字体</a></p> 
+<p><img src="https://images2.imgbox.com/be/91/2YIrUdzh_o.png" alt="在这里插入图片描述"></p> 
+<h3><a id="_64"></a>三、开发过程详细介绍</h3> 
+<p>下面介绍具体的代码开发过程。</p> 
+<h4><a id="_68"></a>（一）接口规范说明</h4> 
+<p>首先分析有道智云的API输入输出规范。根据<a href="https://ai.youdao.com/DOCSIRMA/html/%E8%AF%AD%E9%9F%B3%E8%AF%86%E5%88%ABASR/API%E6%96%87%E6%A1%A3/%E7%9F%AD%E8%AF%AD%E9%9F%B3%E8%AF%86%E5%88%AB%E6%9C%8D%E5%8A%A1/%E7%9F%AD%E8%AF%AD%E9%9F%B3%E8%AF%86%E5%88%AB%E6%9C%8D%E5%8A%A1-API%E6%96%87%E6%A1%A3.html" rel="nofollow">文档</a>来看，调用接口格式如下：</p> 
+<p><strong>有道语音识别API HTTPS地址：</strong></p> 
+<pre><code class="prism language-java">https<span class="token operator">:</span><span class="token operator">/</span><span class="token operator">/</span>openapi<span class="token punctuation">.</span>youdao<span class="token punctuation">.</span>com<span class="token operator">/</span>asrapi
+</code></pre> 
+<p><strong>接口调用参数:</strong></p> 
+<table><thead><tr><th>字段名</th><th>类型</th><th>含义</th><th>必填</th><th>备注</th></tr></thead><tbody><tr><td>q</td><td>text</td><td>要翻译的音频文件的Base64编码字符串</td><td>True</td><td>必须是Base64编码</td></tr><tr><td>langType</td><td>text</td><td>源语言</td><td>True</td><td><a href="https://ai.youdao.com/DOCSIRMA/html/%E8%AF%AD%E9%9F%B3%E8%AF%86%E5%88%ABASR/API%E6%96%87%E6%A1%A3/%E7%9F%AD%E8%AF%AD%E9%9F%B3%E8%AF%86%E5%88%AB%E6%9C%8D%E5%8A%A1/%E7%9F%AD%E8%AF%AD%E9%9F%B3%E8%AF%86%E5%88%AB%E6%9C%8D%E5%8A%A1-API%E6%96%87%E6%A1%A3.html#section-8" rel="nofollow">支持语言</a></td></tr><tr><td>appKey</td><td>text</td><td>应用 ID</td><td>True</td><td>可在 <a href="https://ai.youdao.com/appmgr.s" rel="nofollow">应用管理</a> 查看</td></tr><tr><td>salt</td><td>text</td><td>UUID</td><td>True</td><td>UUID</td></tr><tr><td>curtime</td><td>text</td><td>时间戳（秒）</td><td>true</td><td>秒数</td></tr><tr><td>sign</td><td>text</td><td>签名，通过md5(应用ID+q+salt+curTime+密钥)生成</td><td>True</td><td>应用ID+q+salt+curTime+密钥的MD5值</td></tr><tr><td>signType</td><td>text</td><td>签名版本</td><td>True</td><td>v2</td></tr><tr><td>format</td><td>text</td><td>语音文件的格式，wav</td><td>true</td><td>wav</td></tr><tr><td>rate</td><td>text</td><td>采样率， 推荐 16000 采用率</td><td>true</td><td>16000</td></tr><tr><td>channel</td><td>text</td><td>声道数， 仅支持单声道，请填写固定值1</td><td>true</td><td>1</td></tr><tr><td>type</td><td>text</td><td>上传类型， 仅支持base64上传，请填写固定值1</td><td>true</td><td>1</td></tr></tbody></table> 
+<p>其中q为base64编码的待识别音频文件，“上传的文件时长不能超过120s，文件大小不能超过10M”，这点需要注意一下。</p> 
+<p>API的<strong>返回内容</strong>较为简单：</p> 
+<table><thead><tr><th>字段</th><th>含义</th></tr></thead><tbody><tr><td>errorCode</td><td>识别结果错误码，一定存在。 详细信息参加 <a href="https://ai.youdao.com/DOCSIRMA/html/%E8%AF%AD%E9%9F%B3%E8%AF%86%E5%88%ABASR/API%E6%96%87%E6%A1%A3/%E7%9F%AD%E8%AF%AD%E9%9F%B3%E8%AF%86%E5%88%AB%E6%9C%8D%E5%8A%A1/%E7%9F%AD%E8%AF%AD%E9%9F%B3%E8%AF%86%E5%88%AB%E6%9C%8D%E5%8A%A1-API%E6%96%87%E6%A1%A3.html#section-9" rel="nofollow">错误代码列表</a></td></tr><tr><td>result</td><td>识别结果，识别成功一定存在</td></tr></tbody></table> 
+<h4><a id="_103"></a>（二）项目开发</h4> 
+<p>这个项目使用<code>python3</code>开发，包括<code>maindow.py</code>，<code>videoprocess.py</code>，<code>srbynetease.py</code>三个文件。</p> 
+<p><code>界面</code>部分，使用python自带的<code>tkinter库</code>，提供视频文件选择、时间输入框和确认按钮；</p> 
+<p><code>videoprocess.py</code>:来实现在视频的指定时间区间提取音频和处理API返回信息的功能；</p> 
+<p><code>srbynetease.py</code>:将处理好的音频发送到短语音识别API并返回结果。</p> 
+<h5><a id="1_113"></a>1、界面部分的实现</h5> 
+<p>界面部分代码如下，比较简单。</p> 
+<pre><code class="prism language-python">root<span class="token operator">=</span>tk<span class="token punctuation">.</span>Tk<span class="token punctuation">(</span><span class="token punctuation">)</span>
+root<span class="token punctuation">.</span>title<span class="token punctuation">(</span><span class="token string">"netease youdao sr test"</span><span class="token punctuation">)</span>
+frm <span class="token operator">=</span> tk<span class="token punctuation">.</span>Frame<span class="token punctuation">(</span>root<span class="token punctuation">)</span>
+frm<span class="token punctuation">.</span>grid<span class="token punctuation">(</span>padx<span class="token operator">=</span><span class="token string">'50'</span><span class="token punctuation">,</span> pady<span class="token operator">=</span><span class="token string">'50'</span><span class="token punctuation">)</span>
+
+btn_get_file <span class="token operator">=</span> tk<span class="token punctuation">.</span>Button<span class="token punctuation">(</span>frm<span class="token punctuation">,</span> text<span class="token operator">=</span><span class="token string">'选择待识别视频'</span><span class="token punctuation">,</span> command<span class="token operator">=</span>get_file<span class="token punctuation">)</span>
+btn_get_file<span class="token punctuation">.</span>grid<span class="token punctuation">(</span>row<span class="token operator">=</span><span class="token number">0</span><span class="token punctuation">,</span> column<span class="token operator">=</span><span class="token number">0</span><span class="token punctuation">,</span>  padx<span class="token operator">=</span><span class="token string">'10'</span><span class="token punctuation">,</span> pady<span class="token operator">=</span><span class="token string">'20'</span><span class="token punctuation">)</span>
+path_text <span class="token operator">=</span> tk<span class="token punctuation">.</span>Entry<span class="token punctuation">(</span>frm<span class="token punctuation">,</span> width<span class="token operator">=</span><span class="token string">'40'</span><span class="token punctuation">)</span>
+path_text<span class="token punctuation">.</span>grid<span class="token punctuation">(</span>row<span class="token operator">=</span><span class="token number">0</span><span class="token punctuation">,</span> column<span class="token operator">=</span><span class="token number">1</span><span class="token punctuation">)</span>
+
+start_label<span class="token operator">=</span>tk<span class="token punctuation">.</span>Label<span class="token punctuation">(</span>frm<span class="token punctuation">,</span>text<span class="token operator">=</span><span class="token string">'开始时刻：'</span><span class="token punctuation">)</span>
+start_label<span class="token punctuation">.</span>grid<span class="token punctuation">(</span>row<span class="token operator">=</span><span class="token number">1</span><span class="token punctuation">,</span>column<span class="token operator">=</span><span class="token number">0</span><span class="token punctuation">)</span>
+start_input<span class="token operator">=</span>tk<span class="token punctuation">.</span>Entry<span class="token punctuation">(</span>frm<span class="token punctuation">)</span>
+start_input<span class="token punctuation">.</span>grid<span class="token punctuation">(</span>row<span class="token operator">=</span><span class="token number">1</span><span class="token punctuation">,</span>column<span class="token operator">=</span><span class="token number">1</span><span class="token punctuation">)</span>
+
+end_label<span class="token operator">=</span>tk<span class="token punctuation">.</span>Label<span class="token punctuation">(</span>frm<span class="token punctuation">,</span>text<span class="token operator">=</span><span class="token string">'结束时刻：'</span><span class="token punctuation">)</span>
+end_label<span class="token punctuation">.</span>grid<span class="token punctuation">(</span>row<span class="token operator">=</span><span class="token number">2</span><span class="token punctuation">,</span>column<span class="token operator">=</span><span class="token number">0</span><span class="token punctuation">)</span>
+end_input<span class="token operator">=</span>tk<span class="token punctuation">.</span>Entry<span class="token punctuation">(</span>frm<span class="token punctuation">)</span>
+end_input<span class="token punctuation">.</span>grid<span class="token punctuation">(</span>row<span class="token operator">=</span><span class="token number">2</span><span class="token punctuation">,</span>column<span class="token operator">=</span><span class="token number">1</span><span class="token punctuation">)</span>
+
+sure_btn<span class="token operator">=</span>tk<span class="token punctuation">.</span>Button<span class="token punctuation">(</span>frm<span class="token punctuation">,</span> text<span class="token operator">=</span><span class="token string">'开始识别'</span><span class="token punctuation">,</span> command<span class="token operator">=</span>start_sr<span class="token punctuation">)</span>
+sure_btn<span class="token punctuation">.</span>grid<span class="token punctuation">(</span>row<span class="token operator">=</span><span class="token number">3</span><span class="token punctuation">,</span>column<span class="token operator">=</span><span class="token number">0</span><span class="token punctuation">,</span>columnspan<span class="token operator">=</span><span class="token number">3</span><span class="token punctuation">)</span>
+root<span class="token punctuation">.</span>mainloop<span class="token punctuation">(</span><span class="token punctuation">)</span>
+</code></pre> 
+<p>其中sure_btn的绑定事件start_sr()做了简单的异常处理，并通过弹窗打印最终的识别结果:</p> 
+<pre><code class="prism language-python"><span class="token keyword">def</span> <span class="token function">start_sr</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">:</span>
+    <span class="token keyword">print</span><span class="token punctuation">(</span>video<span class="token punctuation">.</span>video_full_path<span class="token punctuation">)</span>
+ <span class="token keyword">if</span> <span class="token builtin">len</span><span class="token punctuation">(</span>path_text<span class="token punctuation">.</span>get<span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token operator">==</span><span class="token number">0</span><span class="token punctuation">:</span>
+        sr_result <span class="token operator">=</span> <span class="token string">'未选择文件'</span>
+    <span class="token keyword">else</span><span class="token punctuation">:</span>
+        video<span class="token punctuation">.</span>start_time <span class="token operator">=</span> <span class="token builtin">int</span><span class="token punctuation">(</span>start_input<span class="token punctuation">.</span>get<span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+        video<span class="token punctuation">.</span>end_time <span class="token operator">=</span> <span class="token builtin">int</span><span class="token punctuation">(</span>end_input<span class="token punctuation">.</span>get<span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+        sr_result<span class="token operator">=</span>video<span class="token punctuation">.</span>do_sr<span class="token punctuation">(</span><span class="token punctuation">)</span>
+
+    tk<span class="token punctuation">.</span>messagebox<span class="token punctuation">.</span>showinfo<span class="token punctuation">(</span><span class="token string">"识别结果"</span><span class="token punctuation">,</span> sr_result<span class="token punctuation">)</span>
+</code></pre> 
+<h5><a id="2_158"></a>2、处理音视频功能开发</h5> 
+<p>（1）在videoprocess.py中，我用到了python的moviepy库来处理视频，按指定起止时间截取视频，提取音频，并按API要求转为base64编码形式：</p> 
+<pre><code class="prism language-python"><span class="token keyword">def</span> <span class="token function">get_audio_base64</span><span class="token punctuation">(</span>self<span class="token punctuation">)</span><span class="token punctuation">:</span>
+    video_clip<span class="token operator">=</span>VideoFileClip<span class="token punctuation">(</span>self<span class="token punctuation">.</span>video_full_path<span class="token punctuation">)</span><span class="token punctuation">.</span>subclip<span class="token punctuation">(</span>self<span class="token punctuation">.</span>start_time<span class="token punctuation">,</span>self<span class="token punctuation">.</span>end_time<span class="token punctuation">)</span>
+    audio<span class="token operator">=</span>video_clip<span class="token punctuation">.</span>audio
+    result_path<span class="token operator">=</span>self<span class="token punctuation">.</span>video_full_path<span class="token punctuation">.</span>split<span class="token punctuation">(</span><span class="token string">'.'</span><span class="token punctuation">)</span><span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span><span class="token operator">+</span><span class="token string">'_clip.mp3'</span>
+    audio<span class="token punctuation">.</span>write_audiofile<span class="token punctuation">(</span>result_path<span class="token punctuation">)</span>
+    audio_base64 <span class="token operator">=</span> base64<span class="token punctuation">.</span>b64encode<span class="token punctuation">(</span><span class="token builtin">open</span><span class="token punctuation">(</span>result_path<span class="token punctuation">,</span><span class="token string">'rb'</span><span class="token punctuation">)</span><span class="token punctuation">.</span>read<span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">.</span>decode<span class="token punctuation">(</span><span class="token string">'utf-8'</span><span class="token punctuation">)</span>
+    <span class="token keyword">return</span> audio_base64
+</code></pre> 
+<p>（2）处理好的音频文件编码传到封装好的有道智云API调用方法中：</p> 
+<pre><code class="prism language-python"><span class="token keyword">def</span> <span class="token function">do_sr</span><span class="token punctuation">(</span>self<span class="token punctuation">)</span><span class="token punctuation">:</span>
+    audio_base64<span class="token operator">=</span>self<span class="token punctuation">.</span>get_audio_base64<span class="token punctuation">(</span><span class="token punctuation">)</span>
+    sr_result<span class="token operator">=</span>srbynetease<span class="token punctuation">.</span>connect<span class="token punctuation">(</span>audio_base64<span class="token punctuation">)</span>
+    <span class="token keyword">print</span><span class="token punctuation">(</span>sr_result<span class="token punctuation">)</span>
+    <span class="token keyword">if</span> sr_result<span class="token punctuation">[</span><span class="token string">'errorCode'</span><span class="token punctuation">]</span><span class="token operator">==</span><span class="token string">'0'</span><span class="token punctuation">:</span>
+        <span class="token keyword">return</span> sr_result<span class="token punctuation">[</span><span class="token string">'result'</span><span class="token punctuation">]</span>
+    <span class="token keyword">else</span><span class="token punctuation">:</span>
+        <span class="token keyword">return</span> <span class="token string">"Something wrong , errorCode:"</span><span class="token operator">+</span>sr_result<span class="token punctuation">[</span><span class="token string">'errorCode'</span><span class="token punctuation">]</span>
+</code></pre> 
+<h5><a id="3_185"></a>3、发送数据翻译功能的开发</h5> 
+<p>srbynetease.py中封装的调用方法比较简单，按API文档“组装”好data{}发送即可：</p> 
+<pre><code class="prism language-python"><span class="token keyword">def</span> <span class="token function">connect</span><span class="token punctuation">(</span>audio_base64<span class="token punctuation">)</span><span class="token punctuation">:</span>
+    data <span class="token operator">=</span> <span class="token punctuation">{<!-- --></span><span class="token punctuation">}</span>
+    curtime <span class="token operator">=</span> <span class="token builtin">str</span><span class="token punctuation">(</span><span class="token builtin">int</span><span class="token punctuation">(</span>time<span class="token punctuation">.</span>time<span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+    data<span class="token punctuation">[</span><span class="token string">'curtime'</span><span class="token punctuation">]</span> <span class="token operator">=</span> curtime
+    salt <span class="token operator">=</span> <span class="token builtin">str</span><span class="token punctuation">(</span>uuid<span class="token punctuation">.</span>uuid1<span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+    signStr <span class="token operator">=</span> APP_KEY <span class="token operator">+</span> truncate<span class="token punctuation">(</span>audio_base64<span class="token punctuation">)</span> <span class="token operator">+</span> salt <span class="token operator">+</span> curtime <span class="token operator">+</span> APP_SECRET
+    sign <span class="token operator">=</span> encrypt<span class="token punctuation">(</span>signStr<span class="token punctuation">)</span>
+    data<span class="token punctuation">[</span><span class="token string">'appKey'</span><span class="token punctuation">]</span> <span class="token operator">=</span> APP_KEY
+    data<span class="token punctuation">[</span><span class="token string">'q'</span><span class="token punctuation">]</span> <span class="token operator">=</span> audio_base64
+    data<span class="token punctuation">[</span><span class="token string">'salt'</span><span class="token punctuation">]</span> <span class="token operator">=</span> salt
+    data<span class="token punctuation">[</span><span class="token string">'sign'</span><span class="token punctuation">]</span> <span class="token operator">=</span> sign
+    data<span class="token punctuation">[</span><span class="token string">'signType'</span><span class="token punctuation">]</span> <span class="token operator">=</span> <span class="token string">"v2"</span>
+    data<span class="token punctuation">[</span><span class="token string">'langType'</span><span class="token punctuation">]</span> <span class="token operator">=</span> <span class="token string">'zh-CHS'</span>
+    data<span class="token punctuation">[</span><span class="token string">'rate'</span><span class="token punctuation">]</span> <span class="token operator">=</span> <span class="token number">16000</span>
+    data<span class="token punctuation">[</span><span class="token string">'format'</span><span class="token punctuation">]</span> <span class="token operator">=</span> <span class="token string">'mp3'</span>
+    data<span class="token punctuation">[</span><span class="token string">'channel'</span><span class="token punctuation">]</span> <span class="token operator">=</span> <span class="token number">1</span>
+    data<span class="token punctuation">[</span><span class="token string">'type'</span><span class="token punctuation">]</span> <span class="token operator">=</span> <span class="token number">1</span>
+
+    response <span class="token operator">=</span> do_request<span class="token punctuation">(</span>data<span class="token punctuation">)</span>
+
+    <span class="token keyword">return</span> json<span class="token punctuation">.</span>loads<span class="token punctuation">(</span><span class="token builtin">str</span><span class="token punctuation">(</span>response<span class="token punctuation">.</span>content<span class="token punctuation">,</span><span class="token string">'utf-8'</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+</code></pre> 
+<h3><a id="_215"></a>四、效果展示</h3> 
+<p>随手打开《甄嬛传》第一集的某一小段试试：</p> 
+<p><img src="https://images2.imgbox.com/b1/08/M46Xfcxp_o.png" alt="在这里插入图片描述"></p> 
+<p>效果可以，断句的一点小瑕疵可以忽略。没想到这短语音识别API博古通今，古文语音识别也这么溜，厉害厉害！</p> 
+<h3><a id="_225"></a>五、总结</h3> 
+<p>一番尝试带我打开了新世界的大门，从今天开始我可以是一个不打字却能搬运字幕的野生字幕君了，后面再有时间可以试试识别完翻译成其他语言的操作，嗯，是技术的力量！</p> 
+<p>项目地址：https://github.com/LemonQH/SRFromVideo</p> 
+<p><strong><code>关注我微信公众号第一时间推送给你哦：</code></strong></p> 
+<p>回复<code>菜单</code>，更有好礼，惊喜在等着你。</p> 
+<p><img src="https://images2.imgbox.com/a6/4c/zbcjKwGy_o.png" alt="在这里插入图片描述"></p> 
+<p><strong>欢迎扫码加入我创建的社区群哦，可以与我更进一步的交流，群里还有很多大佬等着你，一起玩耍，一起进步！！！</strong></p> 
+<p><img src="https://images2.imgbox.com/2b/93/KXlnhTfL_o.png" alt="在这里插入图片描述"></p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/cbb855dee4f7805c215814cc2f6fc526/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">编译原理（九）——递归下降法</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/4625bae370be9b850c9c1b1d89eb9326/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">运行报错provider = models.ForeignKey(Provider, on_delete=True) TypeError(‘on_delete must be callable.‘)</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

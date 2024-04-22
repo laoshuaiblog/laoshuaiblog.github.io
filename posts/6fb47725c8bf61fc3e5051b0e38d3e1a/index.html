@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>vSphere 网络 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/6fb47725c8bf61fc3e5051b0e38d3e1a/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="vSphere 网络">
+  <meta property="og:description" content="一 vSphere网络简介
+1 物理网络 为了使物理机之间能够收发数据，在物理机之间建立的网络。VMware ESXi 运行于物理机之上。
+2 虚拟网络 在单台物理机上运行的虚拟机之间为了互相发送和接收数据而相互逻辑连接所形成的网络。虚拟机可连接到已创建的虚拟网络。
+3 物理以太网交换机 管理物理网络上计算机之间的网络流量。一台交换机可具有多个端口，每个端口都可与网络上的一台计算机或其他交换机连接。可按某种方式对每个端口的行为进行配置，具体取决于其所连接的计算机的需求。交换机将会了解到连接其端口的主机，并使用该信息向正确的物理机转发流量。交换机是物理网络的核心。可将多个交换机连接在一起，以形成较大的网络 4 vSphere 标准交换机 其运行方式与物理以太网交换机十分相似。它检测与其虚拟端口进行逻辑连接的虚拟机，并使用该信息向正确的虚拟机转发流量。可使用上行链路适配器将虚拟网络连接至物理网络，以将 vSphere 标准交换机连接到物理交换机。此类型的连接类似于将物理交换机连接在一起以创建较大型的网络。即使 vSphere 标准交换机的运行方式与物理交换机十分相似，但它不具备物理交换机所拥有的一些高级功能。
+5 标准端口组 PortGroup 标准端口组为每个成员端口指定了诸如带宽限制和 VLAN 标记策略之类的端口配置选项。网络服务通过端口组连接到标准交换机。端口组定义通过交换机连接网络的方式。通常，单个标准交换机与一个或多个端口组关联。
+6 分布式交换机 vSphere DistributedSwitch 它可充当数据中心中所有关联主机的单一交换机，以提供虚拟网络的集中式置备、管理以及监控。您可以在 vCenter Server 系统上配置 vSphere DistributedSwitch，该配置将传播至与该交换机关联的所有主机。这使得虚拟机可在跨多个主机进行迁移时确保其网络配置保持一致。
+7 主机代理交换机 驻留在与 vSphere Distributed Switch 关联的每个主机上的隐藏标准交换机。主机代理交换机会将 vSphere Distributed Switch 上设置的网络配置复制到特定主机。
+8 分布式交换机、标准交换机和主机代理交换机三者之间的系
+1）在分布式交换机上的配置将会传播至每个主机上隐藏的主机代理交换机上
+2）主机代理交换机将分布式交换机上的配置应用在主机上
+3）主机代理交换机与分布式交换机同步存在，即分布式交换机存在才会有主机代理交换机
+4）标准交换机连接物理主机上的虚拟机，要是想要每台主机上都有同样的配置，就必须一台一台的配置
+9 分布式端口 连接到主机的 VMkernel 或虚拟机的网络适配器的 vSphere Distributed Switch上的一个端口。连接网络的方式。通常，单个标准交换机与一个或多个端口组关联。
+10 分布式端口组 与 vSphere Distributed Switch 关联的一个端口组，并为每个成员端口指定端口配置选项。分布式端口组可定义通过 vSphere Distributed Switch 连接到网络的方式。">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2024-02-29T14:19:32+08:00">
+    <meta property="article:modified_time" content="2024-02-29T14:19:32+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">vSphere 网络</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <h3><a id="_0"></a></h3> 
+<p><strong><strong>一 vSphere网络简介</strong></strong></p> 
+<p><strong><strong>1 物理网络 </strong></strong></p> 
+<p>为了使物理机之间能够收发数据，在物理机之间建立的网络。VMware ESXi 运行于物理机之上。</p> 
+<p><strong><strong>2 虚拟网络 </strong></strong></p> 
+<p>在单台物理机上运行的虚拟机之间为了互相发送和接收数据而相互逻辑连接所形成的网络。虚拟机可连接到已创建的虚拟网络。</p> 
+<p><strong><strong>3 物理以太网交换机 </strong></strong></p> 
+<p><span style="color:#ff0000;">管理物理网络上计算机之间的网络流量</span>。一台交换机可具有多个端口，每个端口都可与网络上的一台计算机或其他交换机连接。可按某种方式对每个端口的行为进行配置，具体取决于其所连接的计算机的需求。交换机将会了解到连接其端口的主机，并使用该信息向正确的物理机转发流量。交换机是物理网络的核心。可将多个交换机连接在一起，以形成较大的网络 <strong>4 vSphere 标准交换机</strong> </p> 
+<p>其运行方式与物理以太网交换机十分相似。它检测与其虚拟端口进行逻辑连接的虚拟机，并使用该信息向正确的虚拟机转发流量。可使用<span style="color:#ff0000;">上行链路适配器将虚拟网络连接至物理网络，以将 vSphere 标准交换机连接到物理交换机</span>。此类型的连接类似于将物理交换机连接在一起以创建较大型的网络。即使 vSphere 标准交换机的运行方式与物理交换机十分相似，但它不具备物理交换机所拥有的一些高级功能。</p> 
+<p><strong><strong>5 标准端口组  PortGroup </strong></strong></p> 
+<p><span style="color:#ff0000;">标准端口组为每个成员端口指定了诸如带宽限制和 VLAN 标记策略之类的端口配置选项</span>。网络服务通过端口组连接到标准交换机。<span style="color:#ff0000;">端口组定义通过交换机连接网络的方式</span>。通常，单个标准交换机与一个或多个端口组关联。</p> 
+<p><strong><strong>6 分布式交换机  vSphere DistributedSwitch </strong></strong></p> 
+<p>它可充当数据中心中所有关联主机的单一交换机，以提供虚拟网络的集中式置备、管理以及监控。您<span style="color:#ff0000;">可以在 vCenter Server 系统上配置 vSphere DistributedSwitch，该配置将传播至与该交换机关联的所有主机。这使得虚拟机可在跨多个主机进行迁移时确保其网络配置保持一致。</span></p> 
+<p><strong><strong>7 主机代理交换机</strong></strong><strong> </strong></p> 
+<p><span style="color:#ff0000;">驻留在与 vSphere Distributed Switch 关联的每个主机上的隐藏标准交换机</span>。主机代理交换机会将 vSphere Distributed Switch 上设置的网络配置复制到特定主机。</p> 
+<p style="margin-left:22.6pt;"><strong>8 分布式交换机、标准交换机和主机代理交换机三者之间的系</strong></p> 
+<p style="margin-left:22.6pt;"></p> 
+<p style="margin-left:22.5pt;">1）在分布式交换机上的配置将会传播至每个主机上隐藏的主机代理交换机上</p> 
+<p style="margin-left:22.5pt;">2）主机代理交换机将分布式交换机上的配置应用在主机上</p> 
+<p style="margin-left:22.5pt;">3）主机代理交换机与分布式交换机同步存在，即分布式交换机存在才会有主机代理交换机</p> 
+<p style="margin-left:22.5pt;">4）标准交换机连接物理主机上的虚拟机，要是想要每台主机上都有同样的配置，就必须一台一台的配置</p> 
+<p style="margin-left:22.6pt;"><strong>9</strong> <strong><strong>分布式端口 </strong></strong></p> 
+<p><span style="color:#ff0000;">连接到主机的 VMkernel 或虚拟机的网络适配器的 vSphere Distributed Switch上的一个端口</span>。连接网络的方式。通常，单个标准交换机与一个或多个端口组关联。</p> 
+<p><strong><strong>10 分布式端口组 </strong></strong></p> 
+<p><span style="color:#ff0000;">与 vSphere Distributed Switch 关联的一个端口组，并为每个成员端口指定端口配置选项</span>。分布式端口组可定义通过 vSphere Distributed Switch 连接到网络的方式。</p> 
+<p><strong><strong>11 </strong></strong>小组将物理网络和虚拟网络之间的流量负载分摊给其所有或部分成员，或在出现硬件故障或网络中断时提供被动故障切换。</p> 
+<p><strong><strong>12 VLAN</strong></strong></p> 
+<p><strong> </strong><strong> </strong>VLAN 可用于将单个物理 LAN 分段进一步分段，以便使端口组中的端口互相隔离，如同位于不同物理分段上一样。标准是 802.1Q。</p> 
+<p><strong>13 VMkernel TCP/IP 网络层 </strong></p> 
+<p>VMkernel 网络层提供与主机的连接，并处理 vSphere vMotion、IP 存储器、Fault Tolerance 和 Virtual SAN 的标准基础架构流量。</p> 
+<p><strong><strong>14 Trunk Port(Trunking) </strong></strong><strong> </strong></p> 
+<p>Trunk类型的端口可以允许多个VLAN通过，可以接收和发送多个VLAN的报文，一般用于交换机之间连接的端口。</p> 
+<p><strong><strong>15 VMkernel Port:</strong></strong></p> 
+<p><span style="color:#ff0000;">Vmkernel Port 提供了ESXi主机之间或者ESXi主机和外部的物理网络直接通讯的端口组</span>，例如ISCSI存储、NFS存储、vMotion，管理网络，FT网络或者VSAN网络等。管理，存储，vmotion网络流量走的都是VMkernel 口，虚拟机端口组走的是业务网络，管理网络的VMkernel 口 ip为主机ip，主机相当于通道</p> 
+<p><strong><strong>16 Access Port</strong></strong><strong> </strong></p> 
+<p>Access端口只属于1个VLAN，所以它的缺省VLAN就是它所在的VLAN，不用设置，所以只能传输所在VLAN的数据。</p> 
+<p><strong><strong>17 E1000E/E1000 Adapter</strong></strong></p> 
+<p><strong><strong>E1000E 是</strong></strong>Intel 82574 千兆位以太网网卡的模拟版本。E1000E 是 Windows 8 和 WindowsServer 2012 的默认适配器。<strong><strong>E1000 是</strong></strong>Intel 82545EM 千兆位以太网网卡的模拟版本，其驱动程序在大多数较新的客户机操作系统中都可用，包括 Windows XP 及更高版本和 Linux 2.4.19 版及更高版本。</p> 
+<p><strong><strong>18 Vlance Adapter </strong></strong></p> 
+<p>AMD 79C970 PCnet32 LANCE 网卡的模拟版本，是一种较旧的 10 Mbps 网卡，其驱动程序在 32 位旧版客户机操作系统中可用。配置了该网络适配器的虚拟机可以立即使用其网络.</p> 
+<p><strong><strong>19 VMXNET Adapter</strong></strong></p> 
+<p>为在虚拟机中发挥更大的性能而进行了优化，并且没有物理副本。因为操作系统供应商没有为此卡提供内置驱动程序，所以您必须安装 VMware Tools 以便为 VMXNET 网络适配器提供可用的驱动程序。</p> 
+<p><strong><strong>20 VMXNET 2 Adapter</strong></strong></p> 
+<p><strong> </strong><strong> </strong><strong><strong>(</strong></strong>增强型<strong><strong>) </strong></strong>基于 VMXNET 适配器，但提供常用于现代网络的更高性能的功能，例如巨帧和硬件卸载。VMXNET 2（增强型）只能在 ESX/ESXi 3.5 及更高版本上针对部分客户机操作系统可用。</p> 
+<p><strong><strong>21 VMXNET 3 Adpter </strong></strong></p> 
+<p>专为高性能打造的标准虚拟化网卡。VMXNET 3 提供 VMXNET 2 中具备的所有可用功能，并且还另外添加了几项新功能，传输能力是万兆网卡。</p> 
+<p><strong><strong>22 UpLink：用于关联虚拟交换机和物理网卡</strong></strong></p> 
+<ol><li> 
+  <ol><li>虚拟机交换机通过上行链路和物理网卡关联来连接外部的物理网络，没有上行链路虚拟机无法和外界通讯。</li><li>ESXi最多能够连接32个1GB的上行链路</li><li>ESXi主机最多能够连接8个10GB的上行链路</li><li>uplink 位于标准交换机上，充当虚拟机与外部网络的桥梁</li></ol></li></ol> 
+<p><img alt="" height="940" src="https://images2.imgbox.com/1d/61/4ZwpD0D8_o.png" width="1178"></p> 
+<p>二 <strong><strong>ESXi 中的网络服务</strong></strong></p> 
+<p style="margin-left:7.1pt;">虚拟网络向主机和虚拟机提供了多种服务。可以在 ESXi 中启用两种类型的网络服务：</p> 
+<p>1 将虚拟机连接到物理网络以及相互连接虚拟机。</p> 
+<p>2 将 VMkernel 服务（如 NFS、iSCSI 或 vMotion）连接至物理网络。</p> 
+<p>三 多个网络可在同一个虚拟交换机中共存，也可以存在于多个单独的虚拟交换机中</p> 
+<p><img alt="" height="616" src="https://images2.imgbox.com/5e/a5/q11KPtkW_o.png" width="1200"></p> 
+<p></p> 
+<p><strong><strong>四 多虚拟网络支持两种类型的虚拟交换机： </strong></strong></p> 
+<p><strong> </strong>  1 <strong><span style="color:#ff0000;"><strong>vNetwork 标准交换机： </strong></span></strong></p> 
+<p><strong> </strong><span style="color:#ff0000;">     1）单个主机的虚拟交换机配置 </span></p> 
+<p style="margin-left:66.5pt;"><span style="color:#ff0000;">2）要在多台主机上进行同样的配置，才能保证虚拟机的迁移网络一致，保证迁移后虚拟机可用。</span></p> 
+<p><strong><span style="color:#ff0000;"><strong>2 vNetwork 分布式交换机</strong></span></strong><span style="color:#ff0000;">： </span></p> 
+<p style="margin-left:66.5pt;"><span style="color:#ff0000;">1）这种虚拟交换机可在跨多个主机迁移虚拟机时为虚拟机提供一致的网络配置 </span></p> 
+<p><span style="color:#ff0000;">2）一次性部署，在所管理的主机上分布式生成网络配置。 </span></p> 
+<p><span style="color:#ff0000;">3）横跨多个主机</span></p> 
+<p><strong><span style="color:#ff0000;"><strong>五 部署网络需要考略的问题</strong></span></strong></p> 
+<p><span style="color:#ff0000;">1 是否需要专用的网络来做管理网络、网段？ </span></p> 
+<p><span style="color:#ff0000;">2 是否为vMotion 设计专用的网络？ </span></p> 
+<p style="margin-left:52pt;"><span style="color:#ff0000;">3 是否需要一个IP存储网络来连接存储设备ISCSI、NAS/NFS </span></p> 
+<p><span style="color:#ff0000;">4 ESXi主机设计多少个网卡 </span></p> 
+<p><span style="color:#ff0000;">5 网卡的带宽是1GB 还是10GB</span></p> 
+<p><span style="color:#ff0000;">6 是否启用FT、VSAN网络 </span></p> 
+<p><span style="color:#ff0000;">7 是否使用VLAN </span></p> 
+<p><strong><strong>六 ESXi中的网络服务</strong></strong></p> 
+<p>1 虚拟交换机和物理交换机的区别<strong> </strong></p> 
+<p>虚拟交换机和物理的以太网交换机十分相似，能够提供很多物理交换机相同的功能，它们的不同点有以下几点</p> 
+<p><span style="color:#ff0000;">标准的虚拟交换机不支持动DTP（动态trunk 协商协议）</span>直接是Trunk,不会根据物理网卡协商是否Trunk链路 ，物理交换机会相互协商通信协议，比如，单工，半双工，全双工等协议</p> 
+<p style="margin-left:36pt;"><span style="color:#ff0000;">标准交换机不支持LACP(链路聚合控制协议)</span>，</p> 
+<p style="margin-left:36pt;">不支持port channel. LACP相当于多个端口绑在一起</p> 
+<p style="margin-left:18pt;">所有<span style="color:#ff0000;">虚拟交换机不运行生成树(STP)</span>，自身就能够避环路,虚拟交换机之间不会相连</p> 
+<p style="margin-left:36pt;"><span style="color:#ff0000;">不进行MAC地址学习</span> （虚拟机开机后直接将ip和mac地址交给虚拟交换机）</p> 
+<p style="margin-left:18pt;"><span style="color:#ff0000;">不会将来自Uplink的数据包转发到另外的Uplink</span>（限与主机内部）</p> 
+<p style="margin-left:36pt;"><span style="color:#ff0000;">标准交换机不会在一个主机内形成级联</span></p> 
+<p><strong><strong>七 vSphere 标准交换机架构</strong></strong></p> 
+<p><img alt="" height="822" src="https://images2.imgbox.com/f0/17/KFozdgQN_o.png" width="1200"></p> 
+<p><strong><strong>八 虚拟交换机的功能</strong></strong></p> 
+<p><strong><strong>虚拟机交换机能够提供那些通讯 </strong></strong></p> 
+<ol><li> 
+  <ol><li><strong><strong>在同一个ESXi主机上的不同虚拟机之间的通讯 </strong></strong></li><li><strong><strong>两个ESXi主机之间通讯 </strong></strong></li><li><strong><strong>不同主机上的虚拟机进行通讯 </strong></strong></li><li><strong><strong>ESXi和虚拟机与外部网络进行通讯 </strong></strong></li><li><strong><strong>ESXi主机VMkernel与外部的存储 </strong></strong></li></ol></li></ol> 
+<p><img alt="" height="912" src="https://images2.imgbox.com/4d/06/CGTIfbDQ_o.png" width="1184"></p> 
+<p>九 实验（创建和管理标准交换机）</p> 
+<p>1、在客户端添加标准交换机：</p> 
+<p><img alt="" height="458" src="https://images2.imgbox.com/eb/84/BixvLkKx_o.png" width="1200"></p> 
+<p></p> 
+<p><img alt="" height="1192" src="https://images2.imgbox.com/b4/74/9IO1mBi6_o.png" width="1200"></p> 
+<p><img alt="" height="746" src="https://images2.imgbox.com/5b/a5/WOn3onW8_o.png" width="1200"></p> 
+<p>2 将vSwitch0 的vmnic1 迁移到vSwitch1上</p> 
+<p><img alt="" height="968" src="https://images2.imgbox.com/c7/ed/TgeGc4Yb_o.png" width="1004"></p> 
+<p><img alt="" height="1200" src="https://images2.imgbox.com/39/ce/vs0tvtul_o.png" width="1200"></p> 
+<p><img alt="" height="782" src="https://images2.imgbox.com/a5/98/2Vhww5l4_o.png" width="1200"></p> 
+<p><img alt="" height="1098" src="https://images2.imgbox.com/e2/5a/C0eUKZpB_o.png" width="1200"></p> 
+<p><img alt="" height="824" src="https://images2.imgbox.com/8a/e5/qH2CnoRP_o.png" width="972"></p> 
+<p>3 添加vmotion网络：</p> 
+<p><img alt="" height="896" src="https://images2.imgbox.com/a3/98/ZxDAOS1y_o.png" width="1200"></p> 
+<p><img alt="" height="904" src="https://images2.imgbox.com/8d/ea/RBimePBa_o.png" width="1200"></p> 
+<p><img alt="" height="890" src="https://images2.imgbox.com/57/db/zpdDbZP3_o.png" width="1200"></p> 
+<p><img alt="" height="892" src="https://images2.imgbox.com/28/b5/rRMYdZOk_o.png" width="1200"></p> 
+<p><img alt="" height="932" src="https://images2.imgbox.com/a2/ac/Yu4K58vu_o.png" width="900"></p> 
+<p>4 将vSwitch0 的win7-dc 迁移到vSwitch1上</p> 
+<p><img alt="" height="908" src="https://images2.imgbox.com/58/5e/PEoy9Ojs_o.png" width="1200"></p> 
+<p><img alt="" height="962" src="https://images2.imgbox.com/bd/ce/xupqXBHS_o.png" width="900"></p> 
+<p>5 删除vSwitch1</p> 
+<p>1）先将win7-dc 迁移到vSwitch0</p> 
+<p><img alt="" height="856" src="https://images2.imgbox.com/9c/59/T7t7xvGr_o.png" width="1200"></p> 
+<p><img alt="" height="856" src="https://images2.imgbox.com/ad/57/mu0PuwAQ_o.png" width="920"></p> 
+<p>2）移除vmotion</p> 
+<p><img alt="" height="880" src="https://images2.imgbox.com/a6/5a/jOHn0eJn_o.png" width="1200"></p> 
+<p><img alt="" height="826" src="https://images2.imgbox.com/12/70/HoFkQvV5_o.png" width="934"></p> 
+<p>3）移除vSwitch1</p> 
+<p><img alt="" height="1200" src="https://images2.imgbox.com/2e/dc/zR5H8BiD_o.png" width="940"></p> 
+<p>6 在web端创建标准交换机并添加management管理网络</p> 
+<p><img alt="" height="1200" src="https://images2.imgbox.com/4f/3f/Ab0FVNfy_o.png" width="1200"></p> 
+<p><img alt="" height="404" src="https://images2.imgbox.com/20/ad/WGT4KXsi_o.png" width="1200"></p> 
+<p><img alt="" height="1030" src="https://images2.imgbox.com/2d/00/jb55dB0u_o.png" width="1200"></p> 
+<p><img alt="" height="972" src="https://images2.imgbox.com/3c/41/NqyOBjmy_o.png" width="1200"></p> 
+<p><img alt="" height="628" src="https://images2.imgbox.com/ed/c7/f18XGCBK_o.png" width="1200"></p> 
+<p>7 添加虚拟机端口组：</p> 
+<p><img alt="" height="1200" src="https://images2.imgbox.com/f9/fb/YBAsxbKM_o.png" width="1200"></p> 
+<p><img alt="" height="470" src="https://images2.imgbox.com/a4/4f/Zdjkoh8j_o.png" width="1200"></p> 
+<p>8 添加iscsi网络：</p> 
+<p><img alt="" height="1200" src="https://images2.imgbox.com/02/38/HwYCleEH_o.png" width="1200"></p> 
+<p><img alt="" height="528" src="https://images2.imgbox.com/5a/56/AtqMyoy0_o.png" width="1150"></p> 
+<p>9 将win7-dc加入vSwitch1中</p> 
+<p><img alt="" height="1128" src="https://images2.imgbox.com/ad/39/Oexz0ptk_o.png" width="1200"></p> 
+<p>10删除vSwitch1</p> 
+<p>1）先移除win7-dc</p> 
+<p><img alt="" height="1048" src="https://images2.imgbox.com/4e/fc/ZV4xCkx7_o.png" width="1200"></p> 
+<p>2）在移除iscsi</p> 
+<p><img alt="" height="744" src="https://images2.imgbox.com/3f/23/tLwPJ4KM_o.png" width="1200"></p> 
+<p><img alt="" height="366" src="https://images2.imgbox.com/ee/9b/iPZeMlYq_o.png" width="1158"></p> 
+<p>3）再移除management</p> 
+<p><img alt="" height="622" src="https://images2.imgbox.com/3a/5d/7ETJF20k_o.png" width="1200"></p> 
+<p>4）删除vSwitch</p> 
+<p><img alt="" height="736" src="https://images2.imgbox.com/24/dd/Oc0J1l1H_o.png" width="1200"></p> 
+<p><img alt="" height="220" src="https://images2.imgbox.com/37/f3/guZuOpwD_o.png" width="1200"></p> 
+<p>11？给vSwitch0添加vmnic1</p> 
+<p><img alt="" height="1200" src="https://images2.imgbox.com/b0/a3/Zj6XEOCm_o.png" width="1200"></p> 
+<p><img alt="" height="1200" src="https://images2.imgbox.com/3b/a7/fLh5T0DO_o.png" width="1200"></p> 
+<p><strong><strong>1.创建和管理分布式交换机（客户端）：</strong></strong></p> 
+<p><strong><strong>用SSO域用户登陆：点击192.168.9.3</strong></strong><strong><strong>1</strong></strong><strong><strong>--配置--网络</strong></strong></p> 
+<p><img alt="" height="604" src="https://images2.imgbox.com/4a/5a/diXDbOUU_o.png" width="1170"></p> 
+<p><strong><strong>点击主页后面的清单--网络</strong></strong></p> 
+<p><img alt="" height="532" src="https://images2.imgbox.com/0a/c8/bIjjWNca_o.png" width="1172"></p> 
+<p><strong><strong>点击databases--右键新建vssphere distributed switch--选择6.0版本</strong></strong></p> 
+<p><img alt="" height="788" src="https://images2.imgbox.com/9d/63/XUzvRmlx_o.png" width="1176"></p> 
+<p><strong><strong>名称可随便改，上行链路端口数一定要大于物理网卡数--下一步</strong></strong></p> 
+<p><img alt="" height="840" src="https://images2.imgbox.com/64/44/s3RxqgLQ_o.png" width="1200"></p> 
+<p><strong><strong>选择以后添加主机--下一步</strong></strong></p> 
+<p><img alt="" height="892" src="https://images2.imgbox.com/a5/3f/nKiVOMJV_o.png" width="1200"></p> 
+<p><strong><strong>勾选自动创建默认端口组--完成</strong></strong></p> 
+<p><strong><strong>点击上行链路端口组和分布式交换机端口组有具体解释</strong></strong></p> 
+<p><img alt="" height="720" src="https://images2.imgbox.com/47/dd/VWos5iZO_o.png" width="1200"></p> 
+<p><img alt="" height="704" src="https://images2.imgbox.com/b1/31/trHwfcUt_o.png" width="1200"></p> 
+<p><strong><strong>点击分布式交换机dvswitch 右键添加主机--勾选主机和相应的物理适配器--下一步</strong></strong></p> 
+<p><img alt="" height="976" src="https://images2.imgbox.com/91/55/EgCRFGJE_o.png" width="1200"></p> 
+<p><strong><strong>下一步--下一步--完成</strong></strong></p> 
+<p><img alt="" height="984" src="https://images2.imgbox.com/d7/a4/lM2MoR2m_o.png" width="1196"></p> 
+<p><img alt="" height="928" src="https://images2.imgbox.com/23/04/sSynQ62u_o.png" width="1200"></p> 
+<p><img alt="" height="732" src="https://images2.imgbox.com/98/ef/qPGGrJPH_o.png" width="1200"></p> 
+<p><strong><strong>2.点击dvswitch 右侧有一些管理功能</strong></strong></p> 
+<p><img alt="" height="330" src="https://images2.imgbox.com/98/6d/IZny0Fg2_o.png" width="1180"></p> 
+<p><strong><strong>3.新建端口组：点击右侧新建端口组--填写名称，端口数，VLAN类型--下一步--完</strong></strong></p> 
+<p><img alt="" height="698" src="https://images2.imgbox.com/c4/fa/Zn6flB2n_o.png" width="1200"></p> 
+<p><img alt="" height="886" src="https://images2.imgbox.com/f6/f1/TZlKl4mF_o.png" width="1196"></p> 
+<p><strong><strong>发现新建的分布式端口组已经完成</strong></strong></p> 
+<p><img alt="" height="630" src="https://images2.imgbox.com/cb/74/fmWivwOy_o.png" width="1200"></p> 
+<p><strong><strong>4.添加vmkernel端口：需要切换到主机和集群模式中--点击主机ip--点击分布式交换机--右上方管理虚拟适配器--vmkernel添加--新建虚拟适配器--选择一个分布式交换机的端口组，勾选选择用于vmotion网络--设置ip：192.168.9.35--完成</strong></strong></p> 
+<p><img alt="" height="1146" src="https://images2.imgbox.com/9d/11/qxGk0ATq_o.png" width="1200"></p> 
+<p><img alt="" height="802" src="https://images2.imgbox.com/18/f4/K2C1f1BL_o.png" width="1200"></p> 
+<p><img alt="" height="854" src="https://images2.imgbox.com/f3/f2/io62NXFE_o.png" width="1200"></p> 
+<p><strong><strong>5.将标准交换机上的虚拟机迁移到分布式交换机上：点击要迁移的虚拟机--右键编辑设置--网络设配器--网络标签--改为dvportgroup--确定（此操作需要在主机和集群中操作）</strong></strong></p> 
+<p><img alt="" height="790" src="https://images2.imgbox.com/1e/66/jeoRG9Yj_o.png" width="1200"></p> 
+<p><strong><strong>查看分布式交换机发现在dvportgroup中多了一个虚拟机</strong></strong></p> 
+<p><img alt="" height="548" src="https://images2.imgbox.com/e7/ad/L8RkY0PI_o.png" width="1200"></p> 
+<p><strong><strong>查看标准交换机：发现没有pscvc虚拟机的存在了</strong></strong></p> 
+<p><img alt="" height="656" src="https://images2.imgbox.com/ee/64/phwG0MxG_o.png" width="1200"></p> 
+<p><strong><strong>或者是将vmk1迁移--点击管理虚拟适配器--选择vmk1--迁移--选择迁移的网络--下一步--完成</strong></strong></p> 
+<p><img alt="" height="580" src="https://images2.imgbox.com/e0/44/2Ihma83R_o.png" width="1200"></p> 
+<p><img alt="" height="798" src="https://images2.imgbox.com/00/89/8g3ToXkR_o.png" width="1200"></p> 
+<p><img alt="" height="872" src="https://images2.imgbox.com/8f/68/KZ2eR9EY_o.png" width="1200"></p> 
+<p><img alt="" height="764" src="https://images2.imgbox.com/6e/14/FdfihOIL_o.png" width="1200"></p> 
+<p><strong><strong>发现分布式交换机没有vmk1了</strong></strong></p> 
+<p><img alt="" height="464" src="https://images2.imgbox.com/84/6d/gqn4YzCD_o.png" width="1200"></p> 
+<p><strong><strong>在标准交换机上存在了一个vmk1:192.168.9.35</strong></strong></p> 
+<p><img alt="" height="478" src="https://images2.imgbox.com/09/cd/zUJrAFln_o.png" width="1200"></p> 
+<p></p> 
+<p><strong><strong>6.也可以从分布式交换机中的dvportgroup 中迁移到dvportgroup2中（此操作需要在主机集群中操作）</strong></strong></p> 
+<p><strong><strong>：点击分布式交换机--</strong></strong><strong><strong>管理虚拟网络适配器</strong></strong><strong><strong>--</strong></strong><strong><strong>vmk1</strong></strong><strong><strong>--</strong></strong><strong><strong>编辑--</strong></strong><strong><strong>选择端口组--</strong></strong><strong><strong>确定</strong></strong><strong><strong>(机会发现原本属于端口组1的</strong></strong><strong><strong>vmkernel</strong></strong><strong><strong>变成端口组2的</strong></strong><strong><strong>了</strong></strong><strong><strong>)、</strong></strong></p> 
+<p><img alt="" height="1200" src="https://images2.imgbox.com/87/4c/cyCvmeeU_o.png" width="1194"><strong><strong>7.对分布式交换机进行移除：需要先把要移除的分布式交换机端口组中的vmkerne和虚拟机都删除或者迁移才可以移除。</strong></strong></p> 
+<p><img alt="" height="520" src="https://images2.imgbox.com/c7/b4/j8rviln7_o.png" width="1166"></p> 
+<p><strong><strong>点击dvswitch右键--移除--是</strong></strong></p> 
+<p><img alt="" height="624" src="https://images2.imgbox.com/0b/67/zXaUMHoX_o.png" width="1178"></p> 
+<p><strong><strong>移除成功：</strong></strong></p> 
+<p><img alt="" height="590" src="https://images2.imgbox.com/8f/b9/ZmP6wEz6_o.png" width="960"></p> 
+<p>一.网页客户端配置分布式交换机；</p> 
+<p>①新建分布式交换机；</p> 
+<p><img alt="" height="614" src="https://images2.imgbox.com/e9/4d/NdpRvVJz_o.png" width="1200"></p> 
+<p>编辑分布式交换机名字；</p> 
+<p><img alt="" height="1122" src="https://images2.imgbox.com/f4/ad/hEzYviuK_o.png" width="1200"></p> 
+<p>编辑端口组名字</p> 
+<p><img alt="" height="1200" src="https://images2.imgbox.com/26/1f/GN94vHj3_o.png" width="1200"></p> 
+<p>②给分布式交换机添加主机；</p> 
+<p><img alt="" height="1200" src="https://images2.imgbox.com/1e/8f/Z9UTj72H_o.png" width="1200"></p> 
+<p></p> 
+<p>③给分布式交换机分配物理网卡适配器；</p> 
+<p><img alt="" height="566" src="https://images2.imgbox.com/40/6b/xZSeBGIm_o.png" width="1200"></p> 
+<p><img alt="" height="662" src="https://images2.imgbox.com/7c/8c/03zGfMHr_o.png" width="1196"></p> 
+<p>④添加VMkernel网络适配器VMK2；</p> 
+<p><img alt="" height="656" src="https://images2.imgbox.com/aa/7a/zPuX7BvD_o.png" width="1200"></p> 
+<p><img alt="" height="1128" src="https://images2.imgbox.com/38/49/LpO6hdVy_o.png" width="1200"></p> 
+<p>⑤添加VMkernel网络适配器VMK2；</p> 
+<p><img alt="" height="1200" src="https://images2.imgbox.com/d5/e3/0ydIz2nw_o.png" width="1200"></p> 
+<p><img alt="" height="1076" src="https://images2.imgbox.com/76/ac/s2HAuvXg_o.png" width="1200"></p> 
+<p>⑥给分布式交换机添加新的分布式端口组；</p> 
+<p><img alt="" height="426" src="https://images2.imgbox.com/ec/0a/WaXVU1QD_o.png" width="1196"></p> 
+<p><img alt="" height="1200" src="https://images2.imgbox.com/a9/54/5Wg0G9Sz_o.png" width="1200"></p> 
+<p>⑦给分布式交换机的端口分配虚拟机；</p> 
+<p><img alt="" height="1180" src="https://images2.imgbox.com/d3/45/6jRecBiv_o.png" width="1200"></p> 
+<p>⑧将标准交换机的VMkernel端口迁移到分布式交换机；</p> 
+<p><img alt="" height="492" src="https://images2.imgbox.com/9c/53/0b1E5pga_o.png" width="1120"><img alt="" height="1200" src="https://images2.imgbox.com/68/73/aM8EdLPq_o.png" width="1200"></p> 
+<p></p> 
+<p><img alt="" height="570" src="https://images2.imgbox.com/0f/33/l2espSDF_o.png" width="1162"></p> 
+<p>⑨删除VMK网络适配器、物理网卡适配器；</p> 
+<p><img alt="" height="1200" src="https://images2.imgbox.com/9b/cf/FJgnOa5p_o.png" width="1200"></p> 
+<p>选择需要更新配置的物理主机；</p> 
+<p><img alt="" height="1200" src="https://images2.imgbox.com/01/f8/lbL3AgKA_o.png" width="1200"></p> 
+<p></p> 
+<p>删除物理网卡适配器；</p> 
+<p><img alt="" height="510" src="https://images2.imgbox.com/fd/10/oDTeqMuN_o.png" width="1200"></p> 
+<p><img alt="" height="566" src="https://images2.imgbox.com/36/19/bIRm7CKp_o.png" width="1200"></p> 
+<p>删除VMK网络适配器；</p> 
+<p><img alt="" height="1168" src="https://images2.imgbox.com/3a/ee/W3LKJ1ND_o.png" width="1200"></p> 
+<p><img alt="" height="1024" src="https://images2.imgbox.com/81/3b/DzbTQnNq_o.png" width="1200"></p> 
+<p>⑩删除分布式交换机；</p> 
+<p><img alt="" height="1200" src="https://images2.imgbox.com/3f/d6/ExqS1cYx_o.png" width="1200"></p> 
+<p><strong><strong>管理vSphere的网络策略</strong></strong></p> 
+<p><strong><strong>策略分类和设置级别：三项网络策略、两种级别。</strong></strong></p> 
+<p><strong><strong>三项网络策略：1 安全2 流量调整3 网卡绑定</strong></strong></p> 
+<p><strong><strong>在标准虚拟交换机级别：</strong></strong></p> 
+<p><strong><strong>用于标准虚拟交换机上的所有端口的默认策略。</strong></strong></p> 
+<p><strong><strong>是全局的设置，可以针对端口自定义策略。</strong></strong></p> 
+<p><strong><strong>在端口组级别：</strong></strong></p> 
+<p><strong><strong>有效策略：在该级别定义的策略将覆盖标准虚拟交换机级别所设置的默认策略。</strong></strong></p> 
+<p><strong><strong>只针对当前端口生效，并覆盖交换机级别的策略，但其他的端口组还是默认的策略。</strong></strong></p> 
+<p><strong><strong>注：端口组级别高于交换机级别</strong></strong></p> 
+<p><strong><strong>安全网络策略：混杂模式、MAC地址更改、伪信号。</strong></strong></p> 
+<p><strong><strong>混杂模式：</strong></strong></p> 
+<p><strong><strong>拒绝：虚拟机网络适配器仅接收发送到虚拟机的帧。</strong></strong></p> 
+<p><strong><strong>接受：虚拟交换机会将所有帧转发到符合虚拟机网络适配器所连接端口的活动VLAN策略的虚拟机。</strong></strong></p> 
+<p><strong><strong>注：混杂模式是一种不安全的运行模式。防火墙、端口扫描程序、入侵检测系统必须在混杂模式下运行。</strong></strong></p> 
+<p><strong><strong>MAC地址更改：</strong></strong></p> 
+<p><strong><strong>拒绝：如果虚拟机操作系统将虚拟机的有效MAC地址更改为与虚拟机网络适配器的MAC地址（在.vmx配置文件中设置）不同的值，则交换机会丢弃所有到适配器的入站帧。</strong></strong></p> 
+<p><strong><strong>如果虚拟机操作系统将虚拟机的有效MAC地址更改回虚拟机网络适配器的MAC地址，则虚拟机将重新接收帧。</strong></strong></p> 
+<p><strong><strong>接受：如果虚拟机操作系统将虚拟机的有效MAC地址更改为与虚拟机网络适配器的MAC地址（在.vmx配置文件中设置）不同的值，则交换机将允许传递到新地址的帧。</strong></strong></p> 
+<p><strong><strong>伪信号：</strong></strong></p> 
+<p><strong><strong>拒绝：如果从虚拟机适配器发出的出站帧的源MAC地址不同于.VMX配置文件中的源MAC地址，则交换机会丢弃该出站帧。</strong></strong></p> 
+<p><strong><strong>接受：交换机不执行筛选，并允许所有出战帧通过。</strong></strong></p> 
+<p><strong><strong>安全策略配置：</strong></strong></p> 
+<p><img alt="" height="852" src="https://images2.imgbox.com/3b/4a/mBMMv1hq_o.png" width="1200"></p> 
+<p><strong><strong>流量调整策略：状态、平均带宽、带宽峰值、突发大小。</strong></strong></p> 
+<p><strong><strong>状态：针对与标准交换机或端口组相关联的每个端口启用了网络带宽分配量的设置限制。</strong></strong></p> 
+<p><strong><strong>平均带宽：设定每秒允许通过端口的位数，这是一段时间内的平均值（允许的平均负载）。</strong></strong></p> 
+<p><strong><strong>带宽峰值：发送流量突发时，每秒钟允许通过端口的最大传输卫视。该设置是指流量突发时端口使用的最大带宽。此参数永远不能小于平均带宽。</strong></strong></p> 
+<p><strong><strong>突发大小：突发中所允许的最大字节数。如果设置了此参数，则在端口没有使用为其分配的所有带宽时可能会获取额外的突发，当端口所需的带宽大于平均带宽所之低昂的值时，如果有额外突发可用，则端口可能会临时以更高的速度传输数据。该参数是指流量突发是可累计且以更高速度传输的最大字节。</strong></strong></p> 
+<p><strong><strong>流量调整策略配置：</strong></strong></p> 
+<p><img alt="" height="564" src="https://images2.imgbox.com/0e/2b/bMG42UZM_o.png" width="1200"></p> 
+<p><strong><strong>负载均衡策略：基于源虚拟端口（交换机端口）的路由、基于源MAC哈希的路由、基于IP哈希的路由。</strong></strong></p> 
+<p><strong><strong>基于源虚拟端口（交换机端口）的路由：虚拟交换机可根据 vSphere 标准交换机或 vSphere Distributed Switch 上的虚拟机端口ID 选择上行链路。</strong></strong></p> 
+<p><strong><strong>ESXi 主机上运行的每个虚拟机在虚拟交换机上都有一个关联的虚拟端口 ID。要计算虚拟机的上行链路，虚拟交换机将使用虚拟机端口 ID 和网卡组中的上行链路数目。虚拟交换机为虚拟机选择上行链路后，只要该虚拟机在相同的端口上运行，就会始终通过此虚拟机的同一上行链路转发流量。除非在网卡组中添加或移除上行链路，否则虚拟交换机仅计算虚拟机上行链路一次。</strong></strong></p> 
+<p><strong><strong>当虚拟机在同一主机上运行时，虚拟机的端口 ID 固定不变。如果迁移或删除除虚拟机，或者关闭虚拟机电源，则此虚拟机在虚拟交换机上的端口 ID 将变为空闲状态。虚拟交换机将停止向此端口发送流量，这会减少其关联的上行链路的总流量。如果打开虚拟机电源或迁移虚拟机，则虚拟机可能会出现在不同的端口上并使用与新端口关联的上行链路。</strong></strong></p> 
+<p><strong><strong>优势：</strong></strong></p> 
+<p><strong><strong>当组中虚拟网卡数大于物理网卡数，流量分布均匀。</strong></strong></p> 
+<p><strong><strong>资源消耗低，因为在大多数情况下，虚拟交换机仅计算虚拟机上行链路一次。</strong></strong></p> 
+<p><strong><strong>无需再物理交换机上进行更改。</strong></strong></p> 
+<p><strong><strong>劣势：</strong></strong></p> 
+<p><strong><strong>虚拟交换机无法识别上行链路的流量负载，且不会对很少使用的上行链路的流量进行负载均衡。</strong></strong></p> 
+<p><strong><strong>虚拟机可用的带宽受限于与相关端口ID关联的上行链路速度，除非该虚拟机具有多个虚拟网卡。</strong></strong></p> 
+<p><strong><strong>基于源MAC哈希的路由：虚拟交换机可基于虚拟机 MAC 地址选择虚拟机的上行链路。要计算虚拟机的上行链路，虚拟交换机将使用虚拟机 MAC 地址和网卡组中的上行链路数目。</strong></strong></p> 
+<p><strong><strong>优势：</strong></strong></p> 
+<p><strong><strong>与基于源虚拟端口的路由相比，可更均匀的分布流量，因为虚拟交换机会计算每个数据包的上行链路。</strong></strong></p> 
+<p><strong><strong>虚拟机会使用 相同的上行链路，因为MAC地址是静态地址，启动后关闭虚拟机不会更改虚拟机使用的上行链路。</strong></strong></p> 
+<p><strong><strong>无需在物理交换机上进行更改。</strong></strong></p> 
+<p><strong><strong>劣势：</strong></strong></p> 
+<p><strong><strong>可用于虚拟机的带宽受限于与相关端口ID关联的上行链路速度，除非该虚拟机使用多个源MAC地址。</strong></strong></p> 
+<p><strong><strong>资源消耗回避基于源虚拟端口的路由更高，因为虚拟交换机会计算每个数据包的上行链路。</strong></strong></p> 
+<p><strong><strong>虚拟交换机无法识别上行链路的负载，因此上行链路可能会过载</strong></strong></p> 
+<p><strong><strong>基于IP哈希的路由：虚拟交换机可根据每个数据包的源和目标 IP 地址选择虚拟机的上行链路。</strong></strong></p> 
+<p><strong><strong>基于IP哈希的路由配置要求：</strong></strong></p> 
+<p><strong><strong>1. ESXi 主机支持单个物理交换机或堆栈交换机上的 IP 哈希成组。</strong></strong></p> 
+<p><strong><strong>2. ESXi 主机仅支持静态模式下的 802.3ad 链路聚合。只能将静态以太通道与 vSphere 标准交换机配</strong></strong></p> 
+<p><strong><strong>合使用,不支持 LACP。要使用 LACP，必须具有 vSphere Distributed Switch 5.1 及更高版本或 Cicso</strong></strong></p> 
+<p><strong><strong>Nexus1000V。如果启用 IP 哈希负载平衡但无 802.3ad 链路聚合（或者相反），则可能会遇到网</strong></strong></p> 
+<p><strong><strong>络中断。</strong></strong></p> 
+<p><strong><strong>3. 外部物理交换机必须上配置以太通道(port channel )</strong></strong></p> 
+<p><strong><strong>4. 必须使用“仅链路状态”作为网络故障检测方法，并使用 IP 哈希负载平衡。</strong></strong></p> 
+<p><strong><strong>5. 必须在“活动故障切换”列表中设置组的所有上行链路。“备用”和“未使用”列表必须为空。</strong></strong></p> 
+<p><strong><strong>6. 以太通道中的端口数必须与组中的上行链路数相同</strong></strong></p> 
+<p><strong><strong>优势:</strong></strong></p> 
+<p><strong><strong>与基于源虚拟端口（交换机端口）的路由和基于源MAC哈希的路由相比，可更均匀的分布负载，因为虚拟交换机会计算每个数据包的上行链路。</strong></strong></p> 
+<p><strong><strong>与多个IP地址通信的虚拟机可能实现更高的吞吐量。</strong></strong></p> 
+<p><strong><strong>劣势：</strong></strong></p> 
+<p><strong><strong>与其他负载平衡算法相比，资源消耗更高。</strong></strong></p> 
+<p><strong><strong>虚拟交换机无法识别上行链路的实际负载。</strong></strong></p> 
+<p><strong><strong>需要在物理网络上进行更改。</strong></strong></p> 
+<p><strong><strong>故障排除较为复杂。</strong></strong></p> 
+<p></p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/fe0deb06ed89c9c4ea2cbe3171518c7d/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">Vue3:全局API(应用实例)</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/ca1c58221b29e5f3b53b5634d82d491e/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">git提交注释规范</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

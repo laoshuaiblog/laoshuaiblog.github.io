@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>clickhouse数据导入遇到的问题 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/ccf7041e348f3c28b140042ee192a4c2/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="clickhouse数据导入遇到的问题">
+  <meta property="og:description" content="1. 采用mybatis写入数据，速度很慢的问题； 采用mybatis拼接sql的方式，可以写入数据，但是效率很低。每秒数据大概200-300条数据记录。
+2. 采用jdbc写入数据，可以使用两种数据源 // 新版本的包 import com.clickhouse.jdbc.ClickHouseDataSource; // 这个包可以 import ru.yandex.clickhouse.ClickHouseDataSource 3. 时间格式设置问题 组织批量写库时的日期时间格式问题。
+java.sql.Date sqlPayTime = new java.sql.Date(bill.getPayTime().getTime()); prepareStatement.setObject(39, new Timestamp(sqlPayTime.getTime())); 需要使用sql的Timestamp，不能使用java.util.Date，也不能使用java.sql.Date。
+4. 主键和排序键 在创建表时指定主键，会根据主键创建索引； 主键可以是多个列，不会影响查询性能，而且主键相同的数据可以重复； 一般不指定主键（primary key），而是指定排序键（order by），此时会把排序键作为主键； 排序键和主键可以不同，但此时主键必须时排序键的前缀。 5. 引擎参数问题 CREATE TABLE default.bill ( `bill_id` Int64, `bill_date` DateTime ） ENGINE = ReplacingMergeTree PARTITION BY toYYYYMM(bill_date) ORDER BY bill_date SETTINGS index_granularity = 8192; 这个引擎设置是有问题的。
+当排序key相同的数据，在做数据合并的时候，会进行去重处理。如果bill_date相同，就会进行数据合并。
+CREATE TABLE default.bill ( `bill_id` Int64, `bill_date` DateTime, `plat_billno` String ） ENGINE = ReplacingMergeTree(bill_date) PARTITION BY toYYYYMM(bill_date) ORDER BY (plat_billno, bill_date) PRIMARY KEY (plat_billno) SETTINGS index_granularity = 8192; 这个引擎设置才是正确的，因为账单编号本身是唯一的，所以不会造成数据被覆盖的情况。 ReplacingMergeTree引擎">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2022-10-08T10:00:47+08:00">
+    <meta property="article:modified_time" content="2022-10-08T10:00:47+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">clickhouse数据导入遇到的问题</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <h4>1. 采用mybatis写入数据，速度很慢的问题；</h4> 
+<p>采用mybatis拼接sql的方式，可以写入数据，但是效率很低。每秒数据大概200-300条数据记录。</p> 
+<h4>2. 采用jdbc写入数据，可以使用两种数据源</h4> 
+<pre><code>// 新版本的包
+import com.clickhouse.jdbc.ClickHouseDataSource;
+
+// 这个包可以
+import ru.yandex.clickhouse.ClickHouseDataSource
+
+</code></pre> 
+<h4>3. 时间格式设置问题</h4> 
+<p>组织批量写库时的日期时间格式问题。</p> 
+<pre><code>java.sql.Date sqlPayTime = new java.sql.Date(bill.getPayTime().getTime());
+prepareStatement.setObject(39, new Timestamp(sqlPayTime.getTime()));</code></pre> 
+<p>需要使用sql的Timestamp，不能使用java.util.Date，也不能使用java.sql.Date。</p> 
+<h4> 4. 主键和排序键</h4> 
+<pre><code>在创建表时指定主键，会根据主键创建索引；
+主键可以是多个列，不会影响查询性能，而且主键相同的数据可以重复；
+一般不指定主键（primary key），而是指定排序键（order by），此时会把排序键作为主键；
+排序键和主键可以不同，但此时主键必须时排序键的前缀。</code></pre> 
+<h4>5. 引擎参数问题</h4> 
+<pre><code>CREATE TABLE default.bill
+(
+    `bill_id` Int64,
+    `bill_date` DateTime
+）
+ENGINE = ReplacingMergeTree
+PARTITION BY toYYYYMM(bill_date)
+ORDER BY bill_date
+SETTINGS index_granularity = 8192;</code></pre> 
+<p> <strong><span style="color:#fe2c24;">这个引擎设置是有问题的。</span></strong></p> 
+<p>当排序key相同的数据，在做数据合并的时候，会进行去重处理。如果bill_date相同，就会进行数据合并。</p> 
+<pre><code>CREATE TABLE default.bill
+(
+    `bill_id` Int64,
+    `bill_date` DateTime,
+    `plat_billno` String
+）
+ENGINE = ReplacingMergeTree(bill_date)
+PARTITION BY toYYYYMM(bill_date)
+ORDER BY (plat_billno, bill_date)
+PRIMARY KEY (plat_billno)
+SETTINGS index_granularity = 8192;</code></pre> 
+<p><strong><span style="color:#fe2c24;">这个引擎设置才是正确的，因为账单编号本身是唯一的，所以不会造成数据被覆盖的情况</span></strong>。 </p> 
+<p><strong>ReplacingMergeTree引擎</strong></p> 
+<p><strong><span style="color:#fe2c24;">该引擎和 MergeTree 的不同之处在于它会删除排序键值相同的重复项。</span></strong> 数据的去重只会在数据合并期间进行。合并会在后台一个不确定的时间进行，因此你无法预先作出计划。有一些数据可能仍未被处理。尽管你可以调用 OPTIMIZE 语句发起计划外的合并，但请不要依靠它，因为 OPTIMIZE 语句会引发对数据的大量读写。</p> 
+<ul><li>ENGINE:引擎名和参数。</li><li>ver:版本列，类型可以是UInt*,Date,或者DateTime，可选择的参数。合并的时候ReplacingMergeTree从相同的主键中选择一行保留，如果ver列未指定，则选择最后一条，如果ver列已指定，则选择ver值最大的版本。</li><li>PARTITION BY：分区键。要按月分区，可以使用表达式 toYYYYMM(date_column) ，这里的 date_column 是一个 Date 类型的列。这里该分区名格式会是 “YYYYMM” 这样。</li><li>ORDER BY：表的排序键。可以是一组列或任意的表达式。例如: ORDER BY (CounterID, EventDate) 。</li><li> <pre><code>optimize table replacing_test;</code></pre> <p>触发合并，可以删除重复记录。</p> </li></ul> 
+<h4>6. <strong>事务提交问题</strong></h4> 
+<pre><code>// 执行conn.setAutoCommit(false);会报Transactions are not supported异常
+// 所以不能执行conn.commit();
+// 只能执行pst.executeBatch();由clickhouse进行后台提交。测试时插入数据条数是正确的</code></pre> 
+<h4>7. 错误信息</h4> 
+<pre><code>ru.yandex.clickhouse.except.ClickHouseUnknownException: ClickHouse exception, code: 1002, host: 192.168.17.81, port: 8123; Connection pool shut down
+        at ru.yandex.clickhouse.except.ClickHouseExceptionSpecifier.getException(ClickHouseExceptionSpecifier.java:100)
+        at ru.yandex.clickhouse.except.ClickHouseExceptionSpecifier.specify(ClickHouseExceptionSpecifier.java:57)
+        at ru.yandex.clickhouse.except.ClickHouseExceptionSpecifier.specify(ClickHouseExceptionSpecifier.java:26)
+        at ru.yandex.clickhouse.ClickHouseStatementImpl.sendStream(ClickHouseStatementImpl.java:1069)
+        at ru.yandex.clickhouse.ClickHouseStatementImpl.sendStream(ClickHouseStatementImpl.java:1022)
+        at ru.yandex.clickhouse.ClickHouseStatementImpl.sendStream(ClickHouseStatementImpl.java:1015)
+        at ru.yandex.clickhouse.ClickHousePreparedStatementImpl.executeBatch(ClickHousePreparedStatementImpl.java:382)
+        at ru.yandex.clickhouse.ClickHousePreparedStatementImpl.executeBatch(ClickHousePreparedStatementImpl.java:365)
+        at com.ftsafe.quartz.task.ClickBillFromDb.batchInsertClickHouse(ClickBillFromDb.java:398)
+        at com.ftsafe.quartz.task.ClickBillFromDb.dataTransProc(ClickBillFromDb.java:143)
+        at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+        at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+        at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+        at java.lang.reflect.Method.invoke(Method.java:498)
+        at com.ftsafe.quartz.util.JobInvokeUtil.invokeMethod(JobInvokeUtil.java:56)
+        at com.ftsafe.quartz.util.JobInvokeUtil.invokeMethod(JobInvokeUtil.java:33)
+        at com.ftsafe.quartz.util.QuartzDisallowConcurrentExecution.doExecute(QuartzDisallowConcurrentExecution.java:19)
+        at com.ftsafe.quartz.util.AbstractQuartzJob.execute(AbstractQuartzJob.java:43)
+        at org.quartz.core.JobRunShell.run(JobRunShell.java:202)
+        at org.quartz.simpl.SimpleThreadPool$WorkerThread.run(SimpleThreadPool.java:573)
+Caused by: java.lang.IllegalStateException: Connection pool shut down
+        at org.apache.http.util.Asserts.check(Asserts.java:34)</code></pre> 
+<h4>8. 对空值的处理</h4> 
+<p>字符串属性为空，BigDecimal属性为空等。通过jdbc批量写入数据时，字段数据不能设置为空值，一旦设置为空值，就会报错，此时需要设置为sql的空值。</p> 
+<pre><code class="hljs">prepareStatement.setNull(45, Types.CHAR);</code></pre> 
+<h4>9. 空间不足异常</h4> 
+<pre><code>java.sql.BatchUpdateException: Code: 243. DB::Exception: Cannot reserve 7.24 MiB, not enough space. (NOT_ENOUGH_SPACE) (version 22.2.2.1)
+, server ClickHouseNode(addr=http:192.168.17.81:8123, db=test)@1081606924
+        at com.clickhouse.jdbc.SqlExceptionUtils.batchUpdateError(SqlExceptionUtils.java:90)
+        at com.clickhouse.jdbc.internal.InputBasedPreparedStatement.executeAny(InputBasedPreparedStatement.java:133)
+        at com.clickhouse.jdbc.internal.AbstractPreparedStatement.executeLargeBatch(AbstractPreparedStatement.java:85)
+        at com.clickhouse.jdbc.internal.ClickHouseStatementImpl.executeBatch(ClickHouseStatementImpl.java:568)
+        at com.ftsafe.quartz.task.ClickBillFromDb.batchInsertClickHouse(ClickBillFromDb.java:442)
+        at com.ftsafe.quartz.task.ClickBillFromDb.dataTransProc(ClickBillFromDb.java:144)
+        at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+        at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+        at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+        at java.lang.reflect.Method.invoke(Method.java:498)
+        at com.ftsafe.quartz.util.JobInvokeUtil.invokeMethod(JobInvokeUtil.java:56)
+        at com.ftsafe.quartz.util.JobInvokeUtil.invokeMethod(JobInvokeUtil.java:33)
+        at com.ftsafe.quartz.util.QuartzDisallowConcurrentExecution.doExecute(QuartzDisallowConcurrentExecution.java:19)
+        at com.ftsafe.quartz.util.AbstractQuartzJob.execute(AbstractQuartzJob.java:43)
+        at org.quartz.core.JobRunShell.run(JobRunShell.java:202)
+        at org.quartz.simpl.SimpleThreadPool$WorkerThread.run(SimpleThreadPool.java:573)</code></pre> 
+<p>上述错误原因是磁盘空间不足引起。</p> 
+<h4>10. 优化后的性能</h4> 
+<p>采用jdbc批量导入后的性能，基本上每秒写入数据量在1万条左右。</p> 
+<p></p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/bdcf2980541cb5d9bfca2a17c3be9661/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">判断一个数是否为素数</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/65e7773b0baa2999800f8ed307e44214/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">Dev C&#43;&#43; 5.11版 「时代 の 眼泪」安装指南</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

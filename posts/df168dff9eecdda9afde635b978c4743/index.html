@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>程序人生——Java使用关于性能和效率的建议 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/df168dff9eecdda9afde635b978c4743/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="程序人生——Java使用关于性能和效率的建议">
+  <meta property="og:description" content="目录 引出性能和效率建议132：提升Java性能的基本方法建议133：若非必要，不要克隆对象 建议134：推荐使用“望闻问切”的方式诊断性能建议135：必须定义性能衡量标准 建议136：枪打出头鸟—解决首要系统性能问题建议137：调整JVM参数以提升性能建议138：性能是个大“咕咚” 深入认识JVMJVM内存分配，类加载创建对象的4种方法总结垃圾回收GCJVM调优，Arthas使用 认识多线程创建多线程方法&#43;了解线程池多线程下-1非原子性问题即解决再论线程，创建、生命周期 总结 引出 程序人生——Java使用关于性能和效率的建议
+性能和效率 建议132：提升Java性能的基本方法 如何让Java程序跑的更快、效率更高、吞吐量更大：1、不要在循环条件中计算，每循环一次就会计算一次，会降低系统效率；2、尽可能把变量、方法声明为final static类型，加上final static修饰后，在类加载后就会生成，每次方法调用则不再重新生成对象了；3、缩小变量的作用范围，目的是加快GC的回收；4、频繁字符串操作使用StringBuilder或StringBuffer；5、使用非线性检索，使用binarySearch查找会比indexOf查找元素快很多，但是使用binarySearch查找时记得先排序；6、覆写Exception的fillInStackTrace方法，fillInStackTrace方法是用来记录异常时的栈信息的，这是非常耗时的动作，如果不需要关注栈信息，则可以覆盖，以提升性能；7、不建立冗余对象 建议133：若非必要，不要克隆对象 （克隆对象并不比直接生成对象效率高）（通过clone方法生成一个对象时，就会不再执行构造函数了，只是在内存中进行数据块的拷贝，看上去似乎应该比new方法的性能好很多，但事实上，一般情况下new生成的对象比clone生成的性能方面要好很多。JVM对new做了大量的系能优化，而clone方式只是一个冷僻的生成对象的方式，并不是主流，它主要用于构造函数比较复杂，对象属性比较多，通过new关键字创建一个对象比较耗时间的时候 建议134：推荐使用“望闻问切”的方式诊断性能 性能诊断遵循“望闻问切”，不可过度急躁 建议135：必须定义性能衡量标准 原因： 1、性能衡量标准是技术与业务之间的契约；2、性能衡量标志是技术优化的目标 建议136：枪打出头鸟—解决首要系统性能问题 解决性能优化要“单线程”小步前进，避免关注点过多而导致精力分散）（解决性能问题时，不要把所有的问题都摆在眼前，这只会“扰乱”你的思维，集中精力，找到那个“出头鸟”，解决它，在大部分情况下，一批性能问题都会迎刃而解 建议137：调整JVM参数以提升性能 四个常用的JVM优化手段： 1、调整堆内存大小，JVM两种内存：栈内存（Stack）和堆内存（Heap），栈内存的特点是空间小，速度快，用来存放对象的引用及程序中的基本类型；而堆内存的特点是空间比较大，速度慢，一般对象都会在这里生成、使用和消亡。栈空间由线程开辟，线程结束，栈空间由JVM回收，它的大小一般不会对性能有太大影响，但是它会影响系统的稳定性，超过栈内存的容量时，会抛StackOverflowError错误。可以通过**“java -Xss ”设置栈内存大小来解决。堆内存的调整不能太随意，调整得太小，会导致Full GC频繁执行，轻则导致系统性能急速下降，重则导致系统根本无法使用；调整得太大，一则浪费资源（若设置了最小堆内存则可以避免此问题），二则是产生系统不稳定的情况，设置方法“java -Xmx1536 -Xms1024m”**，可以通过将-Xmx和-Xms参数值设置为相同的来固定堆内存大小；2、调整堆内存中各分区的比例，JVM的堆内存包括三部分：新生区（Young Generation Space）、养老区（Tenure Generation Space）、永久存储区（Permanent Space 方法区），其中新生成的对象都在新生区，又分为伊甸区（Eden Space）、幸存0区（Survivor 0 Space）和幸存1区（Survivor 1 Space），当在程序中使用了new关键字时，首先在Eden区生成该对象，如果Eden区满了，则触发minor GC，然后把剩余的对象移到Survivor区（0区或者1区），如果Survivor取也满了，则minor GC会再回收一次，然后再把剩余的对象移到养老区，如果养老区也满了，则会触发Full GC（非常危险的动作，JVM会停止所有的执行，所有系统资源都会让位给垃圾回收器），会对所有的对象过滤一遍，检查是否有可以回收的对象，如果还是没有的话，就抛出OutOfMemoryError错误。一般情况下新生区与养老区的比例为1:3左右，设置命令：“java -XX:NewSize=32m -XX:MaxNewSize=640m -XX:MaxPermSize=1280m -XX:NewRatio=5”,该配置指定新生代初始化为32MB（也就是新生区最小内存为32M），最大不超过640MB，养老区最大不超过1280MB，新生区和养老区的比例为1:5.一般情况下Eden Space : Survivor 0 Space : Survivor 1 Space == 8 : 1 : 1）；3、变更GC的垃圾回收策略，设置命令“java -XX:&#43;UseParallelGC -XX:ParallelGCThreads=20”，这里启用了并行垃圾收集机制，并且定义了20个收集线程（默认的收集线程等于CPU的数量），这对多CPU的系统时非常有帮助的，可以大大减少垃圾回收对系统的影响，提高系统性能；4、更换JVM，如果所有的JVM优化都不见效，那就只有更换JVM了，比较流行的三个JVM产品：Java HotSpot VM、Oracle JRockit JVM、IBM JVM。 建议138：性能是个大“咕咚” 1、没有慢的系统，只有不满足义务的系统；2、没有慢的系统，只有架构不良的系统；3、没有慢的系统，只有懒惰的技术人员；4、没有慢的系统，只有不愿意投入的系统 深入认识JVM JVM内存分配，类加载 Java进阶（1）——JVM的内存分配 &amp;amp; 反射Class类的类对象 &amp;amp; 创建对象的几种方式 &amp;amp; 类加载（何时进入内存JVM）&amp;amp; 注解 &amp;amp; 反射&#43;注解的案例">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2024-03-18T21:44:49+08:00">
+    <meta property="article:modified_time" content="2024-03-18T21:44:49+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">程序人生——Java使用关于性能和效率的建议</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-atom-one-dark">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <p><img src="https://images2.imgbox.com/37/ec/DAIbBVnD_o.png" alt="在这里插入图片描述"></p> 
+<p></p> 
+<div class="toc"> 
+ <h4>目录</h4> 
+ <ul><li><a href="#_6" rel="nofollow">引出</a></li><li><a href="#_19" rel="nofollow">性能和效率</a></li><li><ul><li><a href="#132Java_21" rel="nofollow">建议132：提升Java性能的基本方法</a></li><li><ul><li><a href="#133_25" rel="nofollow">建议133：若非必要，不要克隆对象</a></li></ul> 
+   </li><li><a href="#134_29" rel="nofollow">建议134：推荐使用“望闻问切”的方式诊断性能</a></li><li><ul><li><a href="#135_33" rel="nofollow">建议135：必须定义性能衡量标准</a></li></ul> 
+   </li><li><a href="#136_39" rel="nofollow">建议136：枪打出头鸟—解决首要系统性能问题</a></li><li><ul><li><a href="#137JVM_43" rel="nofollow">建议137：调整JVM参数以提升性能</a></li><li><a href="#138_51" rel="nofollow">建议138：性能是个大“咕咚”</a></li></ul> 
+  </li></ul> 
+  </li><li><a href="#JVM_61" rel="nofollow">深入认识JVM</a></li><li><ul><li><a href="#JVM_63" rel="nofollow">JVM内存分配，类加载</a></li><li><a href="#4_71" rel="nofollow">创建对象的4种方法总结</a></li><li><a href="#GC_78" rel="nofollow">垃圾回收GC</a></li><li><a href="#JVMArthas_86" rel="nofollow">JVM调优，Arthas使用</a></li></ul> 
+  </li><li><a href="#_103" rel="nofollow">认识多线程</a></li><li><ul><li><a href="#_106" rel="nofollow">创建多线程方法+了解线程池</a></li><li><a href="#1_113" rel="nofollow">多线程下-1非原子性问题即解决</a></li><li><a href="#_121" rel="nofollow">再论线程，创建、生命周期</a></li></ul> 
+  </li><li><a href="#_132" rel="nofollow">总结</a></li></ul> 
+</div> 
+<p></p> 
+<h2><a id="_6"></a>引出</h2> 
+<p>程序人生——Java使用关于性能和效率的建议</p> 
+<hr> 
+<h2><a id="_19"></a>性能和效率</h2> 
+<h3><a id="132Java_21"></a>建议132：提升Java性能的基本方法</h3> 
+<ul><li>如何让Java程序跑的更快、效率更高、吞吐量更大：<strong>1、不要在循环条件中计算</strong>，每循环一次就会计算一次，会降低系统效率；<strong>2、尽可能把变量、方法声明为final static类型</strong>，加上final static修饰后，在类加载后就会生成，每次方法调用则不再重新生成对象了；<strong>3、缩小变量的作用范围</strong>，目的是加快GC的回收；<strong>4、频繁字符串操作使用StringBuilder或StringBuffer</strong>；<strong>5、使用非线性检索</strong>，使用binarySearch查找会比indexOf查找元素快很多，但是使用binarySearch查找时记得先排序；<strong>6、覆写Exception的fillInStackTrace方法</strong>，fillInStackTrace方法是用来记录异常时的栈信息的，这是非常耗时的动作，如果不需要关注栈信息，则可以覆盖，以提升性能；<strong>7、不建立冗余对象</strong></li></ul> 
+<h4><a id="133_25"></a>建议133：若非必要，不要克隆对象</h4> 
+<ul><li>（克隆对象并不比直接生成对象效率高）（通过clone方法生成一个对象时，就会不再执行构造函数了，只是在内存中进行数据块的拷贝，看上去似乎应该比new方法的性能好很多，但事实上，一般情况下new生成的对象比clone生成的性能方面要好很多。JVM对new做了大量的系能优化，而clone方式只是一个冷僻的生成对象的方式，并不是主流，它主要用于构造函数比较复杂，对象属性比较多，通过new关键字创建一个对象比较耗时间的时候</li></ul> 
+<h3><a id="134_29"></a>建议134：推荐使用“望闻问切”的方式诊断性能</h3> 
+<ul><li>性能诊断遵循“望闻问切”，不可过度急躁</li></ul> 
+<h4><a id="135_33"></a>建议135：必须定义性能衡量标准</h4> 
+<ul><li>原因： 
+  <ul><li>1、性能衡量标准是技术与业务之间的契约；</li><li>2、性能衡量标志是技术优化的目标</li></ul> </li></ul> 
+<h3><a id="136_39"></a>建议136：枪打出头鸟—解决首要系统性能问题</h3> 
+<ul><li>解决性能优化要“单线程”小步前进，避免关注点过多而导致精力分散）（解决性能问题时，不要把所有的问题都摆在眼前，这只会“扰乱”你的思维，集中精力，找到那个“出头鸟”，解决它，在大部分情况下，一批性能问题都会迎刃而解</li></ul> 
+<h4><a id="137JVM_43"></a>建议137：调整JVM参数以提升性能</h4> 
+<ul><li>四个常用的JVM优化手段： 
+  <ul><li><strong>1、调整堆内存大小</strong>，JVM两种内存：<strong>栈内存（Stack）<strong>和</strong>堆内存（Heap）</strong>，<strong>栈内存</strong>的特点是<strong>空间小，速度快</strong>，用来存放<strong>对象的引用</strong>及程序中的<strong>基本类型</strong>；而<strong>堆内存</strong>的特点是<strong>空间比较大，速度慢</strong>，<strong>一般对象</strong>都会在这里生成、使用和消亡。<strong>栈空间由线程开辟</strong>，线程结束，栈空间由JVM回收，它的大小一般不会对性能有太大影响，但是它会影响系统的稳定性，超过栈内存的容量时，会抛StackOverflowError错误。可以通过**“java -Xss ”设置栈内存大小<strong>来解决。<strong>堆内存</strong>的调整不能太随意，调整得太小，会导致Full GC频繁执行，轻则导致系统性能急速下降，重则导致系统根本无法使用；调整得太大，一则浪费资源（若设置了最小堆内存则可以避免此问题），二则是产生系统不稳定的情况，设置方法</strong>“java -Xmx1536 -Xms1024m”**，可以通过将-Xmx和-Xms参数值设置为相同的来固定堆内存大小；</li><li><strong>2、调整堆内存中各分区的比例</strong>，JVM的堆内存包括三部分：<strong>新生区（Young Generation Space）、养老区（Tenure Generation Space）、永久存储区（Permanent Space 方法区）</strong>，其中新生成的对象都在新生区，又分为伊甸区（Eden Space）、幸存0区（Survivor 0 Space）和幸存1区（Survivor 1 Space），当在程序中使用了new关键字时，首先在Eden区生成该对象，如果Eden区满了，则触发minor GC，然后把剩余的对象移到Survivor区（0区或者1区），如果Survivor取也满了，则minor GC会再回收一次，然后再把剩余的对象移到养老区，如果养老区也满了，则会触发Full GC（非常危险的动作，JVM会停止所有的执行，所有系统资源都会让位给垃圾回收器），会对所有的对象过滤一遍，检查是否有可以回收的对象，如果还是没有的话，就抛出OutOfMemoryError错误。一般情况下新生区与养老区的比例为<strong>1:3左右</strong>，设置命令：“java -XX:NewSize=32m -XX:MaxNewSize=640m -XX:MaxPermSize=1280m -XX:NewRatio=5”,该配置指定新生代初始化为32MB（也就是新生区最小内存为32M），最大不超过640MB，养老区最大不超过1280MB，新生区和养老区的比例为1:5.一般情况下Eden Space : Survivor 0 Space : Survivor 1 Space == <strong>8 : 1 : 1</strong>）；</li><li><strong>3、变更GC的垃圾回收策略</strong>，设置命令“java -XX:+UseParallelGC -XX:ParallelGCThreads=20”，这里启用了并行垃圾收集机制，并且定义了20个收集线程（默认的收集线程等于CPU的数量），这对多CPU的系统时非常有帮助的，可以大大减少垃圾回收对系统的影响，提高系统性能；</li><li><strong>4、更换JVM</strong>，如果所有的JVM优化都不见效，那就只有更换JVM了，比较流行的三个JVM产品：Java HotSpot VM、Oracle JRockit JVM、IBM JVM。</li></ul> </li></ul> 
+<h4><a id="138_51"></a>建议138：性能是个大“咕咚”</h4> 
+<ul><li>1、没有慢的系统，只有不满足义务的系统；</li><li>2、没有慢的系统，只有架构不良的系统；</li><li>3、没有慢的系统，只有懒惰的技术人员；</li><li>4、没有慢的系统，只有不愿意投入的系统</li></ul> 
+<h2><a id="JVM_61"></a>深入认识JVM</h2> 
+<h3><a id="JVM_63"></a>JVM内存分配，类加载</h3> 
+<p><a href="https://blog.csdn.net/Pireley/article/details/132175970">Java进阶（1）——JVM的内存分配 &amp; 反射Class类的类对象 &amp; 创建对象的几种方式 &amp; 类加载（何时进入内存JVM）&amp; 注解 &amp; 反射+注解的案例</a></p> 
+<p><img src="https://images2.imgbox.com/fc/9f/zdQYzeYW_o.png" alt="在这里插入图片描述"></p> 
+<h3><a id="4_71"></a>创建对象的4种方法总结</h3> 
+<p><a href="https://blog.csdn.net/Pireley/article/details/132355758">Java进阶（4）——结合类加载JVM的过程理解创建对象的几种方式：new，反射Class，克隆clone（拷贝），序列化反序列化</a></p> 
+<p><img src="https://images2.imgbox.com/4c/09/szYH1NtS_o.png" alt="在这里插入图片描述"></p> 
+<h3><a id="GC_78"></a>垃圾回收GC</h3> 
+<p><img src="https://images2.imgbox.com/ce/b0/YOovHqtp_o.png" alt="在这里插入图片描述"></p> 
+<p><a href="https://blog.csdn.net/Pireley/article/details/134315943">Java进阶（垃圾回收GC）——理论篇：JVM内存模型 &amp; 垃圾回收定位清除算法 &amp; JVM中的垃圾回收器</a></p> 
+<p>简介：本篇博客介绍JVM的内存模型，对比了1.7和1.8的内存模型的变化；介绍了垃圾回收的语言发展；阐述了定位垃圾的方法，引用计数法和可达性分析发以及垃圾清除算法；然后介绍了Java中的垃圾回收器，由串行、到并行再到并发，最后到G1的演变；最后给出了垃圾回收器的对比和使用指引。</p> 
+<h3><a id="JVMArthas_86"></a>JVM调优，Arthas使用</h3> 
+<ul><li><a href="https://blog.csdn.net/Pireley/article/details/134320335">Java进阶（JVM调优）——阿里云的Arthas的使用 &amp; 安装和使用 &amp; 死锁查找案例，重新加载案例，慢调用分析</a></li><li><a href="https://blog.csdn.net/Pireley/article/details/134319596">Java进阶（JVM调优）——JVM调优参数 &amp; JDK自带工具使用 &amp; 内存溢出和死锁问题案例 &amp; GC垃圾回收</a></li></ul> 
+<p><img src="https://images2.imgbox.com/f7/1a/WPOgo1N9_o.png" alt="在这里插入图片描述"></p> 
+<p><img src="https://images2.imgbox.com/49/a2/UtaXm6cq_o.png" alt="在这里插入图片描述"></p> 
+<p><img src="https://images2.imgbox.com/91/05/5gK8hRLH_o.png" alt="在这里插入图片描述"></p> 
+<h2><a id="_103"></a>认识多线程</h2> 
+<h3><a id="_106"></a>创建多线程方法+了解线程池</h3> 
+<p><a href="https://blog.csdn.net/Pireley/article/details/132425329">Java进阶（5）——创建多线程的方法extends Thread和implements Runnable的对比 &amp; 线程池及常用的线程池</a></p> 
+<p><img src="https://images2.imgbox.com/66/5e/8mg7xPUm_o.png" alt="在这里插入图片描述"></p> 
+<h3><a id="1_113"></a>多线程下-1非原子性问题即解决</h3> 
+<p><a href="https://blog.csdn.net/Pireley/article/details/132432650">Java进阶（6）——抢购问题中的数据不安全（非原子性问题）&amp; Java中的synchronize和ReentrantLock锁使用 &amp; 死锁及其产生的条件</a></p> 
+<p><img src="https://images2.imgbox.com/15/04/QUHbrKbc_o.png" alt="在这里插入图片描述"></p> 
+<h3><a id="_121"></a>再论线程，创建、生命周期</h3> 
+<p><a href="https://blog.csdn.net/Pireley/article/details/134268456">Java进阶（再论线程）——线程的4种创建方式 &amp; 线程的生命周期 &amp; 线程的3大特性 &amp; 集合中的线程安全问题</a></p> 
+<p>主要内容：<br> 1.线程创建的方式，继承Thread类，实现Runable接口，实现Callable接口，采用线程池；<br> 2.线程生命周期： join()：运行结束再下一个， yield()：暂时让出cpu的使用权，deamon()：守护线程，最后结束，sleep()：如果有锁，不会让出；<br> 3.线程3大特性，原子性，可见性，有序性；<br> 4.list集合中线程安全问题，hash算法问题；</p> 
+<hr> 
+<h2><a id="_132"></a>总结</h2> 
+<p>程序人生——Java使用关于性能和效率的建议</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/ef7c0dae14826824fa74d2525c4ea738/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">【数据结构】栈与队列</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/c28baac3d89f911ed21ab6b70fee11df/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">Python的编码和解码</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

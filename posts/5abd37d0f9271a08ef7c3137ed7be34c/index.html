@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Clickhouse INSERT操作 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/5abd37d0f9271a08ef7c3137ed7be34c/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="Clickhouse INSERT操作">
+  <meta property="og:description" content="创建表： CREATE TABLE city ( `id` UInt8, `country` String, `province` String, `city` String, `create_time` datetime DEFAULT now() ) ENGINE = MergeTree() PARTITION BY toYYYYMM(create_time) ORDER BY id Ok. 0 rows in set. Elapsed: 0.012 sec. 插入数据： 1.单行插入： Clickhouse&amp;gt; insert into city(id,country,province,city) VALUES(1,&#39;China&#39;,&#39;Hubei&#39;,&#39;wuhan&#39;); INSERT INTO city (id, country, province, city) VALUES Ok. 1 rows in set. Elapsed: 0.017 sec. 2.多行插入： Clickhouse&amp;gt; insert into city(id,country,province,city) VALUES(2,&#39;China&#39;,&#39;Hubei&#39;,&#39;xiangyang&#39;),(2,&#39;China&#39;,&#39;Guangdong&#39;,&#39;shenzhen&#39;); INSERT INTO city (id, country, province, city) VALUES Ok.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2020-06-16T15:25:30+08:00">
+    <meta property="article:modified_time" content="2020-06-16T15:25:30+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">Clickhouse INSERT操作</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="htmledit_views">
+                    <pre><code>创建表：
+CREATE TABLE city
+(
+    `id` UInt8, 
+    `country` String, 
+    `province` String, 
+    `city` String, 
+    `create_time` datetime DEFAULT now()
+)
+ENGINE = MergeTree()
+PARTITION BY toYYYYMM(create_time)
+ORDER BY id
+
+Ok.
+
+0 rows in set. Elapsed: 0.012 sec. 
+
+插入数据：
+1.单行插入：
+
+Clickhouse&gt; insert into city(id,country,province,city) VALUES(1,'China','Hubei','wuhan');
+
+INSERT INTO city (id, country, province, city) VALUES
+
+Ok.
+
+1 rows in set. Elapsed: 0.017 sec. 
+2.多行插入：
+
+Clickhouse&gt; insert into city(id,country,province,city) VALUES(2,'China','Hubei','xiangyang'),(2,'China','Guangdong','shenzhen');
+
+INSERT INTO city (id, country, province, city) VALUES
+
+Ok.
+
+2 rows in set. Elapsed: 0.002 sec. 
+
+
+插入特定格式：
+
+比如CSV 或者 TSV   JSON 等
+ 
+insert into city select 20,'China','Beijing','Beijing','2020-06-24 14:15:00';
+
+
+虽然VALUES和SELECT字句支持声明表达式或者函数，但是会带来额外的性能开销，导致写入性能的下降。
+若为了极致的性能需要尽可能避免使用他们。
+
+INSERT语句在写入的过程具有原子性，在默认的情况下，每个数据块最多可以写入1048576行数据，有参数
+
+max_insert_block_size参数控制，若INSERT操作写max_insert_block_size行的话要么成功要么失败。
+需要注意的是只有在Clickhouse服务器端处理数据的时候才有写入特性。
+在适用JDBC或者HTTP接口的时候。
+
+因为max_insert_block_size在适用CLI或者insert select子句的时候不生效。
+
+性能考虑：
+
+
+INSERT通过主键对输入数据进行排序，并通过分区键将它们划分为多个分区。 如果您一次将数据插入多个分区，
+则可能会大大降低INSERT查询的性能。 为了避免这种情况：
+
+批量添加数据，例如一次添加100,000行。
+在将数据上传到ClickHouse之前，通过分区键对数据进行分组。
+
+在以下情况下，性能不会降低：
+
+数据是实时添加的。
+您上传的数据通常按时间排序
+
+
+</code></pre> 
+<p> <img alt="" height="121" src="https://images2.imgbox.com/5d/5a/063kWnXj_o.png" width="521"></p> 
+<p>参考：</p> 
+<p><a href="https://www.altinity.com/blog/2018/10/16/updates-in-clickhouse" rel="nofollow">https://www.altinity.com/blog/2018/10/16/updates-in-clickhouse</a></p> 
+<p><a href="https://clickhouse.tech/docs/en/sql-reference/statements/insert-into/" rel="nofollow">https://clickhouse.tech/docs/en/sql-reference/statements/insert-into/</a></p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/30d43790e1289a380a05dee98d24694a/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">【数据结构】基于栈的中缀算式表达式求值</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/f7533e1cc1477f460cfe07b3016aeafc/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">通过MVVM使您的视图控制器节食</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>

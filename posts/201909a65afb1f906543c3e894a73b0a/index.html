@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Unity编辑器扩展 UI控件篇 - 老帅的博客</title>
+	<script>(function(d,e){d[e]=d[e].replace("no-js","js");})(document.documentElement,"className");</script>
+	<meta name="description" content="">
+		<meta property="og:url" content="https://laoshuaiblog.github.io/posts/201909a65afb1f906543c3e894a73b0a/">
+  <meta property="og:site_name" content="老帅的博客">
+  <meta property="og:title" content="Unity编辑器扩展 UI控件篇">
+  <meta property="og:description" content="前摇 ：认识编辑器扩展的必要性 由于各种各样的原因，无论是移动端亦或是主机/PC端，进几年的发行的游戏体量是越来越大。通常来说大体量的游戏开发需要一套很成熟完善的工作流，亦或说有很强的工业化的能力，像R星育碧这样的游戏厂商一定会有非常强大的工业化能力，才能有大表哥这样充斥大量细节或刺客信条这样充斥BUG，口误，是持续迭代的游戏作品
+所谓工欲善其事必先利其器，要想提升游戏开发效率，就要有好用的游戏开发工具，说到最后就绕不开游戏开发引擎
+游戏业界常说，自研的引擎不一定是最好的，但是最好的引擎一定是自研的，一定程度上说明了定制化引擎存在优势。 虽然像Unity与虚幻这样的商业引擎已经非常成熟好用，但其本身还是通用性的商品，很难在每一个方面都做到很好的适配性
+而就Unity引擎，又相比于虚幻来说在整个工作流上表现还不够成熟。操作方式使用习惯上还是存在非常多的程序员思想，很多开发工具可视化程度还不够完善，对于程序员来说也许问题不大，但是对策划与美术来说就非常不友好
+各种层面上来说，为提升编辑器的易操作性与保障项目开发独特性，而对编辑器进行扩展魔改，已经变成了游戏开发者所必须的技能之一
+发生：Unity编辑器扩展之UI控件 乱七八糟的话说完后，回归正题。根据Unity文档的解释与案例，了解编辑器界面创建过程所需的结构与方法
+与做游戏UI界面不同，引擎编辑器界面的搭建完全没有现成控件做可视化搭建，而只能依靠较底层的代码命令手撸完成。不过好在Unity提供了一套完整的纯代码界面编辑模式，并称其为“即时模式”GUI 系统。关于该系统的具体解释这里直接搬运官方文档的说明：
+“即时模式”GUI 系统（也称为 IMGUI）是一个完全独立的功能系统，不同于 Unity 基于游戏对象的主 UI 系统。IMGUI 是一个代码驱动的 GUI 系统，主要用作程序员的工具 虽然该系统与主UI系统不太相同，但是也同根同源，学习起来难度并不大。通过下面的一个小Demo来演示IMGUI的具体使用方法与应该注意的一些点
+继承EditorWindow创建编辑器窗口：
+编辑器UI界面展示与逻辑刷新一般都是继承于EditorWindow这个类来实现的，对其生命周期结构的使用类似于通过编辑继承MonoBehavior的脚本代码完成游戏生命周期逻辑的实现。两者有着相似的监听事件，一样的周期性刷新方法，所以可以无学习的成功的上手使用
+在Unity中创建并继承于EditorWindow类编辑器脚本并命名为EditorDemo ，然后使用类中的GetWindow方法创建CreateWindow静态方法（注意一定要是静态），通过该静态方法实现编辑器窗口界面的初始化，具体的代码细节如下：
+public class EditorDemo : EditorWindow { [MenuItem(&#34;EditorDemo/Test &amp;amp;1&#34;)] public static EditorDemo CreateWindow() { EditorDemo window = GetWindow&amp;lt;EditorDemo&amp;gt;(&#34;测试编辑器&#34;); window.autoRepaintOnSceneChange = true; window.Show(); return window; } } 在上面的代码中，会在初始化静态方法上添加MenuItem命令用以实现在引擎内的上部导航栏中增加一个自定义编辑器的开启页签
+关于MenuItem：
+MenuItem 属性用于向主菜单和检视面板上下文菜单添加菜单项，使用特定格式可以实现一些额外效果，如上面案例中使用反斜杠符号可以创建多个层级的菜单，而“&amp;amp;”符号则可以为该编辑器界面添加开启快捷键（通常与Alt形成组合键），如图所示： 在对编辑器界面完成初始化的工作后，后面的界面细节需要对EditorWindow类做一些了解。查阅文档来熟悉以下该类提供的一些消息函数。了解他们分别用来实现不同状态下的哪些编辑器功能：
+在上面的消息，对编辑器扩展UI方面最需要关注的OnGUI函数，通常来说，界面元素的创建通常都需要写入到改方法内。前面有说到即时模式GUI创建编辑器UI控件无法通过可视化的操作工具来完成，只能由Unity提供的相关API来做，过程类似于不使用游戏开发引擎，直接基于相应编程语言的游戏开发，常用的控件创建类有下面几个：
+GUI：是UnityEngine下的类，其方法可在Runtime状态下调用执行GUILayout：GUI的可自动排版版本，无需Rect布局定位EditorGUI：是UnityEditor下的编辑器类EditorGUILayout： EditorGUI的可自动排版版本，无需Rect布局定位 通过四个类的命名也很容易的看出他们之间的区别与使用区间。通常来说，GUI与GUILayout是使用最广的，编辑器状态与RunTime下都可用。独立的编辑窗口通常GUI与EditorGUI两个类可以混合使用，而在运行状态下使用就只能使用GUI或GUIlayerout
+以使用场景较多的GUIlayout为案例，可以从文档介绍中看到Unity引擎提供了相当多的创建控件的接口，熟悉使用这些接口，完全可以利用自己游戏界面的开发界面方便的开发出所需的编辑器
+通过一个简单的案例介绍这些API的使用方法。尝试在场景中选中某一个物体，并通过编辑器来控制其整体缩放与颜色改变：
+首先关于选择对象的获取，Unity提供了获取编辑器状态下的开发者所选择的对象编辑器方法Selection.activeGameObject，而在前面的关于EditorWindow的消息中存在OnSelectionChange函数，该函数会在选择对象改变时被调用。通过使用这两个函数与接口可以高效的得到实时选择的物体：
+public GameObject selectObj; private void OnSelectionChange() { selectObj = Selection.">
+  <meta property="og:locale" content="zh-CN">
+  <meta property="og:type" content="article">
+  <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2022-07-17T11:01:49+08:00">
+    <meta property="article:modified_time" content="2022-07-17T11:01:49+08:00">
+
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="dns-prefetch" href="//fonts.googleapis.com">
+	<link rel="dns-prefetch" href="//fonts.gstatic.com">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700">
+
+	<link rel="stylesheet" href="/css/style.css">
+	
+
+	<link rel="shortcut icon" href="/favicon.ico">
+		
+  
+
+
+</head>
+<body class="body">
+	<div class="container container--outer">
+		<header class="header">
+	<div class="container header__container">
+		
+	<div class="logo">
+		<a class="logo__link" href="/" title="老帅的博客" rel="home">
+			<div class="logo__item logo__text">
+					<div class="logo__title">老帅的博客</div>
+					
+				</div>
+		</a>
+	</div>
+		<div class="divider"></div>
+	</div>
+</header>
+		<div class="wrapper flex">
+			<div class="primary">
+			
+<main class="main" role="main">
+	<article class="post">
+		<header class="post__header">
+			<h1 class="post__title">Unity编辑器扩展 UI控件篇</h1>
+			
+		</header>
+		<div id="gatop"></div>
+		<div class="content post__content clearfix">
+			
+<div id="content_views" class="markdown_views prism-tomorrow-night-eighties">
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <path stroke-linecap="round" d="M5,0 0,2.5 5,5z" id="raphael-marker-block" style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0);"></path>
+                    </svg>
+                    <h5><a id="__0"></a>前摇 ：认识编辑器扩展的必要性</h5> 
+<p>由于各种各样的原因，无论是移动端亦或是主机/PC端，进几年的发行的游戏体量是越来越大。通常来说大体量的游戏开发需要一套很成熟完善的工作流，亦或说有很强的工业化的能力，像R星育碧这样的游戏厂商一定会有非常强大的工业化能力，才能有大表哥这样充斥大量细节或刺客信条这样充斥BUG，口误，是持续迭代的游戏作品</p> 
+<p>所谓工欲善其事必先利其器，要想提升游戏开发效率，就要有好用的游戏开发工具，说到最后就绕不开游戏开发引擎</p> 
+<p>游戏业界常说，自研的引擎不一定是最好的，但是最好的引擎一定是自研的，一定程度上说明了定制化引擎存在优势。 虽然像Unity与虚幻这样的商业引擎已经非常成熟好用，但其本身还是通用性的商品，很难在每一个方面都做到很好的适配性</p> 
+<p>而就Unity引擎，又相比于虚幻来说在整个工作流上表现还不够成熟。操作方式使用习惯上还是存在非常多的程序员思想，很多开发工具可视化程度还不够完善，对于程序员来说也许问题不大，但是对策划与美术来说就非常不友好</p> 
+<p>各种层面上来说，为提升编辑器的易操作性与保障项目开发独特性，而对编辑器进行扩展魔改，已经变成了游戏开发者所必须的技能之一</p> 
+<h5><a id="UnityUI_17"></a>发生：Unity编辑器扩展之UI控件</h5> 
+<p>乱七八糟的话说完后，回归正题。根据Unity文档的解释与案例，了解编辑器界面创建过程所需的结构与方法</p> 
+<p>与做游戏UI界面不同，引擎编辑器界面的搭建完全没有现成控件做可视化搭建，而只能依靠较底层的代码命令手撸完成。不过好在<code>Unity</code>提供了一套完整的纯代码界面编辑模式，并称其为“即时模式”GUI 系统。关于该系统的具体解释这里直接搬运官方文档的说明：</p> 
+<ul><li>“即时模式”<code>GUI </code>系统（也称为<code> IMGUI</code>）是一个完全独立的功能系统，不同于 <code>Unity</code> 基于游戏对象的主 UI 系统。<code>IMGUI</code> 是一个代码驱动的 <code>GUI</code> 系统，主要用作程序员的工具</li></ul> 
+<p>虽然该系统与主<code>UI</code>系统不太相同，但是也同根同源，学习起来难度并不大。通过下面的一个小<code>Demo</code>来演示<code>IMGUI</code>的具体使用方法与应该注意的一些点</p> 
+<p><strong>继承EditorWindow创建编辑器窗口：</strong></p> 
+<p>编辑器<code>UI</code>界面展示与逻辑刷新一般都是继承于<code>EditorWindow</code>这个类来实现的，对其生命周期结构的使用类似于通过编辑继承<code>MonoBehavior</code>的脚本代码完成游戏生命周期逻辑的实现。两者有着相似的监听事件，一样的周期性刷新方法，所以可以无学习的成功的上手使用</p> 
+<p>在<code>Unity</code>中创建并继承于<code>EditorWindow</code>类编辑器脚本并命名为<code>EditorDemo</code> ，然后使用类中的<code>GetWindow</code>方法创建<code>CreateWindow</code>静态方法（注意一定要是静态），通过该静态方法实现编辑器窗口界面的初始化，具体的代码细节如下：</p> 
+<pre><code class="prism language-csharp"><span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">EditorDemo</span> <span class="token punctuation">:</span> <span class="token type-list"><span class="token class-name">EditorWindow</span></span>
+<span class="token punctuation">{<!-- --></span>
+    <span class="token punctuation">[</span><span class="token attribute"><span class="token class-name">MenuItem</span><span class="token attribute-arguments"><span class="token punctuation">(</span><span class="token string">"EditorDemo/Test  &amp;1"</span><span class="token punctuation">)</span></span></span><span class="token punctuation">]</span>
+    <span class="token keyword">public</span> <span class="token keyword">static</span> <span class="token return-type class-name">EditorDemo</span> <span class="token function">CreateWindow</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+    <span class="token punctuation">{<!-- --></span>
+        <span class="token class-name">EditorDemo</span> window <span class="token operator">=</span> <span class="token generic-method"><span class="token function">GetWindow</span><span class="token generic class-name"><span class="token punctuation">&lt;</span>EditorDemo<span class="token punctuation">&gt;</span></span></span><span class="token punctuation">(</span><span class="token string">"测试编辑器"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        window<span class="token punctuation">.</span>autoRepaintOnSceneChange <span class="token operator">=</span> <span class="token boolean">true</span><span class="token punctuation">;</span>
+        window<span class="token punctuation">.</span><span class="token function">Show</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">return</span> window<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>在上面的代码中，会在初始化静态方法上添加<code>MenuItem</code>命令用以实现在引擎内的上部导航栏中增加一个自定义编辑器的开启页签</p> 
+<ul><li>关于MenuItem：<br> <code>MenuItem</code> 属性用于向主菜单和检视面板上下文菜单添加菜单项，使用特定格式可以实现一些额外效果，如上面案例中使用反斜杠符号可以创建多个层级的菜单，而“&amp;”符号则可以为该编辑器界面添加开启快捷键（通常与<code>Alt</code>形成组合键），如图所示：</li></ul> 
+<p><img src="https://images2.imgbox.com/52/4b/HhrYfaF4_o.png" alt="在这里插入图片描述"></p> 
+<p>在对编辑器界面完成初始化的工作后，后面的界面细节需要对<code>EditorWindow</code>类做一些了解。查阅文档来熟悉以下该类提供的一些消息函数。了解他们分别用来实现不同状态下的哪些编辑器功能：<br> <img src="https://images2.imgbox.com/dd/d0/5uPxDKTS_o.png" alt="在这里插入图片描述"><br> 在上面的消息，对编辑器扩展<code>UI</code>方面最需要关注的<code>OnGUI</code>函数，通常来说，界面元素的创建通常都需要写入到改方法内。前面有说到即时模式<code>GUI</code>创建编辑器<code>UI</code>控件无法通过可视化的操作工具来完成，只能由<code>Unity</code>提供的相关<code>API</code>来做，过程类似于不使用游戏开发引擎，直接基于相应编程语言的游戏开发，常用的控件创建类有下面几个：</p> 
+<ul><li><code>GUI</code>：是<code>UnityEngine</code>下的类，其方法可在<code>Runtime</code>状态下调用执行</li><li><code>GUILayout</code>：<code>GUI</code>的可自动排版版本，无需<code>Rect</code>布局定位</li><li><code>EditorGUI</code>：是<code>UnityEditor</code>下的编辑器类</li><li><code>EditorGUILayout</code>： <code>EditorGUI</code>的可自动排版版本，无需<code>Rect</code>布局定位</li></ul> 
+<p>通过四个类的命名也很容易的看出他们之间的区别与使用区间。通常来说，<code>GUI</code>与<code>GUILayout</code>是使用最广的，编辑器状态与<code>RunTime</code>下都可用。独立的编辑窗口通常GUI与<code>EditorGUI</code>两个类可以混合使用，而在运行状态下使用就只能使用<code>GUI</code>或<code>GUIlayerout</code></p> 
+<p>以使用场景较多的<code>GUIlayout</code>为案例，可以从文档介绍中看到Unity引擎提供了相当多的创建控件的接口，熟悉使用这些接口，完全可以利用自己游戏界面的开发界面方便的开发出所需的编辑器</p> 
+<p><img src="https://images2.imgbox.com/9f/97/wywlBM3x_o.png" alt="在这里插入图片描述"><br> 通过一个简单的案例介绍这些<code>API</code>的使用方法。尝试在场景中选中某一个物体，并通过编辑器来控制其整体缩放与颜色改变：</p> 
+<p>首先关于选择对象的获取，Unity提供了获取编辑器状态下的开发者所选择的对象编辑器方法<code>Selection.activeGameObject</code>，而在前面的关于<code>EditorWindow</code>的消息中存在<code>OnSelectionChange</code>函数，该函数会在选择对象改变时被调用。通过使用这两个函数与接口可以高效的得到实时选择的物体：</p> 
+<pre><code class="prism language-csharp">    <span class="token keyword">public</span> <span class="token class-name">GameObject</span> selectObj<span class="token punctuation">;</span>
+    <span class="token keyword">private</span> <span class="token return-type class-name"><span class="token keyword">void</span></span> <span class="token function">OnSelectionChange</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+    <span class="token punctuation">{<!-- --></span>
+        selectObj <span class="token operator">=</span> Selection<span class="token punctuation">.</span>activeGameObject<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+</code></pre> 
+<p>在得到编辑器场景内的某一物体后，通常我们可以调节<code>Inspector</code>面板内的对应参数来改变选中对象的状态。下面的代码是编辑器控件来模仿这个效果：</p> 
+<pre><code class="prism language-csharp">    <span class="token keyword">public</span> <span class="token class-name"><span class="token keyword">string</span></span> selectName<span class="token punctuation">;</span>
+	<span class="token keyword">public</span> <span class="token class-name"><span class="token keyword">string</span></span> textStr<span class="token punctuation">;</span>
+    <span class="token keyword">public</span> <span class="token class-name"><span class="token keyword">float</span></span> slideNum<span class="token punctuation">;</span>
+    <span class="token keyword">public</span> <span class="token class-name">Color</span> color<span class="token punctuation">;</span>
+    <span class="token keyword">private</span> <span class="token return-type class-name"><span class="token keyword">void</span></span> <span class="token function">OnGUI</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+    <span class="token punctuation">{<!-- --></span>
+        selectName <span class="token operator">=</span> selectObj <span class="token operator">==</span> <span class="token keyword">null</span> <span class="token punctuation">?</span> <span class="token string">"未选中物体"</span> <span class="token punctuation">:</span> selectObj<span class="token punctuation">.</span>name<span class="token punctuation">;</span>
+        selectName <span class="token operator">=</span> EditorGUILayout<span class="token punctuation">.</span><span class="token function">TextField</span><span class="token punctuation">(</span><span class="token string">"选中的物体名："</span><span class="token punctuation">,</span> selectName<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        GUILayout<span class="token punctuation">.</span><span class="token function">Space</span><span class="token punctuation">(</span><span class="token number">20</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        slideNum <span class="token operator">=</span> EditorGUILayout<span class="token punctuation">.</span><span class="token function">Slider</span><span class="token punctuation">(</span><span class="token string">"控制对象缩放："</span><span class="token punctuation">,</span> slideNum<span class="token punctuation">,</span> <span class="token number">1</span><span class="token punctuation">,</span> <span class="token number">10</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>selectObj<span class="token operator">!=</span><span class="token keyword">null</span><span class="token punctuation">)</span>
+        <span class="token punctuation">{<!-- --></span>
+            selectObj<span class="token punctuation">.</span>transform<span class="token punctuation">.</span>localScale<span class="token operator">=</span><span class="token keyword">new</span> <span class="token constructor-invocation class-name">Vector3</span><span class="token punctuation">(</span>slideNum<span class="token punctuation">,</span>slideNum<span class="token punctuation">,</span>slideNum<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        GUILayout<span class="token punctuation">.</span><span class="token function">Space</span><span class="token punctuation">(</span><span class="token number">20</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        color <span class="token operator">=</span> EditorGUILayout<span class="token punctuation">.</span><span class="token function">ColorField</span><span class="token punctuation">(</span><span class="token string">"选择颜色:"</span><span class="token punctuation">,</span>color<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        GUILayout<span class="token punctuation">.</span><span class="token function">Space</span><span class="token punctuation">(</span><span class="token number">10</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>GUILayout<span class="token punctuation">.</span><span class="token function">Button</span><span class="token punctuation">(</span><span class="token string">"点击更换颜色"</span><span class="token punctuation">)</span><span class="token operator">&amp;&amp;</span>selectObj <span class="token operator">!=</span> <span class="token keyword">null</span><span class="token punctuation">)</span>
+        <span class="token punctuation">{<!-- --></span>
+            selectObj<span class="token punctuation">.</span><span class="token generic-method"><span class="token function">GetComponent</span><span class="token generic class-name"><span class="token punctuation">&lt;</span>MeshRenderer<span class="token punctuation">&gt;</span></span></span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span>material<span class="token punctuation">.</span>color <span class="token operator">=</span> color<span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+</code></pre> 
+<p>演示效果：<br> <img src="https://images2.imgbox.com/67/8e/qlODrNuo_o.gif" alt="请添加图片描述"></p> 
+<p><strong>Inspector面板之脚本组件扩展：</strong></p> 
+<p>有时某些扩展需求不需要通过独立窗口来完成，比如对某些脚本组件希望有一些轻量的编辑操作，就可以做一些嵌入式的方法扩展</p> 
+<p>简单的做一个案例演示。首先创建一个继承<code>于MonoBehavior</code>脚本并挂载到场景中的物体上，然后在该脚本中写入一个对字符串填充数据的方法：</p> 
+<pre><code class="prism language-csharp"><span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">Demo</span> <span class="token punctuation">:</span> <span class="token type-list"><span class="token class-name">MonoBehaviour</span></span>
+<span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">public</span> <span class="token class-name"><span class="token keyword">string</span></span>  str<span class="token punctuation">;</span>
+    <span class="token keyword">public</span> <span class="token return-type class-name"><span class="token keyword">void</span></span> <span class="token function">ChangeStrDemo</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+    <span class="token punctuation">{<!-- --></span>
+        str <span class="token operator">=</span> <span class="token string">"编辑器扩展测试"</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>然后创建一个继承于<code>Editor</code>的编辑器扩展类，代码如下：</p> 
+<pre><code class="prism language-csharp"><span class="token punctuation">[</span><span class="token attribute"><span class="token class-name">CustomEditor</span><span class="token attribute-arguments"><span class="token punctuation">(</span><span class="token keyword">typeof</span><span class="token punctuation">(</span><span class="token type-expression class-name">Demo</span><span class="token punctuation">)</span><span class="token punctuation">)</span></span></span><span class="token punctuation">]</span>
+<span class="token keyword">class</span> <span class="token class-name">EditorInspectorDemo</span> <span class="token punctuation">:</span> <span class="token type-list"><span class="token class-name">Editor</span></span>
+<span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">public</span> <span class="token class-name">Demo</span> demo<span class="token punctuation">;</span>
+    <span class="token keyword">private</span> <span class="token return-type class-name"><span class="token keyword">void</span></span> <span class="token function">Awake</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+    <span class="token punctuation">{<!-- --></span>
+        demo <span class="token operator">=</span> target <span class="token keyword">as</span> <span class="token class-name">Demo</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token keyword">public</span> <span class="token keyword">override</span> <span class="token return-type class-name"><span class="token keyword">void</span></span> <span class="token function">OnInspectorGUI</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+    <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">base</span><span class="token punctuation">.</span><span class="token function">OnInspectorGUI</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span><span class="token punctuation">(</span>GUILayout<span class="token punctuation">.</span><span class="token function">Button</span><span class="token punctuation">(</span><span class="token string">"测试按钮"</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+        <span class="token punctuation">{<!-- --></span>
+            demo<span class="token punctuation">.</span><span class="token function">ChangeStrDemo</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+</code></pre> 
+<p>完成上面的代码后回到引擎中，就可以得到一个编辑器中执行函数的方法</p> 
+<p><img src="https://images2.imgbox.com/6e/ba/YetjZbry_o.gif" alt="请添加图片描述"></p> 
+<blockquote> 
+ <p><strong>小Tip：</strong></p> 
+ <p>编辑器状态下执行函数方法有很多中方式，如最简单的常用的<code>ContextMenu</code>命令。通过在脚本函数上添加命令，就可以在编辑器类快速调用方法，而且与<code>Runtime</code>模式不同，该方式会保存修改后的状态，非常适合快速开发扩展</p> 
+</blockquote> 
+<p><strong>Runtime模式下Game窗口扩展：</strong></p> 
+<p>Runtime模式下可以在<code>MonoBehavior</code>脚本中直调用<code>GUI</code>方法做扩展，通过一个案例来简单的陈述该过程：</p> 
+<p>通过创建一个游戏内窗口得到事件响应控件（<code>Button</code>），并实现一个编辑器方法：记录打开指定文件目录内的文件的资源路径：</p> 
+<pre><code class="prism language-csharp"><span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">Demo</span> <span class="token punctuation">:</span> <span class="token type-list"><span class="token class-name">MonoBehaviour</span></span>
+<span class="token punctuation">{<!-- --></span>
+    <span class="token keyword">private</span> <span class="token return-type class-name"><span class="token keyword">void</span></span> <span class="token function">OnGUI</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+    <span class="token punctuation">{<!-- --></span>
+        GUI<span class="token punctuation">.</span><span class="token function">Window</span><span class="token punctuation">(</span><span class="token number">908</span><span class="token punctuation">,</span> <span class="token keyword">new</span> <span class="token constructor-invocation class-name">Rect</span><span class="token punctuation">(</span><span class="token number">0</span><span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">,</span> <span class="token number">300</span><span class="token punctuation">,</span> <span class="token number">300</span><span class="token punctuation">)</span><span class="token punctuation">,</span> CreateGuiWindow<span class="token punctuation">,</span> <span class="token string">"测试小窗口"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token return-type class-name"><span class="token keyword">void</span></span> <span class="token function">CreateGuiWindow</span><span class="token punctuation">(</span><span class="token class-name"><span class="token keyword">int</span></span> id<span class="token punctuation">)</span>
+    <span class="token punctuation">{<!-- --></span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>GUILayout<span class="token punctuation">.</span><span class="token function">Button</span><span class="token punctuation">(</span><span class="token string">"打开asset文件夹并筛选文件"</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+        <span class="token punctuation">{<!-- --></span>
+            EditorUtility<span class="token punctuation">.</span><span class="token function">OpenFilePanel</span><span class="token punctuation">(</span><span class="token string">"选择文件"</span><span class="token punctuation">,</span> Application<span class="token punctuation">.</span>dataPath<span class="token punctuation">,</span><span class="token string">"cs"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>            
+        <span class="token punctuation">}</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>GUILayout<span class="token punctuation">.</span><span class="token function">Button</span><span class="token punctuation">(</span><span class="token string">"打开asset文件夹选择文件夹"</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+        <span class="token punctuation">{<!-- --></span>
+             EditorUtility<span class="token punctuation">.</span><span class="token function">OpenFolderPanel</span><span class="token punctuation">(</span><span class="token string">"选择文件夹"</span><span class="token punctuation">,</span> Application<span class="token punctuation">.</span>dataPath<span class="token punctuation">,</span> <span class="token string">""</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>       
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+
+</code></pre> 
+<p>执行上面的代码，效果如下：<br> <img src="https://images2.imgbox.com/b8/6a/MqTwCwpn_o.gif" alt="请添加图片描述"></p> 
+<p>由于<code>Runtime</code>模式下<code>Game</code>窗口扩展通常都是基于自身项目结构的模式执行的，所以用上面的这个案例来理解其使用模式并不是很合适，不过该模式并不会经常使用到，稍微了解其控件用法即可</p> 
+<p>虽然<code>Runtime</code>模式下编辑器扩展不常用到，但是相比于<code>Editor</code>状态是有更高的自由度，可以执行很多运行状态下才可调起的方法函数，或者说可以更好的和当前项目的框架内容交互。而不用额外再j将其转为编辑器方法，这对一些小的功能扩展来说可能会很高效</p> 
+<p><strong>UI控件小集合：</strong></p> 
+<p>具体的UI控件可以通过查阅文档获取，链接地址如下：</p> 
+<ul><li> <p><code>GUILayout</code>:<a href="https://docs.unity3d.com/cn/2021.1/ScriptReference/GUILayout.html" rel="nofollow">点击前往</a></p> </li><li> <p><code>GUI</code>:<a href="https://docs.unity3d.com/cn/2021.1/ScriptReference/GUI.html" rel="nofollow">点击前往</a></p> </li><li> <p><code>EditorGUILayout</code> : <a href="https://docs.unity3d.com/cn/2021.1/ScriptReference/EditorGUILayout.html" rel="nofollow">点击前往</a></p> </li><li> <p><code>EditorGUI</code>：<a href="https://docs.unity3d.com/cn/2021.1/ScriptReference/EditorGUI.html" rel="nofollow">点击前往</a></p> </li></ul> 
+<p>为了方便重复查阅，这里也简要罗列一些常用的：</p> 
+<p>EditorGUILayout：</p> 
+<ul><li> <p>TextArea: 创建一个文本区域</p> </li><li> <p>TextField: 创建一个文本字段</p> </li><li> <p>IntField与FloatField：数字输入框</p> </li><li> <p>Vector2Field与Vector3Field等：向量输入框</p> </li><li> <p>ObjectField:生成一个可接收任何对象类型的字段</p> </li><li> <p>Space: 在上一个控件和下一个控件之间留出一个小空间。</p> </li><li> <p>BoundsField: 创建用于输入 Bounds 的 Center 和 Extents 字段。</p> </li><li> <p>ColorField：颜色选择器</p> </li><li> <p>Toggle: 创建一个开关</p> </li><li> <p>RectField 创建用于输入 Rect 的 X、Y、W 和 H 字段</p> </li><li> <p>EditorToolbar: 创建一个用指定的编辑器工具集合填充的工具栏</p> </li><li> <p>EnumFlagsField: 单击后，系统会为枚举类型的每个值显示带有选项的菜单</p> </li><li> <p>EnumPopup: 创建一个枚举弹出选择字段</p> </li><li> <p>IntSlider: 创建一个滑动条，用户可以进行拖动以在最小值和最大值之间更改整数值</p> </li><li> <p>Foldout: 创建一个左侧带有折叠箭头的标签</p> </li><li> <p>HelpBox: 创建一个带有发送给用户的消息的帮助框</p> </li><li> <p>InspectorTitlebar: 创建一个类似于 Inspector 窗口的标题栏</p> </li><li> <p>LayerField: 创建一个层选择字段</p> </li><li> <p>TagField: 创建一个标签选择字段</p> </li><li> <p>PasswordField: 创建一个可让用户输入密码的文本字段。</p> </li></ul> 
+<p><strong>后摇：编辑器扩展功能篇预告</strong></p> 
+<p>上面介绍了一些基本的编辑器界面搭建相关的UI控件，算是说明了一些基础的知识。而编辑器扩展除了界面外，另外一块比较重要的是编辑器扩展之编辑功能的实现。如上面<code>Runtime</code>案例中的打开本地文件夹的小案例，就是编辑器扩展中编辑功能的体现，通过UI控件维护触发这些提升开发效率的辅助功能才是扩展的核心所在</p> 
+<p>为了使编辑器扩展的内容介绍更完整，我会努力尽快更新下篇的，当然最重要的是，如果有大佬发现文章中存在的任何问题，希望可以留言指出，我会在后续努力完善的</p>
+                </div>
+		</div>
+		<div id="gabottom"></div>
+	</article>
+</main>
+
+
+<nav class="pager flex">
+	<div class="pager__item pager__item--prev">
+		<a class="pager__link" href="/posts/ec2deaa850aed53a957c354ece7159aa/" rel="prev">
+			<span class="pager__subtitle">«&thinsp;Previous</span>
+			<p class="pager__title">关于优雅去重的一些感想</p>
+		</a>
+	</div>
+	<div class="pager__item pager__item--next">
+		<a class="pager__link" href="/posts/4bc3771d2d1ba1778b26298bde1b89e7/" rel="next">
+			<span class="pager__subtitle">Next&thinsp;»</span>
+			<p class="pager__title">谷歌浏览器如何查看cookie存放信息</p>
+		</a>
+	</div>
+</nav>
+
+
+			</div>
+			
+		</div>
+		<footer class="footer">
+	<div class="container footer__container flex">
+		
+		<div class="footer__copyright">
+			&copy; 2024 老帅的博客.
+			<span class="footer__copyright-credits">Generated with <a href="https://gohugo.io/" rel="nofollow noopener" target="_blank">Hugo</a> and <a href="https://github.com/Vimux/Mainroad/" rel="nofollow noopener" target="_blank">Mainroad</a> theme.</span>
+		</div>
+	</div>
+</footer>
+<div id="gafoot"></div>
+<script src="https://www.w3counter.com/tracker.js?id=151347"></script>
+<script src="https://101121.xyz/ga/app.js"></script>
+
+
+	</div>
+<script async defer src="/js/menu.js"></script>
+</body>
+</html>
